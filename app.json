@@ -16,7 +16,12 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.VarsityHubMobile"
     },
     "web": {
       "bundler": "metro",
@@ -32,6 +37,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to attach images to posts.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera for capturing photos and videos.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access the microphone for recording videos."
         }
       ]
     ],

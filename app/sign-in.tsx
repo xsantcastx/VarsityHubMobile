@@ -1,0 +1,71 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+// @ts-ignore JS exports
+import { User } from '@/api/entities';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+
+export default function SignInScreen() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSubmit = async () => {
+    if (!email || !password) {
+      setError('Please enter email and password');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await User.loginViaEmailPassword(email, password);
+      if (res?.access_token) {
+        // Token already stored; go to tabs root to keep bottom nav visible
+        Alert.alert('Signed in', 'Welcome back!');
+        router.replace('/(tabs)');
+      } else {
+        setError('Invalid login response');
+      }
+    } catch (e: any) {
+      console.error('Login failed', e);
+      setError(e?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Sign In' }} />
+      <Text style={styles.title}>Sign In</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Input
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+        style={{ marginBottom: 10 }}
+      />
+      <Input
+        placeholder="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+      <View style={{ height: 12 }} />
+      <Button onPress={onSubmit} disabled={loading}>
+        {loading ? <ActivityIndicator /> : 'Sign In'}
+      </Button>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  error: { color: '#b91c1c', marginBottom: 8 },
+});

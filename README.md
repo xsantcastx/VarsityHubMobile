@@ -16,6 +16,78 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+### Local API (Node + PostgreSQL)
+
+- Prerequisites: PostgreSQL 14+, Node 18+, npm
+- Configure and run the server:
+
+  ```bash
+  cd server
+  cp .env.example .env   # create and edit values
+  npm install
+  npx prisma migrate dev --name init
+  npm run seed
+  npm run dev
+  # API at http://localhost:4000
+  ```
+
+- Environment for the app (PowerShell):
+
+  ```powershell
+  $env:EXPO_PUBLIC_API_URL = "http://localhost:4000"
+  npm run web:ci
+  ```
+
+- Android emulator uses 10.0.2.2 to reach host:
+  - Set `EXPO_PUBLIC_API_URL=http://10.0.2.2:4000` when running on emulator.
+
+### Windows quick commands (avoid prompts/ports/emulator issues)
+
+- Fix port prompts and start Metro on a fixed port:
+
+  ```powershell
+  npm run start:ci
+  ```
+
+- Start web on a fixed port:
+
+  ```powershell
+  npm run web:ci
+  ```
+
+- Start Android (after your emulator or device is ready):
+
+  ```powershell
+  npm run android:ci
+  ```
+
+- Free a port if something is already using it (replace 8081 as needed):
+
+  ```powershell
+  netstat -aon | findstr :8081
+  taskkill /PID <pid> /F
+  ```
+
+- If the Android emulator shows `cmd: Can't find service: package`:
+
+  1. Start the AVD manually and wait for full boot:
+
+     ```powershell
+     "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe" @Medium_Phone_API_36.0 -no-snapshot-load -wipe-data -no-boot-anim
+     ```
+
+  2. Restart ADB and wait for the device:
+
+     ```powershell
+     adb kill-server; adb start-server; adb wait-for-device; adb devices
+     ```
+
+  3. Then launch from the project:
+
+     ```powershell
+     npm run android:ci
+     ```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  display_name  String?
+  avatar_url    String?
+  bio           String?
+  created_at    DateTime @default(now())
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  title       String
+  date        DateTime
+  location    String?
+  description String?
+  created_at  DateTime @default(now())
+  // Back-relation to posts referencing this game
+  posts       Post[]
+
+  @@index([date])
+}
+
+model Post {
+  id            String   @id @default(cuid())
+  title         String?
+  content       String?
+  type          String?
+  media_url     String?
+  upvotes_count Int      @default(0)
+  game_id       String?
+  game          Game?    @relation(fields: [game_id], references: [id])
+  created_at    DateTime @default(now())
+
+  @@index([created_at])
+
+  comments      Comment[]
+}
+
+model Event {
+  id         String    @id @default(cuid())
+  title      String?
+  date       DateTime?
+  location   String?
+  status     String    @default("draft")
+  capacity   Int?
+  created_at DateTime  @default(now())
+
+  @@index([date])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversation_id String?
+  sender_email    String?
+  recipient_email String?
+  content         String?
+  created_date    DateTime @default(now())
+  read            Boolean  @default(false)
+
+  @@index([created_date])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  post_id    String
+  post       Post     @relation(fields: [post_id], references: [id])
+  author     String?
+  content    String
+  created_at DateTime @default(now())
+
+  @@index([post_id, created_at])
+}
