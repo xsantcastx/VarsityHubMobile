@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -21,11 +21,15 @@ export default function SignInScreen() {
     setLoading(true);
     setError(null);
     try {
-      const res = await User.loginViaEmailPassword(email, password);
+      const res: any = await User.loginViaEmailPassword(email, password);
       if (res?.access_token) {
-        // Token already stored; go to tabs root to keep bottom nav visible
-        Alert.alert('Signed in', 'Welcome back!');
-        router.replace('/(tabs)');
+        if (res?.needs_verification) {
+          Alert.alert('Verify Email', 'Please verify your email to continue.');
+          router.replace('/verify-email');
+        } else {
+          Alert.alert('Signed in', 'Welcome back!');
+          router.replace('/(tabs)');
+        }
       } else {
         setError('Invalid login response');
       }
@@ -60,6 +64,9 @@ export default function SignInScreen() {
       <Button onPress={onSubmit} disabled={loading}>
         {loading ? <ActivityIndicator /> : 'Sign In'}
       </Button>
+      <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/sign-up')}>
+        <Text style={{ color: '#2563EB', fontWeight: '700' }}>Create an account</Text>
+      </Pressable>
     </View>
   );
 }

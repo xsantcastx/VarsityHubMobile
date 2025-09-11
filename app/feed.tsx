@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, Easing, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 // @ts-ignore JS exports
@@ -7,14 +8,16 @@ import { Game, Post as PostApi, User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 import { Ionicons } from '@expo/vector-icons';
+import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
 import { Image } from 'expo-image';
-import { Video } from 'expo-av';
+import VideoPlayer from '@/components/VideoPlayer';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string };
 type PostItem = { id: string; title?: string; content?: string; media_url?: string; created_at?: string };
 
 export default function FeedScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -24,6 +27,8 @@ export default function FeedScreen() {
   const tapTsRef = useRef<Record<string, number>>({});
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [me, setMe] = useState<any>(null);
+  const emailVerified = !!me?.email_verified;
 
   const load = useCallback(async () => {
     let mounted = true;
@@ -31,7 +36,7 @@ export default function FeedScreen() {
       setError(null);
       try {
         // Try to get current user (may throw if unauthenticated)
-        try { await User.me(); } catch {}
+        try { const u = await User.me(); setMe(u); } catch {}
         const [gamesData, postsData]: any = await Promise.all([
           Game.list('-date'),
           PostApi.list('-created_date', 10),
@@ -140,13 +145,16 @@ export default function FeedScreen() {
   }, [games, query]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: 12 + insets.top }]}>
       <Stack.Screen options={{ title: 'VarsityHub' }} />
       {/* Top bar with brand and messages quick link */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Text style={{ fontSize: 22, fontWeight: '800' }}>VarsityHub</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.brandRow}>
+          <Ionicons name="shield-outline" size={28} color="#2563EB" />
+          <Text style={styles.brand}>Feed</Text>
+        </View>
         <Pressable onPress={() => router.push('/messages')} style={{ padding: 8 }}>
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#111827" />
+          <MessagesTabIcon color="#111827" />
         </Pressable>
       </View>
       {error && (
@@ -157,8 +165,17 @@ export default function FeedScreen() {
           </Pressable>
         </View>
       )}
-      <Input placeholder="Search by Zip Code..." value={query} onChangeText={setQuery} style={{ marginBottom: 12 }} />
-      <Text style={[styles.muted, { marginBottom: 10 }]}>Showing upcoming and recent games in your area.</Text>
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={20} color="#6b7280" />
+        <TextInput
+          placeholder="Search by Zip Code..."
+          placeholderTextColor="#9CA3AF"
+          value={query}
+          onChangeText={setQuery}
+          style={styles.searchInput}
+        />
+      </View>
+      <Text style={styles.helper}>Showing upcoming and recent games in your area.</Text>
 
       {loading && (
         <View style={styles.center}> <ActivityIndicator /> </View>
@@ -170,10 +187,16 @@ export default function FeedScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
+        ListHeaderComponent={() => (me && !emailVerified ? (
+          <Pressable onPress={() => router.push('/verify-email')} style={{ padding: 10, borderRadius: 10, backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A', marginBottom: 10 }}>
+            <Text style={{ color: '#92400E', fontWeight: '700' }}>Verify your email to unlock posting and ads. Tap to verify.</Text>
+          </Pressable>
+        ) : null)}
         renderItem={({ item, index }) => (
           <>
             {/* Card */}
-            <Pressable style={styles.card} onPress={() => router.push(`/game-detail?id=${item.id}`)}>
+            <Pressable style={styles.card} onPress={() => router.push(`/(tabs)/game-detail?id=${item.id}`)}>
+              <View style={styles.hero} />
               {item.date ? (
                 <Text style={styles.cardDate}>{format(new Date(item.date), 'EEE, MMM d, yyyy')}</Text>
               ) : null}
@@ -181,22 +204,29 @@ export default function FeedScreen() {
               <Text style={styles.cardMeta}>{item.location || 'TBD'}</Text>
               <View style={styles.tagRow}>
                 <View style={styles.tag}>
-                  <Ionicons name="star-outline" size={14} color="#6b7280" />
+                  <Ionicons name="chatbubble-ellipses-outline" size={14} color="#6b7280" />
                   <Text style={styles.tagText}>Reviews</Text>
                 </View>
                 <View style={styles.tag}>
-                  <Ionicons name="images-outline" size={14} color="#6b7280" />
+                  <Ionicons name="camera-outline" size={14} color="#6b7280" />
                   <Text style={styles.tagText}>Photos & Videos</Text>
                 </View>
               </View>
             </Pressable>
             {/* Sponsored card after the first item */}
-            {index === 0 ? (
+            {false && index === 0 ? (
               <View style={styles.sponsored}>
-                <Text style={styles.sponsoredBadge}>Sponsored</Text>
+                <Text style={styles.sponsoredBadge}>SPONSORED</Text>
                 <Text style={[styles.cardTitle, { marginTop: 6 }]}>SportsCare Physical Therapy</Text>
                 <Text style={styles.cardMeta}>Get back in the game faster · Now accepting new patients</Text>
               </View>
+            ) : null}
+            {/* Your ad slot */}
+            {index === 0 ? (
+              <Pressable style={{ padding: 16, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 2, borderStyle: 'dashed', borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' }} onPress={() => router.push('/submit-ad')}>
+                <Text style={{ fontWeight: '800', fontSize: 18, marginBottom: 4 }}>Your Ad Here</Text>
+                <Text style={styles.muted}>Click to submit a local ad</Text>
+              </Pressable>
             ) : null}
           </>
         )}
@@ -204,7 +234,7 @@ export default function FeedScreen() {
         ListFooterComponent={
           posts.length > 0 ? (
             <View style={{ marginTop: 16 }}>
-              <Text style={{ fontWeight: '800', marginBottom: 8 }}>Latest Posts</Text>
+              <Text style={styles.sectionTitle}>Latest Posts</Text>
               {posts.map((p, idx) => {
                 const url = String(p.media_url || '');
                 const isVideo = url ? /\.(mp4|mov|webm|m4v)$/i.test(url) : false;
@@ -232,7 +262,7 @@ export default function FeedScreen() {
                     {isVideo ? (
                       <Pressable onPress={() => onMediaPress(String(p.id))} style={{ marginBottom: 8 }}>
                         <View style={{ position: 'relative' }}>
-                          <Video source={{ uri: url }} style={{ width: '100%', height: 200, borderRadius: 10, backgroundColor: '#111827' }} useNativeControls resizeMode="contain" />
+                          <VideoPlayer uri={url} style={{ width: '100%', height: 200, borderRadius: 10, backgroundColor: '#111827' }} />
                           <Animated.View
                             pointerEvents="none"
                             style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
@@ -268,25 +298,41 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, padding: 16, backgroundColor: '#F8FAFC' },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 12 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { color: '#6b7280' },
+  helper: { color: '#6b7280', marginBottom: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brand: { fontSize: 28, fontWeight: '900' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  searchInput: { flex: 1, height: 44 },
   card: { padding: 14, borderRadius: 14, backgroundColor: 'white', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  hero: { height: 140, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 12 },
   cardDate: { color: '#2563EB', fontWeight: '700', marginBottom: 4 },
   cardTitle: { fontWeight: '800', fontSize: 18, marginBottom: 2 },
   cardMeta: { color: '#6b7280' },
-  tagRow: { flexDirection: 'row', gap: 16, marginTop: 10 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tagText: { color: '#6b7280', fontWeight: '600' },
-  sponsored: { padding: 14, borderRadius: 14, backgroundColor: '#EEF2FF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#DBEAFE' },
+  tagRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#F3F4F6' },
+  tagText: { color: '#6b7280', fontWeight: '700', fontSize: 12 },
+  sponsored: { padding: 14, borderRadius: 14, backgroundColor: '#F1F5F9', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0' },
+  sponsoredBadge: { color: '#6b7280', fontWeight: '800', fontSize: 10, letterSpacing: 1 },
+  adSlot: { padding: 16, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 2, borderStyle: 'dashed', borderColor: '#D1D5DB', alignItems: 'center', justifyContent: 'center' },
+  adTitle: { fontWeight: '800', fontSize: 18, marginBottom: 4 },
   postCard: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', marginBottom: 10 },
   postTitle: { fontWeight: '700', marginBottom: 4 },
   postContent: { color: '#111827' },
   postLink: { color: '#2563EB', marginTop: 6 },
+  sectionTitle: { fontWeight: '800', marginBottom: 8 },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   countChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   countChipText: { color: '#111827', fontWeight: '700', fontSize: 12 },
 });
+
+
+
+
+
 

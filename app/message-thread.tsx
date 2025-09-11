@@ -1,0 +1,172 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, TextInput, KeyboardAvoidingView, Platform, Pressable, Modal } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+// @ts-ignore JS exports
+import { Message as MessageApi, User } from '@/api/entities';
+
+type Msg = { id: string | number; conversation_id?: string; sender_email?: string; recipient_email?: string; content?: string; created_date?: string };
+
+export default function MessageThreadScreen() {
+  const { conversation_id, with: withParam } = useLocalSearchParams<{ conversation_id?: string; with?: string }>();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<any>(null);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [text, setText] = useState('');
+  const flatRef = useRef<FlatList<Msg>>(null);
+  const [safetyOpen, setSafetyOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const user = await User.me();
+      setMe(user);
+      let list: Msg[] = [];
+      if (conversation_id) list = await MessageApi.threadByConversation(String(conversation_id), 100);
+      else if (withParam) list = await MessageApi.threadWith(String(withParam), 100);
+      // Show oldest first in chat view
+      list = Array.isArray(list) ? list.slice().reverse() : [];
+      setMsgs(list);
+    } catch (e: any) {
+      setError('Unable to load conversation. You may need to sign in.');
+    } finally {
+      setLoading(false);
+    }
+  }, [conversation_id, withParam]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Mark as read on open
+  useEffect(() => {
+    (async () => {
+      try {
+        if (conversation_id) await MessageApi.markReadByConversation(String(conversation_id));
+        else if (withParam) await MessageApi.markReadWith(String(withParam));
+      } catch {}
+    })();
+  }, [conversation_id, withParam]);
+
+  useEffect(() => {
+    // Auto-scroll to bottom when messages change
+    if (flatRef.current) {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  }, [msgs.length]);
+
+  const send = async () => {
+    const content = text.trim();
+    if (!content) return;
+    setText('');
+    try {
+      const created = await MessageApi.send({ content, conversation_id: conversation_id as string | undefined, recipient_email: withParam as string | undefined });
+      setMsgs((arr) => arr.concat(created));
+    } catch (e) {
+      setError('Failed to send message');
+    }
+  };
+
+  const title = useMemo(() => {
+    if (withParam) return String(withParam);
+    if (conversation_id) return 'Conversation';
+    return 'Messages';
+  }, [withParam, conversation_id]);
+
+  const renderItem = ({ item }: { item: Msg }) => {
+    const mine = me?.email && item.sender_email === me.email;
+    return (
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
+        <Text style={styles.bubbleText}>{item.content}</Text>
+      </View>
+    );
+  };
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
+      <View style={styles.container}>
+        <Stack.Screen
+          options={{
+            title,
+            headerRight: () => (
+              <Pressable onPress={() => setSafetyOpen(true)} style={{ paddingHorizontal: 8, paddingVertical: 6 }} accessibilityLabel="Safety">
+                <Ionicons name="shield-checkmark-outline" size={20} color="#111827" />
+              </Pressable>
+            ),
+          }}
+        />
+        {loading && (
+          <View style={styles.center}><ActivityIndicator /></View>
+        )}
+        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {!loading && (
+          <FlatList
+            ref={flatRef}
+            data={msgs}
+            keyExtractor={(m) => String(m.id)}
+            renderItem={renderItem}
+            contentContainerStyle={{ paddingVertical: 12, gap: 8 }}
+          />
+        )}
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message"
+            value={text}
+            onChangeText={setText}
+            multiline
+          />
+          <Pressable onPress={send} style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]} disabled={!text.trim()}>
+            <Text style={styles.sendText}>Send</Text>
+          </Pressable>
+        </View>
+
+        {/* Safety sheet */}
+        <Modal visible={safetyOpen} transparent animationType="fade" onRequestClose={() => setSafetyOpen(false)}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Safety</Text>
+              <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/report-abuse'); }}>
+                <Ionicons name="flag-outline" size={18} color="#111827" />
+                <Text style={styles.sheetText}>Report conversation</Text>
+              </Pressable>
+              <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/blocked-users'); }}>
+                <Ionicons name="person-remove-outline" size={18} color="#111827" />
+                <Text style={styles.sheetText}>Block or manage blocked</Text>
+              </Pressable>
+              <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/dm-restrictions'); }}>
+                <Ionicons name="options-outline" size={18} color="#111827" />
+                <Text style={styles.sheetText}>DM restrictions</Text>
+              </Pressable>
+              <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings'); }}>
+                <Ionicons name="settings-outline" size={18} color="#111827" />
+                <Text style={styles.sheetText}>Privacy & settings</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: 'white' },
+  center: { paddingVertical: 24, alignItems: 'center' },
+  error: { color: '#b91c1c', padding: 16 },
+  bubble: { maxWidth: '80%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginHorizontal: 12, marginVertical: 4 },
+  bubbleMine: { alignSelf: 'flex-end', backgroundColor: '#111827' },
+  bubbleTheirs: { alignSelf: 'flex-start', backgroundColor: '#E5E7EB' },
+  bubbleText: { color: 'white' },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#E5E7EB', gap: 8 },
+  input: { flex: 1, minHeight: 40, maxHeight: 120, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  sendBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendText: { color: 'white', fontWeight: '700' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'flex-end' },
+  sheet: { width: '100%', backgroundColor: 'white', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 10 },
+  sheetTitle: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  sheetText: { fontWeight: '700', color: '#111827' },
+});

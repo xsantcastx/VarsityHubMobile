@@ -3,6 +3,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
+      // Expo Router transforms
+      'expo-router/babel',
       ['module-resolver', {
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         alias: {
@@ -11,8 +13,12 @@ module.exports = function (api) {
           '@/constants': './constants',
           '@/hooks': './hooks',
           '@': './src',
+          // Shim problematic nested deps on Windows
+          'is-arrayish': './shims/is-arrayish',
         }
       }],
+      // Reanimated must be listed last
+      'react-native-reanimated/plugin',
     ],
   };
 };

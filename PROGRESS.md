@@ -162,3 +162,41 @@ Current focus
 
 - Create Post / Create Team / Edit Profile forms with RN inputs
 - Settings (User/Team) sections
+
+---
+
+- Day 5 - 2025-09-10
+  - Create hub: Expanded `app/create.tsx` with quick actions for Create Post, Create Fan Event, Create Team, and Submit Ad; kept modal presentation and tab-bar context via `(tabs)/create` re-export.
+  - Highlights screen: Implemented `app/highlights.tsx` as a media-first feed pulling recent posts with images/videos. Added search, simple All/Photos/Videos filters, double-tap like with heart overlay, and error/empty states.
+  - Minor: Ensured Create hub includes link to `app/create-fan-event.tsx` (stub) for parity with web.
+  - Settings: Implemented `app/settings.tsx` with Account (email, display name, bio + link to Edit Profile), Privacy (Private Account toggle, DM Restrictions, Blocked Users), and Notifications toggles. Persisted profile fields to `/auth/me`; stored privacy/DM/notifications locally via `src/api/settings.ts`. Added simple UIs for `app/blocked-users.tsx` and `app/dm-restrictions.tsx`. Added Settings button on Profile.
+  - RSVP: Added Prisma model `EventRsvp`, backend endpoints `GET /events/:id`, `GET /events/:id/rsvp`, `POST /events/:id/rsvp`. Wired `app/event-detail.tsx` to show current RSVP status/count and toggle via the API.
+  - Docs: Added `DEV_START.md` with step-by-step local run instructions (server, web, Android). Also see root `package.json` scripts.
+  - Teams scaffolding: Implemented read-only mobile UIs for `app/manage-teams.tsx` (searchable list + link to team profile), `app/manage-users.tsx` (searchable roster with roles/status), `app/team-profile.tsx` (details + members + links), and `app/team-contacts.tsx` (contact list). These use placeholder data until backend is added.
+  - Teams backend: Added Prisma models `Team` and `TeamMembership`, routes `/teams` (list), `/teams/:id`, `/teams/:id/members`, `/teams/members/all`. Updated mobile screens to fetch from API instead of placeholders. Seed now creates two teams and memberships.
+  - Team creation: Added `POST /teams` (creator becomes owner) and implemented `app/create-team.tsx` form to create a team and redirect to its profile.
+  - Messages UX: Feed header now shows an unread badge using `components/ui/MessagesTabIcon.tsx`.
+  - RSVP history: Added `GET /events/my-rsvps` and new screen `app/rsvp-history.tsx` showing upcoming and past RSVPs with quick links to event detail.
+  - Messages polish: Added `POST /messages/mark-read` and mark threads as read on open in `app/message-thread.tsx`. Unread badge now polls up to 200 recent messages.
+  - Team invites: Added Prisma `TeamInvite` plus routes: `POST /teams/:id/invite`, `GET /teams/invites/me`, `POST /teams/invites/:id/accept`, `POST /teams/invites/:id/decline`. Implemented `app/team-invites.tsx` to accept/decline and linked it from Settings.
+  - Navigation links: Added "RSVP History" to Profile and Settings.
+  - Tabs polish: Reduced to icons-only and updated Discover to a magnifying glass icon. Removed hidden tab placeholders to match s1 (Feed, Highlights, +, Discover, Profile).
+  - Feed polish: Added subtle background, helper copy spacing, tag pills, optional thumbnail on game cards, and a dashed "Your Ad Here" slot linking to Submit Ad (hides old sponsored block). Header shows app logo.
+  - Game Detail (s2): Implemented hero banner, overlay title/date, "Live Stories" section with Add to Story button and dashed placeholder, and "Community Posts" counts (reviews/photos/highlights) using new filters and counts in `/posts`. Added `Game.get` and `Post.filter`/`Post.count` APIs; server supports `GET /posts?game_id=&type=` and `GET /posts/count`.
+  - Ads backend: Added Prisma model `AdReservation`, routes `GET /ads/reservations` and `POST /ads/reservations`. Updated `app/ad-calendar.tsx` to fetch reserved dates (disabled in calendar) and post reservations with server-calculated price.
+
+What’s next (refined)
+
+1) Settings (User): implement toggles/sections and persist to `/auth/me`.
+2) Messages: add thread/detail screen + composer; extend backend with `POST /messages`.
+3) Event/Game Detail: wire RSVP endpoint and polish actions.
+4) Team management: scaffold team-profile, team-contacts, manage-teams/users; start read-only.
+5) Ads: connect ad calendar to backend endpoint to store reservations + pricing.
+
+How to run locally
+
+- See `DEV_START.md` for full steps. Quick start:
+  - Server: `npm run server:install && npm run server:dev` (first time: `npm run server:db:migrate && npm run server:db:s  eeed`)
+  - Web: `npm run web:ci`
+  - Android: set `$env:EXPO_PUBLIC_API_URL='http://10.0.2.2:4000'` then `npm run android:ci`
+  - After pulling schema changes (RSVP, Ads): `npm run server:db:migrate`

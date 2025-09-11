@@ -28,6 +28,11 @@ export async function loadToken(): Promise<string | null> {
 }
 
 export const auth = {
+  async register(email: string, password: string, display_name?: string) {
+    const res = await httpPost('/auth/register', { email, password, display_name });
+    if ((res as any)?.access_token) await saveToken((res as any).access_token);
+    return res;
+  },
   async login(email: string, password: string) {
     const res = await httpPost('/auth/login', { email, password });
     if (res?.access_token) await saveToken(res.access_token);
@@ -44,8 +49,15 @@ export const auth = {
       else await SecureStore.deleteItemAsync(TOKEN_KEY);
     } catch {}
   },
+  async requestEmailVerification() {
+    await loadToken();
+    return httpPost('/auth/verify/request', {});
+  },
+  async verifyEmail(code: string) {
+    await loadToken();
+    return httpPost('/auth/verify/confirm', { code });
+  },
   getToken: loadToken,
 };
 
 export default auth;
-
