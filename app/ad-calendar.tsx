@@ -1,8 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+// @ts-ignore
+import { getAuthToken } from '@/api/http';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format, startOfToday } from 'date-fns';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+// @ts-ignore JS exports
+import { Advertisement } from '@/api/entities';
 
 const weekdayRate = 10;
 const weekendRate = 17.5;
@@ -41,18 +46,33 @@ export default function AdCalendarScreen() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [reserved, setReserved] = useState<Set<string>>(new Set());
+  // Load already-reserved dates
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res: any = await Advertisement.reservedDates();
+        if (!mounted) return;
+        setReserved(new Set<string>(Array.isArray(res?.dates) ? res.dates : []));
+      } catch {}
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
 
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean } | { disabled: boolean } | any> = {};
     for (const d of selected) obj[d] = { selected: true };
+    for (const d of reserved) obj[d] = { disabled: true, disableTouchEvent: true };
     return obj;
-  }, [selected]);
+  }, [selected, reserved]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
     if (iso < todayISO()) return;
+    if (reserved.has(iso)) return;
     setSelected(prev => toggleSet(prev, iso));
   };
 
@@ -63,12 +83,28 @@ export default function AdCalendarScreen() {
     }
     setSubmitting(true);
     try {
-      await new Promise(r => setTimeout(r, 500));
-      Alert.alert('Payment successful', 'Your ad has been scheduled.');
-      router.back();
+      const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const r = await fetch(`${base.replace(/\/$/, '')}/payments/checkout`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ad_id: String(adId), dates }),
+      });
+      const txt = await r.text();
+      const data = txt ? JSON.parse(txt) : null;
+      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      if (data?.url) {
+        await WebBrowser.openBrowserAsync(String(data.url));
+        Alert.alert('Payment', 'If you completed payment, reservations will appear shortly.');
+        router.replace('/(tabs)/my-ads');
+      }
     } catch (err) {
-      console.error('Failed to process payment:', err);
-      Alert.alert('Error', 'An error occurred during payment. Please try again.');
+      console.error('Failed to start checkout:', err);
+      const msg = (err as any)?.message || 'An error occurred starting checkout.';
+      Alert.alert('Error', msg);
     } finally {
       setSubmitting(false);
     }
@@ -206,3 +242,4 @@ const styles = StyleSheet.create({
   payBtnText: { color: 'white', fontSize: 16, fontWeight: '700' },
 });
 
+ 

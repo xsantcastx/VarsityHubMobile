@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 export const postsRouter = Router();
 
@@ -10,6 +11,9 @@ postsRouter.get('/', async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
   const cursor = (req.query.cursor as string | undefined) || undefined;
   const orderBy = sort === '-created_date' ? { created_at: 'desc' as const } : { created_at: 'desc' as const };
+  const where: any = {};
+  if (req.query.game_id) where.game_id = String(req.query.game_id);
+  if (req.query.type) where.type = String(req.query.type);
 
   if (cursor) {
     const rows = await prisma.post.findMany({
@@ -18,13 +22,23 @@ postsRouter.get('/', async (req, res) => {
       skip: 1,
       take: limit + 1,
       include: { _count: { select: { comments: true } } },
+      where,
     });
     const items = rows.slice(0, limit);
     const nextCursor = rows.length > limit ? rows[limit].id : null;
     return res.json({ items, nextCursor });
   }
-  const posts = await prisma.post.findMany({ orderBy, take: limit, include: { _count: { select: { comments: true } } } });
+  const posts = await prisma.post.findMany({ orderBy, take: limit, include: { _count: { select: { comments: true } } }, where });
   res.json(posts);
+});
+
+// Count posts by simple filters (e.g., game_id, type)
+postsRouter.get('/count', async (req, res) => {
+  const where: any = {};
+  if (req.query.game_id) where.game_id = String(req.query.game_id);
+  if (req.query.type) where.type = String(req.query.type);
+  const count = await prisma.post.count({ where });
+  res.json({ count });
 });
 
 const createPostSchema = z
@@ -42,8 +56,7 @@ const createPostSchema = z
     path: ['content'],
   });
 
-postsRouter.post('/', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({

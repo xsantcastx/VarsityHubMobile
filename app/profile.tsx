@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -61,6 +61,11 @@ export default function ProfileScreen() {
       )}
       {me && !loading && (
         <View style={{ gap: 16 }}>
+          {!me.email_verified ? (
+            <Pressable onPress={() => router.push('/verify-email')} style={{ padding: 10, borderRadius: 10, backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A' }}>
+              <Text style={{ color: '#92400E', fontWeight: '700' }}>Verify your email to unlock posting and ads. Tap to verify.</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.headerRow}>
             <Avatar uri={me.avatar_url} size={72} />
             <View style={{ flex: 1 }}>
@@ -71,6 +76,8 @@ export default function ProfileScreen() {
           {me.bio ? <Text>{me.bio}</Text> : null}
 
           <Button onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
+          <Button variant="outline" onPress={() => router.push('/settings')}>Settings</Button>
+          <Button variant="outline" onPress={() => router.push('/rsvp-history')}>RSVP History</Button>
           <Button variant="outline" onPress={() => { try { User.logout(); } catch {} router.replace('/sign-in'); }}>Sign Out</Button>
 
           {/* Debug: basic fields we commonly expect; helps during migration */}

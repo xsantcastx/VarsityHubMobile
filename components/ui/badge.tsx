@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, ViewProps } from 'react-native';
 
 export function Badge({ children, style }: { children?: React.ReactNode; style?: ViewProps['style'] }) {
+  const isPrimitive = (v: any) => typeof v === 'string' || typeof v === 'number';
+  const arrayIsPrimitive = Array.isArray(children) && children.every(isPrimitive);
+  const shouldWrapInText = isPrimitive(children) || arrayIsPrimitive;
   return (
     <View style={[styles.badge, style]}>
-      {typeof children === 'string' ? <Text style={styles.text}>{children}</Text> : children}
+      {shouldWrapInText ? <Text style={styles.text}>{children as any}</Text> : children}
     </View>
   );
 }
@@ -15,4 +18,3 @@ const styles = StyleSheet.create({
 });
 
 export default Badge;
-

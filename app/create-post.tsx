@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { uploadFile } from '@/api/upload';
 import { Platform } from 'react-native';
-import { Video } from 'expo-av';
+import VideoPlayer from '@/components/VideoPlayer';
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -128,12 +128,7 @@ export default function CreatePostScreen() {
           {picked.type === 'image' ? (
             <RNImage source={{ uri: picked.uri }} style={{ width: '100%', height: 220, borderRadius: 10 }} />
           ) : (
-            <Video
-              source={{ uri: picked.uri }}
-              style={{ width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111827' }}
-              useNativeControls
-              resizeMode="contain"
-            />
+            <VideoPlayer uri={picked.uri} style={{ width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111827' }} />
           )}
         </View>
       ) : null}

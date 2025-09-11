@@ -22,9 +22,16 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(base + path, { ...options, headers });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+  let data: any = null;
+  if (ct.includes('application/json')) {
+    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  } else {
+    data = text; // plain text or HTML
+  }
   if (!res.ok) {
-    const err: any = new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+    const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
+    const err: any = new Error(msg || `HTTP ${res.status}`);
     err.status = res.status; err.data = data; throw err;
   }
   return data;
@@ -33,4 +40,3 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
 export function httpGet(path: string) { return request(path, { method: 'GET' }); }
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }); }
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
-

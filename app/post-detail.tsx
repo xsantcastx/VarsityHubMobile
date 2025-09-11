@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
-import { Video } from 'expo-av';
+import VideoPlayer from '@/components/VideoPlayer';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
@@ -71,7 +71,7 @@ export default function PostDetailScreen() {
             <Image source={{ uri: post.media_url }} style={{ width: '100%', height: 240, borderRadius: 10 }} contentFit="cover" />
           ) : null}
           {isVideo ? (
-            <Video source={{ uri: post.media_url }} style={{ width: '100%', height: 260, borderRadius: 10 }} useNativeControls resizeMode="contain" />
+            <VideoPlayer uri={post.media_url} style={{ width: '100%', height: 260, borderRadius: 10 }} />
           ) : null}
           {post.content ? <Text>{post.content}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -107,4 +107,3 @@ const styles = StyleSheet.create({
   likeBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   commentBox: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 },
 });
-

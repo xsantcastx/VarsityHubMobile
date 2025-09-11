@@ -10,7 +10,7 @@ export default function MessagesTabIcon({ color }: { color: string }) {
     let alive = true;
     const load = async () => {
       try {
-        const list: any[] = await (Message.list ? Message.list('-created_date', 20) : []);
+        const list: any[] = await (Message.list ? Message.list('-created_date', 200) : []);
         if (!alive) return;
         const count = (list || []).filter((m: any) => !m.read).length;
         setUnread(count);
@@ -28,10 +28,20 @@ export default function MessagesTabIcon({ color }: { color: string }) {
   ) : null;
 
   return (
-    <View style={{ width: 28, height: 28 }}>
-      <IconSymbol size={28} name="bubble.left.and.bubble.right.fill" color={color} />
-      {badge}
+    <View style={{
+      width: 36,
+      height: 36,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: '#FFFFFF',
+      backgroundColor: 'rgba(255,255,255,0.2)'
+    }}>
+      <View style={{ width: 28, height: 28 }}>
+        <IconSymbol size={28} name="bubble.left.and.bubble.right.fill" color={color} />
+        {badge}
+      </View>
     </View>
   );
 }
-

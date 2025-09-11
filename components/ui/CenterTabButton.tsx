@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    top: -12,
+    top: -8,
     width: 64,
   },
   button: {
@@ -53,4 +53,3 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
 });
-

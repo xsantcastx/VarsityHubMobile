@@ -15,6 +15,14 @@ model User {
   avatar_url    String?
   bio           String?
   created_at    DateTime @default(now())
+  email_verified Boolean  @default(false)
+  email_verification_code String?
+  email_verification_expires DateTime?
+  memberships   TeamMembership[]
+  rsvps         EventRsvp[]
+  stories       Story[]
+  ads           Ad[]
+  banned        Boolean  @default(false)
 }
 
 model Game {
@@ -23,9 +31,11 @@ model Game {
   date        DateTime
   location    String?
   description String?
+  cover_image_url String?
   created_at  DateTime @default(now())
   // Back-relation to posts referencing this game
   posts       Post[]
+  stories     Story[]
 
   @@index([date])
 }
@@ -56,6 +66,7 @@ model Event {
   created_at DateTime  @default(now())
 
   @@index([date])
+  rsvps      EventRsvp[]
 }
 
 model Message {
@@ -79,4 +90,102 @@ model Comment {
   created_at DateTime @default(now())
 
   @@index([post_id, created_at])
+}
+
+model EventRsvp {
+  id         String   @id @default(cuid())
+  event_id   String
+  user_id    String
+  user_email String?
+  created_at DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id])
+  user  User  @relation(fields: [user_id], references: [id])
+
+  @@unique([event_id, user_id])
+  @@index([event_id, created_at])
+}
+
+model AdReservation {
+  id         String   @id @default(cuid())
+  ad_id      String
+  ad         Ad       @relation(fields: [ad_id], references: [id])
+  date       DateTime
+  created_at DateTime @default(now())
+
+  @@unique([date])
+  @@index([ad_id, date])
+}
+
+model Ad {
+  id              String   @id @default(cuid())
+  user_id         String?
+  user            User?    @relation(fields: [user_id], references: [id])
+  contact_name    String?
+  contact_email   String?
+  business_name   String?
+  banner_url      String?
+  target_zip_code String?
+  radius          Int?     @default(45)
+  description     String?
+  status          String   @default("draft") // draft | active | archived | pending
+  payment_status  String   @default("unpaid") // unpaid | paid | refunded
+  created_at      DateTime @default(now())
+
+  reservations AdReservation[]
+
+  @@index([user_id, created_at])
+}
+
+model Story {
+  id         String   @id @default(cuid())
+  game_id    String
+  user_id    String?
+  media_url  String
+  caption    String?
+  created_at DateTime @default(now())
+
+  game Game  @relation(fields: [game_id], references: [id])
+  user User? @relation(fields: [user_id], references: [id])
+
+  @@index([game_id, created_at])
+}
+
+model Team {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  status      String           @default("active")
+  created_at  DateTime         @default(now())
+
+  memberships TeamMembership[]
+  invites     TeamInvite[]
+}
+
+model TeamMembership {
+  id         String   @id @default(cuid())
+  team_id    String
+  user_id    String
+  role       String   @default("member") // owner | manager | member
+  status     String   @default("active") // active | invited | archived
+  created_at DateTime @default(now())
+
+  team Team @relation(fields: [team_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
+
+  @@unique([team_id, user_id])
+  @@index([team_id, created_at])
+}
+
+model TeamInvite {
+  id         String   @id @default(cuid())
+  team_id    String
+  email      String
+  role       String   @default("member") // owner | manager | member
+  status     String   @default("pending") // pending | accepted | declined | revoked
+  created_at DateTime @default(now())
+
+  team Team @relation(fields: [team_id], references: [id])
+
+  @@index([team_id, email])
 }

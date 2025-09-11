@@ -14,6 +14,7 @@ export default function EventDetailScreen() {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [me, setMe] = useState<any>(null);
   const [rsvped, setRsvped] = useState<boolean>(false);
+  const [attendeesCount, setAttendeesCount] = useState<number>(0);
 
   useEffect(() => {
     let mounted = true;
@@ -22,18 +23,16 @@ export default function EventDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const [data, user]: any = await Promise.all([
-          (Event.get ? Event.get(id as string) : Event.filter({ id }).then((r: any[]) => r?.[0])),
+        const [data, user, status]: any = await Promise.all([
+          Event.get(String(id)).catch(() => null),
           User.me().catch(() => null),
+          Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
         ]);
         if (!mounted) return;
         setEvent(data ?? null);
         setMe(user);
-        if (data && user && Array.isArray((data as any).attendees)) {
-          // naive check based on email if available
-          const found = (data as any).attendees.some((a: any) => a === user.email || a?.email === user.email);
-          setRsvped(!!found);
-        }
+        setRsvped(!!status?.attending);
+        setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
       } catch (e: any) {
         if (!mounted) return;
         console.error('Failed to load event detail', e);
@@ -46,7 +45,7 @@ export default function EventDetailScreen() {
     return () => { mounted = false; };
   }, [id]);
 
-  const attendeeCount = useMemo(() => event?.attendees?.length || 0, [event]);
+  const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
 
   const onShare = async () => {
     if (!event) return;
@@ -64,9 +63,10 @@ export default function EventDetailScreen() {
   const toggleRsvp = async () => {
     if (!event) return;
     try {
-      // TODO: integrate with backend RSVP endpoint. For now, simulate success.
-      setRsvped(prev => !prev);
-      Alert.alert('Success', rsvped ? 'RSVP canceled.' : 'RSVP confirmed.');
+      const res = await Event.rsvp(String(event.id), !rsvped);
+      setRsvped(!!res?.attending);
+      setAttendeesCount(Number(res?.count || 0));
+      Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
     } catch (e) {
       Alert.alert('Error', 'Unable to update RSVP.');
     }

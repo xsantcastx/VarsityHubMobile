@@ -94,7 +94,7 @@ export default function DiscoverScreen() {
         <>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Next Events</Text>
-            <Badge>{String(filteredEvents.length)} upcoming</Badge>
+            <Badge>{`${filteredEvents.length} upcoming`}</Badge>
           </View>
           {filteredEvents.length === 0 ? (
             <Card style={{ marginBottom: 16 }}>
@@ -130,7 +130,7 @@ export default function DiscoverScreen() {
 
           <View style={[styles.sectionHeader, { marginTop: 8 }]}>
             <Text style={styles.sectionTitle}>Following</Text>
-            <Badge>{String(filteredPosts.length)} posts</Badge>
+            <Badge>{`${filteredPosts.length} posts`}</Badge>
           </View>
           {filteredPosts.length === 0 ? (
             <Card>

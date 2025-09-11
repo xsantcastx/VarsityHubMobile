@@ -1,0 +1,215 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, Share, ScrollView, Modal } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadFile } from '@/api/upload';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams } from 'expo-router';
+// @ts-ignore JS exports
+import { Game, Post as PostApi } from '@/api/entities';
+
+type GameItem = { id: string; title?: string; date?: string; location?: string; description?: string };
+
+export default function GameDetailScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [game, setGame] = useState<GameItem | null>(null);
+  const [counts, setCounts] = useState<{ reviews: number; photos: number; highlights: number }>({ reviews: 0, photos: 0, highlights: 0 });
+  const [stories, setStories] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [highlights, setHighlights] = useState<any[]>([]);
+  const [viewer, setViewer] = useState<{ visible: boolean; uri: string | null }>({ visible: false, uri: null });
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      if (!id) { setLoading(false); return; }
+      setLoading(true);
+      setError(null);
+      try {
+        const gid = String(id);
+        const data: any = await Game.get(gid);
+        const [r, p, h, s, rp, pp, hp] = await Promise.all([
+          PostApi.count({ game_id: gid, type: 'review' }),
+          PostApi.count({ game_id: gid, type: 'photo' }),
+          PostApi.count({ game_id: gid, type: 'highlight' }),
+          Game.stories(gid),
+          PostApi.filter({ game_id: gid, type: 'review' }, '-created_date', 3),
+          PostApi.filter({ game_id: gid, type: 'photo' }, '-created_date', 8),
+          PostApi.filter({ game_id: gid, type: 'highlight' }, '-created_date', 8),
+        ]);
+        if (!mounted) return;
+        setGame(data ?? null);
+        setCounts({ reviews: Number(r?.count || 0), photos: Number(p?.count || 0), highlights: Number(h?.count || 0) });
+        setStories(Array.isArray(s) ? s : []);
+        setReviews(Array.isArray(rp) ? rp : (rp?.items || []));
+        setPhotos(Array.isArray(pp) ? pp : (pp?.items || []));
+        setHighlights(Array.isArray(hp) ? hp : (hp?.items || []));
+      } catch (e: any) {
+        if (!mounted) return;
+        console.error('Failed to load game detail', e);
+        setError('Unable to load game.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
+  }, [id]);
+
+  const addStory = async () => {
+    if (!id) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+    if (r.canceled || !r.assets || !r.assets[0]) return;
+    const a = r.assets[0];
+    try {
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const up = await uploadFile(base, a.uri, 'story.jpg', a.mimeType || 'image/jpeg');
+      await Game.addStory(String(id), { media_url: up?.url || up?.path || '' });
+      const s = await Game.stories(String(id));
+      setStories(Array.isArray(s) ? s : []);
+    } catch {}
+  };
+
+  return (
+    <>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
+      <Stack.Screen options={{ title: 'Game Detail' }} />
+      {!id && <Text style={styles.error}>Missing game id.</Text>}
+      {loading && (
+        <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+          <ActivityIndicator />
+        </View>
+      )}
+      {error && !loading && <Text style={styles.error}>{error}</Text>}
+      {game && !loading && (
+        <View style={{ gap: 12 }}>
+          {/* Hero banner */}
+          {game.cover_image_url ? (
+            <Image source={{ uri: String(game.cover_image_url) }} style={styles.heroImg} contentFit="cover" />
+          ) : (
+            <View style={styles.hero} />
+          )}
+          {/* Overlay title/date analogue */}
+          <View>
+            <Text style={styles.title}>{game.title || 'Game'}</Text>
+            <Text style={styles.meta}>{game.date ? new Date(game.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : ''}</Text>
+          </View>
+
+          {/* Live Stories block */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={styles.sectionTitle}>Live</Text>
+              <Text style={styles.sectionTitle}>Stories</Text>
+            </View>
+            <Pressable style={styles.addStoryBtn} onPress={addStory}>
+              <Ionicons name="add" size={16} color="#111827" />
+              <Text style={styles.addStoryBtnText}>Add to Story</Text>
+            </Pressable>
+          </View>
+          {stories.length === 0 ? (
+            <View style={styles.storyBox}>
+              <Text style={styles.storyTitle}>No Stories Yet</Text>
+              <Text style={styles.storySubtitle}>Be the first to add a story to this event!</Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {stories.map((s) => (
+                <Image key={String(s.id)} source={{ uri: String(s.media_url) }} style={{ width: 120, height: 160, borderRadius: 12, backgroundColor: '#E5E7EB' }} contentFit="cover" />
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Community Posts counts */}
+          <View style={{ marginTop: 10, borderTopColor: '#E5E7EB', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12 }}>
+            <Text style={styles.communityTitle}>Community{`\n`}Posts</Text>
+            <View style={{ gap: 10, marginTop: 8 }}>
+              <View style={styles.countItem}><Ionicons name="chatbubble-ellipses-outline" size={16} color="#6b7280" /><Text style={styles.countRowText}>{counts.reviews} Reviews</Text></View>
+              <View style={styles.countItem}><Ionicons name="camera-outline" size={16} color="#6b7280" /><Text style={styles.countRowText}>{counts.photos} Photos</Text></View>
+              <View style={styles.countItem}><Ionicons name="film-outline" size={16} color="#6b7280" /><Text style={styles.countRowText}>{counts.highlights} Highlights</Text></View>
+            </View>
+          </View>
+
+          {/* Reviews list */}
+          {reviews.length > 0 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontWeight: '800', marginBottom: 6 }}>Latest Reviews</Text>
+              {reviews.map((r: any) => (
+                <Text key={String(r.id)} style={{ marginBottom: 4 }}>{r.content || r.title || 'Review'}</Text>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Photos grid */}
+          {photos.length > 0 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontWeight: '800', marginBottom: 6 }}>Photos</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {photos.map((p: any) => (
+                  <Pressable key={String(p.id)} onPress={() => setViewer({ visible: true, uri: String(p.media_url || '') })}>
+                    <Image source={{ uri: String(p.media_url || '') }} style={{ width: 104, height: 104, borderRadius: 10, backgroundColor: '#E5E7EB' }} contentFit="cover" />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* Highlights grid (treated as thumbnails) */}
+          {highlights.length > 0 ? (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontWeight: '800', marginBottom: 6 }}>Highlights</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {highlights.map((p: any) => (
+                  <Pressable key={String(p.id)} onPress={() => setViewer({ visible: true, uri: String(p.media_url || '') })}>
+                    <View style={{ width: 104, height: 104, borderRadius: 10, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="play" size={22} color="#fff" />
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <Pressable style={styles.outlineBtn} onPress={async () => { try { await Share.share({ message: game.title || 'Game' }); } catch {} }}>
+              <Text style={styles.outlineBtnText}>Share</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </ScrollView>
+    {/* Story viewer modal */}
+    <Modal visible={viewer.visible} transparent onRequestClose={() => setViewer({ visible: false, uri: null })}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setViewer({ visible: false, uri: null })}>
+        {viewer.uri ? (
+          <Image source={{ uri: viewer.uri }} style={{ width: '90%', height: '70%', borderRadius: 12 }} contentFit="contain" />
+        ) : null}
+      </Pressable>
+    </Modal>
+  </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  hero: { height: 180, borderRadius: 12, backgroundColor: '#9CA3AF' },
+  heroImg: { height: 180, borderRadius: 12, backgroundColor: '#9CA3AF' },
+  title: { fontSize: 28, fontWeight: '900' },
+  meta: { color: '#6b7280' },
+  error: { color: '#b91c1c' },
+  sectionTitle: { fontSize: 28, fontWeight: '900' },
+  addStoryBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  addStoryBtnText: { fontWeight: '700' },
+  storyBox: { borderWidth: 2, borderStyle: 'dashed', borderColor: '#D1D5DB', borderRadius: 12, padding: 18, alignItems: 'center', justifyContent: 'center' },
+  storyTitle: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
+  storySubtitle: { color: '#6b7280', textAlign: 'center' },
+  communityTitle: { fontSize: 28, fontWeight: '900' },
+  countItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  countRowText: { fontSize: 18, color: '#111827' },
+  outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  outlineBtnText: { color: '#111827', fontWeight: '700' },
+});
