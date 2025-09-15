@@ -23,6 +23,9 @@ model User {
   stories       Story[]
   ads           Ad[]
   banned        Boolean  @default(false)
+  posts         Post[]
+  following     Follows[] @relation("following")
+  followers     Follows[] @relation("followers")
 }
 
 model Game {
@@ -42,6 +45,8 @@ model Game {
 
 model Post {
   id            String   @id @default(cuid())
+  author_id     String?
+  author        User?    @relation(fields: [author_id], references: [id])
   title         String?
   content       String?
   type          String?
@@ -52,6 +57,7 @@ model Post {
   created_at    DateTime @default(now())
 
   @@index([created_at])
+  @@index([author_id])
 
   comments      Comment[]
 }
@@ -188,4 +194,15 @@ model TeamInvite {
   team Team @relation(fields: [team_id], references: [id])
 
   @@index([team_id, email])
+}
+
+model Follows {
+  follower_id  String
+  following_id String
+  created_at   DateTime @default(now())
+
+  follower  User @relation("following", fields: [follower_id], references: [id])
+  following User @relation("followers", fields: [following_id], references: [id])
+
+  @@id([follower_id, following_id])
 }
