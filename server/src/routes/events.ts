@@ -15,6 +15,22 @@ eventsRouter.get('/', async (req, res) => {
   res.json(events);
 });
 
+// List current user's RSVPs with event basics
+eventsRouter.get('/my-rsvps', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const rows = await prisma.eventRsvp.findMany({
+    where: { user_id: req.user.id },
+    orderBy: { created_at: 'desc' },
+    include: { event: true },
+  });
+  const list = rows.map((r) => ({
+    id: r.id,
+    created_at: r.created_at,
+    event: r.event ? { id: r.event.id, title: r.event.title, date: r.event.date, location: r.event.location } : null,
+  }));
+  return res.json(list);
+});
+
 // Get single event with RSVP count
 eventsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
@@ -51,20 +67,4 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
   }
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   return res.json({ attending: desired, count });
-});
-
-// List current user's RSVPs with event basics
-eventsRouter.get('/my-rsvps', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const rows = await prisma.eventRsvp.findMany({
-    where: { user_id: req.user.id },
-    orderBy: { created_at: 'desc' },
-    include: { event: true },
-  });
-  const list = rows.map((r) => ({
-    id: r.id,
-    created_at: r.created_at,
-    event: r.event ? { id: r.event.id, title: r.event.title, date: r.event.date, location: r.event.location } : null,
-  }));
-  return res.json(list);
 });

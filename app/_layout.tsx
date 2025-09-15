@@ -59,8 +59,10 @@ export default function RootLayout() {
           lastRedirectRef.current = '/(tabs)';
           router.replace('/(tabs)');
         }
-      } catch {
-        if (!isPublic && lastRedirectRef.current !== '/sign-in') {
+      } catch (err: any) {
+        const status = err?.status;
+        // Only redirect to sign-in for auth errors
+        if (!isPublic && (status === 401 || status === 403) && lastRedirectRef.current !== '/sign-in') {
           lastRedirectRef.current = '/sign-in';
           router.replace('/sign-in');
         }

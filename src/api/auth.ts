@@ -47,7 +47,15 @@ export const auth = {
         'If-None-Match': '',
       },
     };
-    return httpGet('/me', options);
+    try {
+      return await httpGet('/me', options);
+    } catch (e: any) {
+      // Only clear session on explicit unauthenticated (401).
+      if (e && e.status === 401) {
+        try { await auth.logout(); } catch {}
+      }
+      throw e;
+    }
   },
   async logout() {
     clearAuthToken();
