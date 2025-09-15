@@ -7,23 +7,33 @@ import { Message, User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
-type RawMessage = {
-  id: string | number;
-  conversation_id?: string;
-  sender_email?: string;
-  recipient_email?: string;
-  content?: string;
-  created_date?: string;
+type MiniUser = {
+  id: string;
+  email?: string;
+  display_name?: string;
+  avatar_url?: string;
+};
+
+type UIMsg = {
+  id: string;
+  conversation_id?: string | null;
+  sender_id: string;
+  recipient_id: string;
+  content?: string | null;
+  created_at: string; // ISO
+  // related users (server should include these)
+  sender?: MiniUser | null;
+  recipient?: MiniUser | null;
+  // keep optional legacy field for now so old caches don’t break UI
   read?: boolean;
-  [key: string]: any;
 };
 
 export default function MessagesScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [me, setMe] = useState<any>(null);
-  const [messages, setMessages] = useState<RawMessage[]>([]);
+  const [me, setMe] = useState<MiniUser | null>(null);
+  const [messages, setMessages] = useState<UIMsg[]>([]);
   const [query, setQuery] = useState('');
   const [safetyOpen, setSafetyOpen] = useState(false);
 
@@ -33,8 +43,16 @@ export default function MessagesScreen() {
       setLoading(true);
       setError(null);
       try {
-        try { const u = await User.me(); if (mounted) setMe(u); } catch {}
-        const list: RawMessage[] = await (Message.list ? Message.list('-created_date', 50) : Message.filter({}, '-created_date'));
+        try {
+          const u = await User.me(); // must return { id, email, display_name, ... }
+          if (mounted) setMe(u);
+        } catch {}
+
+        // IMPORTANT: sort by -created_at now (not -created_date)
+        const list: UIMsg[] = await (Message.list
+          ? Message.list('-created_at', 50)
+          : Message.filter({}, '-created_at'));
+
         if (!mounted) return;
         setMessages(Array.isArray(list) ? list : []);
       } catch (e: any) {
@@ -52,24 +70,39 @@ export default function MessagesScreen() {
   const filtered = useMemo(() => {
     if (!query) return messages;
     const q = query.toLowerCase();
-    return messages.filter(m => (m.content || '').toLowerCase().includes(q) || (m.sender_email || '').toLowerCase().includes(q) || (m.recipient_email || '').toLowerCase().includes(q));
+    return messages.filter(m => {
+      const text = (m.content ?? '').toLowerCase();
+      const sName = (m.sender?.display_name ?? '').toLowerCase();
+      const sEmail = (m.sender?.email ?? '').toLowerCase();
+      const rName = (m.recipient?.display_name ?? '').toLowerCase();
+      const rEmail = (m.recipient?.email ?? '').toLowerCase();
+      return text.includes(q) || sName.includes(q) || sEmail.includes(q) || rName.includes(q) || rEmail.includes(q);
+    });
   }, [messages, query]);
 
-  const renderItem = ({ item }: { item: RawMessage }) => {
-    const mine = me && item.sender_email && me.email && item.sender_email === me.email;
-    const other = me?.email && (item.sender_email === me.email ? item.recipient_email : item.sender_email);
+  const renderItem = ({ item }: { item: UIMsg }) => {
+    const mine = me && item.sender_id === me.id;
+    const other = mine ? item.recipient : item.sender;
+
     const goThread = () => {
-      if (item.conversation_id) router.push(`/message-thread?conversation_id=${encodeURIComponent(item.conversation_id)}`);
-      else if (other) router.push(`/message-thread?with=${encodeURIComponent(String(other))}`);
+      if (item.conversation_id) {
+        router.push(`/message-thread?conversation_id=${encodeURIComponent(String(item.conversation_id))}`);
+      } else if (other?.id) {
+        // switch from email → user id
+        router.push(`/message-thread?with=${encodeURIComponent(other.id)}`);
+      }
     };
+
+    const fromLabel = item.sender?.display_name || item.sender?.email || 'unknown';
+    const toLabel = item.recipient?.display_name || item.recipient?.email || 'unknown';
+
     return (
       <Pressable style={[styles.msgRow, mine ? styles.msgMine : styles.msgTheirs]} onPress={goThread}>
         <View style={{ flex: 1 }}>
           <Text style={styles.msgContent} numberOfLines={2}>{item.content || ''}</Text>
-          <Text style={styles.msgMeta}>
-            {(item.sender_email || 'unknown') + ' -> ' + (item.recipient_email || 'unknown')}
-          </Text>
+          <Text style={styles.msgMeta}>{fromLabel + ' → ' + toLabel}</Text>
         </View>
+        {/* TODO: replace with real unread logic; keeping legacy flag if server sends it */}
         {item.read ? null : <Badge>new</Badge>}
       </Pressable>
     );
