@@ -7,110 +7,149 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ===========================
+// Core Models
+// ===========================
+
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password_hash String
-  display_name  String?
-  avatar_url    String?
-  bio           String?
-  created_at    DateTime @default(now())
-  email_verified Boolean  @default(false)
-  email_verification_code String?
+  id                         String    @id @default(cuid())
+  email                      String    @unique
+  password_hash              String
+  display_name               String?
+  avatar_url                 String?
+  bio                        String?
+  created_at                 DateTime  @default(now())
+  email_verified             Boolean   @default(false)
+  email_verification_code    String?
   email_verification_expires DateTime?
-  memberships   TeamMembership[]
-  rsvps         EventRsvp[]
-  stories       Story[]
-  ads           Ad[]
-  banned        Boolean  @default(false)
-  posts         Post[]
-  following     Follows[] @relation("following")
-  followers     Follows[] @relation("followers")
+  banned                     Boolean   @default(false)
+
+  // Relations
+  memberships TeamMembership[]
+  rsvps       EventRsvp[]
+  stories     Story[]
+  ads         Ad[]
+  posts       Post[]
+
+  // Follows (self-relation)
+  following Follows[] @relation("following")
+  followers Follows[] @relation("followers")
+
+  // Messages
+  messagesSent     Message[] @relation("message_sender")
+  messagesReceived Message[] @relation("message_recipient")
+  Comment          Comment[]
 }
 
 model Game {
-  id          String   @id @default(cuid())
-  title       String
-  date        DateTime
-  location    String?
-  description String?
+  id              String   @id @default(cuid())
+  title           String
+  date            DateTime
+  location        String?
+  description     String?
   cover_image_url String?
-  created_at  DateTime @default(now())
-  // Back-relation to posts referencing this game
-  posts       Post[]
-  stories     Story[]
+  created_at      DateTime @default(now())
+
+  // Back-relations
+  posts   Post[]
+  stories Story[]
 
   @@index([date])
 }
 
 model Post {
-  id            String   @id @default(cuid())
-  author_id     String?
-  author        User?    @relation(fields: [author_id], references: [id])
+  id String @id @default(cuid())
+
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id], onDelete: Cascade)
+
   title         String?
   content       String?
-  type          String?
+  type          String? // consider enum later
   media_url     String?
-  upvotes_count Int      @default(0)
-  game_id       String?
-  game          Game?    @relation(fields: [game_id], references: [id])
-  created_at    DateTime @default(now())
+  upvotes_count Int     @default(0)
+
+  game_id String?
+  game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+
+  comments Comment[]
 
   @@index([created_at])
   @@index([author_id])
-
-  comments      Comment[]
+  @@index([game_id, created_at])
 }
 
 model Event {
-  id         String    @id @default(cuid())
-  title      String?
-  date       DateTime?
+  id         String   @id @default(cuid())
+  title      String
+  date       DateTime
   location   String?
-  status     String    @default("draft")
+  status     String   @default("draft")
   capacity   Int?
-  created_at DateTime  @default(now())
+  created_at DateTime @default(now())
+
+  rsvps EventRsvp[]
 
   @@index([date])
-  rsvps      EventRsvp[]
 }
 
 model Message {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   conversation_id String?
-  sender_email    String?
-  recipient_email String?
-  content         String?
-  created_date    DateTime @default(now())
-  read            Boolean  @default(false)
 
-  @@index([created_date])
+  sender_id    String
+  recipient_id String
+
+  sender    User @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  content    String?
+  created_at DateTime @default(now())
+
+  @@index([created_at])
+  @@index([sender_id, created_at])
+  @@index([recipient_id, created_at])
 }
 
 model Comment {
-  id         String   @id @default(cuid())
-  post_id    String
-  post       Post     @relation(fields: [post_id], references: [id])
-  author     String?
+  id String @id @default(cuid())
+
+  post_id String
+  post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  author_id String?
+  author    User?   @relation(fields: [author_id], references: [id], onDelete: SetNull)
+
   content    String
   created_at DateTime @default(now())
 
   @@index([post_id, created_at])
+  @@index([author_id, created_at])
 }
 
 model EventRsvp {
-  id         String   @id @default(cuid())
-  event_id   String
-  user_id    String
-  user_email String?
-  created_at DateTime @default(now())
+  id String @id @default(cuid())
 
-  event Event @relation(fields: [event_id], references: [id])
-  user  User  @relation(fields: [user_id], references: [id])
+  event_id String
+  user_id  String
+
+  // Optional legacy field
+  user_email String?
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now())
 
   @@unique([event_id, user_id])
   @@index([event_id, created_at])
 }
+
+// ===========================
+// Ads
+// ===========================
 
 model AdReservation {
   id         String   @id @default(cuid())
@@ -119,7 +158,7 @@ model AdReservation {
   date       DateTime
   created_at DateTime @default(now())
 
-  @@unique([date])
+  @@unique([ad_id, date]) // unique per ad per date
   @@index([ad_id, date])
 }
 
@@ -132,7 +171,7 @@ model Ad {
   business_name   String?
   banner_url      String?
   target_zip_code String?
-  radius          Int?     @default(45)
+  radius          Int      @default(45) // non-null with default
   description     String?
   status          String   @default("draft") // draft | active | archived | pending
   payment_status  String   @default("unpaid") // unpaid | paid | refunded
@@ -143,41 +182,53 @@ model Ad {
   @@index([user_id, created_at])
 }
 
+// ===========================
+// Stories
+// ===========================
+
 model Story {
-  id         String   @id @default(cuid())
-  game_id    String
-  user_id    String?
+  id String @id @default(cuid())
+
+  game_id String
+  user_id String?
+
   media_url  String
   caption    String?
   created_at DateTime @default(now())
 
-  game Game  @relation(fields: [game_id], references: [id])
-  user User? @relation(fields: [user_id], references: [id])
+  game Game  @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([game_id, created_at])
 }
 
+// ===========================
+// Teams
+// ===========================
+
 model Team {
-  id          String           @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  status      String           @default("active")
-  created_at  DateTime         @default(now())
+  status      String   @default("active")
+  created_at  DateTime @default(now())
 
   memberships TeamMembership[]
   invites     TeamInvite[]
 }
 
 model TeamMembership {
-  id         String   @id @default(cuid())
-  team_id    String
-  user_id    String
+  id String @id @default(cuid())
+
+  team_id String
+  user_id String
+
   role       String   @default("member") // owner | manager | member
   status     String   @default("active") // active | invited | archived
   created_at DateTime @default(now())
 
-  team Team @relation(fields: [team_id], references: [id])
-  user User @relation(fields: [user_id], references: [id])
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([team_id, user_id])
   @@index([team_id, created_at])
@@ -191,18 +242,25 @@ model TeamInvite {
   status     String   @default("pending") // pending | accepted | declined | revoked
   created_at DateTime @default(now())
 
-  team Team @relation(fields: [team_id], references: [id])
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
+  @@unique([team_id, email]) // one active invite per team+email
   @@index([team_id, email])
 }
+
+// ===========================
+// Social Graph
+// ===========================
 
 model Follows {
   follower_id  String
   following_id String
   created_at   DateTime @default(now())
 
-  follower  User @relation("following", fields: [follower_id], references: [id])
-  following User @relation("followers", fields: [following_id], references: [id])
+  follower  User @relation("following", fields: [follower_id], references: [id], onDelete: Cascade)
+  following User @relation("followers", fields: [following_id], references: [id], onDelete: Cascade)
 
   @@id([follower_id, following_id])
+  @@index([follower_id])
+  @@index([following_id])
 }
