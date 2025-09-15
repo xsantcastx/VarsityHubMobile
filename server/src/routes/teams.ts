@@ -74,7 +74,6 @@ teamsRouter.get('/members/all', async (req, res) => {
 // Create team (auth required). Creator becomes owner.
 const createSchema = z.object({ name: z.string().min(2), description: z.string().optional() });
 teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
