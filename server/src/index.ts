@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { pinoHttp } from 'pino-http';
+import pinoHttp from 'pino-http';
 import path from 'node:path';
 import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
@@ -81,10 +81,10 @@ const apiLimiter = rateLimit({
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/auth', authLimiter, authRouter);
 app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.use('/messages', noStore, apiLimiter, messagesRouter);
+app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/events', apiLimiter, eventsRouter);
-app.use('/messages', apiLimiter, messagesRouter);
+app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/uploads', uploadsRouter);
 
 app.use('/ads', adsRouter);
