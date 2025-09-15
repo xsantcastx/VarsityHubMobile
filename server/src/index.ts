@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import pinoHttp from 'pino-http';
+import { pinoHttp } from 'pino-http';
 import path from 'node:path';
 import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
