@@ -16,4 +16,3 @@ export function VideoPlayer({ uri, style }: { uri: string; style?: ViewStyle }) 
 }
 
 export default VideoPlayer;
-

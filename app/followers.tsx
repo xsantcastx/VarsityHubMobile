@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function FollowingScreen() {
+export default function FollowersScreen() {
   const router = useRouter();
   const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
   const [loading, setLoading] = useState(true);
@@ -15,22 +15,22 @@ export default function FollowingScreen() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  const loadFollowing = async (cursor?: string) => {
+  const loadFollowers = async (cursor?: string) => {
     if (!id) return;
     setLoading(true);
     try {
-      const { items, nextCursor: newCursor } = await User.following(id, cursor);
+      const { items, nextCursor: newCursor } = await User.followers(id, cursor);
       setUsers(prev => (cursor ? [...prev, ...items] : items));
       setNextCursor(newCursor);
     } catch (error) {
-      console.error('Failed to load following', error);
+      console.error('Failed to load followers', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadFollowing();
+    loadFollowers();
   }, [id]);
 
   const handleFollow = async (userId: string, isFollowing: boolean) => {
@@ -66,9 +66,9 @@ export default function FollowingScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: `${username} is Following` }} />
+      <Stack.Screen options={{ title: `${username}'s Followers` }} />
       <Input
-        placeholder="Search following..."
+        placeholder="Search followers..."
         value={search}
         onChangeText={setSearch}
         style={styles.searchInput}
@@ -80,10 +80,10 @@ export default function FollowingScreen() {
           data={filteredUsers}
           renderItem={renderUser}
           keyExtractor={(item) => item.id}
-          onEndReached={() => nextCursor && loadFollowing(nextCursor)}
+          onEndReached={() => nextCursor && loadFollowers(nextCursor)}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loading ? <ActivityIndicator /> : null}
-          ListEmptyComponent={<Text style={styles.emptyText}>Not following anyone yet.</Text>}
+          ListEmptyComponent={<Text style={styles.emptyText}>No followers yet.</Text>}
         />
       )}
     </SafeAreaView>

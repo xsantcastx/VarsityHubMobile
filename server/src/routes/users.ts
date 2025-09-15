@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 export const usersRouter = Router();
 
@@ -79,4 +81,114 @@ usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   return res.send(csv);
+});
+
+// Follow a user
+usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const follower_id = req.user!.id;
+  const following_id = req.params.id;
+
+  if (follower_id === following_id) {
+    return res.status(400).json({ error: 'You cannot follow yourself.' });
+  }
+
+  try {
+    await prisma.follows.create({
+      data: {
+        follower_id,
+        following_id,
+      },
+    });
+    res.status(201).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// Unfollow a user
+usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const follower_id = req.user!.id;
+  const following_id = req.params.id;
+
+  try {
+    await prisma.follows.delete({
+      where: {
+        follower_id_following_id: {
+          follower_id,
+          following_id,
+        },
+      },
+    });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// Get followers
+usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
+  const { id } = req.params;
+  const currentUserId = req.user?.id;
+  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+  const cursor = (req.query.cursor as string | undefined) || undefined;
+
+  const follows = await prisma.follows.findMany({
+    where: { following_id: id },
+    take: limit + 1,
+    cursor: cursor ? { follower_id_following_id: { follower_id: cursor, following_id: id } } : undefined,
+    include: { follower: true },
+  });
+
+  const users = follows.slice(0, limit).map(f => f.follower);
+  const nextCursor = follows.length > limit ? follows[limit].follower_id : null;
+
+  if (currentUserId) {
+    const userIds = users.map(u => u.id);
+    const followingSet = new Set(
+      (await prisma.follows.findMany({
+        where: {
+          follower_id: currentUserId,
+          following_id: { in: userIds },
+        },
+        select: { following_id: true },
+      })).map(f => f.following_id)
+    );
+    users.forEach(u => (u as any).is_following = followingSet.has(u.id));
+  }
+
+  res.json({ items: users, nextCursor });
+});
+
+// Get following
+usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
+  const { id } = req.params;
+  const currentUserId = req.user?.id;
+  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+  const cursor = (req.query.cursor as string | undefined) || undefined;
+
+  const follows = await prisma.follows.findMany({
+    where: { follower_id: id },
+    take: limit + 1,
+    cursor: cursor ? { follower_id_following_id: { follower_id: id, following_id: cursor } } : undefined,
+    include: { following: true },
+  });
+
+  const users = follows.slice(0, limit).map(f => f.following);
+  const nextCursor = follows.length > limit ? follows[limit].following_id : null;
+
+  if (currentUserId) {
+    const userIds = users.map(u => u.id);
+    const followingSet = new Set(
+      (await prisma.follows.findMany({
+        where: {
+          follower_id: currentUserId,
+          following_id: { in: userIds },
+        },
+        select: { following_id: true },
+      })).map(f => f.following_id)
+    );
+    users.forEach(u => (u as any).is_following = followingSet.has(u.id));
+  }
+
+  res.json({ items: users, nextCursor });
 });

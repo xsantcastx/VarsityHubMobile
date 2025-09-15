@@ -1,7 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatList, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
-import { User, Post } from '@/api/entities';
+import { User, Post, Event } from '@/api/entities';
+import { uploadFile } from '@/api/upload';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import PostCard from '@/components/PostCard';
@@ -29,7 +32,45 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
+  const [activity, setActivity] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('posts');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleAvatarPress = async () => {
+    setIsUploadingAvatar(true);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      const { uri } = pickerResult.assets[0];
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const result = await uploadFile(apiUrl, uri, 'avatar.jpg', 'image/jpeg');
+      const { url } = result;
+
+      await User.updateMe({ avatar_url: url });
+      setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
+
+    } catch (error) {
+      console.error("Avatar upload failed", error);
+      Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -38,8 +79,19 @@ export default function ProfileScreen() {
       const u: any = await User.me();
       setMe(u ?? null);
       if (u?.id) {
-        const userPosts = await Post.filter({ user_id: String(u.id) });
+        const [userPosts, rsvps] = await Promise.all([
+          Post.filter({ user_id: String(u.id) }),
+          Event.myRsvps(),
+        ]);
+
+        const postsAsActivity = (Array.isArray(userPosts) ? userPosts : []).map(p => ({ ...p, type: 'post', date: p.created_at }));
+        const rsvpsAsActivity = (Array.isArray(rsvps) ? rsvps : []).map(r => ({ ...r, type: 'rsvp', date: r.created_at }));
+
+        const combinedActivity = [...postsAsActivity, ...rsvpsAsActivity];
+        combinedActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
         setPosts(Array.isArray(userPosts) ? userPosts : []);
+        setActivity(combinedActivity);
       }
     } catch (e: any) {
       console.error('Failed to load profile', e);
@@ -63,13 +115,30 @@ export default function ProfileScreen() {
   const renderHeader = () => (
     <>
       <View style={styles.header}>
-        <Avatar uri={me.avatar_url} size={80} />
+        <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar}>
+          <Avatar uri={me.avatar_url} size={80} />
+          {isUploadingAvatar && (
+            <View style={styles.avatarOverlay}>
+              <ActivityIndicator color="white" />
+            </View>
+          )}
+        </Pressable>
         <View style={styles.statsContainer}>
           {stats.map((stat) => (
-            <View key={stat.label} style={styles.statItem}>
+            <Pressable
+              key={stat.label}
+              style={styles.statItem}
+              onPress={() => {
+                if (stat.label === 'followers') {
+                  router.push(`/followers?id=${me.id}&username=${name}`);
+                } else if (stat.label === 'following') {
+                  router.push(`/following?id=${me.id}&username=${name}`);
+                }
+              }}
+            >
               <Text style={styles.statValue}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -120,8 +189,22 @@ export default function ProfileScreen() {
     return null; // Or some other placeholder
   }
 
+  const renderActivityItem = ({ item }: { item: any }) => {
+    if (item.type === 'post') {
+      return <PostCard post={item} onPress={() => router.push(`/post-detail?id=${item.id}`)} />;
+    }
+    if (item.type === 'rsvp') {
+      return (
+        <View style={styles.activityItem}>
+          <Text>RSVP'd to event: {item.event?.title || 'Unknown Event'}</Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ title: 'Profile' }} />
       {activeTab === 'posts' ? (
         <FlatList
@@ -133,15 +216,20 @@ export default function ProfileScreen() {
           contentContainerStyle={{ paddingBottom: 32 }}
         />
       ) : (
-        <ScrollView>
-          {renderHeader()}
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No recent activity</Text>
-            <Button variant="outline" onPress={() => router.push('/rsvp-history')}>View RSVP History</Button>
-          </View>
-        </ScrollView>
+        <FlatList
+          data={activity}
+          renderItem={renderActivityItem}
+          keyExtractor={(item, index) => `${item.type}-${item.id}-${index}`}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>No recent activity</Text>
+            </View>
+          }
+          contentContainerStyle={{ paddingBottom: 32 }}
+        />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -166,4 +254,16 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: 'bold' },
   emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 16 },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 40,
+  },
+  activityItem: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
 });
