@@ -60,91 +60,94 @@ export default function ProfileScreen() {
     { label: 'following', value: me?._count?.following ?? 0 },
   ];
 
-  const renderContent = () => {
-    if (activeTab === 'posts') {
-      if (posts.length === 0) {
-        return (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No posts yet</Text>
-            <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-            <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
-          </View>
-        );
-      }
-      return (
+  const renderHeader = () => (
+    <>
+      <View style={styles.header}>
+        <Avatar uri={me.avatar_url} size={80} />
+        <View style={styles.statsContainer}>
+          {stats.map((stat) => (
+            <View key={stat.label} style={styles.statItem}>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={styles.bioContainer}>
+        <Text style={styles.name}>{name}</Text>
+        {me.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
+      </View>
+      <View style={styles.actionsContainer}>
+        <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
+        <Button variant="outline" size="icon" onPress={() => router.push('/settings')}>
+          <SimpleLineIcons name="settings" size={20} color="black" />
+        </Button>
+      </View>
+      <View style={styles.tabsContainer}>
+        <Pressable onPress={() => setActiveTab('posts')} style={[styles.tab, activeTab === 'posts' && styles.activeTab]}>
+          <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
+        </Pressable>
+        <Pressable onPress={() => setActiveTab('activity')} style={[styles.tab, activeTab === 'activity' && styles.activeTab]}>
+          <Text style={[styles.tabText, activeTab === 'activity' && styles.activeTabText]}>Activity</Text>
+        </Pressable>
+      </View>
+    </>
+  );
+
+  const renderEmptyPosts = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyTitle}>No posts yet</Text>
+      <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
+      <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
+    </View>
+  );
+
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator /></View>;
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>{error}</Text>
+        <View style={{ height: 8 }} />
+        <Button onPress={() => router.push('/sign-in')}>Sign In</Button>
+      </View>
+    );
+  }
+
+  if (!me) {
+    return null; // Or some other placeholder
+  }
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Profile' }} />
+      {activeTab === 'posts' ? (
         <FlatList
           data={posts}
           renderItem={({ item }) => <PostCard post={item} onPress={() => router.push(`/post-detail?id=${item.id}`)} />}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingTop: 16 }}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmptyPosts}
+          contentContainerStyle={{ paddingBottom: 32 }}
         />
-      );
-    }
-
-    if (activeTab === 'activity') {
-      return (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>No recent activity</Text>
-          <Button variant="outline" onPress={() => router.push('/rsvp-history')}>View RSVP History</Button>
-        </View>
-      );
-    }
-
-    return null;
-  };
-
-  return (
-    <ScrollView style={styles.container}>
-      <Stack.Screen options={{ title: 'Profile' }} />
-      {loading && <View style={styles.center}><ActivityIndicator /></View>}
-      {error && !loading && (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-          <View style={{ height: 8 }} />
-          <Button onPress={() => router.push('/sign-in')}>Sign In</Button>
-        </View>
+      ) : (
+        <ScrollView>
+          {renderHeader()}
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No recent activity</Text>
+            <Button variant="outline" onPress={() => router.push('/rsvp-history')}>View RSVP History</Button>
+          </View>
+        </ScrollView>
       )}
-      {me && !loading && (
-        <>
-          <View style={styles.header}>
-            <Avatar uri={me.avatar_url} size={80} />
-            <View style={styles.statsContainer}>
-              {stats.map((stat) => (
-                <View key={stat.label} style={styles.statItem}>
-                  <Text style={styles.statValue}>{stat.value}</Text>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          <View style={styles.bioContainer}>
-            <Text style={styles.name}>{name}</Text>
-            {me.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
-          </View>
-          <View style={styles.actionsContainer}>
-            <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
-            <Button variant="outline" size="icon" onPress={() => router.push('/settings')}>
-              <SimpleLineIcons name="settings" size={20} color="black" />
-            </Button>
-          </View>
-          <View style={styles.tabsContainer}>
-            <Pressable onPress={() => setActiveTab('posts')} style={[styles.tab, activeTab === 'posts' && styles.activeTab]}>
-              <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
-            </Pressable>
-            <Pressable onPress={() => setActiveTab('activity')} style={[styles.tab, activeTab === 'activity' && styles.activeTab]}>
-              <Text style={[styles.tabText, activeTab === 'activity' && styles.activeTabText]}>Activity</Text>
-            </Pressable>
-          </View>
-          {renderContent()}
-        </>
-      )}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  center: { padding: 24, alignItems: 'center' },
+  center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
