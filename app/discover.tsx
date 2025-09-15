@@ -8,6 +8,8 @@ import { format, isFuture } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Ionicons } from '@expo/vector-icons';
+import Button from '@/components/ui/button';
 
 type RawEvent = { id: string | number; title?: string; date?: string; location?: string; event_type?: string; attendees?: any[]; capacity?: number };
 type RawPost = { id: string | number; title?: string; content?: string; type?: string; media_url?: string; upvotes?: any[]; game_id?: string | number };
@@ -21,6 +23,7 @@ export default function DiscoverScreen() {
   const [events, setEvents] = useState<RawEvent[]>([]);
   const [posts, setPosts] = useState<RawPost[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [rsvpData, setRsvpData] = useState<Record<string, { attending: boolean; count: number }>>({});
 
   useEffect(() => {
     let mounted = true;
@@ -37,6 +40,16 @@ export default function DiscoverScreen() {
         if (!mounted) return;
         setEvents(futureEvents);
 
+        if (futureEvents.length) {
+          const rsvpMap: Record<string, { attending: boolean; count: number }> = {};
+          const rsvps = await Promise.all(futureEvents.map(e => Event.rsvpStatus(String(e.id))));
+          rsvps.forEach((r, i) => {
+            const eventId = futureEvents[i].id;
+            if (eventId) rsvpMap[String(eventId)] = r as any;
+          });
+          if (mounted) setRsvpData(rsvpMap);
+        }
+
         const listPosts: RawPost[] = await Post.list('-created_date', 20);
         if (!mounted) return;
         setPosts(Array.isArray(listPosts) ? listPosts : []);
@@ -51,6 +64,18 @@ export default function DiscoverScreen() {
     load();
     return () => { mounted = false; };
   }, []);
+
+  const handleRsvp = async (eventId: string) => {
+    const current = rsvpData[eventId];
+    const newAttending = current ? !current.attending : true;
+    try {
+      const result = await Event.rsvp(String(eventId), newAttending);
+      setRsvpData(prev => ({ ...prev, [eventId]: result }));
+    } catch (e) {
+      console.error('RSVP failed', e);
+      // TODO: toast
+    }
+  };
 
   const filteredEvents = useMemo(() => {
     if (!search) return events;
@@ -110,17 +135,40 @@ export default function DiscoverScreen() {
               renderItem={({ item }) => (
                 <Pressable style={styles.eventCard} onPress={() => goEvent(item.id)}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.eventTitle}>{item.title || 'Event'}</Text>
-                    <Text style={styles.eventMeta}>{item.location || 'TBD'}</Text>
-                    {item.date ? (
-                      <Text style={styles.eventMeta}>{format(new Date(String(item.date)), 'MMM d, h:mm a')}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <Text style={styles.eventTitle}>{item.title || 'Event'}</Text>
+                      <Badge variant="outline">Other</Badge>
+                    </View>
+
+                    <View style={styles.eventMetaRow}>
+                      <Ionicons name="calendar-outline" size={14} color="#6b7280" />
+                      <Text style={styles.eventMeta}>{item.date ? format(new Date(String(item.date)), 'MMM d, h:mm a') : 'TBD'}</Text>
+                    </View>
+
+                    <View style={styles.eventMetaRow}>
+                      <Ionicons name="location-outline" size={14} color="#6b7280" />
+                      <Text style={styles.eventMeta}>{item.location || 'TBD'}</Text>
+                    </View>
+
+                    {item.capacity && rsvpData[item.id] ? (
+                      <View style={styles.eventMetaRow}>
+                        <Ionicons name="people-outline" size={14} color="#6b7280" />
+                        <Text style={styles.eventMeta}>{rsvpData[item.id].count} / {item.capacity}</Text>
+                      </View>
                     ) : null}
+
+                    {rsvpData[item.id] && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <Button
+                          size="sm"
+                          variant={rsvpData[item.id].attending ? 'default' : 'outline'}
+                          onPress={() => handleRsvp(String(item.id))}
+                        >
+                          {rsvpData[item.id].attending ? 'Attending' : 'Attend'}
+                        </Button>
+                      </View>
+                    )}
                   </View>
-                  {item.capacity ? (
-                    <Badge style={{ alignSelf: 'flex-start' }}>
-                      {(item.attendees?.length || 0) + ' / ' + item.capacity}
-                    </Badge>
-                  ) : null}
                 </Pressable>
               )}
               ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -185,8 +233,9 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   sectionTitle: { fontSize: 18, fontWeight: '700' },
   eventCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', borderRadius: 12 },
-  eventTitle: { fontWeight: '700', marginBottom: 2 },
-  eventMeta: { color: '#6b7280' },
+  eventTitle: { fontWeight: '700', fontSize: 16 },
+  eventMeta: { color: '#6b7280', marginLeft: 6 },
+  eventMetaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   postCard: { padding: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', borderRadius: 12, backgroundColor: '#F9FAFB' },
   postTitle: { fontWeight: '700', marginBottom: 6 },
   postContent: { color: '#111827' },
