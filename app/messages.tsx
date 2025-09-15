@@ -49,12 +49,14 @@ export default function MessagesScreen() {
         } catch {}
 
         // IMPORTANT: sort by -created_at now (not -created_date)
-        const list: UIMsg[] = await (Message.list
+        const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
           ? Message.list('-created_at', 50)
           : Message.filter({}, '-created_at'));
 
         if (!mounted) return;
-        setMessages(Array.isArray(list) ? list : []);
+        if (result && !('_isNotModified' in result)) {
+          setMessages(Array.isArray(result) ? result : []);
+        }
       } catch (e: any) {
         if (!mounted) return;
         console.error('Failed to load messages', e);

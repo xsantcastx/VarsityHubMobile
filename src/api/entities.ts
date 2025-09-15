@@ -95,20 +95,34 @@ export const Event = {
 };
 
 export const Message = {
-  list: (sort: string = '-created_date', limit: number = 50) => {
+  list: (sort: string = '-created_at', limit: number = 50) => {
     const q = [`sort=${encodeURIComponent(sort)}`, `limit=${limit}`];
-    return httpGet('/messages?' + q.join('&'));
+    const options = {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'If-None-Match': '',
+      },
+    };
+    return httpGet('/messages?' + q.join('&'), options);
   },
   listAll: (limit: number = 200) => httpGet('/messages?all=1&limit=' + String(limit)),
-  filter: (_where: any = {}, sort: string = '-created_date') => {
-    return httpGet('/messages?sort=' + encodeURIComponent(sort));
+  filter: (_where: any = {}, sort: string = '-created_at') => {
+    const options = {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'If-None-Match': '',
+      },
+    };
+    return httpGet('/messages?sort=' + encodeURIComponent(sort), options);
   },
   threadByConversation: (conversationId: string, limit: number = 100) => {
-    const q = [`conversation_id=${encodeURIComponent(conversationId)}`, `sort=${encodeURIComponent('-created_date')}`, `limit=${limit}`];
+    const q = [`conversation_id=${encodeURIComponent(conversationId)}`, `sort=${encodeURIComponent('-created_at')}`, `limit=${limit}`];
     return httpGet('/messages?' + q.join('&'));
   },
   threadWith: (email: string, limit: number = 100) => {
-    const q = [`with=${encodeURIComponent(email)}`, `sort=${encodeURIComponent('-created_date')}`, `limit=${limit}`];
+    const q = [`with=${encodeURIComponent(email)}`, `sort=${encodeURIComponent('-created_at')}`, `limit=${limit}`];
     return httpGet('/messages?' + q.join('&'));
   },
   send: (data: { content: string; conversation_id?: string; recipient_email?: string }) => httpPost('/messages', data),

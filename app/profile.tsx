@@ -77,7 +77,9 @@ export default function ProfileScreen() {
     setError(null);
     try {
       const u: any = await User.me();
-      setMe(u ?? null);
+      if (u && !u._isNotModified) {
+        setMe(u ?? null);
+      }
       if (u?.id) {
         const [userPosts, rsvps] = await Promise.all([
           Post.filter({ user_id: String(u.id) }),
