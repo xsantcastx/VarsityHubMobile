@@ -14,6 +14,7 @@ postsRouter.get('/', async (req, res) => {
   const where: any = {};
   if (req.query.game_id) where.game_id = String(req.query.game_id);
   if (req.query.type) where.type = String(req.query.type);
+  if (req.query.user_id) where.author_id = String(req.query.user_id);
 
   if (cursor) {
     const rows = await prisma.post.findMany({
@@ -57,6 +58,7 @@ const createPostSchema = z
   });
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -65,13 +67,16 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   const data = parsed.data;
-  const post = await prisma.post.create({ data: {
-    title: data.title,
-    content: data.content?.trim() || null,
-    type: data.type || 'post',
-    media_url: data.media_url,
-    game_id: data.game_id,
-  }});
+  const post = await prisma.post.create({
+    data: {
+      title: data.title,
+      content: data.content?.trim() || null,
+      type: data.type || 'post',
+      media_url: data.media_url,
+      game_id: data.game_id,
+      author_id: req.user.id,
+    },
+  });
   res.status(201).json(post);
 });
 

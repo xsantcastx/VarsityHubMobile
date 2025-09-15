@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatList } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-// @ts-ignore JS exports
-import { User } from '@/api/entities';
+import { User, Post } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import PostCard from '@/components/PostCard';
+import { SimpleLineIcons } from '@expo/vector-icons';
 
 type CurrentUser = {
   id?: string | number;
@@ -14,6 +15,11 @@ type CurrentUser = {
   display_name?: string;
   avatar_url?: string;
   bio?: string;
+  _count?: {
+    posts?: number;
+    followers?: number;
+    following?: number;
+  };
   [key: string]: any;
 };
 
@@ -22,84 +28,139 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('posts');
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const u: any = await User.me();
-        if (!mounted) return;
-        setMe(u ?? null);
-      } catch (e: any) {
-        if (!mounted) return;
-        console.error('Failed to load profile', e);
-        setError('Unable to load profile. You may need to sign in.');
-      } finally {
-        if (mounted) setLoading(false);
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const u: any = await User.me();
+      setMe(u ?? null);
+      if (u?.id) {
+        const userPosts = await Post.filter({ user_id: String(u.id) });
+        setPosts(Array.isArray(userPosts) ? userPosts : []);
       }
-    };
-    load();
-    return () => { mounted = false; };
+    } catch (e: any) {
+      console.error('Failed to load profile', e);
+      setError('Unable to load profile. You may need to sign in.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const name = me?.display_name || me?.full_name || me?.username || 'User';
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const name = me?.display_name || me?.username || 'User';
+  const stats = [
+    { label: 'posts', value: me?._count?.posts ?? 0 },
+    { label: 'followers', value: me?._count?.followers ?? 0 },
+    { label: 'following', value: me?._count?.following ?? 0 },
+  ];
+
+  const renderContent = () => {
+    if (activeTab === 'posts') {
+      if (posts.length === 0) {
+        return (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No posts yet</Text>
+            <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
+            <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={posts}
+          renderItem={({ item }) => <PostCard post={item} onPress={() => router.push(`/post-detail?id=${item.id}`)} />}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: 16 }}
+        />
+      );
+    }
+
+    if (activeTab === 'activity') {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>No recent activity</Text>
+          <Button variant="outline" onPress={() => router.push('/rsvp-history')}>View RSVP History</Button>
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <Stack.Screen options={{ title: 'Profile' }} />
-      {loading && (
-        <View style={styles.center}><ActivityIndicator /></View>
-      )}
+      {loading && <View style={styles.center}><ActivityIndicator /></View>}
       {error && !loading && (
-        <>
+        <View style={styles.center}>
           <Text style={styles.error}>{error}</Text>
           <View style={{ height: 8 }} />
           <Button onPress={() => router.push('/sign-in')}>Sign In</Button>
-        </>
-      )}
-      {me && !loading && (
-        <View style={{ gap: 16 }}>
-          {!me.email_verified ? (
-            <Pressable onPress={() => router.push('/verify-email')} style={{ padding: 10, borderRadius: 10, backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A' }}>
-              <Text style={{ color: '#92400E', fontWeight: '700' }}>Verify your email to unlock posting and ads. Tap to verify.</Text>
-            </Pressable>
-          ) : null}
-          <View style={styles.headerRow}>
-            <Avatar uri={me.avatar_url} size={72} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{name}</Text>
-              {me.email ? <Text style={styles.muted}>{me.email}</Text> : null}
-            </View>
-          </View>
-          {me.bio ? <Text>{me.bio}</Text> : null}
-
-          <Button onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
-          <Button variant="outline" onPress={() => router.push('/settings')}>Settings</Button>
-          <Button variant="outline" onPress={() => router.push('/rsvp-history')}>RSVP History</Button>
-          <Button variant="outline" onPress={() => { try { User.logout(); } catch {} router.replace('/sign-in'); }}>Sign Out</Button>
-
-          {/* Debug: basic fields we commonly expect; helps during migration */}
-          <View style={styles.section}>
-            {me.username ? <Text style={styles.row}><Text style={styles.label}>Username: </Text>{me.username}</Text> : null}
-            {me.full_name ? <Text style={styles.row}><Text style={styles.label}>Full name: </Text>{me.full_name}</Text> : null}
-            {me.id != null ? <Text style={styles.row}><Text style={styles.label}>ID: </Text>{String(me.id)}</Text> : null}
-          </View>
         </View>
       )}
-    </View>
+      {me && !loading && (
+        <>
+          <View style={styles.header}>
+            <Avatar uri={me.avatar_url} size={80} />
+            <View style={styles.statsContainer}>
+              {stats.map((stat) => (
+                <View key={stat.label} style={styles.statItem}>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          <View style={styles.bioContainer}>
+            <Text style={styles.name}>{name}</Text>
+            {me.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
+          </View>
+          <View style={styles.actionsContainer}>
+            <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
+            <Button variant="outline" size="icon" onPress={() => router.push('/settings')}>
+              <SimpleLineIcons name="settings" size={20} color="black" />
+            </Button>
+          </View>
+          <View style={styles.tabsContainer}>
+            <Pressable onPress={() => setActiveTab('posts')} style={[styles.tab, activeTab === 'posts' && styles.activeTab]}>
+              <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveTab('activity')} style={[styles.tab, activeTab === 'activity' && styles.activeTab]}>
+              <Text style={[styles.tabText, activeTab === 'activity' && styles.activeTabText]}>Activity</Text>
+            </Pressable>
+          </View>
+          {renderContent()}
+        </>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  center: { paddingVertical: 24, alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '800' },
-  muted: { color: '#6b7280' },
-  label: { fontWeight: '700' },
-  row: { marginBottom: 4 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  section: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  error: { color: '#b91c1c' },
+  container: { flex: 1, backgroundColor: 'white' },
+  center: { padding: 24, alignItems: 'center' },
+  error: { color: '#b91c1c', textAlign: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: 18, fontWeight: 'bold' },
+  statLabel: { fontSize: 14, color: '#6B7280' },
+  bioContainer: { paddingHorizontal: 16, paddingBottom: 16 },
+  name: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  bio: { fontSize: 14, color: '#4B5563' },
+  actionsContainer: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
+  tabText: { color: '#6B7280', fontWeight: '600' },
+  activeTabText: { color: 'black' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  emptyTitle: { fontSize: 18, fontWeight: 'bold' },
+  emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 16 },
 });

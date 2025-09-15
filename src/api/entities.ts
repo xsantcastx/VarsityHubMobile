@@ -38,12 +38,13 @@ export const Post = {
     return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
   },
   create: (data: any) => httpPost('/posts', data),
-  filter: (where: { game_id?: string; type?: string } = {}, sort?: string, limit: number = 20) => {
+  filter: (where: { game_id?: string; type?: string, user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
+    if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
   },
   count: (where: { game_id?: string; type?: string } = {}) => {
@@ -59,13 +60,14 @@ export const Post = {
     if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
     return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
   },
-  filterPage: (where: { game_id?: string; type?: string } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
+  filterPage: (where: { game_id?: string; type?: string, user_id?: string } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
     if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
+    if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
     return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
