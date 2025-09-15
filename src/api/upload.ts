@@ -26,4 +26,3 @@ export async function uploadFile(baseUrl: string, uri: string, filename?: string
 }
 
 export default { uploadFile };
-

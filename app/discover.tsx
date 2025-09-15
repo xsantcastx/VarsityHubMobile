@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 // @ts-ignore SDK provides JS exports
@@ -100,7 +101,7 @@ export default function DiscoverScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ title: 'Discover' }} />
       <Text style={styles.title}>Discover</Text>
       <Input
@@ -219,7 +220,7 @@ export default function DiscoverScreen() {
           )}
         </>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

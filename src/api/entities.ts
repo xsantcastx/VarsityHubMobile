@@ -20,6 +20,10 @@ export const User = {
   ban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/ban', {}),
   unban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/unban', {}),
   getFull: (id: string) => httpGet('/users/' + encodeURIComponent(id) + '/full'),
+  followers: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
+  following: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
+  follow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow?_method=DELETE`, {}),
 };
 
 export const Game = {
