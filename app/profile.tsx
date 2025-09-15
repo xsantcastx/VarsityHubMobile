@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatL
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { User, Post, Event } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Avatar } from '@/components/ui/avatar';
@@ -76,28 +77,45 @@ export default function ProfileScreen() {
     setLoading(true);
     setError(null);
     try {
+      // Step 1: ensure session is valid
       const u: any = await User.me();
-      if (u && !u._isNotModified) {
-        setMe(u ?? null);
+      if (u && !u._isNotModified) setMe(u ?? null);
+      if (!u?.id) { setLoading(false); return; }
+
+      // Step 2: load posts (non-auth endpoint)
+      let userPosts: any[] = [];
+      try {
+        const p = await Post.filter({ user_id: String(u.id) });
+        userPosts = Array.isArray(p) ? p : [];
+        setPosts(userPosts);
+      } catch (e) {
+        // Don't fail the whole profile if posts fail
+        console.warn('Posts load failed', e);
+        setPosts([]);
       }
-      if (u?.id) {
-        const [userPosts, rsvps] = await Promise.all([
-          Post.filter({ user_id: String(u.id) }),
-          Event.myRsvps(),
-        ]);
 
-        const postsAsActivity = (Array.isArray(userPosts) ? userPosts : []).map(p => ({ ...p, type: 'post', date: p.created_at }));
-        const rsvpsAsActivity = (Array.isArray(rsvps) ? rsvps : []).map(r => ({ ...r, type: 'rsvp', date: r.created_at }));
-
-        const combinedActivity = [...postsAsActivity, ...rsvpsAsActivity];
-        combinedActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        setPosts(Array.isArray(userPosts) ? userPosts : []);
-        setActivity(combinedActivity);
+      // Step 3: load RSVPs (auth required) but don’t force logout if it fails
+      let rsvps: any[] = [];
+      try {
+        const r = await Event.myRsvps();
+        rsvps = Array.isArray(r) ? r : [];
+      } catch (e: any) {
+        console.warn('RSVPs load failed', e);
+        // Keep UI working even if RSVPs endpoint returns 401/403
       }
+
+      const postsAsActivity = userPosts.map(p => ({ ...p, type: 'post', date: p.created_at }));
+      const rsvpsAsActivity = rsvps.map(r => ({ ...r, type: 'rsvp', date: r.created_at }));
+      const combinedActivity = [...postsAsActivity, ...rsvpsAsActivity].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setActivity(combinedActivity);
     } catch (e: any) {
       console.error('Failed to load profile', e);
-      setError('Unable to load profile. You may need to sign in.');
+      // Only show sign-in if the session itself is invalid from /me.
+      if (e && e.status === 401) {
+        setError('You need to sign in to view your profile.');
+      } else {
+        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile.');
+      }
     } finally {
       setLoading(false);
     }
@@ -106,6 +124,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // Refresh when screen regains focus (after creating a post, etc.)
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   const name = me?.display_name || me?.username || 'User';
   const stats = [

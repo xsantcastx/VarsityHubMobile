@@ -19,7 +19,7 @@ export default function CreatePostScreen() {
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: media === 'image' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: media === 'image' ? ImagePicker.MediaType.Image : ImagePicker.MediaType.Video,
       quality: media === 'image' ? 0.85 : undefined,
       videoMaxDuration: 30,
     });
@@ -48,7 +48,7 @@ export default function CreatePostScreen() {
       return;
     }
     const r = await ImagePicker.launchCameraAsync({
-      mediaTypes: media === 'image' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: media === 'image' ? ImagePicker.MediaType.Image : ImagePicker.MediaType.Video,
       quality: media === 'image' ? 0.85 : undefined,
       videoMaxDuration: 30,
     });

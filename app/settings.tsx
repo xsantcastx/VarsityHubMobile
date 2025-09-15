@@ -187,6 +187,10 @@ export default function SettingsScreen() {
           </View>
 
           <Button onPress={onSave} disabled={saving}>{saving ? 'Saving...' : 'Save Settings'}</Button>
+          <View style={{ height: 12 }} />
+          <Button variant="outline" onPress={async () => { try { await User.logout(); } catch {} router.replace('/sign-in'); }}>
+            Sign Out
+          </Button>
           </ScrollView>
         </>
       )}
