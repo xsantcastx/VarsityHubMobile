@@ -20,23 +20,40 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(base + path, { ...options, headers });
+
+  // Handle 304 Not Modified: return a special object or null.
+  // The caller can then decide whether to use cached data or ignore.
+  if (res.status === 304) {
+    return { _status: 304, _isNotModified: true };
+  }
+
   const text = await res.text();
   const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
   let data: any = null;
   if (ct.includes('application/json')) {
-    try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
   } else {
     data = text; // plain text or HTML
   }
+
   if (!res.ok) {
     const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
     const err: any = new Error(msg || `HTTP ${res.status}`);
-    err.status = res.status; err.data = data; throw err;
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
   return data;
 }
 
-export function httpGet(path: string) { return request(path, { method: 'GET' }); }
+export function httpGet(path: string, options: RequestInit = {}) {
+  return request(path, { ...options, method: 'GET' });
+}
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }); }
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }

@@ -40,7 +40,14 @@ export const auth = {
   },
   async me() {
     await loadToken();
-    return httpGet('/me');
+    const options = {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'If-None-Match': '',
+      },
+    };
+    return httpGet('/me', options);
   },
   async logout() {
     clearAuthToken();

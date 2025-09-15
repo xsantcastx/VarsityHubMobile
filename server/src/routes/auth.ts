@@ -24,7 +24,7 @@ authRouter.post('/register', async (req, res) => {
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const user = await prisma.user.create({ data: { email, password_hash, display_name, email_verified: false, email_verification_code: code, email_verification_expires: exp } });
   const access_token = signJwt({ id: user.id });
-  try { await sendVerificationEmail(email, code); } catch (e) { req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); }
+  try { await sendVerificationEmail(email, code); } catch (e) { (req as any).log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   return res.status(201).json(payload);
