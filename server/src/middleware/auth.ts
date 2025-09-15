@@ -3,7 +3,6 @@ import { verifyJwt } from '../lib/jwt.js';
 
 export interface AuthedRequest extends Request {
   user?: { id: string };
-  log?: any;
 }
 
 export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {
