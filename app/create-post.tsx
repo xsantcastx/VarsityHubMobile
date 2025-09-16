@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, Image as RNImage } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Image as RNImage, Pressable, ScrollView, Switch } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 // @ts-ignore
 import { Post, User } from '@/api/entities';
@@ -7,22 +7,45 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { pickerMediaTypeFor } from '@/utils/picker';
 import { uploadFile } from '@/api/upload';
 import { Platform } from 'react-native';
 import VideoPlayer from '@/components/VideoPlayer';
+import { Ionicons } from '@expo/vector-icons';
+import PrimaryButton from '@/ui/PrimaryButton';
+import * as Location from 'expo-location';
 
 export default function CreatePostScreen() {
   const router = useRouter();
-  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
+  const [shareLocation, setShareLocation] = useState(true);
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [locGranted, setLocGranted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        const granted = status === 'granted';
+        setLocGranted(granted);
+        if (granted) {
+          const last = await Location.getLastKnownPositionAsync();
+          const fresh = last && (Date.now() - (last.timestamp || 0)) < 10 * 60 * 1000 ? last : null;
+          const pos = fresh || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          if (pos?.coords) { setLat(pos.coords.latitude); setLng(pos.coords.longitude); }
+        }
+      } catch { setLocGranted(false); }
+    })();
+  }, []);
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: media === 'image' ? ImagePicker.MediaType.Image : ImagePicker.MediaType.Video,
+      ...(pickerMediaTypeFor(media)),
       quality: media === 'image' ? 0.85 : undefined,
       videoMaxDuration: 30,
-    });
+    } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
       const a = r.assets[0];
       let uri = a.uri;
@@ -48,10 +71,10 @@ export default function CreatePostScreen() {
       return;
     }
     const r = await ImagePicker.launchCameraAsync({
-      mediaTypes: media === 'image' ? ImagePicker.MediaType.Image : ImagePicker.MediaType.Video,
+      ...(pickerMediaTypeFor(media)),
       quality: media === 'image' ? 0.85 : undefined,
       videoMaxDuration: 30,
-    });
+    } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
       const a = r.assets[0];
       let uri = a.uri;
@@ -90,7 +113,8 @@ export default function CreatePostScreen() {
         setSubmitting(false);
         return;
       }
-      await Post.create({ title: title || undefined, content, media_url: finalMediaUrl || undefined, type: 'post' });
+      const location = shareLocation ? { lat, lng, source: 'device' as const } : {};
+      await Post.create({ content, media_url: finalMediaUrl || undefined, type: 'post', location });
       Alert.alert('Posted', 'Your post has been created.');
       router.back();
     } catch (e: any) {
@@ -105,44 +129,87 @@ export default function CreatePostScreen() {
     }
   };
 
+  const canPost = useMemo(() => !!content.trim() || !!picked?.uri, [content, picked]);
+
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Create Post' }} />
-      <Text style={styles.title}>Create Post</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Text style={styles.label}>Title (optional)</Text>
-      <Input value={title} onChangeText={setTitle} placeholder="Post title" style={{ marginBottom: 8 }} />
-      <Text style={styles.label}>Content</Text>
-      <Input value={content} onChangeText={setContent} placeholder="Say something..." style={{ marginBottom: 8, height: 90 }} multiline />
-      <Text style={styles.label}>Add Media</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Button variant="outline" onPress={() => pickFromLibrary('image')}>Photo</Button>
-        <Button variant="outline" onPress={() => pickFromLibrary('video')}>Video</Button>
-        <Button variant="outline" onPress={() => captureWithCamera('image')}>Take Photo</Button>
-        <Button variant="outline" onPress={() => captureWithCamera('video')}>Record Video</Button>
-        {picked ? <Button variant="ghost" onPress={() => setPicked(null)}>Remove</Button> : null}
+      <Stack.Screen options={{ headerShown: false }} />
+      {/* Header */}
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}><Ionicons name="close" size={22} color="#111827" /></Pressable>
+        <PrimaryButton label={submitting ? 'Posting…' : 'Post'} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
       </View>
-      {picked?.uri ? (
-        <View style={{ marginTop: 8 }}>
-          <Text style={styles.label}>Selected {picked.type}</Text>
-          {picked.type === 'image' ? (
-            <RNImage source={{ uri: picked.uri }} style={{ width: '100%', height: 220, borderRadius: 10 }} />
-          ) : (
-            <VideoPlayer uri={picked.uri} style={{ width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111827' }} />
-          )}
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        {/* Composer */}
+        <Input
+          value={content}
+          onChangeText={setContent}
+          placeholder="Respect for every player on the field."
+          multiline
+          style={styles.textarea}
+        />
+        <Text style={styles.helper}>Use # to tag teams and @ to mention players</Text>
+
+        {/* Swipe bar */}
+        <Pressable onPress={() => captureWithCamera('image')} style={styles.swipeBar} accessibilityLabel="Swipe up for camera">
+          <Ionicons name="chevron-up" size={18} color="#1D4ED8" />
+          <Text style={styles.swipeText}>Swipe up for camera</Text>
+        </Pressable>
+
+        {/* Action tiles */}
+        <View style={styles.tilesRow}>
+          <Pressable style={styles.tile} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
+            <Ionicons name="image-outline" size={24} color="#111827" />
+          </Pressable>
+          <Pressable style={styles.tile} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
+            <Ionicons name="camera-outline" size={24} color="#2563EB" />
+          </Pressable>
+          <Pressable style={styles.tile} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
+            <Ionicons name="videocam-outline" size={24} color="#111827" />
+          </Pressable>
         </View>
-      ) : null}
-      <View style={{ height: 12 }} />
-      <Button onPress={onSubmit} disabled={submitting}>
-        {submitting ? <ActivityIndicator color="#fff" /> : 'Post'}
-      </Button>
+
+        {/* Selected preview */}
+        {picked?.uri ? (
+          <View style={{ marginTop: 8 }}>
+            {picked.type === 'image' ? (
+              <RNImage source={{ uri: picked.uri }} style={{ width: '100%', height: 220, borderRadius: 10 }} />
+            ) : (
+              <VideoPlayer uri={picked.uri} style={{ width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111827' }} />
+            )}
+          </View>
+        ) : null}
+
+        {/* Location toggle */}
+        <View style={styles.locRow}>
+          <Text style={styles.locLabel}>Share location</Text>
+          <Switch value={shareLocation} onValueChange={setShareLocation} />
+        </View>
+        {locGranted === false && shareLocation ? (
+          <Text style={styles.muted}>Location permission denied. You can still post; we’ll try to infer your country from your profile.</Text>
+        ) : null}
+
+        {/* Footer link */}
+        <Pressable onPress={() => {}}><Text style={styles.footerLink}>Respect all the players on the field.</Text></Pressable>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  label: { fontWeight: '700', marginBottom: 4 },
+  container: { flex: 1, padding: 16, backgroundColor: '#FFFFFF' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  iconBtn: { padding: 8, borderRadius: 999, backgroundColor: 'transparent' },
+  textarea: { height: 120, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', padding: 12, textAlignVertical: 'top', marginBottom: 6 },
+  helper: { color: '#6B7280', marginBottom: 12 },
+  swipeBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#DBEAFE', paddingVertical: 10, borderRadius: 12, marginBottom: 12 },
+  swipeText: { color: '#1D4ED8', fontWeight: '800', marginLeft: 6 },
+  tilesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 16 },
+  tile: { width: 84, height: 84, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  locRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  locLabel: { fontWeight: '700' },
+  footerLink: { color: '#2563EB', textAlign: 'center', marginTop: 12 },
   error: { color: '#b91c1c', marginBottom: 8 },
 });

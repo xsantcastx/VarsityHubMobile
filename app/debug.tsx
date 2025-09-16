@@ -16,7 +16,7 @@ export default function DebugScreen() {
       <Text style={styles.title}>Quick Nav</Text>
       <View style={styles.row}>
         <Button onPress={() => router.push('/feed')}>Feed</Button>
-        <Button onPress={() => router.push('/discover')}>Discover</Button>
+        <Button onPress={() => router.push('/(tabs)/explore')}>Discover</Button>
         <Button onPress={() => router.push('/profile')}>Profile</Button>
         <Button onPress={() => router.push('/messages')}>Messages</Button>
       </View>
@@ -50,4 +50,3 @@ const styles = StyleSheet.create({
   block: { marginTop: 12 },
   label: { fontWeight: '700', marginBottom: 6 },
 });
-

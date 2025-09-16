@@ -6,6 +6,8 @@ import { signJwt } from '../lib/jwt.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
+// simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
+const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -64,22 +66,92 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   if (!user) return res.status(404).json({ error: 'Not found' });
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
-  return res.json({ ...sanitizeUser(user), is_admin });
+  const defaults = {
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    is_parent: false,
+    zip_code: null,
+    onboarding_completed: true,
+  };
+  const prefs = mergePreferences(defaults, (user as any).preferences || {});
+  const { password_hash, ...rest } = user as any;
+  return res.json({ ...rest, preferences: prefs, is_admin });
 });
 
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
   avatar_url: z.string().url().optional(),
   bio: z.string().max(1000).optional(),
+  preferences: z.any().optional(),
 });
 
 authRouter.put('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const data = parsed.data;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data });
+  const data = parsed.data as any;
+  let patch: any = { ...data };
+  if (data.preferences) {
+    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
+    patch.preferences = mergedPrefs;
+  }
+  const { preferences, ...rest } = patch;
+  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
+});
+
+// PATCH /me (alias) to support partial updates including preferences
+authRouter.patch('/me', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const parsed = updateMeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const data = parsed.data as any;
+  let patch: any = { ...data };
+  if (data.preferences) {
+    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
+    patch.preferences = mergedPrefs;
+  }
+  const { preferences, ...rest } = patch;
+  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
+  return res.json(sanitizeUser(user));
+});
+
+// Utility to deep-merge preferences, preserving nested notification keys
+function mergePreferences(base: any, incoming: any) {
+  const out = { ...(base || {}), ...(incoming || {}) };
+  if (base?.notifications || incoming?.notifications) {
+    out.notifications = { ...(base?.notifications || {}), ...(incoming?.notifications || {}) };
+  }
+  return out;
+}
+
+// Partial update for user preferences
+authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const schema = z.object({
+    notifications: z.object({
+      game_event_reminders: z.boolean().optional(),
+      team_updates: z.boolean().optional(),
+      comments_upvotes: z.boolean().optional(),
+    }).partial().optional(),
+    is_parent: z.boolean().optional(),
+    zip_code: z.string().min(2).max(20).optional().nullable(),
+    onboarding_completed: z.boolean().optional(),
+  }).partial();
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const incoming = parsed.data as any;
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const defaults = {
+    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+    is_parent: false,
+    zip_code: null,
+    onboarding_completed: true,
+  };
+  const merged = mergePreferences(defaults, mergePreferences(current?.preferences || {}, incoming));
+  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
+  return res.json({ preferences: updated.preferences });
 });
 
 // Request a new email verification code (authenticated)
@@ -88,13 +160,25 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
+  const now = Date.now();
+  const key = user.id;
+  const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
+  if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
+  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
+  if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
   try { await sendVerificationEmail(user.email, code); } catch (e) { req.log?.warn?.({ err: e }, 'Email send failed'); }
   const payload: any = { ok: true };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  rec.last = now; rec.count += 1; verifyRate.set(key, rec);
   return res.json(payload);
+});
+
+// Alias: /auth/verify/send
+authRouter.post('/verify/send', async (req: AuthedRequest, res) => {
+  (authRouter as any).handle({ ...req, url: '/verify/request' }, res);
 });
 
 // Verify code (authenticated)

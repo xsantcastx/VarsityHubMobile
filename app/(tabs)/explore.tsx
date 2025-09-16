@@ -1,1 +1,1 @@
-export { default } from '../discover';
+export { default } from '../team-hub';

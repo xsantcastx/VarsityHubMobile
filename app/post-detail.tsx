@@ -15,7 +15,7 @@ export default function PostDetailScreen() {
   const [comments, setComments] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
-  const [liking, setLiking] = useState(false);
+  const [voting, setVoting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -35,15 +35,15 @@ export default function PostDetailScreen() {
     load();
   }, [load]);
 
-  const onLike = async () => {
-    if (!id || liking) return;
-    setLiking(true);
+  const onUpvote = async () => {
+    if (!id || voting) return;
+    setVoting(true);
     try {
       try { await User.me(); } catch { /* ignore */ }
-      const r = await PostApi.like(id);
-      setPost((p: any) => ({ ...(p || {}), upvotes_count: r?.upvotes_count ?? (p?.upvotes_count || 0) + 1 }));
+      const r: any = await PostApi.toggleUpvote(id);
+      setPost((p: any) => ({ ...(p || {}), upvotes_count: typeof r?.count === 'number' ? r.count : ((p?.upvotes_count || 0) + (r?.upvoted ? 1 : -1)) }));
     } catch {}
-    setLiking(false);
+    setVoting(false);
   };
 
   const onAddComment = async () => {
@@ -75,10 +75,10 @@ export default function PostDetailScreen() {
           ) : null}
           {post.content ? <Text>{post.content}</Text> : null}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Pressable onPress={onLike} style={styles.likeBtn}>
-              <Text style={{ color: 'white', fontWeight: '700' }}>{liking ? '...' : 'Like'}</Text>
+            <Pressable onPress={onUpvote} style={styles.likeBtn}>
+              <Text style={{ color: 'white', fontWeight: '700' }}>{voting ? '...' : 'Upvote'}</Text>
             </Pressable>
-            <Text style={{ color: '#6b7280' }}>{post.upvotes_count || 0} likes</Text>
+            <Text style={{ color: '#6b7280' }}>{post.upvotes_count || 0} upvotes</Text>
           </View>
 
           <View style={styles.commentBox}>

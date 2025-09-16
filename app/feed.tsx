@@ -89,10 +89,14 @@ export default function FeedScreen() {
     setLoadingMorePosts(false);
   }, [posts, loadingMorePosts]);
 
-  const likePost = useCallback(async (id: string) => {
+  const toggleUpvote = useCallback(async (id: string) => {
     try {
-      await PostApi.like(id);
-      setPosts((arr) => arr.map((p) => (String(p.id) === String(id) ? { ...p, upvotes_count: (p.upvotes_count || 0) + 1 } : p)));
+      const r: any = await PostApi.toggleUpvote(id);
+      setPosts((arr) => arr.map((p: any) => (
+        String(p.id) === String(id)
+          ? { ...p, upvotes_count: typeof r?.count === 'number' ? r.count : ((p.upvotes_count || 0) + (r?.upvoted ? 1 : -1)) }
+          : p
+      )));
     } catch {}
   }, []);
 
@@ -100,7 +104,7 @@ export default function FeedScreen() {
     const now = Date.now();
     const last = tapTsRef.current[id] || 0;
     if (now - last < 300) {
-      likePost(String(id));
+      toggleUpvote(String(id));
       triggerHeart(String(id));
     }
     tapTsRef.current[id] = now;
@@ -254,7 +258,7 @@ export default function FeedScreen() {
                               transform: [{ scale: getHeartAnim(String(p.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
                             }}
                           >
-                            <Ionicons name="heart" size={72} color="#ef4444" />
+                            <Ionicons name="arrow-up" size={72} color="#2563EB" />
                           </Animated.View>
                         </View>
                       </Pressable>
@@ -270,7 +274,7 @@ export default function FeedScreen() {
                               transform: [{ scale: getHeartAnim(String(p.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
                             }}
                           >
-                            <Ionicons name="heart" size={72} color="#ef4444" />
+                            <Ionicons name="arrow-up" size={72} color="#2563EB" />
                           </Animated.View>
                         </View>
                       </Pressable>
@@ -278,7 +282,7 @@ export default function FeedScreen() {
                     {p.content ? <Text style={styles.postContent} numberOfLines={3}>{p.content}</Text> : null}
                     {!isImage && !isVideo && url ? <Text style={styles.postLink}>Media: {url}</Text> : null}
                     <View style={styles.countRow}>
-                      <View style={styles.countChip}><Ionicons name="heart" size={12} color="#ef4444" /><Text style={styles.countChipText}>{p.upvotes_count || 0}</Text></View>
+                      <View style={styles.countChip}><Ionicons name="arrow-up" size={12} color="#2563EB" /><Text style={styles.countChipText}>{p.upvotes_count || 0}</Text></View>
                       <View style={styles.countChip}><Ionicons name="chatbubble-ellipses" size={12} color="#6b7280" /><Text style={styles.countChipText}>{(p as any)._count?.comments || 0}</Text></View>
                     </View>
                   </Pressable>

@@ -20,6 +20,12 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Avoid stale caches/Etags for personalized endpoints
+  if (/^\/(me|auth\/me|rsvps|follows|support|users|teams|team-memberships|team-invites)/.test(path)) {
+    headers['Cache-Control'] = headers['Cache-Control'] || 'no-store';
+    headers['Pragma'] = headers['Pragma'] || 'no-cache';
+    headers['If-None-Match'] = headers['If-None-Match'] || '';
+  }
 
   const res = await fetch(base + path, { ...options, headers });
 
@@ -57,3 +63,4 @@ export function httpGet(path: string, options: RequestInit = {}) {
 }
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }); }
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
+export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }); }
