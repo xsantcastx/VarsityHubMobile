@@ -1,186 +1,152 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, Easing } from 'react-native';
+﻿import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { Stack } from 'expo-router';
 import { Image } from 'expo-image';
-import VideoPlayer from '@/components/VideoPlayer';
 import { Ionicons } from '@expo/vector-icons';
-// @ts-ignore JS exports
-import { Post as PostApi, User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+// @ts-ignore
+import { Highlights, User } from '@/api/entities';
+import { LinearGradient } from 'expo-linear-gradient';
 
-type PostItem = { id: string | number; title?: string; content?: string; media_url?: string; created_at?: string };
-type FilterKind = 'all' | 'photos' | 'videos';
+function timeAgo(d: string | Date) {
+  const ts = typeof d === 'string' ? new Date(d).getTime() : new Date(d).getTime();
+  const diff = Math.max(0, Date.now() - ts) / 1000;
+  const days = Math.floor(diff / 86400);
+  if (days >= 30) return 'about 1 month ago';
+  if (days >= 7) return `${Math.floor(days / 7)} weeks ago`;
+  if (days >= 1) return `${days} days ago`;
+  const hours = Math.floor(diff / 3600);
+  if (hours >= 1) return `${hours} hours ago`;
+  const mins = Math.floor(diff / 60);
+  if (mins >= 1) return `${mins} minutes ago`;
+  return 'just now';
+}
 
 export default function HighlightsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [posts, setPosts] = useState<PostItem[]>([]);
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<FilterKind>('all');
-
-  const tapTsRef = useRef<Record<string, number>>({});
-  const heartAnims = useRef<Map<string, Animated.Value>>(new Map());
-  const getHeartAnim = (id: string) => {
-    let v = heartAnims.current.get(id);
-    if (!v) {
-      v = new Animated.Value(0);
-      heartAnims.current.set(id, v);
-    }
-    return v;
-  };
-  const triggerHeart = (id: string) => {
-    const v = getHeartAnim(id);
-    v.stopAnimation();
-    v.setValue(0);
-    Animated.sequence([
-      Animated.timing(v, { toValue: 1, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(v, { toValue: 0, duration: 600, delay: 250, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-    ]).start();
-  };
+  const [national, setNational] = useState<any[]>([]);
+  const [ranked, setRanked] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      try { await User.me(); } catch {}
-      const list: any = await PostApi.list('-created_date', 30);
-      const arr: PostItem[] = Array.isArray(list) ? list : (list?.items || []);
-      setPosts(arr);
+      const me: any = await User.me();
+      const country = (me?.preferences?.country_code || 'US').toUpperCase();
+      const { nationalTop, ranked } = await Highlights.fetch({ country });
+      setNational(Array.isArray(nationalTop) ? nationalTop : []);
+      setRanked(Array.isArray(ranked) ? ranked : []);
     } catch (e: any) {
       console.error('Highlights load failed', e);
       setError('Unable to load highlights.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(() => {
-    const byQuery = (p: PostItem) => {
-      if (!query) return true;
-      const q = query.toLowerCase().trim();
-      return (p.title || '').toLowerCase().includes(q) || (p.content || '').toLowerCase().includes(q);
-    };
-    const isVideo = (url: string) => /\.(mp4|mov|webm|m4v)$/i.test(url);
-    const isImage = (url: string) => /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
-    return posts
-      .filter((p) => !!p.media_url)
-      .filter(byQuery)
-      .filter((p) => {
-        const url = String(p.media_url || '');
-        if (filter === 'all') return true;
-        if (filter === 'photos') return isImage(url) || (!!url && !isVideo(url));
-        return isVideo(url);
-      });
-  }, [posts, query, filter]);
-
-  const likePost = async (id: string | number) => {
-    try { await PostApi.like(String(id)); } catch {}
-  };
-  const onMediaPress = (id: string | number) => {
-    const key = String(id);
-    const now = Date.now();
-    const last = tapTsRef.current[key] || 0;
-    if (now - last < 300) {
-      likePost(key);
-      triggerHeart(key);
-    }
-    tapTsRef.current[key] = now;
-  };
-
-  const renderItem = ({ item }: { item: PostItem }) => {
-    const url = String(item.media_url || '');
-    const isVid = /\.(mp4|mov|webm|m4v)$/i.test(url);
-    const isImg = !!url && !isVid;
-    return (
-      <Pressable style={styles.card}>
-        {item.title ? <Text style={styles.title}>{item.title}</Text> : null}
-        {isImg ? (
-          <Pressable onPress={() => onMediaPress(item.id)} style={{ marginBottom: 8 }}>
-            <View style={{ position: 'relative' }}>
-              <Image source={{ uri: url }} style={styles.mediaImg} contentFit="cover" />
-              <Animated.View
-                pointerEvents="none"
-                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
-                  opacity: getHeartAnim(String(item.id)),
-                  transform: [{ scale: getHeartAnim(String(item.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-                }}
-              >
-                <Ionicons name="heart" size={72} color="#ef4444" />
-              </Animated.View>
-            </View>
-          </Pressable>
-        ) : null}
-        {isVid ? (
-          <Pressable onPress={() => onMediaPress(item.id)} style={{ marginBottom: 8 }}>
-            <View style={{ position: 'relative' }}>
-              <VideoPlayer uri={url} style={styles.mediaVid} />
-              <Animated.View
-                pointerEvents="none"
-                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
-                  opacity: getHeartAnim(String(item.id)),
-                  transform: [{ scale: getHeartAnim(String(item.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-                }}
-              >
-                <Ionicons name="heart" size={72} color="#ef4444" />
-              </Animated.View>
-            </View>
-          </Pressable>
-        ) : null}
-        {item.content ? <Text numberOfLines={3} style={styles.content}>{item.content}</Text> : null}
-      </Pressable>
-    );
-  };
-
   return (
-    <View style={styles.container}>
+    <View style={S.container}>
       <Stack.Screen options={{ title: 'Highlights' }} />
-      <Text style={styles.header}>Highlights</Text>
-      <Input placeholder="Search highlights..." value={query} onChangeText={setQuery} style={{ marginBottom: 10 }} />
-      <View style={styles.filterRow}>
-        {(['all','photos','videos'] as FilterKind[]).map((k) => (
-          <Pressable key={k} onPress={() => setFilter(k)} style={[styles.filterChip, filter === k && styles.filterChipActive]}>
-            <Text style={[styles.filterText, filter === k && styles.filterTextActive]}>
-              {k === 'all' ? 'All' : k === 'photos' ? 'Photos' : 'Videos'}
-            </Text>
-          </Pressable>
-        ))}
-        <Badge style={{ marginLeft: 'auto' }}>{String(filtered.length)}</Badge>
-      </View>
-      {loading && <View style={styles.center}><ActivityIndicator /></View>}
-      {error && !loading && <Text style={styles.error}>{error}</Text>}
-      {!loading && filtered.length === 0 && !error && (
-        <Text style={styles.muted}>No highlights found.</Text>
-      )}
-      {!loading && filtered.length > 0 && (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          contentContainerStyle={{ paddingVertical: 6, paddingBottom: 24 }}
-        />
+      <Text style={S.header}>Highlights</Text>
+      <Text style={S.sub}>The most upvoted moments from across the nation.</Text>
+      {loading && <View style={S.center}><ActivityIndicator /></View>}
+      {error && !loading && <Text style={S.error}>{error}</Text>}
+      {!loading && (
+        <>
+          <Text style={S.sectionTitle}>National Top 3</Text>
+          {national.length === 0 && (
+            <View style={S.card}><Text style={S.muted}>Be the first to post highlights in your country.</Text></View>
+          )}
+          {national.map((p, idx) => (
+            <View key={p.id} style={S.card}>
+              {/* Header */}
+              <View style={S.headerRow}>
+                <View style={S.avatar}><Text style={S.avatarText}>{String(p?.author?.display_name || 'A').charAt(0).toUpperCase()}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={S.author}>{p?.author?.display_name || 'Anonymous'}</Text>
+                  <Text style={S.meta}>{timeAgo(p.created_at)}</Text>
+                </View>
+              </View>
+              {/* Badge */}
+              <View style={S.rowBetween}>
+                <Text style={S.postTitle}>{p.title || 'Highlight'}</Text>
+                {idx === 0 ? (
+                  <LinearGradient colors={["#F59E0B", "#F97316"]} start={{x:0,y:0}} end={{x:1,y:0}} style={S.badge1}>
+                    <Text style={S.badgeText}>#1 TRENDING</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={S.badge2}><Text style={S.badgeText}>#{idx+1} NATIONAL</Text></View>
+                )}
+              </View>
+              {p.media_url ? <Image source={{ uri: p.media_url }} style={S.media} contentFit="cover" /> : null}
+              <View style={S.footerRow}>
+                <View style={S.metaRow}>
+                  <Ionicons name="arrow-up" size={14} color="#111827" />
+                  <Text style={S.meta}> {p.upvotes_count || 0}</Text>
+                  <Ionicons name="chatbubble-ellipses" size={14} color="#6B7280" style={{ marginLeft: 12 }} />
+                  <Text style={S.meta}> {p._count?.comments || 0}</Text>
+                </View>
+                <Ionicons name="bookmark-outline" size={18} color="#111827" />
+              </View>
+            </View>
+          ))}
+
+          <Text style={[S.sectionTitle, { marginTop: 12 }]}>Trending Near You</Text>
+          <FlatList
+            data={ranked}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <View style={S.card}>
+                {/* Header */}
+                <View style={S.headerRow}>
+                  <View style={S.avatar}><Text style={S.avatarText}>{String(item?.author?.display_name || 'A').charAt(0).toUpperCase()}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={S.author}>{item?.author?.display_name || 'Anonymous'}</Text>
+                    <Text style={S.meta}>{timeAgo(item.created_at)}</Text>
+                  </View>
+                </View>
+                {item.title ? <Text style={S.postTitle}>{item.title}</Text> : null}
+                {item.media_url ? <Image source={{ uri: item.media_url }} style={S.media} contentFit="cover" /> : null}
+                <View style={S.footerRow}>
+                  <View style={S.metaRow}>
+                    <Ionicons name="arrow-up" size={14} color="#111827" />
+                    <Text style={S.meta}> {item.upvotes_count || 0}</Text>
+                    <Ionicons name="chatbubble-ellipses" size={14} color="#6B7280" style={{ marginLeft: 12 }} />
+                    <Text style={S.meta}> {item._count?.comments || 0}</Text>
+                  </View>
+                  <Ionicons name="bookmark-outline" size={18} color="#111827" />
+                </View>
+              </View>
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+            contentContainerStyle={{ paddingVertical: 6, paddingBottom: 24 }}
+          />
+        </>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  header: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+const S = StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: '#FFFFFF' },
+  header: { fontSize: 34, fontWeight: '800', marginBottom: 4, color: '#111827' },
+  sub: { color: '#6B7280', marginBottom: 8, fontSize: 16 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
-  muted: { color: '#6b7280' },
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  filterChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6' },
-  filterChipActive: { backgroundColor: '#111827' },
-  filterText: { color: '#374151', fontWeight: '700' },
-  filterTextActive: { color: 'white' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  title: { fontWeight: '700', marginBottom: 6 },
-  content: { color: '#111827' },
-  mediaImg: { width: '100%', height: 200, borderRadius: 10, backgroundColor: '#E5E7EB' },
-  mediaVid: { width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111827' },
+  muted: { color: '#6B7280' },
+  sectionTitle: { fontWeight: '800', marginBottom: 6, color: '#111827' },
+  card: { padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', marginVertical: 12 },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#111827', fontWeight: '800' },
+  author: { color: '#111827', fontWeight: '800' },
+  postTitle: { fontWeight: '800', fontSize: 22, marginBottom: 8, color: '#111827' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  meta: { color: '#6B7280', fontSize: 14 },
+  media: { width: '100%', height: 180, borderRadius: 10, backgroundColor: '#E5E7EB' },
+  badge1: { position: 'absolute', right: -8, top: -12, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  badge2: { position: 'absolute', right: -8, top: 16, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2563EB' },
+  badgeText: { color: 'white', fontWeight: '800', fontSize: 12 },
 });
+

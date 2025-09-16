@@ -13,6 +13,13 @@ import { messagesRouter } from './routes/messages.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { teamsRouter } from './routes/teams.js';
 import { usersRouter } from './routes/users.js';
+import { rsvpsRouter } from './routes/rsvps.js';
+import { followsRouter } from './routes/follows.js';
+import { supportRouter } from './routes/support.js';
+import { teamMembershipsRouter } from './routes/team-memberships.js';
+import { teamInvitesRouter } from './routes/team-invites.js';
+import { uploadRouter } from './routes/upload.js';
+import { highlightsRouter } from './routes/highlights.js';
 
 import { adsRouter } from './routes/ads.js';
 import { paymentsRouter } from './routes/payments.js';
@@ -81,6 +88,8 @@ const apiLimiter = rateLimit({
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/auth', authLimiter, authRouter);
 app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
+app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
+app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/events', apiLimiter, eventsRouter);
@@ -90,7 +99,14 @@ app.use('/uploads', uploadsRouter);
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/teams', apiLimiter, teamsRouter);
-app.use('/users', apiLimiter, usersRouter);
+app.use('/users', noStore, apiLimiter, usersRouter);
+app.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
+app.use('/follows', noStore, apiLimiter, followsRouter);
+app.use('/support', noStore, apiLimiter, supportRouter);
+app.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
+app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
+app.use('/upload', noStore, apiLimiter, uploadRouter);
+app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

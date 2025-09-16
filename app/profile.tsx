@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatList, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { Stack, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { User, Post, Event } from '@/api/entities';
@@ -47,21 +49,27 @@ export default function ProfileScreen() {
       }
 
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        ...pickerMediaTypesProp(),
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
-      });
+        selectionLimit: 1,
+        quality: 0.9,
+      } as any);
 
       if (pickerResult.canceled) {
         return;
       }
 
-      const { uri } = pickerResult.assets[0];
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-      const result = await uploadFile(apiUrl, uri, 'avatar.jpg', 'image/jpeg');
-      const { url } = result;
-
+      const { uri, fileName, mimeType } = pickerResult.assets[0] as any;
+      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      const fd = new FormData();
+      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
+      fd.append('file', { uri: manipulated.uri, name, type: 'image/jpeg' } as any);
+      const token = await (await import('@/api/auth')).loadToken();
+      const baseUrl = String((process as any).env?.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const resp = await fetch(`${baseUrl}/upload/avatar`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } as any : undefined, body: fd as any });
+      if (!resp.ok) throw new Error(await resp.text());
+      const { url } = await resp.json();
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 

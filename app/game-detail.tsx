@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator, Pressable, Share, ScrollView
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { pickerMediaTypesProp } from '@/utils/picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { uploadFile } from '@/api/upload';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -66,12 +68,13 @@ export default function GameDetailScreen() {
     if (!id) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
-    if (r.canceled || !r.assets || !r.assets[0]) return;
-    const a = r.assets[0];
+    const r = await ImagePicker.launchImageLibraryAsync({ ...pickerMediaTypesProp(), allowsEditing: true, aspect: [4,3], selectionLimit: 1, quality: 0.9 } as any);
+    if ((r as any).canceled || !(r as any).assets || !(r as any).assets[0]) return;
+    const a = (r as any).assets[0];
     try {
       const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-      const up = await uploadFile(base, a.uri, 'story.jpg', a.mimeType || 'image/jpeg');
+      const manipulated = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
+      const up = await uploadFile(base, manipulated.uri, 'story.jpg', 'image/jpeg');
       await Game.addStory(String(id), { media_url: up?.url || up?.path || '' });
       const s = await Game.stories(String(id));
       setStories(Array.isArray(s) ? s : []);

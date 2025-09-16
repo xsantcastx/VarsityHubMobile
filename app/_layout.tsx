@@ -54,7 +54,13 @@ export default function RootLayout() {
     const isPublic = publicRoutes.has(first);
     (async () => {
       try {
-        await User.me();
+        const me: any = await User.me();
+        const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
+        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-2-basic') {
+          lastRedirectRef.current = '/onboarding/step-2-basic';
+          router.replace('/onboarding/step-2-basic');
+          return;
+        }
         if (isPublic && lastRedirectRef.current !== '/(tabs)') {
           lastRedirectRef.current = '/(tabs)';
           router.replace('/(tabs)');

@@ -23,6 +23,7 @@ model User {
   email_verification_code    String?
   email_verification_expires DateTime?
   banned                     Boolean   @default(false)
+  preferences                Json      @default("{}")
 
   // Relations
   memberships TeamMembership[]
@@ -39,6 +40,7 @@ model User {
   messagesSent     Message[] @relation("message_sender")
   messagesReceived Message[] @relation("message_recipient")
   Comment          Comment[]
+  postVotes        PostVote[]
 }
 
 model Game {
@@ -69,12 +71,19 @@ model Post {
   media_url     String?
   upvotes_count Int     @default(0)
 
+  // Geolocation (optional)
+  country_code String?
+  admin1       String?
+  lat          Float?
+  lng          Float?
+
   game_id String?
   game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
 
   comments Comment[]
+  votes    PostVote[]
 
   @@index([created_at])
   @@index([author_id])
@@ -127,6 +136,20 @@ model Comment {
 
   @@index([post_id, created_at])
   @@index([author_id, created_at])
+}
+
+// One upvote per user per post
+model PostVote {
+  id         String   @id @default(cuid())
+  post_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([post_id, user_id])
+  @@index([post_id, created_at])
 }
 
 model EventRsvp {

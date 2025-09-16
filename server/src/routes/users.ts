@@ -83,6 +83,47 @@ usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   return res.send(csv);
 });
 
+// Delete own account (soft-delete)
+usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) => {
+  const id = req.user!.id;
+  const ts = Date.now();
+  const deletedEmail = `deleted+${id}+${ts}@example.com`;
+  try {
+    await prisma.user.update({
+      where: { id },
+      data: {
+        banned: true,
+        email: deletedEmail,
+        password_hash: `deleted:${ts}:${Math.random().toString(36).slice(2)}`,
+        display_name: null,
+        avatar_url: null,
+        bio: null,
+      },
+    });
+    return res.json({ deleted: true });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
+// Username availability check (public to authed users)
+usersRouter.get('/username-available', async (req, res) => {
+  const username = String((req.query as any).username || '').trim();
+  const valid = /^[a-z0-9_.]{3,20}$/.test(username);
+  if (!valid) return res.json({ available: false, valid: false });
+  const exists = await prisma.user.findFirst({ where: { display_name: { equals: username, mode: 'insensitive' } }, select: { id: true } });
+  return res.json({ available: !exists, valid: true });
+});
+
+// Lookup user by email (for onboarding authorized users flow)
+usersRouter.get('/lookup', async (req, res) => {
+  const email = String((req.query as any).email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+  const u = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, display_name: true } });
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  return res.json(u);
+});
+
 // Follow a user
 usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;

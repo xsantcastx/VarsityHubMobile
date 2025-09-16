@@ -1,5 +1,5 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
-import { httpGet, httpPost, httpPut } from './http';
+import { httpGet, httpPost, httpPut, httpPatch } from './http';
 import auth from './auth';
 
 export const User = {
@@ -8,8 +8,12 @@ export const User = {
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
   logout: () => auth.logout(),
   updateMe: (data: any) => httpPut('/auth/me', data),
+  patchMe: (data: any) => httpPatch('/me', data),
+  updatePreferences: (patch: any) => httpPatch('/me/preferences', patch),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
+  usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
+  lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
   listAll: (q?: string, limit: number = 100, banned?: boolean) => {
     const qq: string[] = [];
     if (q) qq.push('q=' + encodeURIComponent(q));
@@ -77,8 +81,7 @@ export const Post = {
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
-  like: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/reactions/like`, {}),
-  unlike: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/reactions/like?_method=DELETE`, {}),
+  toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
 };
 
 export const Event = {
@@ -91,7 +94,7 @@ export const Event = {
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, attending?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof attending === 'boolean' ? { attending } : {}),
-  myRsvps: () => httpGet('/events/my-rsvps'),
+  myRsvps: (limit: number = 100) => httpGet('/rsvps?user_id=me' + (limit ? `&limit=${encodeURIComponent(String(limit))}` : '')),
 };
 
 export const Message = {
@@ -142,6 +145,20 @@ export const Team = {
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
 };
+
+export const Support = {
+  contact: (data: { name: string; email: string; subject: string; message: string }) => httpPost('/support/contact', data),
+  feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
+};
+
+export const TeamMemberships = {
+  create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
+};
+
+export const TeamInvites = {
+  create: (data: { team_id: string; email: string; role?: string }) => httpPost('/team-invites', data),
+};
+
 export const CollaborativePost = {} as any;
 export const EventPost = {} as any;
 export const FreelancerBooking = {} as any;
@@ -163,4 +180,16 @@ export const Advertisement = {
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+};
+
+export const Highlights = {
+  fetch: (params: { country?: string; lat?: number; lng?: number; limit?: number } = {}) => {
+    const q: string[] = [];
+    q.push('v2=1');
+    if (params.country) q.push('country=' + encodeURIComponent(params.country));
+    if (typeof params.lat === 'number') q.push('lat=' + encodeURIComponent(String(params.lat)));
+    if (typeof params.lng === 'number') q.push('lng=' + encodeURIComponent(String(params.lng)));
+    if (params.limit) q.push('limit=' + encodeURIComponent(String(params.limit)));
+    return httpGet('/highlights' + (q.length ? '?' + q.join('&') : ''));
+  },
 };

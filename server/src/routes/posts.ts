@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const postsRouter = Router();
 
@@ -42,6 +43,19 @@ postsRouter.get('/count', async (req, res) => {
   res.json({ count });
 });
 
+const locationSchema = z.object({
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
+  place_id: z.string().nullable().optional(),
+  place_name: z.string().nullable().optional(),
+  locality: z.string().nullable().optional(),
+  admin_area: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  country_code: z.string().nullable().optional(),
+  source: z.enum(['device','places','zip','derived']).nullable().optional(),
+  zip: z.string().nullable().optional(),
+}).optional();
+
 const createPostSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
@@ -50,12 +64,15 @@ const createPostSchema = z
     // Accept any non-empty string to support data URIs or local uploads handled elsewhere
     media_url: z.string().trim().min(1).optional(),
     game_id: z.string().optional(),
+    location: locationSchema,
   })
   // Require at least content or media_url
   .refine((d) => Boolean((d.content && d.content.trim().length > 0) || (d.media_url && d.media_url.trim().length > 0)), {
     message: 'Either content or media_url is required',
     path: ['content'],
   });
+
+import { reverseGeocode, geocodeZip, getCountryFromReqOrPrefs } from '../lib/geo.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -67,6 +84,34 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   const data = parsed.data;
+  // Normalize and enrich location
+  let lat: number | null = null;
+  let lng: number | null = null;
+  let country_code: string | null = null;
+  let admin1: string | null = null;
+  let place_name: string | null = null;
+  
+  const prefs = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const preferCountry = getCountryFromReqOrPrefs(req as any, prefs?.preferences);
+  const loc = (data as any).location || {};
+  if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+    lat = loc.lat; lng = loc.lng;
+    try {
+      const rev = await reverseGeocode(lat, lng);
+      country_code = rev.country_code || preferCountry;
+      admin1 = rev.admin_area || null;
+      place_name = rev.place_name || null;
+    } catch {}
+  } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
+    try {
+      const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
+      const gg = await geocodeZip(zip, preferCountry);
+      lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
+    } catch {}
+  } else {
+    country_code = preferCountry || null;
+  }
+
   const post = await prisma.post.create({
     data: {
       title: data.title,
@@ -75,9 +120,14 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       media_url: data.media_url,
       game_id: data.game_id,
       author_id: req.user.id,
+      country_code: country_code || undefined,
+      admin1: admin1 || undefined,
+      lat: typeof lat === 'number' ? lat : undefined,
+      lng: typeof lng === 'number' ? lng : undefined,
     },
   });
-  res.status(201).json(post);
+
+  res.status(201).json({ ...post, location: { lat, lng, place_name, country_code } });
 });
 
 postsRouter.get('/:id', async (req, res) => {
@@ -105,18 +155,23 @@ postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
 });
 
 // Reactions
-postsRouter.post('/:id/reactions/like', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const { id } = req.params;
-  const post = await prisma.post.update({ where: { id }, data: { upvotes_count: { increment: 1 } } });
-  res.json({ upvotes_count: post.upvotes_count });
-});
-
-postsRouter.delete('/:id/reactions/like', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const { id } = req.params;
-  const p = await prisma.post.findUnique({ where: { id } });
-  if (!p) return res.status(404).json({ error: 'Not found' });
-  const post = await prisma.post.update({ where: { id }, data: { upvotes_count: Math.max(0, (p.upvotes_count || 0) - 1) } });
-  res.json({ upvotes_count: post.upvotes_count });
+// Toggle upvote
+postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+  const existing = await prisma.postVote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } as any });
+  if (existing) {
+    await prisma.$transaction([
+      prisma.postVote.delete({ where: { id: existing.id } }),
+      prisma.post.update({ where: { id: postId }, data: { upvotes_count: { decrement: 1 } } }),
+    ]);
+    const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
+    return res.json({ upvoted: false, count: upvotes_count });
+  }
+  await prisma.$transaction([
+    prisma.postVote.create({ data: { post_id: postId, user_id: userId } }),
+    prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
+  ]);
+  const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
+  return res.json({ upvoted: true, count: upvotes_count });
 });
