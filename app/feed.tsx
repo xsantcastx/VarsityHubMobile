@@ -11,8 +11,9 @@ import { Ionicons } from '@expo/vector-icons';
 import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
 import { Image } from 'expo-image';
 import VideoPlayer from '@/components/VideoPlayer';
+import { LinearGradient } from 'expo-linear-gradient';
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string };
+type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
 type PostItem = { id: string; title?: string; content?: string; media_url?: string; created_at?: string };
 
 export default function FeedScreen() {
@@ -199,8 +200,20 @@ export default function FeedScreen() {
         renderItem={({ item, index }) => (
           <>
             {/* Card */}
-            <Pressable style={styles.card} onPress={() => router.push(`/(tabs)/game-detail?id=${item.id}`)}>
-              <View style={styles.hero} />
+            <Pressable
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+            >
+              <View style={styles.hero}>
+                {(() => {
+                  const banner = item.cover_image_url || (item as any).banner_url || null;
+                  return banner ? (
+                    <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  );
+                })()}
+              </View>
               {item.date ? (
                 <Text style={styles.cardDate}>{format(new Date(item.date), 'EEE, MMM d, yyyy')}</Text>
               ) : null}
@@ -314,7 +327,8 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
   card: { padding: 14, borderRadius: 14, backgroundColor: 'white', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  hero: { height: 140, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 12 },
+  hero: { height: 140, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 12, overflow: 'hidden' },
+    heroImage: { width: '100%', height: '100%' },
   cardDate: { color: '#2563EB', fontWeight: '700', marginBottom: 4 },
   cardTitle: { fontWeight: '800', fontSize: 18, marginBottom: 2 },
   cardMeta: { color: '#6b7280' },
@@ -334,6 +348,12 @@ const styles = StyleSheet.create({
   countChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   countChipText: { color: '#111827', fontWeight: '700', fontSize: 12 },
 });
+
+
+
+
+
+
 
 
 

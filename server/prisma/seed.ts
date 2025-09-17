@@ -78,13 +78,16 @@ async function main() {
   for (let i = 0; i < 5; i++) {
     const date = new Date();
     date.setDate(date.getDate() + (i + 1));
+    const relatedGameId = i < Math.min(3, gameIds.length) ? gameIds[i] : null;
     await prisma.event.create({
       data: {
         title: `Event ${i + 1}`,
         date,
         location: 'Main Hall',
+        banner_url: `https://picsum.photos/seed/event${i}/800/400`,
         status: 'approved', // your schema allows any string; default is "draft"
         capacity: 50 + i * 5,
+        game_id: relatedGameId,
       },
     });
   }

@@ -7,32 +7,93 @@ import { requireAuth } from '../middleware/requireAuth.js';
 
 export const postsRouter = Router();
 
-postsRouter.get('/', async (req, res) => {
-  const sort = String(req.query.sort || '').trim();
-  const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
-  const cursor = (req.query.cursor as string | undefined) || undefined;
-  const orderBy = sort === '-created_date' ? { created_at: 'desc' as const } : { created_at: 'desc' as const };
-  const where: any = {};
+
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
+const detectMediaType = (url?: string | null): 'video' | 'image' => {
+  if (!url) return 'image';
+  const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
+};
+
+
+postsRouter.get('/', async (req: AuthedRequest, res) => {
+  const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
+  const limit = Math.min(parseInt(String(req.query.limit ?? '10'), 10) || 10, 50);
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const currentUserId = req.user?.id ?? null;
+
+  const orderBy = sort === 'trending'
+    ? [{ upvotes_count: 'desc' as const }, { created_at: 'desc' as const }]
+    : [{ created_at: 'desc' as const }];
+
+  const where: Record<string, any> = {};
   if (req.query.game_id) where.game_id = String(req.query.game_id);
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
 
+  const query: any = {
+    where,
+    orderBy,
+    include: {
+      author: { select: { id: true, display_name: true, avatar_url: true } },
+      _count: { select: { comments: true, bookmarks: true } },
+    },
+    take: limit + 1,
+  };
   if (cursor) {
-    const rows = await prisma.post.findMany({
-      orderBy,
-      cursor: { id: cursor },
-      skip: 1,
-      take: limit + 1,
-      include: { _count: { select: { comments: true } } },
-      where,
-    });
-    const items = rows.slice(0, limit);
-    const nextCursor = rows.length > limit ? rows[limit].id : null;
-    return res.json({ items, nextCursor });
+    query.cursor = { id: cursor };
+    query.skip = 1;
   }
-  const posts = await prisma.post.findMany({ orderBy, take: limit, include: { _count: { select: { comments: true } } }, where });
-  res.json(posts);
+
+  const rows = await prisma.post.findMany(query);
+  const items = rows.slice(0, limit);
+  const nextCursor = rows.length > limit ? rows[limit].id : null;
+
+  const postIds: string[] = items.map((p: any) => p.id);
+  const authorIds: string[] = items.map((p: any) => p.author_id).filter(Boolean);
+
+  let upvotedIds = new Set<string>();
+  let bookmarkedIds = new Set<string>();
+  let followingIds = new Set<string>();
+
+  if (currentUserId && items.length) {
+    const followPromise = authorIds.length
+      ? prisma.follows.findMany({ where: { follower_id: currentUserId, following_id: { in: authorIds } }, select: { following_id: true } })
+      : Promise.resolve([] as Array<{ following_id: string }>);
+    const [upvotes, bookmarks, follows] = await Promise.all([
+      prisma.postUpvote.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+      prisma.postBookmark.findMany({ where: { user_id: currentUserId, post_id: { in: postIds } }, select: { post_id: true } }),
+      followPromise,
+    ]);
+    upvotedIds = new Set(upvotes.map((u) => u.post_id));
+    bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
+    followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
+  }
+
+  const payload = items.map((post: any) => ({
+    id: post.id,
+    media_url: post.media_url ?? null,
+    media_type: detectMediaType(post.media_url),
+    caption: post.content ?? null,
+    upvotes_count: post.upvotes_count ?? 0,
+    comments_count: post._count?.comments ?? 0,
+    bookmarks_count: post._count?.bookmarks ?? 0,
+    created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
+    author: post.author
+      ? {
+          id: post.author.id,
+          display_name: post.author.display_name,
+          avatar_url: post.author.avatar_url,
+        }
+      : null,
+    has_upvoted: upvotedIds.has(post.id),
+    has_bookmarked: bookmarkedIds.has(post.id),
+    is_following_author: post.author ? followingIds.has(post.author.id) : false,
+  }));
+
+  return res.json({ items: payload, nextCursor });
 });
+
 
 // Count posts by simple filters (e.g., game_id, type)
 postsRouter.get('/count', async (req, res) => {
@@ -156,22 +217,43 @@ postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
 
 // Reactions
 // Toggle upvote
+
 postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
-  const existing = await prisma.postVote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } as any });
+
+  const existing = await prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
   if (existing) {
     await prisma.$transaction([
-      prisma.postVote.delete({ where: { id: existing.id } }),
+      prisma.postUpvote.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } }),
       prisma.post.update({ where: { id: postId }, data: { upvotes_count: { decrement: 1 } } }),
     ]);
     const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
-    return res.json({ upvoted: false, count: upvotes_count });
+    return res.json({ has_upvoted: false, upvotes_count, upvoted: false, count: upvotes_count });
   }
+
   await prisma.$transaction([
-    prisma.postVote.create({ data: { post_id: postId, user_id: userId } }),
+    prisma.postUpvote.create({ data: { post_id: postId, user_id: userId } }),
     prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
   ]);
   const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
-  return res.json({ upvoted: true, count: upvotes_count });
+  return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
 });
+
+
+postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+
+  const existing = await prisma.postBookmark.findUnique({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+  if (existing) {
+    await prisma.postBookmark.delete({ where: { post_id_user_id: { post_id: postId, user_id: userId } } });
+    const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
+    return res.json({ has_bookmarked: false, bookmarks_count, bookmarked: false });
+  }
+
+  await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
+  const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
+  return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
+});
+
