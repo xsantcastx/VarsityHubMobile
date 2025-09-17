@@ -1,5 +1,5 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
-import { httpGet, httpPost, httpPut, httpPatch } from './http';
+import { httpGet, httpPost, httpPut, httpPatch, httpDelete } from './http';
 import auth from './auth';
 
 export const User = {
@@ -33,27 +33,59 @@ export const User = {
 export const Game = {
   list: (sort?: string) => httpGet('/games' + (sort ? `?sort=${encodeURIComponent(sort)}` : '')),
   get: (id: string) => httpGet('/games/' + encodeURIComponent(id)),
+  summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary'),
+  posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
+    const q: string[] = [];
+    if (typeof options.limit === 'number') q.push('limit=' + encodeURIComponent(String(options.limit)));
+    if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
+    const qs = q.length ? '?' + q.join('&') : '';
+    return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
+  },
+  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`),
+  votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
+  castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
+  clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
   addStory: (id: string, data: { media_url: string; caption?: string }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
 };
 
+
+const normalizePostItems = (input: any) => {
+  if (Array.isArray(input)) return input;
+  if (input && Array.isArray(input.items)) return input.items;
+  return [] as any[];
+};
+
+const normalizePostPage = (input: any) => {
+  if (!input) return { items: [] as any[], nextCursor: null };
+  if (Array.isArray(input)) return { items: input, nextCursor: null };
+  return {
+    items: Array.isArray(input.items) ? input.items : [],
+    nextCursor: typeof input.nextCursor === 'string' ? input.nextCursor : null,
+  };
+};
+
+
+
 export const Post = {
-  list: (sort?: string, limit: number = 20) => {
+  list: async (sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
-    return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    return normalizePostItems(res);
   },
   create: (data: any) => httpPost('/posts', data),
-  filter: (where: { game_id?: string; type?: string, user_id?: string } = {}, sort?: string, limit: number = 20) => {
+  filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
-    return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    return normalizePostItems(res);
   },
   count: (where: { game_id?: string; type?: string } = {}) => {
     const q: string[] = [];
@@ -61,14 +93,15 @@ export const Post = {
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     return httpGet('/posts/count' + (q.length ? '?' + q.join('&') : ''));
   },
-  listPage: (cursor?: string | null, limit: number = 10, sort: string = '-created_date') => {
+  listPage: async (cursor?: string | null, limit: number = 10, sort: string = '-created_date') => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
     if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
-    return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    return normalizePostPage(res);
   },
-  filterPage: (where: { game_id?: string; type?: string, user_id?: string } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
+  filterPage: async (where: { game_id?: string; type?: string; user_id?: string } = {}, cursor?: string | null, limit: number = 20, sort: string = '-created_date') => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
@@ -76,12 +109,25 @@ export const Post = {
     if (where.game_id) q.push('game_id=' + encodeURIComponent(where.game_id));
     if (where.type) q.push('type=' + encodeURIComponent(where.type));
     if (where.user_id) q.push('user_id=' + encodeURIComponent(where.user_id));
-    return httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    return normalizePostPage(res);
+  },
+  feedForGame: async (gameId: string, options: { cursor?: string | null; limit?: number; sort?: string } = {}) => {
+    const q: string[] = [];
+    q.push('game_id=' + encodeURIComponent(gameId));
+    const sortValue = options.sort || 'trending';
+    if (sortValue) q.push('sort=' + encodeURIComponent(sortValue));
+    const limitValue = typeof options.limit === 'number' ? options.limit : 10;
+    if (limitValue) q.push('limit=' + String(limitValue));
+    if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    return normalizePostPage(res);
   },
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
+  toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
 };
 
 export const Event = {
@@ -93,8 +139,8 @@ export const Event = {
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
-  rsvp: (id: string, attending?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof attending === 'boolean' ? { attending } : {}),
-  myRsvps: (limit: number = 100) => httpGet('/rsvps?user_id=me' + (limit ? `&limit=${encodeURIComponent(String(limit))}` : '')),
+  rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
+  myRsvps: () => httpGet('/events/my-rsvps'),
 };
 
 export const Message = {

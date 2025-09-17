@@ -13,6 +13,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const hiddenTab = {
+    href: null,
+    tabBarItemStyle: { display: 'none' },
+    tabBarLabel: () => null,
+  } as const;
   
 
   return (
@@ -31,14 +36,14 @@ export default function TabLayout() {
         },
       }}>
       <Tabs.Screen
-        name="index"
+        name="feed/index"
         options={{
           title: 'Feed',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="highlights"
+        name="highlights/index"
         options={{
           title: 'Highlights',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="video.fill" color={color} />,
@@ -54,28 +59,30 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="discover/index"
         options={{
           title: 'Discover',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
         }}
       />
       {/* Hidden detail routes to keep tab bar visible when pushed */}
-      <Tabs.Screen name="game-detail" options={{ href: null }} />
-      <Tabs.Screen name="game-photos" options={{ href: null }} />
-      <Tabs.Screen name="game-highlights" options={{ href: null }} />
-      <Tabs.Screen name="game-reviews" options={{ href: null }} />
-      <Tabs.Screen name="my-ads" options={{ href: null }} />
-      <Tabs.Screen name="submit-ad" options={{ href: null }} />
-      <Tabs.Screen name="ad-calendar" options={{ href: null }} />
-      <Tabs.Screen name="edit-ad" options={{ href: null }} />
-      <Tabs.Screen name="admin-ads" options={{ href: null }} />
-      <Tabs.Screen name="admin-messages" options={{ href: null }} />
-      <Tabs.Screen name="admin-teams" options={{ href: null }} />
-      <Tabs.Screen name="admin-users" options={{ href: null }} />
-      <Tabs.Screen name="admin-user-detail" options={{ href: null }} />
+      <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
+      <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+      <Tabs.Screen name="game-detail" options={hiddenTab} />
+      <Tabs.Screen name="game-photos" options={hiddenTab} />
+      <Tabs.Screen name="game-highlights" options={hiddenTab} />
+      <Tabs.Screen name="game-reviews" options={hiddenTab} />
+      <Tabs.Screen name="my-ads" options={hiddenTab} />
+      <Tabs.Screen name="submit-ad" options={hiddenTab} />
+      <Tabs.Screen name="ad-calendar" options={hiddenTab} />
+      <Tabs.Screen name="edit-ad" options={hiddenTab} />
+      <Tabs.Screen name="admin-ads" options={hiddenTab} />
+      <Tabs.Screen name="admin-messages" options={hiddenTab} />
+      <Tabs.Screen name="admin-teams" options={hiddenTab} />
+      <Tabs.Screen name="admin-users" options={hiddenTab} />
+      <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
@@ -84,3 +91,6 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+
+

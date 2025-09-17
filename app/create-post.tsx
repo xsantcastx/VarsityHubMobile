@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Alert, ActivityIndicator, Image as RNImage, Pressable, ScrollView, Switch } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 // @ts-ignore
 import { Post, User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,9 @@ import * as Location from 'expo-location';
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
+  const gameId = params?.gameId ? String(params.gameId) : undefined;
+  const postType = params?.type === 'highlight' ? 'highlight' : 'post';
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
   const [shareLocation, setShareLocation] = useState(true);
@@ -108,15 +111,28 @@ export default function CreatePostScreen() {
         const res = await uploadFile(base, picked.uri, name, mime);
         finalMediaUrl = res?.url || res?.path;
       }
-      if (!content.trim() && !finalMediaUrl) {
+      const trimmedContent = content.trim();
+      if (!trimmedContent && !finalMediaUrl) {
         setError('Add content or select a media file');
         setSubmitting(false);
         return;
       }
       const location = shareLocation ? { lat, lng, source: 'device' as const } : {};
-      await Post.create({ content, media_url: finalMediaUrl || undefined, type: 'post', location });
-      Alert.alert('Posted', 'Your post has been created.');
-      router.back();
+      const payload: Record<string, any> = {
+        content: trimmedContent,
+        media_url: finalMediaUrl || undefined,
+        type: postType,
+        location,
+      };
+      if (gameId) {
+        payload.game_id = gameId;
+      }
+      await Post.create(payload);
+      Alert.alert(
+        postType === 'highlight' ? 'Highlight shared' : 'Posted',
+        postType === 'highlight' ? 'Your highlight has been shared.' : 'Your post has been created.'
+      );
+      router.replace('/(tabs)/feed');
     } catch (e: any) {
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (issues.length) {
@@ -130,6 +146,9 @@ export default function CreatePostScreen() {
   };
 
   const canPost = useMemo(() => !!content.trim() || !!picked?.uri, [content, picked]);
+  const buttonLabel = submitting
+    ? (postType === 'highlight' ? 'Posting highlight...' : 'Posting...')
+    : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
     <View style={styles.container}>
@@ -137,7 +156,7 @@ export default function CreatePostScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}><Ionicons name="close" size={22} color="#111827" /></Pressable>
-        <PrimaryButton label={submitting ? 'Posting…' : 'Post'} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+        <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>

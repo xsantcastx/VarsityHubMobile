@@ -15,8 +15,8 @@ export default function DebugScreen() {
       <Stack.Screen options={{ title: 'Debug' }} />
       <Text style={styles.title}>Quick Nav</Text>
       <View style={styles.row}>
-        <Button onPress={() => router.push('/feed')}>Feed</Button>
-        <Button onPress={() => router.push('/(tabs)/explore')}>Discover</Button>
+        <Button onPress={() => router.push('/(tabs)/feed')}>Feed</Button>
+        <Button onPress={() => router.push('/(tabs)/discover')}>Discover</Button>
         <Button onPress={() => router.push('/profile')}>Profile</Button>
         <Button onPress={() => router.push('/messages')}>Messages</Button>
       </View>
@@ -31,7 +31,7 @@ export default function DebugScreen() {
       <View style={styles.block}>
         <Text style={styles.label}>Game Detail id</Text>
         <Input placeholder="e.g. 456" value={gameId} onChangeText={setGameId} style={{ marginBottom: 8 }} />
-        <Button onPress={() => gameId && router.push(`/game-detail?id=${gameId}`)} disabled={!gameId}>Open Game</Button>
+        <Button onPress={() => gameId && router.push({ pathname: '/game/[id]', params: { id: gameId } })} disabled={!gameId}>Open Game</Button>
       </View>
 
       <View style={styles.block}>
@@ -50,3 +50,8 @@ const styles = StyleSheet.create({
   block: { marginTop: 12 },
   label: { fontWeight: '700', marginBottom: 6 },
 });
+
+
+
+
+

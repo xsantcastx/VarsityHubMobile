@@ -25,6 +25,9 @@ export default function CreateScreen() {
         <Pressable style={styles.item} onPress={() => go('/create-post')}>
           <Text style={styles.itemText}>Create Post</Text>
         </Pressable>
+        <Pressable style={styles.item} onPress={() => go('/create-post?type=highlight')}>
+          <Text style={styles.itemText}>Share Highlight</Text>
+        </Pressable>
         <Pressable style={styles.item} onPress={() => go('/create-fan-event')}>
           <Text style={styles.itemText}>Create Fan Event</Text>
         </Pressable>
@@ -69,3 +72,4 @@ const styles = StyleSheet.create({
   cancel: { backgroundColor: '#F3F4F6' },
   itemText: { fontWeight: '700' },
 });
+

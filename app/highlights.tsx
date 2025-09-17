@@ -1,11 +1,11 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
-import { Stack } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 // @ts-ignore
 import { Highlights, User } from '@/api/entities';
-import { LinearGradient } from 'expo-linear-gradient';
 
 function timeAgo(d: string | Date) {
   const ts = typeof d === 'string' ? new Date(d).getTime() : new Date(d).getTime();
@@ -22,6 +22,7 @@ function timeAgo(d: string | Date) {
 }
 
 export default function HighlightsScreen() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [national, setNational] = useState<any[]>([]);
@@ -41,6 +42,11 @@ export default function HighlightsScreen() {
     } finally { setLoading(false); }
   }, []);
 
+  const handlePostPress = useCallback((post: any) => {
+    if (!post?.game_id) return;
+    router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(post.game_id) } });
+  }, [router]);
+
   useEffect(() => { load(); }, [load]);
 
   return (
@@ -57,7 +63,12 @@ export default function HighlightsScreen() {
             <View style={S.card}><Text style={S.muted}>Be the first to post highlights in your country.</Text></View>
           )}
           {national.map((p, idx) => (
-            <View key={p.id} style={S.card}>
+            <Pressable
+              key={p.id}
+              style={[S.card, !p.game_id && S.cardDisabled]}
+              onPress={() => handlePostPress(p)}
+              disabled={!p.game_id}
+            >
               {/* Header */}
               <View style={S.headerRow}>
                 <View style={S.avatar}><Text style={S.avatarText}>{String(p?.author?.display_name || 'A').charAt(0).toUpperCase()}</Text></View>
@@ -87,7 +98,7 @@ export default function HighlightsScreen() {
                 </View>
                 <Ionicons name="bookmark-outline" size={18} color="#111827" />
               </View>
-            </View>
+            </Pressable>
           ))}
 
           <Text style={[S.sectionTitle, { marginTop: 12 }]}>Trending Near You</Text>
@@ -95,7 +106,11 @@ export default function HighlightsScreen() {
             data={ranked}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <View style={S.card}>
+              <Pressable
+                style={[S.card, !item.game_id && S.cardDisabled]}
+                disabled={!item.game_id}
+                onPress={() => handlePostPress(item)}
+              >
                 {/* Header */}
                 <View style={S.headerRow}>
                   <View style={S.avatar}><Text style={S.avatarText}>{String(item?.author?.display_name || 'A').charAt(0).toUpperCase()}</Text></View>
@@ -115,7 +130,7 @@ export default function HighlightsScreen() {
                   </View>
                   <Ionicons name="bookmark-outline" size={18} color="#111827" />
                 </View>
-              </View>
+              </Pressable>
             )}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
             contentContainerStyle={{ paddingVertical: 6, paddingBottom: 24 }}
@@ -135,6 +150,7 @@ const S = StyleSheet.create({
   muted: { color: '#6B7280' },
   sectionTitle: { fontWeight: '800', marginBottom: 6, color: '#111827' },
   card: { padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', marginVertical: 12 },
+  cardDisabled: { opacity: 0.75 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
@@ -149,4 +165,3 @@ const S = StyleSheet.create({
   badge2: { position: 'absolute', right: -8, top: 16, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2563EB' },
   badgeText: { color: 'white', fontWeight: '800', fontSize: 12 },
 });
-
