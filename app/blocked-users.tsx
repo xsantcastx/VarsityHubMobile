@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert } from 'react-native';
-import { Stack } from 'expo-router';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function BlockedUsersScreen() {
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export default function BlockedUsersScreen() {
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         <Input placeholder="user@example.com" value={email} onChangeText={setEmail} style={{ flex: 1 }} />
-        <Button onPress={add}>Add</Button>
+  <Button onPress={add}><Text>Add</Text></Button>
       </View>
 
       {loading ? (

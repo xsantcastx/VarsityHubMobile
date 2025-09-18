@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { User, TeamMemberships, TeamInvites } from '@/api/entities';
+import { TeamInvites, TeamMemberships, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 
 type Role = 'Team Manager' | 'Coach' | 'Admin';
@@ -57,10 +57,10 @@ export default function Step6AuthorizedUsers() {
         <Text style={styles.label}>Role</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           {(['Team Manager','Coach','Admin'] as Role[]).map(r => (
-            <Button key={r} variant={role===r?'default':'outline'} onPress={() => setRole(r)}>{r}</Button>
+            <Button key={r} variant={role===r?'default':'outline'} onPress={() => setRole(r)}><Text>{r}</Text></Button>
           ))}
         </View>
-        <Button onPress={addUser} disabled={adding}>{adding ? 'Adding…' : 'Add User'}</Button>
+  <Button onPress={addUser} disabled={adding}><Text>{adding ? 'Adding…' : 'Add User'}</Text></Button>
         <View style={{ height: 12 }} />
         {list.length > 0 && <Text style={styles.subtitle}>Added</Text>}
         {list.map((it, idx) => (
@@ -69,7 +69,7 @@ export default function Step6AuthorizedUsers() {
               <Text style={styles.rowTitle}>{it.email}</Text>
               <Text style={styles.mutedSmall}>{it.type === 'invite' ? 'Invited' : it.role}</Text>
             </View>
-            <Button variant="outline" onPress={() => setList((arr) => arr.filter((_, i) => i !== idx))}>Remove</Button>
+            <Button variant="outline" onPress={() => setList((arr) => arr.filter((_, i) => i !== idx))}><Text>Remove</Text></Button>
           </View>
         ))}
         <View style={{ height: 16 }} />

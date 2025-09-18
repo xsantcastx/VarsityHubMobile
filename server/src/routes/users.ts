@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import type { AuthedRequest } from '../middleware/auth.js';
 
 export const usersRouter = Router();
 
@@ -140,7 +140,8 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
         following_id,
       },
     });
-    res.status(201).json({ success: true });
+    // Return is_following_author for caller
+    res.status(201).json({ is_following_author: true });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong.' });
   }

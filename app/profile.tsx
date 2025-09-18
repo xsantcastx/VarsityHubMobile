@@ -1,17 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView, FlatList, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { pickerMediaTypesProp } from '@/utils/picker';
-import { Stack, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { User, Post, Event } from '@/api/entities';
-import { uploadFile } from '@/api/upload';
+import { Event, Post, User } from '@/api/entities';
+import PostCard from '@/components/PostCard';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import PostCard from '@/components/PostCard';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { SimpleLineIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type CurrentUser = {
   id?: string | number;
@@ -182,7 +181,7 @@ export default function ProfileScreen() {
         {me.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
       </View>
       <View style={styles.actionsContainer}>
-        <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
+  <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}><Text>Edit Profile</Text></Button>
         <Button variant="outline" size="icon" onPress={() => router.push('/settings')}>
           <SimpleLineIcons name="settings" size={20} color="black" />
         </Button>
@@ -202,7 +201,7 @@ export default function ProfileScreen() {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No posts yet</Text>
       <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-      <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
+  <Button onPress={() => router.push('/create-post')}><Text>Create Your First Post</Text></Button>
     </View>
   );
 
@@ -215,7 +214,7 @@ export default function ProfileScreen() {
       <View style={styles.center}>
         <Text style={styles.error}>{error}</Text>
         <View style={{ height: 8 }} />
-        <Button onPress={() => router.push('/sign-in')}>Sign In</Button>
+  <Button onPress={() => router.push('/sign-in')}><Text>Sign In</Text></Button>
       </View>
     );
   }

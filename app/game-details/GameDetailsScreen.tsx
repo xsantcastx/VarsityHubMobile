@@ -1,21 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // @ts-ignore JS exports
-import { Game, Event } from '@/api/entities';
+import { Event, Game } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import PostCard from '@/components/PostCard';
 import VideoPlayer from '@/components/VideoPlayer';
+import GameVerticalFeedScreen from './GameVerticalFeedScreen';
 
-const PLACEHOLDER_GRADIENT = ['#1e293b', '#1d4ed8', '#38bdf8'];
+import type { ColorValue } from 'react-native';
+const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
 type MediaItem = {
@@ -128,7 +130,8 @@ const GameDetailsScreen = () => {
   const router = useRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const scrollRef = useRef<Animated.ScrollView | null>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
   const [vm, setVm] = useState<GameVM | null>(null);
@@ -139,15 +142,63 @@ const GameDetailsScreen = () => {
   const [rsvpBusy, setRsvpBusy] = useState(false);
   const [viewer, setViewer] = useState<{ visible: boolean; url: string | null; kind: 'photo' | 'video' } | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
+  const [verticalFeedOpen, setVerticalFeedOpen] = useState(false);
 
   const [voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
   const [voteBusy, setVoteBusy] = useState(false);
+  const voteAnimated = useRef({ A: new Animated.Value(50), B: new Animated.Value(50) }).current;
+  const feedY = useRef(new Animated.Value(0)).current;
+  const [headerH, setHeaderH] = useState(0);
+  const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
+  const [showTopFab, setShowTopFab] = useState(false);
+  const showTopFabRef = useRef(false);
+  const headerTranslateY = useMemo(() => feedY.interpolate({
+    inputRange: [0, headerH || 1],
+    outputRange: [0, -(headerH || 1)],
+    extrapolate: 'clamp',
+  }), [feedY, headerH]);
+  const headerOpacity = useMemo(() => feedY.interpolate({
+    inputRange: [0, (headerH || 1) * 0.7],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  }), [feedY, headerH]);
+
+  useEffect(() => {
+    showTopFabRef.current = false;
+    setShowTopFab(false);
+  }, [headerH]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = event.nativeEvent.contentOffset.y;
+    if (THRESHOLD <= 0) return;
+    if (!showTopFabRef.current && y >= THRESHOLD) {
+      showTopFabRef.current = true;
+      setShowTopFab(true);
+    } else if (showTopFabRef.current && y < THRESHOLD) {
+      showTopFabRef.current = false;
+      setShowTopFab(false);
+    }
+  }, [THRESHOLD]);
+
   const canonicalGameId = vm?.gameId;
   const displayDate = formatDateLabel(vm?.date);
   const displayTime = formatTimeLabel(vm?.date);
   const goingCount = capCount(vm?.rsvpCount, vm?.capacity);
   const bannerUrl = useMemo(() => pickBannerFromArrays(vm ?? {}, vm?.media ?? []), [vm]);
   const showRsvp = !!vm?.eventId && !vm?.isPast;
+
+  const postsCount = Array.isArray(vm?.posts) ? vm.posts.length : 0;
+  const postsSubtitle = postsCount ? `${postsCount} highlight${postsCount === 1 ? '' : 's'}` : 'No highlights yet';
+  const previewImage = useMemo(() => {
+    if (!vm) return bannerUrl;
+    const posts = Array.isArray(vm.posts) ? vm.posts : [];
+    const firstWithMedia = posts.find((post: any) => typeof post?.media_url === 'string' && post.media_url);
+    if (firstWithMedia?.media_url) return String(firstWithMedia.media_url);
+    const mediaItems = Array.isArray(vm.media) ? vm.media : [];
+    const firstMedia = mediaItems.find((item) => typeof item?.url === 'string' && item.url);
+    if (firstMedia?.url) return String(firstMedia.url);
+    return bannerUrl;
+  }, [vm, bannerUrl]);
 
   const { teamALabel, teamBLabel } = useMemo(() => {
     const home = vm?.homeTeam?.trim();
@@ -165,7 +216,7 @@ const GameDetailsScreen = () => {
 
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
-      const routeBase = Array.isArray(segments) && segments.includes('discover') ? '/(tabs)/discover/game/[id]' : '/(tabs)/feed/game/[id]';
+      const routeBase = Array.isArray(segments) && (segments as string[]).includes('discover') ? '/(tabs)/discover/game/[id]' : '/(tabs)/feed/game/[id]';
       router.replace({ pathname: routeBase, params: { id: gameIdValue } });
     },
     [router, segments],
@@ -338,12 +389,8 @@ const GameDetailsScreen = () => {
       setStoryBusy(true);
       const pickerOptions: any = {
         quality: 0.9,
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
       };
-      if ('MediaType' in ImagePicker) {
-        pickerOptions.mediaTypes = [ImagePicker.MediaType.image, ImagePicker.MediaType.video];
-      } else {
-        pickerOptions.mediaTypes = ImagePicker.MediaTypeOptions.All;
-      }
       const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
       if (!result || result.canceled || !result.assets || !result.assets.length) return;
       const asset = result.assets[0];
@@ -418,6 +465,10 @@ const GameDetailsScreen = () => {
     refreshVotes();
   }, [refreshVotes]);
 
+  useEffect(() => {
+    setVoteSummary(null);
+  }, [vm?.gameId]);
+
   useFocusEffect(
     useCallback(() => {
       refreshVotes();
@@ -427,6 +478,17 @@ const GameDetailsScreen = () => {
       return () => clearInterval(interval);
     }, [refreshVotes]),
   );
+
+  useEffect(() => {
+    const total = voteSummary?.total ?? 0;
+    const hasVotes = total > 0;
+    const targetA = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctA ?? 0)) : 50;
+    const targetB = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctB ?? 0)) : 50;
+    Animated.parallel([
+      Animated.timing(voteAnimated.A, { toValue: targetA, duration: 200, useNativeDriver: false }),
+      Animated.timing(voteAnimated.B, { toValue: targetB, duration: 200, useNativeDriver: false }),
+    ]).start();
+  }, [voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total]);
 
   const onRefresh = useCallback(() => {
     load(true);
@@ -471,7 +533,12 @@ const GameDetailsScreen = () => {
       setActiveSection(key);
       requestAnimationFrame(() => {
         const offset = sectionOffsets.current[key === 'media' ? 'media' : 'posts'];
-        scrollRef.current?.scrollTo({ y: Math.max(0, offset - 64), animated: true });
+        const node = scrollRef.current as any;
+        if (node?.scrollTo) {
+          node.scrollTo({ y: Math.max(0, offset - 64), animated: true });
+        } else if (node?.getNode) {
+          node.getNode().scrollTo({ y: Math.max(0, offset - 64), animated: true });
+        }
       });
     },
     [],
@@ -533,70 +600,145 @@ const GameDetailsScreen = () => {
     }
   }, [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router]);
 
-  const renderVoteSection = () => {
-    if (!vm?.gameId) return null;
-    const summary = voteSummary;
-    const hasVotes = !!summary && summary.total > 0;
-    const pctA = hasVotes ? summary.pctA : 50;
-    const pctB = hasVotes ? summary.pctB : 50;
-    const percentALabel = summary ? ${summary.pctA}% : '--';
-    const percentBLabel = summary ? ${summary.pctB}% : '--';
-    const totalLabel = summary ? ${summary.total} vote : '0 votes';
-    const statusLabel = summary
-      ? summary.userVote
-        ? Your pick: 
-        : "You haven't voted"
-      : 'Loading votes...';
-    const caption = summary ? ${totalLabel} •  : statusLabel;
-    const pressDisabled = Boolean(vm?.isPast) || voteBusy;
-    const selectedTeam = summary?.userVote ?? null;
-    const trackFlexA = pctA === 0 && pctB === 0 ? 1 : Math.max(pctA, 0.1);
-    const trackFlexB = pctA === 0 && pctB === 0 ? 1 : Math.max(pctB, 0.1);
 
-    return (
-      <View style={styles.voteSection}>
-        <View style={styles.voteChipRow}>
+const renderVoteSection = () => {
+  if (!vm?.gameId) return null;
+  const summary = voteSummary ?? buildVoteSummary(0, 0, null);
+  const total = summary.total ?? 0;
+  const hasVotes = total > 0;
+  const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
+  const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
+  const leftLabel = `${teamALabel} · ${Math.round(pctA)}%`;
+  const rightLabel = `${teamBLabel} · ${Math.round(pctB)}%`;
+  const pressDisabled = Boolean(vm?.isPast) || voteBusy;
+  const selectedTeam = summary.userVote ?? null;
+  const showFloatLabelA = pctA < 12;
+  const showFloatLabelB = pctB < 12;
+  const votesWord = total === 1 ? 'vote' : 'votes';
+  const pickLabel = (
+    selectedTeam === 'A'
+      ? teamALabel
+      : selectedTeam === 'B'
+      ? teamBLabel
+      : null
+  );
+  const caption = voteSummary
+    ? `${total} ${votesWord} • ${pickLabel ? `Your pick: ${pickLabel}` : "You haven't voted"}`
+    : 'Loading votes...';
+  const showInlineCaption =
+    caption !== 'Loading votes...' &&
+    !showFloatLabelA &&
+    !showFloatLabelB &&
+    windowWidth - 32 >= 280;
+
+  return (
+    <View style={styles.voteWrapper}>
+      <View
+        style={[
+          styles.voteBar,
+          pressDisabled ? styles.voteBarDisabled : null,
+        ]}
+      >
+        <Animated.View
+          style={[styles.voteFill, styles.voteFillA, { flex: voteAnimated.A }]}
+        >
+          <LinearGradient
+            colors={['rgba(255,255,255,0.32)', 'rgba(255,255,255,0)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.voteFillHighlight}
+          />
+        </Animated.View>
+        <Animated.View
+          style={[styles.voteFill, styles.voteFillB, { flex: voteAnimated.B }]}
+        >
+          <LinearGradient
+            colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.voteFillHighlight}
+          />
+        </Animated.View>
+
+        <View pointerEvents="none" style={styles.voteLabelLayer}>
+          {!showFloatLabelA ? (
+            <View style={[styles.voteLabelCell, styles.voteLabelCellLeft]}>
+              <Text
+                style={[
+                  styles.voteLabelText,
+                  selectedTeam === 'A' ? null : styles.voteLabelTextDim,
+                ]}
+                numberOfLines={1}
+              >
+                {leftLabel}
+              </Text>
+        </View>
+          ) : (
+            <View style={[styles.voteLabelCell, styles.voteLabelCellLeft]} />
+          )}
+          {showInlineCaption ? (
+            <View style={styles.voteLabelCenter}>
+              <Text style={styles.voteCaptionInline}>{caption}</Text>
+        </View>
+          ) : null}
+          {!showFloatLabelB ? (
+            <View style={[styles.voteLabelCell, styles.voteLabelCellRight]}>
+              <Text
+                style={[
+                  styles.voteLabelText,
+                  selectedTeam === 'B' ? null : styles.voteLabelTextDim,
+                ]}
+                numberOfLines={1}
+              >
+                {rightLabel}
+              </Text>
+        </View>
+          ) : (
+            <View style={[styles.voteLabelCell, styles.voteLabelCellRight]} />
+          )}
+        </View>\n        <View
+          style={styles.voteTouchLayer}
+          pointerEvents={pressDisabled ? 'none' : 'auto'}
+        >
           <Pressable
-            style={[
-              styles.voteChip,
-              selectedTeam === 'A' ? styles.voteChipSelected : null,
-              pressDisabled ? styles.voteChipDisabled : null,
-            ]}
+            style={styles.voteTouchHalf}
+            disabled={pressDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Vote for ${teamALabel}`}
             onPress={() => handleVote('A')}
             onLongPress={selectedTeam === 'A' ? handleClearVote : undefined}
             delayLongPress={300}
-            disabled={pressDisabled}
-          >
-            <View style={styles.voteChipContent}>
-              <Text style={[styles.voteChipLabel, selectedTeam === 'A' ? styles.voteChipLabelSelected : null]}>{teamALabel}</Text>
-              <Text style={[styles.voteChipPercent, selectedTeam === 'A' ? styles.voteChipLabelSelected : null]}>{percentALabel}</Text>
-            </View>
-          </Pressable>
+          />
           <Pressable
-            style={[
-              styles.voteChip,
-              selectedTeam === 'B' ? styles.voteChipSelected : null,
-              pressDisabled ? styles.voteChipDisabled : null,
-            ]}
+            style={styles.voteTouchHalf}
+            disabled={pressDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Vote for ${teamBLabel}`}
             onPress={() => handleVote('B')}
             onLongPress={selectedTeam === 'B' ? handleClearVote : undefined}
             delayLongPress={300}
-            disabled={pressDisabled}
-          >
-            <View style={styles.voteChipContent}>
-              <Text style={[styles.voteChipLabel, selectedTeam === 'B' ? styles.voteChipLabelSelected : null]}>{teamBLabel}</Text>
-              <Text style={[styles.voteChipPercent, selectedTeam === 'B' ? styles.voteChipLabelSelected : null]}>{percentBLabel}</Text>
-            </View>
-          </Pressable>
+          />
         </View>
-        <View style={styles.voteBar}>
-          <View style={[styles.voteBarFillA, { flex: trackFlexA }]} />
-          <View style={[styles.voteBarFillB, { flex: trackFlexB }]} />
-        </View>
-        <Text style={styles.voteCaption}>{caption}</Text>
       </View>
-    );
-  };
+      {showFloatLabelA ? (
+        <View style={[styles.voteFloatPill, styles.voteFloatLeft]}>
+          <Text style={styles.voteFloatText}>{leftLabel}</Text>
+        </View>
+      ) : null}
+      {showFloatLabelB ? (
+        <View style={[styles.voteFloatPill, styles.voteFloatRight]}>
+          <Text style={styles.voteFloatText}>{rightLabel}</Text>
+        </View>
+      ) : null}
+      {showInlineCaption ? null : (
+        <Text style={styles.voteCaptionBelow}>{caption}</Text>
+      )}
+    </View>
+  );
+};
+
+
+
 
   const renderBanner = () => {
     const content = bannerUrl ? (
@@ -650,8 +792,8 @@ const GameDetailsScreen = () => {
 
   const renderStats = () => {
     const stats = [
-      { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '—' },
-      { key: 'reviews', label: 'Reviews', value: vm?.reviewsCount != null ? String(vm.reviewsCount) : '—' },
+      { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '\u2014' },
+      { key: 'reviews', label: 'Reviews', value: vm?.reviewsCount != null ? String(vm.reviewsCount) : '\u2014' },
       { key: 'media', label: 'Media', value: vm?.media?.length ? String(vm.media.length) : '0' },
     ];
     return (
@@ -710,23 +852,50 @@ const GameDetailsScreen = () => {
     );
   };
 
-  const renderPosts = () => {
-    if (!vm?.posts?.length) {
-      return <Text style={styles.muted}>Be the first to post a highlight for this game.</Text>;
-    }
-    return vm.posts.map((post) => <PostCard key={String(post.id)} post={post} />);
-  };
-
   return (
     <View style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      {renderBanner()}
-      <ScrollView
+      
+      <Animated.View
+        style={[styles.headerWrap, { transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h && Math.abs(h - headerH) > 1) setHeaderH(h);
+        }}
+      >
+        {vm ? (
+          <>
+            {renderBanner()}
+            {renderVoteSection()}
+              <View style={styles.tabRow}>
+                {(['overview', 'media', 'posts'] as SectionKey[]).map((key) => (
+                  <Pressable
+                    key={key}
+                    style={[styles.tabBtn, activeSection === key ? styles.tabBtnOn : null]}
+                    onPress={() => {
+                      if (key === 'overview') setActiveSection('overview');
+                      else scrollToSection(key);
+                    }}
+                  >
+                    <Text style={[styles.tabText, activeSection === key ? styles.tabTextOn : null]}>
+                      {key === 'overview' ? 'Overview' : key === 'media' ? 'Media' : 'Posts'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+          </>
+        ) : null}
+      </Animated.View>
+
+      <Animated.ScrollView
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: 48 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], { useNativeDriver: true, listener: handleScroll })}
+        scrollEventThrottle={16}
       >
+        <View style={{ height: headerH }} />
         <View style={styles.content}>
           {loading && !refreshing ? (
             <View style={styles.loadingBox}>
@@ -772,22 +941,15 @@ const GameDetailsScreen = () => {
                   <Text style={styles.actionText}>Share</Text>
                 </Pressable>
               </View>
-
-              <View style={styles.tabRow}>
-                {(['overview', 'media', 'posts'] as SectionKey[]).map((key) => (
-                  <Pressable
-                    key={key}
-                    style={[styles.tabBtn, activeSection === key ? styles.tabBtnOn : null]}
-                    onPress={() => {
-                      if (key === 'overview') setActiveSection('overview');
-                      else scrollToSection(key);
-                    }}
-                  >
-                    <Text style={[styles.tabText, activeSection === key ? styles.tabTextOn : null]}>
-                      {key === 'overview' ? 'Overview' : key === 'media' ? 'Media' : 'Posts'}
-                    </Text>
-                  </Pressable>
-                ))}
+              <View style={styles.secondaryActionsRow}>
+                <Pressable
+                  style={[styles.actionBtn, !vm?.gameId ? styles.actionBtnDisabled : null]}
+                  onPress={handleCreateHighlight}
+                  disabled={!vm?.gameId}
+                >
+                  <Ionicons name="flash-outline" size={16} color="#DC2626" />
+                  <Text style={styles.actionText}>Add Highlight</Text>
+                </Pressable>
               </View>
 
               <View style={styles.section}>
@@ -818,16 +980,58 @@ const GameDetailsScreen = () => {
               >
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Posts</Text>
-                  <Text style={styles.sectionSubtitle}>
-                    {vm.posts.length ? `${vm.posts.length} posts` : 'No posts yet'}
-                  </Text>
+                  <Text style={styles.sectionSubtitle}>{postsSubtitle}</Text>
                 </View>
-                {renderPosts()}
+                {postsCount ? null : (
+                  <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
+                )}
+
+
+                <Pressable
+                  style={styles.verticalFeedPreview}
+                  onPress={() => setVerticalFeedOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open vertical highlights"
+                >
+                  {previewImage ? (
+                    <Image source={{ uri: previewImage }} style={styles.verticalFeedImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient
+                      colors={['#1e293b', '#0f172a']}
+                      style={styles.verticalFeedImage}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <LinearGradient
+                    colors={['rgba(15,23,42,0.15)', 'rgba(15,23,42,0.85)']}
+                    style={styles.verticalFeedShade}
+                  />
+                  <View style={styles.verticalFeedContent}>
+                    <View style={styles.verticalFeedBadge}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                    <Text style={styles.verticalFeedTitle}>Open vertical highlights</Text>
+                    <Text style={styles.verticalFeedSubtitle}>{postsCount ? `${postsCount} fan highlight${postsCount === 1 ? '' : 's'} ready to watch` : 'Swipe through game-day clips'}</Text>
+                  </View>
+                </Pressable>
+                <View style={styles.verticalFeedActions}>
+                  <Pressable
+                    style={[styles.postCtaBtn, !vm?.gameId ? styles.postCtaBtnDisabled : null]}
+                    onPress={handleCreatePost}
+                    disabled={!vm?.gameId}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create a new post for this game"
+                  >
+                    <Ionicons name="create-outline" size={16} color="#fff" />
+                    <Text style={styles.postCtaText}>Share a post</Text>
+                  </Pressable>
+                </View>
               </View>
             </>
           ) : null}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <Modal
         visible={!!viewer?.visible}
@@ -847,6 +1051,34 @@ const GameDetailsScreen = () => {
           </View>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={verticalFeedOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setVerticalFeedOpen(false)}
+      >
+        <View style={styles.verticalFeedModal}>
+          <GameVerticalFeedScreen onClose={() => setVerticalFeedOpen(false)} />
+        </View>
+      </Modal>
+      {showTopFab ? (
+        <Pressable
+          style={styles.fab}
+          onPress={() => {
+            const node = scrollRef.current as any;
+            if (node?.scrollTo) {
+              node.scrollTo({ y: 0, animated: true });
+            } else if (node?.getNode) {
+              node.getNode().scrollTo({ y: 0, animated: true });
+            }
+          }}
+          accessibilityLabel="Back to top"
+        >
+          <Ionicons name="arrow-up" size={20} color="#fff" />
+          <Text style={styles.fabText}>Top</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -858,6 +1090,120 @@ const styles = StyleSheet.create({
   bannerWrapper: { position: 'relative', height: 260, backgroundColor: '#eff6ff' },
   bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
+  headerWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+  backgroundColor: '#000',
+  paddingBottom: 8,
+  marginBottom: 12,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
+    backgroundColor: 'rgba(17,24,39,0.92)',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 40,
+  },
+  fabText: { color: '#fff', fontWeight: '700' },
+
+
+  voteWrapper: {
+    marginTop: -2,
+    paddingHorizontal: 16,
+    paddingTop: 2,
+    paddingBottom: 8,
+    marginBottom: 12,
+  },
+  voteBar: {
+    position: 'relative',
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  voteBarDisabled: { opacity: 0.65 },
+  voteFill: { height: '100%', overflow: 'hidden' },
+  voteFillA: {
+    backgroundColor: '#2563EB',
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  voteFillB: {
+    backgroundColor: '#10B981',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  voteFillHighlight: { ...StyleSheet.absoluteFillObject, pointerEvents: 'none' },
+  voteLabelLayer: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+  },
+  voteLabelCell: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  voteLabelCellLeft: { alignItems: 'center', marginRight: 32 },
+  voteLabelCellRight: { alignItems: 'center', marginLeft: 32 },
+  voteLabelCenter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  voteLabelText: { color: '#FFFFFF', fontWeight: '700', fontSize: 12 },
+  voteLabelTextDim: { opacity: 0.7 },
+  voteCaptionInline: {
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  voteCaptionBelow: {
+    marginTop: 6,
+    textAlign: 'center',
+    color: '#6B7280',
+    fontWeight: '600',
+    paddingHorizontal: 12,
+  },
+  voteTouchLayer: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
+  voteTouchHalf: { flex: 1 },
+  voteFloatPill: {
+    position: 'absolute',
+    top: -18,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  voteFloatLeft: { left: 28 },
+  voteFloatRight: { right: 28 },
+  voteFloatText: { color: '#0f172a', fontWeight: '700', fontSize: 12, textAlign: 'center' },
+
   bannerTopRow: {
     position: 'absolute',
     left: 16,
@@ -958,6 +1304,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#e2e8f0',
   },
+  actionBtnDisabled: { opacity: 0.6 },
   actionText: { fontWeight: '700', color: '#0f172a' },
   tabRow: {
     flexDirection: 'row',
@@ -975,6 +1322,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8 },
   sectionSubtitle: { color: '#64748b', fontWeight: '600' },
+  sectionHelper: { marginBottom: 12 },
   bodyText: { color: '#334155', fontSize: 16, lineHeight: 24 },
   muted: { color: '#94a3b8', fontStyle: 'italic' },
   statRow: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 20 },
@@ -995,10 +1343,42 @@ const styles = StyleSheet.create({
   mediaThumb: { width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   mediaThumbContent: { flex: 1 },
   mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' },
+  verticalFeedPreview: {
+    marginTop: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    minHeight: 220,
+    backgroundColor: '#0f172a',
+  },
+  verticalFeedImage: { ...StyleSheet.absoluteFillObject },
+  verticalFeedShade: { ...StyleSheet.absoluteFillObject },
+  verticalFeedContent: { position: 'absolute', left: 24, right: 24, bottom: 24, gap: 6, maxWidth: 260 },
+  verticalFeedBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(37,99,235,0.9)',
+    marginBottom: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  verticalFeedTitle: { color: '#ffffff', fontWeight: '800', fontSize: 20, marginBottom: 6 },
+  verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13, marginTop: 2 },
+  verticalFeedActions: { marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end' },
+  postCtaBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#2563EB', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10, shadowColor: '#1e3a8a', shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  postCtaBtnDisabled: { opacity: 0.6 },
+  postCtaText: { color: '#ffffff', fontWeight: '700' },
+  verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   viewerBackDrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.9)', alignItems: 'center', justifyContent: 'center' },
   viewerContent: { width: '90%', aspectRatio: 3 / 4, maxHeight: '80%' },
   viewerMedia: { width: '100%', height: '100%', borderRadius: 16 },
 });
+
 
 
 

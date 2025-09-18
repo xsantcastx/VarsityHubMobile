@@ -11,7 +11,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
       }
     },
     "android": {
@@ -50,7 +52,8 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera for capturing photos and videos.",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access the microphone for recording videos."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

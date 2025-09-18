@@ -1,12 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
 import VideoPlayer from '@/components/VideoPlayer';
+import { Image } from 'expo-image';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -83,7 +83,7 @@ export default function PostDetailScreen() {
 
           <View style={styles.commentBox}>
             <Input value={comment} onChangeText={setComment} placeholder="Add a comment" style={{ flex: 1 }} />
-            <Button variant="outline" onPress={onAddComment}>Send</Button>
+            <Button variant="outline" onPress={onAddComment}><Text>Send</Text></Button>
           </View>
           <Text style={{ fontWeight: '800', marginTop: 8 }}>Comments</Text>
           {comments.length === 0 ? (

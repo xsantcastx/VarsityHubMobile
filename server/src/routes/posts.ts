@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
+import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 export const postsRouter = Router();
 
@@ -133,7 +133,7 @@ const createPostSchema = z
     path: ['content'],
   });
 
-import { reverseGeocode, geocodeZip, getCountryFromReqOrPrefs } from '../lib/geo.js';
+import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -158,7 +158,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
     lat = loc.lat; lng = loc.lng;
     try {
-      const rev = await reverseGeocode(lat, lng);
+      const rev = await reverseGeocode(lat as number, lng as number);
       country_code = rev.country_code || preferCountry;
       admin1 = rev.admin_area || null;
       place_name = rev.place_name || null;
@@ -201,8 +201,21 @@ postsRouter.get('/:id', async (req, res) => {
 // Comments
 postsRouter.get('/:id/comments', async (req, res) => {
   const { id } = req.params;
-  const items = await prisma.comment.findMany({ where: { post_id: id }, orderBy: { created_at: 'desc' }, take: 50 });
-  res.json(items);
+  const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 50);
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const query: any = {
+    where: { post_id: id },
+    orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
+  };
+  if (cursor) {
+    query.cursor = { id: cursor };
+    query.skip = 1;
+  }
+  const rows = await prisma.comment.findMany(query);
+  const items = rows.slice(0, limit);
+  const nextCursor = rows.length > limit ? rows[limit].id : null;
+  res.json({ items, nextCursor });
 });
 
 postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
