@@ -44,8 +44,9 @@ async function main() {
   }
 
   // --- Posts (now require author) ---
+  const postsCreated: Array<{ id: string; created_at: Date }> = [];
   for (let i = 0; i < 10; i++) {
-    await prisma.post.create({
+    const post = await prisma.post.create({
       data: {
         title: `Post ${i + 1}`,
         content: `Sample content ${i + 1}`,
@@ -59,6 +60,35 @@ async function main() {
         // Optional: link some posts to games
         game_id: gameIds[i % gameIds.length],
       },
+    });
+    postsCreated.push(post);
+  }
+
+  // --- Categories and plays ---
+  const categories = await Promise.all([
+    prisma.category.upsert({ where: { slug: 'dunks' }, update: { name: 'Dunks', icon_url: 'https://picsum.photos/seed/dunks/200/200' }, create: { name: 'Dunks', slug: 'dunks', icon_url: 'https://picsum.photos/seed/dunks/200/200' } }),
+    prisma.category.upsert({ where: { slug: 'breaking-ankles' }, update: { name: 'Breaking Ankles', icon_url: 'https://picsum.photos/seed/crossovers/200/200' }, create: { name: 'Breaking Ankles', slug: 'breaking-ankles', icon_url: 'https://picsum.photos/seed/crossovers/200/200' } }),
+    prisma.category.upsert({ where: { slug: 'game-winners' }, update: { name: 'Game Winners', icon_url: 'https://picsum.photos/seed/winner/200/200' }, create: { name: 'Game Winners', slug: 'game-winners', icon_url: 'https://picsum.photos/seed/winner/200/200' } }),
+    prisma.category.upsert({ where: { slug: 'defensive-gems' }, update: { name: 'Defensive Gems', icon_url: 'https://picsum.photos/seed/defense/200/200' }, create: { name: 'Defensive Gems', slug: 'defensive-gems', icon_url: 'https://picsum.photos/seed/defense/200/200' } }),
+  ]);
+
+  const categoryAssignments: Array<{ category_id: string; post_id: string }> = [];
+  for (let i = 0; i < postsCreated.length; i++) {
+    const post = postsCreated[i];
+    const category = categories[i % categories.length];
+    categoryAssignments.push({ category_id: category.id, post_id: post.id });
+    if ((i + 1) % 3 === 0) {
+      const secondary = categories[(i + 1) % categories.length];
+      categoryAssignments.push({ category_id: secondary.id, post_id: post.id });
+    }
+  }
+  if (categoryAssignments.length) {
+    await prisma.categoryAssignment.createMany({ data: categoryAssignments, skipDuplicates: true });
+  }
+  if (categories.length) {
+    await prisma.categoryFollow.createMany({
+      data: categories.slice(0, Math.min(2, categories.length)).map((category) => ({ user_id: u1.id, category_id: category.id })),
+      skipDuplicates: true,
     });
   }
 
@@ -152,3 +182,5 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
+
+
