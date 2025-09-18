@@ -4,7 +4,7 @@ import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Game, Post, User } from '@/api/entities';
+import { Game, Highlights, Post, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
@@ -65,12 +65,44 @@ type CommentItem = {
   optimistic?: boolean;
 };
 
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+
+const mapHighlightToFeedPost = (item: any): FeedPost | null => {
+  const idValue = item?.id ?? item?.post_id ?? item?.highlight_id;
+  if (!idValue) return null;
+  const id = String(idValue);
+  const mediaUrl = typeof item?.media_url === 'string' ? item.media_url : null;
+  if (!mediaUrl) return null;
+  const explicitType = typeof item?.media_type === 'string' ? item.media_type.toLowerCase() : null;
+  const mediaType: 'video' | 'image' = explicitType === 'video' || explicitType === 'image'
+    ? (explicitType as 'video' | 'image')
+    : (VIDEO_EXT.test(mediaUrl) ? 'video' : 'image');
+  return {
+    id,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    caption: item?.caption ?? item?.title ?? null,
+    upvotes_count: typeof item?.upvotes_count === 'number' ? item.upvotes_count : 0,
+    comments_count: typeof item?._count?.comments === 'number' ? item._count.comments : (typeof item?.comments_count === 'number' ? item.comments_count : 0),
+    bookmarks_count: typeof item?.bookmarks_count === 'number' ? item.bookmarks_count : 0,
+    created_at: item?.created_at ?? null,
+    author: item?.author ? {
+      id: String(item.author.id ?? item.author.user_id ?? id),
+      display_name: item.author.display_name ?? item.author.name ?? null,
+      avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
+    } : null,
+    has_upvoted: Boolean(item?.has_upvoted),
+    has_bookmarked: Boolean(item?.has_bookmarked),
+    is_following_author: Boolean(item?.is_following_author),
+  };
+};
+
 type GameSummary = {
   id: string;
   title: string;
   date?: string | null;
 };
-type GameVerticalFeedScreenProps = { onClose?: () => void };
+type GameVerticalFeedScreenProps = { onClose?: () => void; gameId?: string | null; showHeader?: boolean; countryCode?: string | null };
 
 
 const fetchCommentsPage = async (postId: string, cursor?: string | null) => {
@@ -213,10 +245,12 @@ const FeedCard = memo(
 );
 FeedCard.displayName = 'FeedCard';
 
-export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScreenProps = {}) {
+export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode }: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const gameId = externalGameId ? String(externalGameId) : (gameIdParam ? String(gameIdParam) : null);
+  const normalizedCountry = useMemo(() => (countryCode ? String(countryCode).toUpperCase() : undefined), [countryCode]);
   const handleBack = useCallback(() => {
     if (onClose) {
       onClose();
@@ -247,7 +281,29 @@ export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScre
   const isScreenFocusedRef = useRef(true);
   const flatListRef = useRef<FlatList<FeedPost>>(null);
 
-  const gameId = gameIdParam ? String(gameIdParam) : null;
+  const cursorRef = useRef<string | null>(null);
+  const hasMoreRef = useRef(true);
+
+  useEffect(() => {
+    setPosts([]);
+    setCursor(null);
+    setHasMore(true);
+    cursorRef.current = null;
+    hasMoreRef.current = true;
+    setActiveIndex(0);
+    setLoading(true);
+    setRefreshing(false);
+    setLoadingMore(false);
+    setGame(null);
+    setComments([]);
+    setCommentsCursor(null);
+    setCommentTarget(null);
+    setCommentsError(null);
+    setCommentInput('');
+    setCommentSending(false);
+    setCommentsVisible(false);
+    setCommentsLoading(false);
+  }, [gameId]);
 
   const registerVideo = useCallback((id: string, ref: Video | null) => {
     if (!ref) {
@@ -270,7 +326,10 @@ export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScre
   );
 
   useEffect(() => {
-    if (!gameId) return;
+    if (!gameId) {
+      setGame({ id: 'all-highlights', title: 'All Highlights', date: null });
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -289,21 +348,62 @@ export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScre
 
   const loadFeed = useCallback(
     async (reset = false) => {
-      if (!gameId) return;
-      if (reset) {
-        setRefreshing(true);
-      } else if (cursor && !hasMore) {
+      if (!gameId) {
+        if (reset) {
+          setRefreshing(true);
+        }
+        try {
+          const response = await Highlights.fetch(normalizedCountry ? { country: normalizedCountry, limit: 40 } : { limit: 40 });
+          const pools: any[] = [];
+          if (Array.isArray(response?.nationalTop)) pools.push(...response.nationalTop);
+          if (Array.isArray(response?.ranked)) pools.push(...response.ranked);
+          const seen = new Set<string>();
+          const mapped: FeedPost[] = [];
+          for (const item of pools) {
+            const mappedItem = mapHighlightToFeedPost(item);
+            if (!mappedItem || !mappedItem.id) continue;
+            if (seen.has(mappedItem.id)) continue;
+            if (!mappedItem.media_url) continue;
+            seen.add(mappedItem.id);
+            mapped.push(mappedItem);
+          }
+          setPosts(mapped);
+          cursorRef.current = null;
+          setCursor(null);
+          hasMoreRef.current = false;
+          setHasMore(false);
+        } catch (error) {
+          if (__DEV__) console.warn('Global highlights feed load failed', error);
+        } finally {
+          setLoading(false);
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
         return;
       }
+
+      if (reset) {
+        setRefreshing(true);
+      } else if (!hasMoreRef.current) {
+        setLoadingMore(false);
+        return;
+      }
+
+      const currentCursor = reset ? null : cursorRef.current;
       try {
         const page = await Post.feedForGame(gameId, {
-          cursor: reset ? null : cursor,
+          cursor: currentCursor,
           limit: 6,
           sort: 'trending',
         });
-        setPosts((prev) => (reset ? page.items : [...prev, ...page.items]));
-        setCursor(page.nextCursor ?? null);
-        setHasMore(Boolean(page.nextCursor));
+        const items = Array.isArray(page?.items) ? page.items : [];
+        setPosts((prev) => (reset ? items : [...prev, ...items]));
+        const nextCursor = page?.nextCursor ?? null;
+        cursorRef.current = nextCursor;
+        setCursor(nextCursor);
+        const more = Boolean(page?.nextCursor);
+        hasMoreRef.current = more;
+        setHasMore(more);
       } catch (error) {
         if (__DEV__) console.warn('Feed load failed', error);
       } finally {
@@ -312,27 +412,28 @@ export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScre
         setLoadingMore(false);
       }
     },
-    [cursor, gameId, hasMore],
+    [gameId, normalizedCountry],
   );
 
   useEffect(() => {
-    if (!gameId) return;
     loadFeed(true);
-  }, [gameId, loadFeed]);
+  }, [loadFeed]);
 
   const onEndReached = useCallback(() => {
-    if (!loading && !loadingMore && hasMore) {
+    if (!gameId) return;
+    if (!loading && !loadingMore && hasMoreRef.current) {
       setLoadingMore(true);
       loadFeed(false);
     }
-  }, [hasMore, loadFeed, loading, loadingMore]);
+  }, [gameId, loadFeed, loading, loadingMore]);
 
   const onRefresh = useCallback(() => {
-    if (!loading) {
-      setCursor(null);
-      setHasMore(true);
-      loadFeed(true);
-    }
+    if (loading) return;
+    cursorRef.current = null;
+    hasMoreRef.current = true;
+    setCursor(null);
+    setHasMore(true);
+    loadFeed(true);
   }, [loadFeed, loading]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -577,15 +678,17 @@ export default function GameVerticalFeedScreen({ onClose }: GameVerticalFeedScre
         }
       />
 
-      <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
-        <Pressable style={styles.backBtn} onPress={handleBack}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </Pressable>
-        <View style={styles.titleTextWrap}>
-          <Text style={styles.titleText}>{game?.title || 'Game'}</Text>
-          {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+      {showHeader ? (
+        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+          <Pressable style={styles.backBtn} onPress={handleBack}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </Pressable>
+          <View style={styles.titleTextWrap}>
+            <Text style={styles.titleText}>{game?.title || 'Game'}</Text>
+            {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+          </View>
         </View>
-      </View>
+      ) : null}
 
       <Modal
         visible={commentsVisible}
@@ -797,3 +900,4 @@ const styles = StyleSheet.create({
   commentSendDisabled: { backgroundColor: '#475569' },
   commentSendText: { color: '#fff', fontWeight: '700' },
 });
+

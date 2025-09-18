@@ -64,3 +64,8 @@ export function httpGet(path: string, options: RequestInit = {}) {
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }); }
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
 export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }); }
+export function httpDelete(path: string, body?: any) {
+  const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
+  const options: RequestInit = payload ? { method: 'DELETE', body: payload } : { method: 'DELETE' };
+  return request(path, options);
+}

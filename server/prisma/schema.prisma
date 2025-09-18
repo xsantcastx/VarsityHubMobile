@@ -91,6 +91,7 @@ model Post {
   comments Comment[]
   upvotes PostUpvote[]
   bookmarks PostBookmark[]
+  categories CategoryAssignment[]
 
   @@index([created_at])
   @@index([author_id])
@@ -226,6 +227,44 @@ model Ad {
   @@index([user_id, created_at])
 }
 
+model Category {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  icon_url   String?
+  created_at DateTime @default(now())
+
+  posts     CategoryAssignment[]
+  followers CategoryFollow[]
+
+  @@index([created_at])
+}
+
+model CategoryFollow {
+  user_id     String
+  category_id String
+  created_at  DateTime @default(now())
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, category_id])
+  @@index([category_id])
+}
+
+model CategoryAssignment {
+  id          String   @id @default(cuid())
+  category_id String
+  post_id     String
+  created_at  DateTime @default(now())
+
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  post     Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([category_id, post_id])
+  @@index([post_id])
+}
+
 // ===========================
 // Stories
 // ===========================
@@ -323,3 +362,6 @@ model Follows {
   @@index([follower_id])
   @@index([following_id])
 }
+
+
+
