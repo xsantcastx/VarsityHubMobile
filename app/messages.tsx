@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Modal } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 
 type MiniUser = {
   id: string;
@@ -105,7 +105,7 @@ export default function MessagesScreen() {
           <Text style={styles.msgMeta}>{fromLabel + ' → ' + toLabel}</Text>
         </View>
         {/* TODO: replace with real unread logic; keeping legacy flag if server sends it */}
-        {item.read ? null : <Badge>new</Badge>}
+  {item.read ? null : <Badge><Text>new</Text></Badge>}
       </Pressable>
     );
   };

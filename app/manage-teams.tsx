@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
@@ -40,7 +40,7 @@ export default function ManageTeamsScreen() {
       <Stack.Screen options={{ title: 'Manage Teams' }} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <Text style={styles.title}>Teams</Text>
-        <Button onPress={() => router.push('/create-team')} size="sm">Create Team</Button>
+  <Button onPress={() => router.push('/create-team')} size="sm"><Text style={{ fontWeight: '700' }}>Create Team</Text></Button>
       </View>
       <Input placeholder="Search teams..." value={q} onChangeText={setQ} style={{ marginBottom: 10 }} />
       {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}

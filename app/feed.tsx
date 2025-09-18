@@ -1,20 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Animated, Easing, TextInput } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+type PostItem = { id: string; title?: string; content?: string; media_url?: string; created_at?: string; upvotes_count?: number };
 import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game, Post as PostApi, User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
-import { format } from 'date-fns';
-import { Ionicons } from '@expo/vector-icons';
 import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
-import { Image } from 'expo-image';
 import VideoPlayer from '@/components/VideoPlayer';
+import { Ionicons } from '@expo/vector-icons';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
-type PostItem = { id: string; title?: string; content?: string; media_url?: string; created_at?: string };
 
 export default function FeedScreen() {
   const router = useRouter();
@@ -183,7 +182,9 @@ export default function FeedScreen() {
       <Text style={styles.helper}>Showing upcoming and recent games in your area.</Text>
 
       {loading && (
-        <View style={styles.center}> <ActivityIndicator /> </View>
+        <View style={styles.center}>
+          <ActivityIndicator />
+        </View>
       )}
       {!loading && filtered.length === 0 && !error && (
         <Text style={styles.muted}>No games found.</Text>
@@ -217,8 +218,8 @@ export default function FeedScreen() {
               {item.date ? (
                 <Text style={styles.cardDate}>{format(new Date(item.date), 'EEE, MMM d, yyyy')}</Text>
               ) : null}
-              <Text style={styles.cardTitle}>{item.title || 'Game'}</Text>
-              <Text style={styles.cardMeta}>{item.location || 'TBD'}</Text>
+              <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
+              <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
               <View style={styles.tagRow}>
                 <View style={styles.tag}>
                   <Ionicons name="chatbubble-ellipses-outline" size={14} color="#6b7280" />
@@ -255,37 +256,41 @@ export default function FeedScreen() {
               {posts.map((p, idx) => {
                 const url = String(p.media_url || '');
                 const isVideo = url ? /\.(mp4|mov|webm|m4v)$/i.test(url) : false;
-                const isImage = url && !isVideo; // default to image if present
+                const isImage = url && !isVideo;
+                const hasMedia = isImage || isVideo;
+                const wrapperStyles = [styles.postMediaWrapper, isVideo ? styles.postMediaVideo : styles.postMediaImage];
+                const createdAtLabel = p.created_at ? formatDistanceToNow(new Date(p.created_at), { addSuffix: true }) : null;
                 return (
                   <Pressable key={`${p.id}-${idx}`} style={styles.postCard} onPress={() => router.push(`/post-detail?id=${p.id}`)}>
                     {p.title ? <Text style={styles.postTitle}>{p.title}</Text> : null}
-                    {isImage ? (
+                    {hasMedia ? (
                       <Pressable onPress={() => onMediaPress(String(p.id))} style={{ marginBottom: 8 }}>
-                        <View style={{ position: 'relative' }}>
-                          <Image source={{ uri: url }} style={{ width: '100%', height: 160, borderRadius: 10, backgroundColor: '#E5E7EB' }} contentFit="cover" />
-                          {/* Heart overlay */}
+                        <View style={wrapperStyles}>
+                          {isImage ? (
+                            <Image source={{ uri: url }} style={styles.postMediaContent} contentFit="cover" />
+                          ) : (
+                            <>
+                              <LinearGradient
+                                colors={['rgba(30,64,175,0.65)', 'rgba(15,23,42,0.95)']}
+                                style={styles.postMediaBackdrop}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                              />
+                              <VideoPlayer uri={url} style={styles.postMediaContent} />
+                              <View style={styles.postPlayBadge}>
+                                <Ionicons name="play" size={18} color="#fff" /><Text style={styles.postPlayLabel}>Tap to play</Text>
+                              </View>
+                            </>
+                          )}
                           <Animated.View
                             pointerEvents="none"
-                            style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
-                              opacity: getHeartAnim(String(p.id)),
-                              transform: [{ scale: getHeartAnim(String(p.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-                            }}
-                          >
-                            <Ionicons name="arrow-up" size={72} color="#2563EB" />
-                          </Animated.View>
-                        </View>
-                      </Pressable>
-                    ) : null}
-                    {isVideo ? (
-                      <Pressable onPress={() => onMediaPress(String(p.id))} style={{ marginBottom: 8 }}>
-                        <View style={{ position: 'relative' }}>
-                          <VideoPlayer uri={url} style={{ width: '100%', height: 200, borderRadius: 10, backgroundColor: '#111827' }} />
-                          <Animated.View
-                            pointerEvents="none"
-                            style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
-                              opacity: getHeartAnim(String(p.id)),
-                              transform: [{ scale: getHeartAnim(String(p.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-                            }}
+                            style={[
+                              styles.heartOverlay,
+                              {
+                                opacity: getHeartAnim(String(p.id)),
+                                transform: [{ scale: getHeartAnim(String(p.id)).interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
+                              },
+                            ]}
                           >
                             <Ionicons name="arrow-up" size={72} color="#2563EB" />
                           </Animated.View>
@@ -293,7 +298,8 @@ export default function FeedScreen() {
                       </Pressable>
                     ) : null}
                     {p.content ? <Text style={styles.postContent} numberOfLines={3}>{p.content}</Text> : null}
-                    {!isImage && !isVideo && url ? <Text style={styles.postLink}>Media: {url}</Text> : null}
+                    {!hasMedia && url ? <Text style={styles.postLink}>Media: {url}</Text> : null}
+                    {createdAtLabel ? <Text style={styles.postTimestamp}>{createdAtLabel}</Text> : null}
                     <View style={styles.countRow}>
                       <View style={styles.countChip}><Ionicons name="arrow-up" size={12} color="#2563EB" /><Text style={styles.countChipText}>{p.upvotes_count || 0}</Text></View>
                       <View style={styles.countChip}><Ionicons name="chatbubble-ellipses" size={12} color="#6b7280" /><Text style={styles.countChipText}>{(p as any)._count?.comments || 0}</Text></View>
@@ -343,6 +349,15 @@ const styles = StyleSheet.create({
   postTitle: { fontWeight: '700', marginBottom: 4 },
   postContent: { color: '#111827' },
   postLink: { color: '#2563EB', marginTop: 6 },
+  postTimestamp: { color: '#6b7280', fontSize: 12, marginTop: 6, alignSelf: 'flex-end' },
+  postMediaWrapper: { position: 'relative', borderRadius: 12, overflow: 'hidden', backgroundColor: '#0f172a', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(148,163,184,0.25)', shadowColor: '#0f172a', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  postMediaImage: { height: 180 },
+  postMediaVideo: { height: 220 },
+  postMediaContent: { ...StyleSheet.absoluteFillObject },
+  postMediaBackdrop: { ...StyleSheet.absoluteFillObject },
+  postPlayBadge: { position: 'absolute', right: 16, bottom: 16, backgroundColor: 'rgba(15,23,42,0.75)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  postPlayLabel: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  heartOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
   countRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   countChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },

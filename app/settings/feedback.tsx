@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
-import { User, Support } from '@/api/entities';
+import { Support, User } from '@/api/entities';
 
 export default function FeedbackScreen() {
   const router = useRouter();
@@ -31,13 +31,13 @@ export default function FeedbackScreen() {
       <Stack.Screen options={{ title: 'Leave Feedback' }} />
       <Text style={styles.title}>Feedback</Text>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-        <Button variant={category === 'bug' ? 'default' : 'outline'} onPress={() => setCategory('bug')}>Bug</Button>
-        <Button variant={category === 'idea' ? 'default' : 'outline'} onPress={() => setCategory('idea')}>Idea</Button>
-        <Button variant={category === 'other' ? 'default' : 'outline'} onPress={() => setCategory('other')}>Other</Button>
+        <Button variant={category === 'bug' ? 'default' : 'outline'} onPress={() => setCategory('bug')}><Text>Bug</Text></Button>
+        <Button variant={category === 'idea' ? 'default' : 'outline'} onPress={() => setCategory('idea')}><Text>Idea</Text></Button>
+        <Button variant={category === 'other' ? 'default' : 'outline'} onPress={() => setCategory('other')}><Text>Other</Text></Button>
       </View>
       <Textarea placeholder="Message" value={message} onChangeText={setMessage} style={{ marginBottom: 8, minHeight: 100 }} />
       <Input placeholder="Screenshot URL (optional)" value={screenshotUrl} onChangeText={setScreenshotUrl} autoCapitalize="none" style={{ marginBottom: 12 }} />
-      <Button onPress={onSubmit} disabled={sending}>{sending ? 'Sending…' : 'Submit'}</Button>
+    <Button onPress={onSubmit} disabled={sending}><Text>{sending ? 'Sending…' : 'Submit'}</Text></Button>
     </View>
   );
 }
