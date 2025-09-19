@@ -1,18 +1,18 @@
-import { Event, Post, User } from '@/api/entities';
+import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { SimpleLineIcons } from '@expo/vector-icons';
+import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
@@ -39,7 +39,6 @@ const toFeedPost = (item: any): FeedPost | null => {
     is_following_author: Boolean(item?.is_following_author),
   };
 };
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 type CurrentUser = {
   id?: string | number;
@@ -387,9 +386,12 @@ export default function ProfileScreen() {
               <Pressable
                 style={styles.gridItem}
                 onPress={() => {
-                  const items = (posts || []).map(toFeedPost).filter(Boolean) as FeedPost[];
+                  const mapped = (posts || []).map(toFeedPost);
+                  const items = mapped.filter(Boolean) as FeedPost[];
+                  const targetId = mapped[index]?.id;
+                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
                   setViewerItems(items);
-                  setViewerIndex(index);
+                  setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
                 }}
               >
@@ -444,9 +446,12 @@ export default function ProfileScreen() {
               <Pressable
                 style={styles.gridItem}
                 onPress={() => {
-                  const items = (interactions || []).map(toFeedPost).filter(Boolean) as FeedPost[];
+                  const mapped = (interactions || []).map(toFeedPost);
+                  const items = mapped.filter(Boolean) as FeedPost[];
+                  const targetId = mapped[index]?.id;
+                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
                   setViewerItems(items);
-                  setViewerIndex(index);
+                  setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
                 }}
               >

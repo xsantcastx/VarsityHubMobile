@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Post } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import VideoPlayer from './VideoPlayer';
-import { Post } from '@/api/entities';
 
 type PostCardProps = {
   post: any;

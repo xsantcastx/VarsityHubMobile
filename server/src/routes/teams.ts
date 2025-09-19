@@ -1,9 +1,9 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { requireVerified } from '../middleware/requireVerified.js';
-import { z } from 'zod';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 export const teamsRouter = Router();
 
