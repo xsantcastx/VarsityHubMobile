@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert, FlatList } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
