@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Game, Highlights, Post, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+import events from '@/utils/events';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -298,6 +299,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
+  const [meInfo, setMeInfo] = useState<{ id?: string; display_name?: string | null; username?: string | null } | null>(null);
 
   const videoRefs = useRef<Record<string, Video | null>>({});
   const isScreenFocusedRef = useRef(true);
@@ -612,6 +614,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       setCommentsError(null);
       setCommentsLoading(true);
       try {
+        // Load current user info (for display name) if missing
+        if (!meInfo) {
+          try {
+            const me: any = await User.me();
+            setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
+          } catch {}
+        }
         const res: any = await fetchCommentsPage(post.id);
         const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
         setComments(items);
@@ -622,7 +631,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         setCommentsLoading(false);
       }
     },
-    [],
+    [meInfo],
   );
 
   const loadMoreComments = useCallback(async () => {
@@ -647,21 +656,27 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       content: commentInput,
       optimistic: true,
       created_at: new Date().toISOString(),
+  author: { display_name: (meInfo?.display_name || meInfo?.username || 'You') as any },
     };
     setComments((prev) => [optimistic, ...prev]);
     setCommentInput('');
     setCommentSending(true);
     try {
       const res: any = await Post.addComment(commentTarget.id, optimistic.content);
-      setComments((prev) => [res, ...prev.filter((c) => !c.optimistic)]);
+      const withAuthor = res && typeof res === 'object'
+        ? { ...res, author: { display_name: res?.author?.display_name ?? (meInfo?.display_name || meInfo?.username || 'You') } }
+        : res;
+      setComments((prev) => [withAuthor, ...prev.filter((c) => !c.optimistic)]);
       updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
+      // Notify profile interactions that a new comment was made
+      events.emit('comment:created', { post_id: commentTarget.id });
     } catch (error) {
       setComments((prev) => prev.filter((c) => !c.optimistic));
       setCommentsError('Unable to send comment right now.');
     } finally {
       setCommentSending(false);
     }
-  }, [commentInput, commentSending, commentTarget, updatePost]);
+  }, [commentInput, commentSending, commentTarget, updatePost, meInfo]);
 
   const handleDoubleTap = useCallback(
     (post: FeedPost) => {
@@ -777,7 +792,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
                 <View style={styles.commentRow}>
-                  <Text style={styles.commentAuthor}>{item.author?.display_name || 'Anonymous'}</Text>
+                  <Text style={styles.commentAuthor}>{item.author?.display_name || (item.optimistic ? (meInfo?.display_name || meInfo?.username || 'You') : 'Anonymous')}</Text>
                   <Text style={styles.commentBody}>{item.content}</Text>
                   {item.created_at ? <Text style={styles.commentTimestamp}>{new Date(item.created_at).toLocaleString()}</Text> : null}
                 </View>

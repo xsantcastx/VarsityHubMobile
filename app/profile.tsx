@@ -1,6 +1,7 @@
 import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -179,6 +180,18 @@ export default function ProfileScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interType, sort]);
 
+  // Refresh interactions when a new comment is created from the viewer
+  useEffect(() => {
+    if (!me?.id) return;
+    const off = events.on('comment:created', () => {
+      if (activeTab === 'interactions') {
+        refreshInteractions(String(me.id));
+      }
+    });
+    return () => { off(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, me?.id]);
+
   const refreshPosts = useCallback(async (userId: string) => {
     setPostsLoading(true);
     try {
@@ -302,7 +315,7 @@ export default function ProfileScreen() {
               const label = t === 'all'
                 ? 'All'
                 : t === 'like'
-                ? `Likes${counts ? ` (${counts.likes})` : ''}`
+                ? `Upvotes${counts ? ` (${counts.likes})` : ''}`
                 : t === 'comment'
                 ? `Comments${counts ? ` (${counts.comments})` : ''}`
                 : `Saves${counts ? ` (${counts.saves})` : ''}`;
@@ -337,6 +350,11 @@ export default function ProfileScreen() {
 
   const onEndReachedPosts = useCallback(() => { if (me?.id) loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
   const onEndReachedInteractions = useCallback(() => { if (me?.id) loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
+
+  // Some interaction items may wrap a post (e.g., { type, post, created_at })
+  const unwrapPost = useCallback((item: any) => {
+    return item?.post || item?.target?.post || item?.target || item;
+  }, []);
 
   const SkeletonList = ({ count = 8 }: { count?: number }) => (
     <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
@@ -431,24 +449,28 @@ export default function ProfileScreen() {
           key={activeTab + '-grid'}
           numColumns={3}
           columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
+          keyExtractor={(item, index) => {
+            const p = unwrapPost(item);
+            return `${p?.id ?? item?.id ?? index}-${index}`;
+          }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No activity yet</Text></View>}
           contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 2 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedInteractions}
           renderItem={({ item, index }) => {
-            const thumb = item.media_url;
+            const postItem = unwrapPost(item);
+            const thumb = postItem?.media_url;
             const isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item._count?.comments ?? 0;
+            const likes = postItem?.upvotes_count ?? 0;
+            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
             return (
               <Pressable
                 style={styles.gridItem}
                 onPress={() => {
-                  const mapped = (interactions || []).map(toFeedPost);
+                  const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
                   const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = mapped[index]?.id;
+                  const targetId = unwrapPost(interactions[index])?.id;
                   const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
@@ -462,7 +484,7 @@ export default function ProfileScreen() {
                 ) : (
                   <View style={[styles.gridImage, styles.gridImageFallback]}>
                     <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
-                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
                   </View>
                 )}
                 <View style={styles.gridCounts}>
