@@ -20,6 +20,7 @@ import { teamMembershipsRouter } from './routes/team-memberships.js';
 import { teamInvitesRouter } from './routes/team-invites.js';
 import { uploadRouter } from './routes/upload.js';
 import { highlightsRouter } from './routes/highlights.js';
+import { promosRouter } from './routes/promos.js';
 
 import { adsRouter } from './routes/ads.js';
 import { paymentsRouter } from './routes/payments.js';
@@ -107,6 +108,7 @@ app.use('/team-memberships', noStore, apiLimiter, teamMembershipsRouter);
 app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
 app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
+app.use('/promos', noStore, apiLimiter, promosRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

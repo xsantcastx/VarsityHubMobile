@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, TextInput } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
@@ -47,6 +47,10 @@ export default function AdCalendarScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [reserved, setReserved] = useState<Set<string>>(new Set());
+  const [promo, setPromo] = useState('');
+  const [preview, setPreview] = useState<any>(null);
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
   // Load already-reserved dates
   React.useEffect(() => {
     let mounted = true;
@@ -61,6 +65,12 @@ export default function AdCalendarScreen() {
   }, []);
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
+  const effectiveCents = useMemo(() => {
+    const cents = Math.round(price * 100);
+    const discount = preview?.valid ? (preview.discount_cents || 0) : 0;
+    return Math.max(0, cents - discount);
+  }, [price, preview?.valid, preview?.discount_cents]);
+  const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
 
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean } | { disabled: boolean } | any> = {};
@@ -74,6 +84,29 @@ export default function AdCalendarScreen() {
     if (iso < todayISO()) return;
     if (reserved.has(iso)) return;
     setSelected(prev => toggleSet(prev, iso));
+  };
+
+  const applyPromo = async () => {
+    setPromoError(null);
+    setPromoBusy(true);
+    try {
+      const subtotalCents = Math.round(price * 100);
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const r = await fetch(`${base.replace(/\/$/, '')}/promos/preview`, {
+        method: 'POST', headers, body: JSON.stringify({ code: promo, subtotal_cents: subtotalCents, service: 'booking' })
+      });
+      const text = await r.text();
+      const data = text ? JSON.parse(text) : null;
+      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      if (!data?.valid) { setPreview(null); setPromoError(data?.reason || 'invalid'); }
+      else setPreview(data);
+    } catch (e: any) {
+      setPreview(null);
+      setPromoError(e?.message || 'Failed to apply promo');
+    } finally { setPromoBusy(false); }
   };
 
   const handlePayment = async () => {
@@ -91,12 +124,15 @@ export default function AdCalendarScreen() {
       const r = await fetch(`${base.replace(/\/$/, '')}/payments/checkout`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ad_id: String(adId), dates }),
+        body: JSON.stringify({ ad_id: String(adId), dates, promo_code: promo || undefined }),
       });
       const txt = await r.text();
       const data = txt ? JSON.parse(txt) : null;
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
-      if (data?.url) {
+      if (data?.free) {
+        Alert.alert('Payment', 'Your reservation was completed with the promo discount.');
+        router.replace('/(tabs)/my-ads');
+      } else if (data?.url) {
         await WebBrowser.openBrowserAsync(String(data.url));
         Alert.alert('Payment', 'If you completed payment, reservations will appear shortly.');
         router.replace('/(tabs)/my-ads');
@@ -152,6 +188,29 @@ export default function AdCalendarScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Promo Code</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              placeholder="Enter code"
+              autoCapitalize="characters"
+              value={promo}
+              onChangeText={setPromo}
+              style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', paddingHorizontal: 12 }}
+            />
+            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: '#2563EB', width: 120, height: 44 }]} disabled={promoBusy}>
+              {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
+            </Pressable>
+          </View>
+          {promoError ? <Text style={{ color: '#b91c1c' }}>Not valid: {promoError}</Text> : null}
+          {preview?.valid ? (
+            <View style={{ marginTop: 8, gap: 4 }}>
+              <Text>Code: {preview.code}</Text>
+              <Text>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>Campaign Summary</Text>
           {sortedDates.length > 0 ? (
             <View style={{ gap: 8 }}>
@@ -171,8 +230,18 @@ export default function AdCalendarScreen() {
           <View style={styles.sep} />
 
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18 }]}>Total Price:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800' }}>${price.toFixed(2)}</Text>
+            <Text style={[styles.bold, { fontSize: 18 }]}>Subtotal:</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700' }}>${price.toFixed(2)}</Text>
+          </View>
+          {preview?.valid ? (
+            <View style={styles.rowBetween}>
+              <Text style={[styles.bold, { fontSize: 16 }]}>Promo Discount:</Text>
+              <Text style={{ fontSize: 16, color: '#16a34a', fontWeight: '700' }}>- ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+            </View>
+          ) : null}
+          <View style={styles.rowBetween}>
+            <Text style={[styles.bold, { fontSize: 18 }]}>Total:</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800' }}>${effective.toFixed(2)}</Text>
           </View>
 
           <Pressable
@@ -183,7 +252,7 @@ export default function AdCalendarScreen() {
             {submitting ? (
               <ActivityIndicator />
             ) : (
-              <Text style={styles.payBtnText}>Pay ${price.toFixed(2)}</Text>
+              <Text style={styles.payBtnText}>Pay ${effective.toFixed(2)}</Text>
             )}
           </Pressable>
         </View>

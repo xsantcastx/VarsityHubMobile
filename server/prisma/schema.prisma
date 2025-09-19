@@ -31,6 +31,8 @@ model User {
   stories     Story[]
   ads         Ad[]
   posts       Post[]
+  categoryFollows CategoryFollow[]
+  promoRedemptions PromoRedemption[]
 
   // Follows (self-relation)
   following Follows[] @relation("following")
@@ -361,6 +363,54 @@ model Follows {
   @@id([follower_id, following_id])
   @@index([follower_id])
   @@index([following_id])
+}
+
+
+
+
+// ===========================
+// Promotions
+// ===========================
+
+enum PromoType {
+  PERCENT_OFF
+  COMPLIMENTARY
+}
+
+model PromoCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  type            PromoType
+  percent_off     Int?
+  enabled         Boolean   @default(true)
+
+  start_at        DateTime?
+  end_at          DateTime?
+  max_redemptions Int?
+  uses            Int       @default(0)
+  per_user_limit  Int       @default(1)
+
+  applies_to_service String?
+
+  note        String?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  redemptions PromoRedemption[]
+}
+
+model PromoRedemption {
+  id                       String   @id @default(cuid())
+  promo_id                 String
+  user_id                  String
+  order_id                 String?
+  amount_discounted_cents  Int
+  created_at               DateTime @default(now())
+
+  promo PromoCode @relation(fields: [promo_id], references: [id])
+  user  User      @relation(fields: [user_id], references: [id])
+
+  @@index([promo_id, user_id])
 }
 
 
