@@ -131,7 +131,7 @@ const GameDetailsScreen = () => {
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
-  const scrollRef = useRef<Animated.ScrollView | null>(null);
+  const scrollRef = useRef<any>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
   const [vm, setVm] = useState<GameVM | null>(null);
@@ -608,8 +608,8 @@ const renderVoteSection = () => {
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
   const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
-  const leftLabel = `${teamALabel} · ${Math.round(pctA)}%`;
-  const rightLabel = `${teamBLabel} · ${Math.round(pctB)}%`;
+  const leftLabel = `${teamALabel} ï¿½ ${Math.round(pctA)}%`;
+  const rightLabel = `${teamBLabel} ï¿½ ${Math.round(pctB)}%`;
   const pressDisabled = Boolean(vm?.isPast) || voteBusy;
   const selectedTeam = summary.userVote ?? null;
   const showFloatLabelA = pctA < 12;
@@ -623,7 +623,7 @@ const renderVoteSection = () => {
       : null
   );
   const caption = voteSummary
-    ? `${total} ${votesWord} • ${pickLabel ? `Your pick: ${pickLabel}` : "You haven't voted"}`
+    ? `${total} ${votesWord} ï¿½ ${pickLabel ? `Your pick: ${pickLabel}` : "You haven't voted"}`
     : 'Loading votes...';
   const showInlineCaption =
     caption !== 'Loading votes...' &&
@@ -696,7 +696,8 @@ const renderVoteSection = () => {
           ) : (
             <View style={[styles.voteLabelCell, styles.voteLabelCellRight]} />
           )}
-        </View>\n        <View
+        </View>
+        <View
           style={styles.voteTouchLayer}
           pointerEvents={pressDisabled ? 'none' : 'auto'}
         >
