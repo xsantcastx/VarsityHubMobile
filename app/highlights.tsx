@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +15,7 @@ import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 // @ts-ignore legacy export shape
 import { Highlights, User } from '@/api/entities';
 
@@ -151,6 +153,9 @@ export default function HighlightsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [national, setNational] = useState<HighlightItem[]>([]);
   const [ranked, setRanked] = useState<HighlightItem[]>([]);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,6 +197,37 @@ export default function HighlightsScreen() {
     router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.game_id) } });
   }, [router]);
 
+  const mapToFeedPost = (input: HighlightItem | null): FeedPost | null => {
+    if (!input) return null;
+    const id = String(input.id);
+    const media_url = typeof input.media_url === 'string' ? input.media_url : null;
+    if (!media_url) return null;
+    const isVideo = /\.(mp4|mov|webm|m4v|avi)$/i.test(media_url);
+    return {
+      id,
+      media_url,
+      media_type: isVideo ? 'video' : 'image',
+      caption: input.caption || input.title || '',
+      upvotes_count: input.upvotes_count || 0,
+      comments_count: input._count?.comments || 0,
+      bookmarks_count: 0,
+      created_at: input.created_at || null,
+      author: input.author ? { id, display_name: input.author.display_name || null, avatar_url: input.author.avatar_url || null } : null,
+      has_upvoted: false,
+      has_bookmarked: false,
+      is_following_author: false,
+    };
+  };
+
+  const openViewerForAll = useCallback(() => {
+    const merged = [...national, ...ranked];
+    const items = merged.map(mapToFeedPost).filter(Boolean) as FeedPost[];
+    if (!items.length) return;
+    setViewerItems(items);
+    setViewerIndex(0);
+    setViewerVisible(true);
+  }, [national, ranked]);
+
   const featuredHighlight = useMemo(() => {
     if (national.length) return national[0];
     if (ranked.length) return ranked[0];
@@ -224,7 +260,8 @@ export default function HighlightsScreen() {
       <Stack.Screen options={{ title: 'Highlights' }} />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
+      >
         <Text style={styles.header}>Highlights</Text>
         <Text style={styles.sub}>The most upvoted moments from across the nation.</Text>
 
@@ -278,26 +315,55 @@ export default function HighlightsScreen() {
           </View>
         ) : null}
 
+        {/* Reel-like opener for the vertical viewer */}
+        {!loading && (national.length || ranked.length) ? (
+          <Pressable style={styles.reelCard} onPress={openViewerForAll}>
+            {featuredHighlight?.media_url ? (
+              <Image source={{ uri: featuredHighlight.media_url }} style={styles.reelCardBg} contentFit="cover" />
+            ) : (
+              <LinearGradient colors={['#0f172a', '#0b1120']} style={styles.reelCardBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+            )}
+            <View style={styles.reelCardContent}>
+              <View style={styles.reelBadge}><Ionicons name="flash" size={22} color="#fff" /></View>
+              <Text style={styles.reelTitle}>Watch Highlights</Text>
+              <Text style={styles.reelSub}>Tap to view all in a vertical reel</Text>
+            </View>
+            {/* Tiny overlay with aggregated like/comment totals */}
+            <View style={styles.reelCountsRow}>
+              <View style={styles.reelCountPill}>
+                <Ionicons name="arrow-up" size={14} color="#fff" />
+                <Text style={styles.reelCountText}>{formatCount(stats.totalUpvotes)}</Text>
+              </View>
+              <View style={[styles.reelCountPill, { marginLeft: 8 }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={14} color="#fff" />
+                <Text style={styles.reelCountText}>{formatCount(stats.totalComments)}</Text>
+              </View>
+            </View>
+          </Pressable>
+        ) : null}
+
+        {/* National Top (secondary) */}
         {secondaryNational.length ? (
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>National Top Plays</Text>
+              <Text style={styles.sectionTitle}>National Top</Text>
               <View style={styles.sectionDivider} />
             </View>
             <FlatList
-              data={secondaryNational}
               horizontal
-              keyExtractor={(item) => `${item.id}`}
+              data={secondaryNational}
+              contentContainerStyle={{ paddingVertical: 6, paddingRight: 24 }}
+              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
               renderItem={({ item }) => (
                 <HighlightThumbnail item={item} onPress={handleHighlightPress} />
               )}
+              keyExtractor={(item) => item.id}
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 6, paddingRight: 24 }}
-              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
             />
           </View>
         ) : null}
 
+        {/* Ranked near you */}
         {ranked.length ? (
           <View style={{ marginTop: 32 }}>
             <View style={styles.sectionHeaderRow}>
@@ -310,6 +376,21 @@ export default function HighlightsScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      {/* Vertical viewer modal */}
+      <Modal visible={viewerVisible} animationType="slide" onRequestClose={() => setViewerVisible(false)}>
+        <View style={styles.verticalFeedModal}>
+          {viewerVisible ? (
+            <GameVerticalFeedScreen
+              onClose={() => setViewerVisible(false)}
+              showHeader
+              initialPosts={viewerItems}
+              startIndex={viewerIndex}
+              title="Highlights"
+            />
+          ) : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -425,4 +506,27 @@ const styles = StyleSheet.create({
   voteChipSegmentB: { backgroundColor: '#A5B4FC', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
   voteChipText: { color: '#fff', fontWeight: '700', fontSize: 11 },
   voteChipHint: { color: '#64748b', fontSize: 11 },
+  reelCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 160, justifyContent: 'flex-end' },
+  reelCardBg: { ...StyleSheet.absoluteFillObject },
+  reelCardContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
+  reelBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)' },
+  reelTitle: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
+  reelSub: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
+  reelCountsRow: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reelCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  reelCountText: { color: '#fff', fontWeight: '700', marginLeft: 4, fontSize: 12 },
+  verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
 });

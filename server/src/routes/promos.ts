@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import type { AuthedRequest } from '../middleware/auth.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 export const promosRouter = Router();
 

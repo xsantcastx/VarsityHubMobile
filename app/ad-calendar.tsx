@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, StyleSheet, TextInput } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
-import { Calendar, DateData } from 'react-native-calendars';
 import { format, startOfToday } from 'date-fns';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
@@ -51,18 +51,26 @@ export default function AdCalendarScreen() {
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
-  // Load already-reserved dates
+  // Load reserved dates for THIS ad only (allow other ads to share dates)
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res: any = await Advertisement.reservedDates();
+        if (!adId) {
+          // No adId yet (new ad flow) => nothing to disable
+          if (mounted) setReserved(new Set());
+          return;
+        }
+        const res: any = await Advertisement.reservationsForAd(String(adId));
         if (!mounted) return;
-        setReserved(new Set<string>(Array.isArray(res?.dates) ? res.dates : []));
-      } catch {}
+        const dates = Array.isArray(res?.dates) ? res.dates : [];
+        setReserved(new Set<string>(dates));
+      } catch {
+        if (mounted) setReserved(new Set());
+      }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [adId]);
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
   const effectiveCents = useMemo(() => {

@@ -1,5 +1,4 @@
 import { Event, Post, User } from '@/api/entities';
-import PostCard from '@/components/PostCard';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -8,8 +7,38 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+
+const toFeedPost = (item: any): FeedPost | null => {
+  const id = item?.id ? String(item.id) : null;
+  if (!id) return null;
+  const media = typeof item?.media_url === 'string' ? item.media_url : null;
+  const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
+  const media_type: 'video' | 'image' = media
+    ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
+    : 'image';
+  return {
+    id,
+    media_url: media,
+    media_type,
+    caption: item?.caption ?? item?.content ?? '',
+    upvotes_count: item?.upvotes_count ?? 0,
+    comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
+    bookmarks_count: item?.bookmarks_count ?? 0,
+    created_at: item?.created_at ?? null,
+    author: item?.author ? { id: String(item.author.id ?? id), display_name: item.author.display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
+    has_upvoted: Boolean(item?.has_upvoted),
+    has_bookmarked: Boolean(item?.has_bookmarked),
+    is_following_author: Boolean(item?.is_following_author),
+  };
+};
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type CurrentUser = {
@@ -33,10 +62,28 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
+  const [activeTab, setActiveTab] = useState<'posts' | 'interactions'>(() => {
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
+  });
   const [posts, setPosts] = useState<any[]>([]);
-  const [activity, setActivity] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState('posts');
+  const [postsCursor, setPostsCursor] = useState<string | null>(null);
+  const [postsHasMore, setPostsHasMore] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(false);
+
+  const [interactions, setInteractions] = useState<any[]>([]);
+  const [interCursor, setInterCursor] = useState<string | null>(null);
+  const [interHasMore, setInterHasMore] = useState(true);
+  const [interLoading, setInterLoading] = useState(false);
+  const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
+  const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
+  const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
+  const rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  // Vertical viewer state
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
 
   const handleAvatarPress = async () => {
     setIsUploadingAvatar(true);
@@ -89,32 +136,12 @@ export default function ProfileScreen() {
       if (u && !u._isNotModified) setMe(u ?? null);
       if (!u?.id) { setLoading(false); return; }
 
-      // Step 2: load posts (non-auth endpoint)
-      let userPosts: any[] = [];
-      try {
-        const p = await Post.filter({ user_id: String(u.id) });
-        userPosts = Array.isArray(p) ? p : [];
-        setPosts(userPosts);
-      } catch (e) {
-        // Don't fail the whole profile if posts fail
-        console.warn('Posts load failed', e);
-        setPosts([]);
+      // Load first page for active tab
+      if (activeTab === 'posts') {
+        await refreshPosts(u.id);
+      } else {
+        await refreshInteractions(u.id);
       }
-
-      // Step 3: load RSVPs (auth required) but don’t force logout if it fails
-      let rsvps: any[] = [];
-      try {
-        const r = await Event.myRsvps();
-        rsvps = Array.isArray(r) ? r : [];
-      } catch (e: any) {
-        console.warn('RSVPs load failed', e);
-        // Keep UI working even if RSVPs endpoint returns 401/403
-      }
-
-      const postsAsActivity = userPosts.map(p => ({ ...p, type: 'post', date: p.created_at }));
-      const rsvpsAsActivity = rsvps.map(r => ({ ...r, type: 'rsvp', date: r.created_at }));
-      const combinedActivity = [...postsAsActivity, ...rsvpsAsActivity].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setActivity(combinedActivity);
     } catch (e: any) {
       console.error('Failed to load profile', e);
       // Only show sign-in if the session itself is invalid from /me.
@@ -128,16 +155,84 @@ export default function ProfileScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
   // Refresh when screen regains focus (after creating a post, etc.)
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile();
-    }, [loadProfile])
-  );
+  useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
+
+  // Refresh when switching tabs
+  useEffect(() => {
+    if (!me?.id) return;
+    if (activeTab === 'posts') {
+      refreshPosts(String(me.id));
+    } else {
+      refreshInteractions(String(me.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // When interactions filters/sort change while on Interactions tab, refresh
+  useEffect(() => {
+    if (!me?.id) return;
+    if (activeTab === 'interactions') {
+      refreshInteractions(String(me.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interType, sort]);
+
+  const refreshPosts = useCallback(async (userId: string) => {
+    setPostsLoading(true);
+    try {
+      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
+      setPosts(page.items || []);
+      setPostsCursor(page.nextCursor || null);
+      setPostsHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [sort]);
+
+  const loadMorePosts = useCallback(async (userId: string) => {
+    if (postsLoading || !postsHasMore) return;
+    setPostsLoading(true);
+    try {
+      const page = await User.postsForProfile(String(userId), { limit: 10, sort, cursor: postsCursor || undefined });
+      setPosts((prev) => [...prev, ...(page.items || [])]);
+      setPostsCursor(page.nextCursor || null);
+      setPostsHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [postsCursor, postsHasMore, postsLoading, sort]);
+
+  const refreshInteractions = useCallback(async (userId: string) => {
+    setInterLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: interType });
+      setInteractions(page.items || []);
+      setInterCursor(page.nextCursor || null);
+      setInterHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setInterLoading(false);
+    }
+  }, [interType, sort]);
+
+  const loadMoreInteractions = useCallback(async (userId: string) => {
+    if (interLoading || !interHasMore) return;
+    setInterLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: interType, cursor: interCursor || undefined });
+      setInteractions((prev) => [...prev, ...(page.items || [])]);
+      setInterCursor(page.nextCursor || null);
+      setInterHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setInterLoading(false);
+    }
+  }, [interCursor, interHasMore, interLoading, interType, sort]);
 
   const name = me?.display_name || me?.username || 'User';
   const stats = [
@@ -187,13 +282,49 @@ export default function ProfileScreen() {
         </Button>
       </View>
       <View style={styles.tabsContainer}>
-        <Pressable onPress={() => setActiveTab('posts')} style={[styles.tab, activeTab === 'posts' && styles.activeTab]}>
-          <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
+        <Pressable
+          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
+          style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
+        >
+          <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
         </Pressable>
-        <Pressable onPress={() => setActiveTab('activity')} style={[styles.tab, activeTab === 'activity' && styles.activeTab]}>
-          <Text style={[styles.tabText, activeTab === 'activity' && styles.activeTabText]}>Activity</Text>
+        <Pressable
+          onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch {} }}
+          style={[styles.tab, activeTab === 'interactions' && styles.activeTab]}
+        >
+          <Text style={[styles.tabText, activeTab === 'interactions' && styles.activeTabText]}>Interactions</Text>
         </Pressable>
       </View>
+
+      {activeTab === 'interactions' && (
+        <View style={styles.filtersBar}>
+          <View style={styles.segmentedRow}>
+            {(['all','like','comment','save'] as const).map((t) => {
+              const label = t === 'all'
+                ? 'All'
+                : t === 'like'
+                ? `Likes${counts ? ` (${counts.likes})` : ''}`
+                : t === 'comment'
+                ? `Comments${counts ? ` (${counts.comments})` : ''}`
+                : `Saves${counts ? ` (${counts.saves})` : ''}`;
+              return (
+                <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, interType === t && styles.segmentActive]}>
+                  <Text style={[styles.segmentText, interType === t && styles.segmentTextActive]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.sortRow}>
+            {(['newest','most_upvoted','most_commented'] as const).map(s => (
+              <Pressable key={s} onPress={() => setSort(s)} style={[styles.sortPill, sort === s && styles.sortPillActive]}>
+                <Text style={[styles.sortText, sort === s && styles.sortTextActive]}>
+                  {s === 'newest' ? 'Newest' : s === 'most_upvoted' ? 'Most upvoted' : 'Most commented'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
     </>
   );
 
@@ -205,9 +336,18 @@ export default function ProfileScreen() {
     </View>
   );
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator /></View>;
-  }
+  const onEndReachedPosts = useCallback(() => { if (me?.id) loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
+  const onEndReachedInteractions = useCallback(() => { if (me?.id) loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
+
+  const SkeletonList = ({ count = 8 }: { count?: number }) => (
+    <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={{ height: 100, backgroundColor: '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
+      ))}
+    </View>
+  );
+
+  if (loading) return <SkeletonList count={8} />;
 
   if (error) {
     return (
@@ -223,46 +363,132 @@ export default function ProfileScreen() {
     return null; // Or some other placeholder
   }
 
-  const renderActivityItem = ({ item }: { item: any }) => {
-    if (item.type === 'post') {
-      return <PostCard post={item} onPress={() => router.push(`/post-detail?id=${item.id}`)} />;
-    }
-    if (item.type === 'rsvp') {
-      return (
-        <View style={styles.activityItem}>
-          <Text>RSVP'd to event: {item.event?.title || 'Unknown Event'}</Text>
-        </View>
-      );
-    }
-    return null;
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ title: 'Profile' }} />
       {activeTab === 'posts' ? (
         <FlatList
           data={posts}
-          renderItem={({ item }) => <PostCard post={item} onPress={() => router.push(`/post-detail?id=${item.id}`)} />}
+          key={activeTab + '-grid'}
+          numColumns={3}
+          columnWrapperStyle={styles.gridRow}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: 32 }}
+          contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 2 }}
+          onEndReachedThreshold={0.5}
+          onEndReached={onEndReachedPosts}
+          renderItem={({ item, index }) => {
+            const thumb = item.media_url;
+            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const likes = item.upvotes_count ?? 0;
+            const comments = item.comments_count ?? item._count?.comments ?? 0;
+            return (
+              <Pressable
+                style={styles.gridItem}
+                onPress={() => {
+                  const items = (posts || []).map(toFeedPost).filter(Boolean) as FeedPost[];
+                  setViewerItems(items);
+                  setViewerIndex(index);
+                  setViewerOpen(true);
+                }}
+              >
+                {thumb ? (
+                  <>
+                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                  </>
+                ) : (
+                  <View style={[styles.gridImage, styles.gridImageFallback]}>
+                    <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
+                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                  </View>
+                )}
+                {/* Counts overlay (shown for both media and text tiles) */}
+                <View style={styles.gridCounts}>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="arrow-up" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{likes}</Text>
+                  </View>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{comments}</Text>
+                  </View>
+                </View>
+                {/* Bottom-right badge: camera for media, text icon for text-only */}
+                <View style={styles.gridIconBadge}>
+                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                </View>
+              </Pressable>
+            );
+          }}
+          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       ) : (
         <FlatList
-          data={activity}
-          renderItem={renderActivityItem}
-          keyExtractor={(item, index) => `${item.type}-${item.id}-${index}`}
+          data={interactions}
+          key={activeTab + '-grid'}
+          numColumns={3}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
           ListHeaderComponent={renderHeader}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTitle}>No recent activity</Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: 32 }}
+          ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No activity yet</Text></View>}
+          contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 2 }}
+          onEndReachedThreshold={0.5}
+          onEndReached={onEndReachedInteractions}
+          renderItem={({ item, index }) => {
+            const thumb = item.media_url;
+            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const likes = item.upvotes_count ?? 0;
+            const comments = item.comments_count ?? item._count?.comments ?? 0;
+            return (
+              <Pressable
+                style={styles.gridItem}
+                onPress={() => {
+                  const items = (interactions || []).map(toFeedPost).filter(Boolean) as FeedPost[];
+                  setViewerItems(items);
+                  setViewerIndex(index);
+                  setViewerOpen(true);
+                }}
+              >
+                {thumb ? (
+                  <>
+                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                  </>
+                ) : (
+                  <View style={[styles.gridImage, styles.gridImageFallback]}>
+                    <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
+                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                  </View>
+                )}
+                <View style={styles.gridCounts}>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="arrow-up" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{likes}</Text>
+                  </View>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{comments}</Text>
+                  </View>
+                </View>
+                <View style={styles.gridIconBadge}>
+                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                </View>
+              </Pressable>
+            );
+          }}
+          ListFooterComponent={interLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       )}
+
+      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
+        <GameVerticalFeedScreen
+          onClose={() => setViewerOpen(false)}
+          showHeader
+          initialPosts={viewerItems}
+          startIndex={viewerIndex}
+          title={activeTab === 'posts' ? 'Your posts' : 'Your interactions'}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -285,6 +511,17 @@ const styles = StyleSheet.create({
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
   tabText: { color: '#6B7280', fontWeight: '600' },
   activeTabText: { color: 'black' },
+  filtersBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 8 },
+  segmentedRow: { flexDirection: 'row', gap: 8 },
+  segment: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
+  segmentActive: { backgroundColor: '#111827' },
+  segmentText: { color: '#111827', fontWeight: '600' },
+  segmentTextActive: { color: 'white' },
+  sortRow: { flexDirection: 'row', gap: 8 },
+  sortPill: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 14, backgroundColor: '#F3F4F6' },
+  sortPillActive: { backgroundColor: '#111827' },
+  sortText: { color: '#111827', fontWeight: '600' },
+  sortTextActive: { color: 'white' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
   emptyTitle: { fontSize: 18, fontWeight: 'bold' },
   emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 16 },
@@ -300,4 +537,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
+  gridRow: { gap: 2 },
+  gridItem: { flex: 1, aspectRatio: 1, margin: 2, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F3F4F6' },
+  gridImage: { width: '100%', height: '100%' },
+  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 8 },
+  gridTextOnly: { textAlign: 'center', color: '#111827', fontWeight: '700' },
+  gridIconBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  gridCounts: { position: 'absolute', left: 6, bottom: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gridCountText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { getIsAdmin, requireAdmin } from '../middleware/requireAdmin.js';
 
 export const adsRouter = Router();
 
@@ -64,6 +64,36 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   return res.json(list);
 });
 
+// Ads for feed: return ads with a reservation for a specific date (default: today), optional zip filter, paid only
+adsRouter.get('/for-feed', async (req, res) => {
+  const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
+  const zip = req.query.zip ? String(req.query.zip) : undefined;
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
+  // Build date range [start, next)
+  const dateISO = dateParam || new Date().toISOString().slice(0, 10);
+  const start = new Date(dateISO + 'T00:00:00.000Z');
+  const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  const whereAd: any = {
+    payment_status: 'paid',
+    banner_url: { not: null },
+  };
+  if (zip) whereAd.target_zip_code = zip;
+
+  const ads = await prisma.ad.findMany({
+    where: {
+      ...whereAd,
+      reservations: {
+        some: { date: { gte: start, lt: next } },
+      },
+    },
+    orderBy: { created_at: 'desc' },
+    take: limit,
+  });
+
+  return res.json({ date: dateISO, ads });
+});
+
 // Get a single Ad with its reservations (dates)
 adsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
@@ -113,17 +143,13 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     return res.status(400).json({ error: 'ad_id and dates[] are required' });
   }
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
-  // Check conflicts
-  const existing = await prisma.adReservation.findMany({ where: { date: { in: isoDates.map((s) => new Date(s + 'T00:00:00.000Z')) } } });
-  if (existing.length > 0) {
-    return res.status(409).json({ error: 'Dates already reserved', dates: existing.map((r) => r.date.toISOString().slice(0, 10)) });
-  }
-  // Create
-  const created = await prisma.$transaction(
-    isoDates.map((s) =>
-      prisma.adReservation.create({ data: { ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') } })
-    )
-  );
+  // No global conflicts: allow multiple ads on the same date.
+  // Enforce only one reservation per ad per date via DB unique constraint.
+  // Create (skip duplicates for idempotency)
+  const createdMany = await prisma.adReservation.createMany({
+    data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })),
+    skipDuplicates: true,
+  });
 
   // Price logic matches mobile UI: flat weekday + weekend
   const hasWeekday = isoDates.some((s) => {
@@ -136,5 +162,5 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
   });
   const price = (hasWeekday ? 10 : 0) + (hasWeekend ? 17.5 : 0);
 
-  return res.status(201).json({ ok: true, reserved: created.length, dates: isoDates, price });
+  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price });
 });
