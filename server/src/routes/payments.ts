@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
+import { previewPromo, redeemPromo } from '../lib/promos.js';
 import Stripe from 'stripe';
 import expressPkg from 'express';
 
@@ -27,7 +28,7 @@ function calculatePriceCents(isoDates: string[]): number {
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-  const { ad_id, dates } = req.body || {};
+  const { ad_id, dates, promo_code } = req.body || {};
   if (!ad_id || !Array.isArray(dates) || dates.length === 0) return res.status(400).json({ error: 'ad_id and dates[] are required' });
   const isoDates: string[] = Array.from(new Set(dates.map((d: any) => String(d))));
 
@@ -44,6 +45,32 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const amount = calculatePriceCents(isoDates);
   if (amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
+  // Apply promo code if provided
+  let discount = 0;
+  let appliedCode: string | null = null;
+  if (promo_code && typeof promo_code === 'string') {
+    const preview = await previewPromo({ code: promo_code, subtotalCents: amount, userId: req.user!.id, service: 'booking' });
+    if (!preview.valid) return res.status(400).json({ error: preview.reason });
+    discount = preview.discount_cents;
+    appliedCode = preview.code;
+  }
+
+  const total = Math.max(0, amount - discount);
+  // If free after discount, finalize immediately without Stripe Checkout
+  if (total === 0) {
+    // Record redemption and create reservations
+    if (appliedCode) {
+      await redeemPromo({ code: appliedCode, subtotalCents: amount, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
+    }
+    try {
+      await prisma.$transaction([
+        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
+        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
+      ]);
+    } catch (e) {}
+    return res.json({ free: true });
+  }
+
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
   const success = `${appBase.replace(/\/$/, '')}/payments/success`;
   const cancel = `${appBase.replace(/\/$/, '')}/payments/cancel`;
@@ -57,7 +84,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: amount,
+          unit_amount: total,
           product_data: {
             name: 'Ad Reservation',
             description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}`,
@@ -65,7 +92,15 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         },
       },
     ],
-    metadata: { ad_id: String(ad_id), dates: JSON.stringify(isoDates) },
+    // Useful metadata for webhook
+    metadata: {
+      ad_id: String(ad_id),
+      dates: JSON.stringify(isoDates),
+      user_id: req.user!.id,
+      subtotal_cents: String(amount),
+      promo_code: appliedCode || '',
+      discount_cents: String(discount || 0),
+    },
   });
 
   return res.json({ url: session.url });
@@ -104,6 +139,18 @@ paymentsRouter.post('/webhook', async (req, res) => {
         ]);
       } catch (e) {
         // Ignore conflicts
+      }
+    }
+
+    // Redeem promo post-payment if present
+    const code = (meta.promo_code || '').trim();
+    const userId = meta.user_id || '';
+    const subtotalCents = Number(meta.subtotal_cents || 0) || 0;
+    if (code && userId && subtotalCents > 0) {
+      try {
+        await redeemPromo({ code, userId, subtotalCents, service: 'booking', orderId: session.id });
+      } catch (e) {
+        console.warn('Failed to redeem promo in webhook:', (e as any)?.message || e);
       }
     }
   }

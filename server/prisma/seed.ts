@@ -170,6 +170,22 @@ async function main() {
   await prisma.teamMembership.create({ data: { team_id: t2.id, user_id: u2.id, role: 'coach' } as any });
   await prisma.teamInvite.create({ data: { team_id: t2.id, email: 'jamie@example.com', role: 'member' } });
 
+  // --- Promo Codes ---
+  await prisma.promoCode.upsert({
+    where: { code: 'FREE100' },
+    update: {},
+    create: { code: 'FREE100', type: 'COMPLIMENTARY', enabled: true, max_redemptions: 100 },
+  });
+  await prisma.promoCode.upsert({
+    where: { code: 'SAVE25' },
+    update: {},
+    create: {
+      code: 'SAVE25', type: 'PERCENT_OFF', percent_off: 25, enabled: true,
+      start_at: new Date(), end_at: new Date(Date.now() + 30*24*3600*1000),
+      max_redemptions: 500, per_user_limit: 1,
+    },
+  });
+
   console.log('Seed complete');
 }
 
