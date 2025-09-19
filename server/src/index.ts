@@ -1,33 +1,35 @@
-import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import 'dotenv/config';
+import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
-import pinoHttp from 'pino-http';
 import path from 'node:path';
+import pinoHttp from 'pino-http';
 import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
-import { gamesRouter } from './routes/games.js';
-import { postsRouter } from './routes/posts.js';
 import { eventsRouter } from './routes/events.js';
-import { messagesRouter } from './routes/messages.js';
-import { uploadsRouter } from './routes/uploads.js';
-import { teamsRouter } from './routes/teams.js';
-import { usersRouter } from './routes/users.js';
-import { rsvpsRouter } from './routes/rsvps.js';
 import { followsRouter } from './routes/follows.js';
-import { supportRouter } from './routes/support.js';
-import { teamMembershipsRouter } from './routes/team-memberships.js';
-import { teamInvitesRouter } from './routes/team-invites.js';
-import { uploadRouter } from './routes/upload.js';
+import { gamesRouter } from './routes/games.js';
 import { highlightsRouter } from './routes/highlights.js';
+import { messagesRouter } from './routes/messages.js';
+import { postsRouter } from './routes/posts.js';
 import { promosRouter } from './routes/promos.js';
+import { rsvpsRouter } from './routes/rsvps.js';
+import { supportRouter } from './routes/support.js';
+import { teamInvitesRouter } from './routes/team-invites.js';
+import { teamMembershipsRouter } from './routes/team-memberships.js';
+import { teamsRouter } from './routes/teams.js';
+import { uploadRouter } from './routes/upload.js';
+import { uploadsRouter } from './routes/uploads.js';
+import { usersRouter } from './routes/users.js';
 
+import rateLimit from 'express-rate-limit';
 import { adsRouter } from './routes/ads.js';
 import { paymentsRouter } from './routes/payments.js';
-import rateLimit from 'express-rate-limit';
 
 const app = express();
-app.use(pinoHttp({ transport: { target: 'pino-pretty' } }));
+// pino-http ESM interop can require using the default property in some setups
+const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
+app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin
 app.use(helmet({ contentSecurityPolicy: false }));
 

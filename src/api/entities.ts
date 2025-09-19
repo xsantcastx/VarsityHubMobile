@@ -1,6 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
-import { httpGet, httpPost, httpPut, httpPatch, httpDelete } from './http';
 import auth from './auth';
+import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './http';
 
 export const User = {
   me: () => auth.me(),
@@ -28,6 +28,23 @@ export const User = {
   following: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
   follow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow`, {}),
   unfollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow?_method=DELETE`, {}),
+  postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    const q: string[] = [];
+    if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
+    if (opts.cursor) q.push('cursor=' + encodeURIComponent(opts.cursor));
+    if (opts.sort) q.push('sort=' + encodeURIComponent(opts.sort));
+    const qs = q.length ? '?' + q.join('&') : '';
+    return httpGet(`/users/${encodeURIComponent(id)}/posts` + qs);
+  },
+  interactionsForProfile: (id: string, opts: { type?: 'all' | 'like' | 'comment' | 'repost' | 'save'; cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    const q: string[] = [];
+    if (opts.type) q.push('type=' + encodeURIComponent(opts.type));
+    if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
+    if (opts.cursor) q.push('cursor=' + encodeURIComponent(opts.cursor));
+    if (opts.sort) q.push('sort=' + encodeURIComponent(opts.sort));
+    const qs = q.length ? '?' + q.join('&') : '';
+    return httpGet(`/users/${encodeURIComponent(id)}/interactions` + qs);
+  },
 };
 
 export const Game = {
@@ -226,6 +243,13 @@ export const Advertisement = {
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+  forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
+    const q: string[] = [];
+    if (dateISO) q.push('date=' + encodeURIComponent(dateISO));
+    if (zip) q.push('zip=' + encodeURIComponent(zip));
+    if (limit) q.push('limit=' + String(limit));
+    return httpGet('/ads/for-feed' + (q.length ? '?' + q.join('&') : ''));
+  },
 };
 
 export const Highlights = {

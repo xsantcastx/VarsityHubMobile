@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game, Highlights, User } from '@/api/entities';
+import { Advertisement, Game, Highlights, User } from '@/api/entities';
 import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -122,6 +122,8 @@ export default function FeedScreen() {
   const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
   const [zipSuggestionsOpen, setZipSuggestionsOpen] = useState(false);
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
+  const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
+  const [sponsoredIndex, setSponsoredIndex] = useState(0);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
 
@@ -163,12 +165,14 @@ export default function FeedScreen() {
       const countryCode = typeof user?.preferences?.country_code === 'string'
         ? String(user.preferences.country_code).toUpperCase()
         : undefined;
-      const [gamesData, highlightsData] = await Promise.all([
+      const todayISO = new Date().toISOString().slice(0, 10);
+      const [gamesData, highlightsData, forFeedAds] = await Promise.all([
         Game.list('-date'),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
+        Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
       ]);
       const normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       setGames(normalizedGames);
@@ -181,6 +185,19 @@ export default function FeedScreen() {
         setHighlightPreview(firstWithMedia || null);
       } else {
         setHighlightPreview(null);
+      }
+      if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
+        const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a && !!a.banner_url);
+        // Shuffle order for fairness
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+        setSponsoredAds(list);
+        setSponsoredIndex(0);
+      } else {
+        setSponsoredAds([]);
+        setSponsoredIndex(0);
       }
     } catch (e: any) {
       console.error('Failed to load feed', e);
@@ -209,6 +226,15 @@ export default function FeedScreen() {
       load({ silent: true });
     }, [load]),
   );
+
+  // Rotate sponsored ads every ~8s
+  useEffect(() => {
+    if (!sponsoredAds || sponsoredAds.length <= 1) return;
+    const id = setInterval(() => {
+      setSponsoredIndex((i) => (i + 1) % sponsoredAds.length);
+    }, 8000);
+    return () => clearInterval(id);
+  }, [sponsoredAds]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -411,11 +437,18 @@ export default function FeedScreen() {
                   </View>
                 </View>
               </Pressable>
-              {false && index === 0 ? (
+              {index === 0 && sponsoredAds.length > 0 ? (
                 <View style={styles.sponsored}>
                   <Text style={styles.sponsoredBadge}>SPONSORED</Text>
-                  <Text style={[styles.cardTitle, { marginTop: 6 }]}>SportsCare Physical Therapy</Text>
-                  <Text style={styles.cardMeta}>Get back in the game faster · Now accepting new patients</Text>
+                  {sponsoredAds[sponsoredIndex]?.banner_url ? (
+                    <View style={{ height: 120, borderRadius: 10, overflow: 'hidden', marginTop: 8, marginBottom: 8 }}>
+                      <Image source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    </View>
+                  ) : null}
+                  <Text style={[styles.cardTitle, { marginTop: 4 }]}>{sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}</Text>
+                  {sponsoredAds[sponsoredIndex]?.description ? (
+                    <Text style={styles.cardMeta} numberOfLines={2}>{String(sponsoredAds[sponsoredIndex].description)}</Text>
+                  ) : null}
                 </View>
               ) : null}
               {index === 0 ? (

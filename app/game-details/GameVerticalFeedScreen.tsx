@@ -42,7 +42,7 @@ try {
 
 type VoteOption = 'A' | 'B';
 
-type FeedPost = {
+export type FeedPost = {
   id: string;
   media_url: string | null;
   media_type: 'video' | 'image';
@@ -102,7 +102,16 @@ type GameSummary = {
   title: string;
   date?: string | null;
 };
-type GameVerticalFeedScreenProps = { onClose?: () => void; gameId?: string | null; showHeader?: boolean; countryCode?: string | null };
+type GameVerticalFeedScreenProps = {
+  onClose?: () => void;
+  gameId?: string | null;
+  showHeader?: boolean;
+  countryCode?: string | null;
+  // When provided, the screen acts as a generic vertical viewer for these posts and will not fetch by game.
+  initialPosts?: FeedPost[];
+  startIndex?: number;
+  title?: string | null;
+};
 
 
 const fetchCommentsPage = async (postId: string, cursor?: string | null) => {
@@ -182,7 +191,19 @@ const FeedCard = memo(
               resizeMode="cover"
             />
           ) : (
-            <View style={[styles.media, styles.mediaFallback]}><Text style={styles.mediaFallbackText}>No media</Text></View>
+            <View style={[styles.media, styles.textOnlyCard]}>
+              <LinearGradient
+                colors={["#0b1120", "#020617"]}
+                style={StyleSheet.absoluteFillObject as any}
+              />
+              <View style={styles.textOnlyBadge}>
+                <Ionicons name="text" size={14} color="#fff" />
+                <Text style={styles.textOnlyBadgeText}>TEXT POST</Text>
+              </View>
+              <Text style={styles.textOnlyCaption} numberOfLines={6}>
+                {post.caption || 'No content'}
+              </Text>
+            </View>
           )}
         </Pressable>
 
@@ -245,11 +266,12 @@ const FeedCard = memo(
 );
 FeedCard.displayName = 'FeedCard';
 
-export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode }: GameVerticalFeedScreenProps = {}) {
+export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, title }: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const gameId = externalGameId ? String(externalGameId) : (gameIdParam ? String(gameIdParam) : null);
+  const usingInitial = useMemo(() => Array.isArray(initialPosts) && initialPosts.length > 0, [initialPosts]);
   const normalizedCountry = useMemo(() => (countryCode ? String(countryCode).toUpperCase() : undefined), [countryCode]);
   const handleBack = useCallback(() => {
     if (onClose) {
@@ -303,7 +325,22 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     setCommentSending(false);
     setCommentsVisible(false);
     setCommentsLoading(false);
-  }, [gameId]);
+  }, [gameId, usingInitial]);
+
+  // If acting as a generic viewer with provided posts, seed posts and index.
+  useEffect(() => {
+    if (!usingInitial) return;
+    const items = Array.isArray(initialPosts)
+      ? initialPosts.filter((p) => !!p && !!p.id)
+      : [];
+    setPosts(items);
+    setActiveIndex(Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
+    setCursor(null);
+    cursorRef.current = null;
+    setHasMore(false);
+    hasMoreRef.current = false;
+    setLoading(false);
+  }, [usingInitial, initialPosts, startIndex]);
 
   const registerVideo = useCallback((id: string, ref: Video | null) => {
     if (!ref) {
@@ -326,6 +363,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   useEffect(() => {
+    if (usingInitial) return;
     if (!gameId) {
       setGame({ id: 'all-highlights', title: 'All Highlights', date: null });
       return;
@@ -344,10 +382,17 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [gameId, usingInitial]);
 
   const loadFeed = useCallback(
     async (reset = false) => {
+      if (usingInitial) {
+        // No-op: using provided posts
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+        return;
+      }
       if (!gameId) {
         if (reset) {
           setRefreshing(true);
@@ -412,12 +457,26 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         setLoadingMore(false);
       }
     },
-    [gameId, normalizedCountry],
+    [gameId, normalizedCountry, usingInitial],
   );
 
   useEffect(() => {
     loadFeed(true);
   }, [loadFeed]);
+
+  // When using initial posts, jump to the provided startIndex on mount/update
+  useEffect(() => {
+    if (!usingInitial) return;
+    const target = Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1));
+    if (!posts.length) return;
+    try {
+      // Give FlatList a tick to mount
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToIndex({ index: target, animated: false });
+        setActiveIndex(target);
+      });
+    } catch {}
+  }, [usingInitial, posts.length, startIndex]);
 
   const onEndReached = useCallback(() => {
     if (!gameId) return;
@@ -634,7 +693,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
 
-  if (!gameId) {
+  if (!gameId && !usingInitial) {
     return (
       <View style={styles.emptyState}>
         <Text style={styles.emptyStateTitle}>Missing game id</Text>
@@ -663,6 +722,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         showsVerticalScrollIndicator={false}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.6}
+        initialScrollIndex={usingInitial ? Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1)) : undefined}
+        getItemLayout={(_, index) => ({ length: windowHeight, offset: windowHeight * index, index })}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
@@ -684,8 +745,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
           <View style={styles.titleTextWrap}>
-            <Text style={styles.titleText}>{game?.title || 'Game'}</Text>
-            {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+            <Text style={styles.titleText}>{usingInitial ? (title || 'Posts') : (game?.title || 'Game')}</Text>
+            {!usingInitial && game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
           </View>
         </View>
       ) : null}
@@ -757,6 +818,21 @@ const styles = StyleSheet.create({
   media: { width: '100%', height: '100%' },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
   mediaFallbackText: { color: '#fff', fontWeight: '700' },
+  textOnlyCard: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  textOnlyBadge: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  textOnlyBadgeText: { color: '#fff', fontWeight: '800', fontSize: 11, marginLeft: 6 },
+  textOnlyCaption: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
   headerOverlay: {
     position: 'absolute',
     left: 16,

@@ -76,6 +76,7 @@ const createSchema = z.object({ name: z.string().min(2), description: z.string()
 teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });

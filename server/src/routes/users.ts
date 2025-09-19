@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { z } from 'zod';
 
 export const usersRouter = Router();
 
@@ -81,6 +82,157 @@ usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   return res.send(csv);
+});
+
+// =============================
+// Profile: Posts & Interactions
+// =============================
+
+const sortParamToOrder = (sort?: string) => {
+  switch (sort) {
+    case 'most_upvoted':
+      return [{ upvotes_count: 'desc' as const }, { created_at: 'desc' as const }];
+    case 'most_commented':
+      return [{ comments: { _count: 'desc' as any } } as any, { created_at: 'desc' as const }];
+    default:
+      return [{ created_at: 'desc' as const }];
+  }
+};
+
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
+const detectMediaType = (url?: string | null): 'video' | 'image' => {
+  if (!url) return 'image';
+  const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
+};
+
+function mapPostForPayload(post: any) {
+  return {
+    id: post.id,
+    media_url: post.media_url ?? null,
+    media_type: detectMediaType(post.media_url),
+    caption: post.content ?? null,
+    upvotes_count: post.upvotes_count ?? 0,
+    comments_count: post._count?.comments ?? 0,
+    bookmarks_count: post._count?.bookmarks ?? 0,
+    created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
+    author: post.author
+      ? { id: post.author.id, display_name: post.author.display_name, avatar_url: post.author.avatar_url }
+      : null,
+  };
+}
+
+// GET /users/:id/posts?cursor=...&limit=...&sort=...
+usersRouter.get('/:id/posts', async (req, res) => {
+  const id = String(req.params.id);
+  const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+
+  const orderBy = sortParamToOrder(sort);
+  const query: any = {
+    where: { author_id: id },
+    take: limit + 1,
+    orderBy,
+    include: {
+      author: { select: { id: true, display_name: true, avatar_url: true } },
+      _count: { select: { comments: true, bookmarks: true } },
+    },
+  };
+  if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
+  const rows = await prisma.post.findMany(query);
+  const items = rows.slice(0, limit);
+  const nextCursor = rows.length > limit ? rows[limit].id : null;
+
+  const payload = items.map(mapPostForPayload);
+  const counts = {
+    posts: await prisma.post.count({ where: { author_id: id } }),
+    likes: await prisma.postUpvote.count({ where: { user_id: id } }),
+    comments: await prisma.comment.count({ where: { author_id: id } as any }),
+    reposts: 0,
+    saves: await prisma.postBookmark.count({ where: { user_id: id } }),
+  };
+
+  return res.json({ items: payload, nextCursor, counts });
+});
+
+// GET /users/:id/interactions?type=like|comment|repost|save|all&cursor=...&limit=...&sort=...
+usersRouter.get('/:id/interactions', async (req, res) => {
+  const id = String(req.params.id);
+  const limit = Math.min(parseInt(String(req.query.limit || '10'), 10) || 10, 50);
+  const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+  const type = typeof req.query.type === 'string' ? req.query.type : 'all';
+
+  // Collect interactions
+  const likeRows = (type === 'all' || type === 'like')
+    ? await prisma.postUpvote.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true } }) : [];
+  const commentRows = (type === 'all' || type === 'comment')
+    ? await prisma.comment.findMany({ where: { author_id: id } as any, select: { post_id: true, created_at: true } }) : [];
+  // No repost model yet
+  const saveRows = (type === 'all' || type === 'save')
+    ? await prisma.postBookmark.findMany({ where: { user_id: id }, select: { post_id: true, created_at: true } }) : [];
+
+  type Item = { post_id: string; ts: Date };
+  const merged: Record<string, Item> = {};
+  for (const r of likeRows) {
+    const k = r.post_id; const ts = r.created_at as Date;
+    if (!merged[k] || merged[k].ts < ts) merged[k] = { post_id: k, ts };
+  }
+  for (const r of commentRows) {
+    const k = r.post_id!; const ts = r.created_at as Date;
+    if (!merged[k] || merged[k].ts < ts) merged[k] = { post_id: k, ts };
+  }
+  for (const r of saveRows) {
+    const k = r.post_id; const ts = r.created_at as Date;
+    if (!merged[k] || merged[k].ts < ts) merged[k] = { post_id: k, ts };
+  }
+  let list = Object.values(merged);
+
+  // Sorting
+  if (sort === 'most_upvoted') {
+    const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) } }, select: { id: true, upvotes_count: true } });
+    const likeMap = new Map(likeCounts.map(p => [p.id, p.upvotes_count || 0]));
+    list.sort((a, b) => (likeMap.get(b.post_id)! - likeMap.get(a.post_id)!));
+  } else if (sort === 'most_commented') {
+    const commentCounts = await prisma.comment.groupBy({ by: ['post_id'], _count: { _all: true }, where: { post_id: { in: list.map(i => i.post_id) } } });
+    const cMap = new Map(commentCounts.map(c => [c.post_id!, c._count._all]));
+    list.sort((a, b) => (cMap.get(b.post_id)! - cMap.get(a.post_id)!));
+  } else {
+    list.sort((a, b) => b.ts.getTime() - a.ts.getTime());
+  }
+
+  // Cursor pagination (keyset on (ts, post_id))
+  let start = 0;
+  if (cursor) {
+    const [tsStr, pid] = cursor.split('::');
+    const ts = new Date(tsStr);
+    const idx = list.findIndex(i => i.ts.getTime() === ts.getTime() && i.post_id === pid);
+    start = idx >= 0 ? idx + 1 : 0;
+  }
+  const slice = list.slice(start, start + limit + 1);
+  const page = slice.slice(0, limit);
+  const next = slice.length > limit ? slice[limit] : null;
+  const nextCursor = next ? `${next.ts.toISOString()}::${next.post_id}` : null;
+
+  const postIds = page.map(i => i.post_id);
+  const posts = postIds.length ? await prisma.post.findMany({
+    where: { id: { in: postIds } },
+    include: { author: { select: { id: true, display_name: true, avatar_url: true } }, _count: { select: { comments: true, bookmarks: true } } },
+  }) : [];
+  // Preserve order of page
+  const byId = new Map(posts.map(p => [p.id, p]));
+  const ordered = postIds.map(id => byId.get(id)).filter(Boolean).map(mapPostForPayload);
+
+  const counts = {
+    posts: await prisma.post.count({ where: { author_id: id } }),
+    likes: await prisma.postUpvote.count({ where: { user_id: id } }),
+    comments: await prisma.comment.count({ where: { author_id: id } as any }),
+    reposts: 0,
+    saves: await prisma.postBookmark.count({ where: { user_id: id } }),
+  };
+
+  return res.json({ items: ordered, nextCursor, counts });
 });
 
 // Delete own account (soft-delete)
