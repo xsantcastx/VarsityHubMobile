@@ -3,9 +3,10 @@ import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -35,33 +36,33 @@ export default function Step2Basic() {
   }, [ob.affiliation, ob.dob]);
 
   useEffect(() => {
-    if (!usernameRe.test(username)) { setAvailable(null); return; }
-    const t = setTimeout(async () => {
+    const check = async () => {
       setChecking(true);
-      try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); }
-      catch { setAvailable(null); }
-      finally { setChecking(false); }
-    }, 300);
-    return () => clearTimeout(t);
+      try {
+        const r: any = await User.usernameAvailable(username);
+        setAvailable(!!r?.available);
+      } catch {
+        setAvailable(null);
+      } finally {
+        setChecking(false);
+      }
+    };
+    if (usernameRe.test(username)) check();
   }, [username]);
 
-  const dobError = useMemo(() => {
-    if (!dob) return '';
-    const m = /^\d{4}-\d{2}-\d{2}$/.exec(dob);
-    if (!m) return 'Use YYYY-MM-DD';
-    const dt = new Date(dob + 'T00:00:00Z');
-    if (isNaN(dt.getTime())) return 'Invalid date';
-    const thirteenAgo = new Date(); thirteenAgo.setFullYear(thirteenAgo.getFullYear() - 13);
-    if (dt > thirteenAgo) return 'Must be at least 13 years old';
-    return '';
-  }, [dob]);
+  const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
+  const usernameError = username.length > 0 && !usernameRe.test(username);
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError;
 
-  const zipValid = useMemo(() => {
-    if (!zip) return true;
-    const us = /^\d{5}$/; const generic = /^[A-Za-z0-9\s-]{3,10}$/; return us.test(zip) || generic.test(zip);
-  }, [zip]);
-
-  const canContinue = usernameRe.test(username) && available === true && !!affiliation && !!dob && !dobError && zipValid && !saving;
+  const onBack = () => {
+    // If we came from confirmation, go back to confirmation
+    if (returnToConfirmation) {
+      router.replace('/onboarding/step-10-confirmation');
+    } else {
+      setProgress(0);
+      router.back();
+    }
+  };
 
   const onContinue = async () => {
     if (!canContinue) return;
@@ -81,63 +82,136 @@ export default function Step2Basic() {
         setProgress(2); // step-3 plan
         router.push('/onboarding/step-3-plan');
       }
-    } catch (e: any) { Alert.alert('Failed to save', e?.message || 'Please try again'); } finally { setSaving(false); }
+    } catch (e: any) { 
+      Alert.alert('Failed to save', e?.message || 'Please try again'); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Stack.Screen options={{ title: 'Step 2/10' }} />
+      
+      {/* Header with back button */}
+      <View style={styles.header}>
+        <Pressable onPress={onBack} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color="#374151" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Basic Information</Text>
+        <View style={styles.backButton} />
+      </View>
+
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
         <Text style={styles.title}>Basic Information</Text>
-        <Text style={styles.subtitle}>We’ll set up your account with a username and preferences.</Text>
+        <Text style={styles.subtitle}>We'll set up your account with a username and preferences.</Text>
 
         <Text style={styles.label}>Username</Text>
         <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
           if (!usernameRe.test(username)) { setAvailable(null); return; }
           try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
         }} />
-        {username.length > 0 && !usernameRe.test(username) ? (
+        {usernameError ? (
           <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
         ) : checking ? (
           <Text style={styles.muted}>Checking availability…</Text>
         ) : available === false ? (
           <Text style={styles.error}>That username is taken</Text>
+        ) : available === true && username.length > 0 ? (
+          <Text style={styles.success}>Available!</Text>
         ) : null}
 
         <Text style={styles.label}>Affiliation</Text>
         <Segmented
-          value={affiliation || undefined}
-          onChange={(v) => setAffiliation(v as any)}
-          options={[{ value: 'school', label: 'School' }, { value: 'independent', label: 'Independent' }]}
+          options={[
+            { key: 'none', text: 'None' },
+            { key: 'university', text: 'University' },
+            { key: 'high_school', text: 'High school' },
+            { key: 'club', text: 'Club' },
+            { key: 'youth', text: 'Youth' },
+          ]}
+          selected={affiliation || 'none'}
+          onSelectionChange={(item) => setAffiliation(item as Affiliation)}
         />
 
-        <DateField
-          label="Date of Birth"
-          value={dob}
-          onChange={setDob}
-          maxDate={(() => { const t=new Date(); return new Date(t.getFullYear()-13,t.getMonth(),t.getDate()); })()}
-          helpText="Required for messaging safety features"
+        <Text style={styles.label}>Date of birth</Text>
+        <DateField 
+          value={dob} 
+          onChange={setDob} 
+          placeholder="Select your date of birth"
         />
-        {dobError ? <Text style={[styles.error, { marginTop: 4 }]}>{dobError}</Text> : null}
+        {dobError && (
+          <Text style={styles.error}>Please enter a valid date of birth</Text>
+        )}
 
-        <Text style={styles.label}>ZIP / Postal Code (optional)</Text>
-        <Input placeholder="90210" value={zip} onChangeText={setZip} style={{ marginBottom: 12 }} />
-        {!zipValid ? <Text style={styles.error}>Enter a valid code</Text> : null}
+        <Text style={styles.label}>Zip code (optional)</Text>
+        <Input value={zip} onChangeText={setZip} autoCapitalize="none" placeholder="12345" keyboardType="numeric" />
 
-        <PrimaryButton label={saving ? 'Saving…' : 'Continue'} onPress={onContinue} disabled={!canContinue} loading={saving} />
+        <PrimaryButton
+          onPress={onContinue}
+          disabled={!canContinue}
+          loading={saving}
+          style={{ marginTop: 20 }}
+        >
+          Continue
+        </PrimaryButton>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  title: { fontSize: 28, fontWeight: '800', marginBottom: 4, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 12, textAlign: 'center' },
-  label: { ...(Type.body as any), marginBottom: 4 },
-  error: { color: '#b91c1c', marginBottom: 8 },
-  muted: { color: '#6b7280' },
-  mutedSmall: { color: '#9CA3AF', marginBottom: 12 },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  title: {
+    ...Type.title3,
+    marginBottom: 8,
+  },
+  subtitle: {
+    ...Type.body,
+    color: '#6B7280',
+    marginBottom: 24,
+  },
+  label: {
+    ...Type.headline,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  error: {
+    fontSize: 14,
+    color: '#ef4444',
+    marginTop: 4,
+  },
+  success: {
+    fontSize: 14,
+    color: '#22c55e',
+    marginTop: 4,
+  },
+  muted: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 4,
+  },
 });
-
-

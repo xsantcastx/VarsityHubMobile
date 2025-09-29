@@ -317,12 +317,12 @@ export default function CommunityDiscoverScreen() {
       )}
 
       {/* Segmented tabs for posts */}
-      <View style={styles.tabsWrap}>
-        <Pressable onPress={() => setTab('discover')} style={[styles.tab, tab === 'discover' && styles.tabOn]}>
-          <Text style={[styles.tabLabel, tab === 'discover' && styles.tabLabelOn]}>Discover</Text>
+      <View style={[styles.tabsWrap, { backgroundColor: Colors[colorScheme].border }]}>
+        <Pressable onPress={() => setTab('discover')} style={[styles.tab, tab === 'discover' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]}>
+          <Text style={[styles.tabLabel, tab === 'discover' && styles.tabLabelOn, { color: Colors[colorScheme].text }]}>Discover</Text>
         </Pressable>
-        <Pressable onPress={() => setTab('following')} style={[styles.tab, tab === 'following' && styles.tabOn]}>
-          <Text style={[styles.tabLabel, tab === 'following' && styles.tabLabelOn]}>Following</Text>
+        <Pressable onPress={() => setTab('following')} style={[styles.tab, tab === 'following' && [styles.tabOn, { backgroundColor: Colors[colorScheme].card }]]}>
+          <Text style={[styles.tabLabel, tab === 'following' && styles.tabLabelOn, { color: Colors[colorScheme].text }]}>Following</Text>
         </Pressable>
       </View>
 
@@ -353,7 +353,7 @@ export default function CommunityDiscoverScreen() {
                         <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.postAvatar} />
                       )}
                     </View>
-                    <Text style={styles.postAuthorName} numberOfLines={1}>{author?.display_name || 'User'}</Text>
+                    <Text style={[styles.postAuthorName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{author?.display_name || 'User'}</Text>
                   </Pressable>
                   {authorId && me?.id !== authorId ? (
                     <Pressable
@@ -374,15 +374,23 @@ export default function CommunityDiscoverScreen() {
                           setDiscoverPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
                         }
                       }}
-                      style={[styles.followBtn, p.is_following_author && styles.followBtnOn]}
+                      style={[
+                        styles.followBtn, 
+                        { backgroundColor: p.is_following_author ? Colors[colorScheme].border : Colors[colorScheme].tint }
+                      ]}
                     >
-                      <Text style={[styles.followBtnText, p.is_following_author && styles.followBtnTextOn]}>{p.is_following_author ? 'Following' : 'Follow'}</Text>
+                      <Text style={[
+                        styles.followBtnText, 
+                        { color: p.is_following_author ? Colors[colorScheme].text : Colors[colorScheme].background }
+                      ]}>
+                        {p.is_following_author ? 'Following' : 'Follow'}
+                      </Text>
                     </Pressable>
                   ) : null}
                 </View>
                 <PostCard
                   post={p}
-                  onPress={() => openVerticalViewer(p, (tab === 'following' ? followingPosts : discoverPosts))}
+                  onPress={() => router.push(`/post-detail?id=${p.id}`)}
                   showAuthorHeader={false}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays
@@ -494,41 +502,41 @@ export default function CommunityDiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, padding: 16 },
   title: { fontSize: 28, fontWeight: '900', marginBottom: 8 },
   center: { paddingVertical: 24, alignItems: 'center' },
   helper: { color: '#6b7280', marginBottom: 10 },
   mutedSmall: { color: '#6b7280', marginBottom: 10, fontSize: 12 },
   sectionTitle: { fontWeight: '800', marginTop: 8 },
   error: { color: '#b91c1c', marginBottom: 8 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
-  zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
-  followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#DBEAFE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: '#BFDBFE', marginTop: 4, marginBottom: 10 },
+  followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 10 },
   followingText: { color: '#1e3a8a', fontWeight: '700' },
   followingBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#1D4ED8' },
   followingBtnText: { color: 'white', fontWeight: '800' },
-  followingCardMuted: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F3F4F6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', marginTop: 4, marginBottom: 10 },
+  followingCardMuted: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 10 },
   followingMutedText: { color: '#6B7280', fontWeight: '600' },
   // Segmented tabs
-  tabsWrap: { flexDirection: 'row', backgroundColor: '#E5E7EB', borderRadius: 10, marginTop: 4, marginBottom: 8, padding: 4, gap: 6, height: 40 },
+  tabsWrap: { flexDirection: 'row', borderRadius: 10, marginTop: 4, marginBottom: 8, padding: 4, gap: 6, height: 40 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  tabOn: { backgroundColor: '#FFFFFF' },
+  tabOn: {},
   tabLabel: { fontWeight: '700', color: '#374151' },
   tabLabelOn: { color: '#111827' },
   // Post header (avatar + follow button)
   postHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 6 },
   postHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  postAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', backgroundColor: '#E5E7EB' },
+  postAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
   postAvatar: { width: 28, height: 28, borderRadius: 14 },
-  postAuthorName: { fontWeight: '700', color: '#111827', maxWidth: 200 },
-  followBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#111827' },
-  followBtnOn: { backgroundColor: '#E5E7EB' },
-  followBtnText: { color: '#FFFFFF', fontWeight: '800' },
-  followBtnTextOn: { color: '#111827' },
+  postAuthorName: { fontWeight: '700', maxWidth: 200 },
+  followBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  followBtnOn: {},
+  followBtnText: { fontWeight: '800' },
+  followBtnTextOn: {},
   card: { padding: 14, borderRadius: 14, backgroundColor: 'white', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   hero: { height: 140, borderRadius: 12, backgroundColor: '#F1F5F9', marginBottom: 12, overflow: 'hidden' },
   heroImage: { width: '100%', height: '100%' },

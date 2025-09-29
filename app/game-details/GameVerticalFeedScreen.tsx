@@ -1,4 +1,6 @@
 import CollageView, { type CollageData } from '@/components/CollageView';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -143,6 +145,7 @@ const FeedCard = memo(
     onEditPost,
     registerVideo,
     insets,
+    colorScheme,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -156,6 +159,7 @@ const FeedCard = memo(
     onEditPost?: (caption: string) => void;
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
+    colorScheme: 'light' | 'dark';
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
@@ -279,10 +283,10 @@ const FeedCard = memo(
                 style={StyleSheet.absoluteFillObject as any}
               />
               <View style={styles.textOnlyBadge}>
-                <Ionicons name="text" size={14} color="#fff" />
-                <Text style={styles.textOnlyBadgeText}>TEXT POST</Text>
+                <Ionicons name="text" size={14} color={Colors[colorScheme].text} />
+                <Text style={[styles.textOnlyBadgeText, { color: Colors[colorScheme].text }]}>TEXT POST</Text>
               </View>
-              <Text style={styles.textOnlyCaption} numberOfLines={6}>
+              <Text style={[styles.textOnlyCaption, { color: Colors[colorScheme].text }]} numberOfLines={6}>
                 {post.caption || 'No content'}
               </Text>
             </View>
@@ -304,7 +308,7 @@ const FeedCard = memo(
         </View>
 
         <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-          {post.caption ? <Text style={styles.captionText}>{post.caption}</Text> : null}
+          {post.caption ? <Text style={[styles.captionText, { color: Colors[colorScheme].text }]}>{post.caption}</Text> : null}
           <Text style={styles.captionMeta}>{post.created_at ? new Date(post.created_at).toLocaleString() : ''}</Text>
         </View>
 
@@ -317,29 +321,29 @@ const FeedCard = memo(
             )}
             {!post.is_following_author ? (
               <View style={styles.railFollowPlus}>
-                <Ionicons name="add" size={16} color="#fff" />
+                <Ionicons name="add" size={16} color={Colors[colorScheme].text} />
               </View>
             ) : null}
           </Pressable>
 
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
-            <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={30} color="#fff" />
-            <Text style={styles.railLabel}>{post.upvotes_count}</Text>
+            <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={30} color={post.has_upvoted ? Colors[colorScheme].tint : Colors[colorScheme].text} />
+            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.upvotes_count}</Text>
           </Pressable>
 
           <Pressable onPress={onOpenComments} style={styles.railBtn}>
-            <Ionicons name="chatbubble-ellipses-outline" size={30} color="#fff" />
-            <Text style={styles.railLabel}>{post.comments_count}</Text>
+            <Ionicons name="chatbubble-ellipses-outline" size={30} color={Colors[colorScheme].text} />
+            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.comments_count}</Text>
           </Pressable>
 
           <Pressable onPress={onSharePost} style={styles.railBtn}>
-            <Ionicons name="share-outline" size={28} color="#fff" />
-            <Text style={styles.railLabel}>Share</Text>
+            <Ionicons name="share-outline" size={28} color={Colors[colorScheme].text} />
+            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>Share</Text>
           </Pressable>
 
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
-            <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={28} color="#fff" />
-            <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
+            <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={28} color={post.has_bookmarked ? Colors[colorScheme].tint : Colors[colorScheme].text} />
+            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.bookmarks_count}</Text>
           </Pressable>
 
           {isAuthor && (
@@ -361,8 +365,8 @@ const FeedCard = memo(
                 }} 
                 style={styles.optionButton}
               >
-                <Ionicons name="pencil-outline" size={20} color="#fff" />
-                <Text style={styles.optionText}>Edit Post</Text>
+                <Ionicons name="pencil-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.optionText, { color: Colors[colorScheme].text }]}>Edit Post</Text>
               </Pressable>
               <Pressable 
                 onPress={() => {
@@ -430,6 +434,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
   const gameId = externalGameId ? String(externalGameId) : (gameIdParam ? String(gameIdParam) : null);
   const usingInitial = useMemo(() => Array.isArray(initialPosts) && initialPosts.length > 0, [initialPosts]);
   const normalizedCountry = useMemo(() => (countryCode ? String(countryCode).toUpperCase() : undefined), [countryCode]);
@@ -951,9 +956,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
+        colorScheme={colorScheme}
       />
     ),
-    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo],
+    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme],
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
@@ -970,9 +976,9 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   }
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none">
       <LinearGradient
-        colors={['#0b1120', '#020617']}
+        colors={colorScheme === 'dark' ? ['#0b1120', '#020617'] : [Colors[colorScheme].surface, Colors[colorScheme].background]}
         style={styles.backdrop}
         pointerEvents="none"
       />
@@ -989,16 +995,16 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         onEndReachedThreshold={0.6}
         initialScrollIndex={usingInitial ? Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1)) : undefined}
         getItemLayout={(_, index) => ({ length: windowHeight, offset: windowHeight * index, index })}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         ListEmptyComponent={
           loading ? (
-            <View style={styles.loadingState}><ActivityIndicator color="#fff" /></View>
+            <View style={styles.loadingState}><ActivityIndicator color={Colors[colorScheme].tint} /></View>
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>No posts yet</Text>
-              <Text style={styles.emptyStateCaption}>Be the first to create a post for this game.</Text>
+              <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>No posts yet</Text>
+              <Text style={[styles.emptyStateCaption, { color: Colors[colorScheme].tabIconDefault }]}>Be the first to create a post for this game.</Text>
             </View>
           )
         }
@@ -1007,11 +1013,11 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       {showHeader ? (
         <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
           <Pressable style={styles.backBtn} onPress={handleBack}>
-            <Ionicons name="chevron-back" size={24} color="#fff" />
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.titleTextWrap}>
-            <Text style={styles.titleText}>{usingInitial ? (title || 'Posts') : (game?.title || 'Game')}</Text>
-            {!usingInitial && game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+            <Text style={[styles.titleText, { color: Colors[colorScheme].text }]}>{usingInitial ? (title || 'Posts') : (game?.title || 'Game')}</Text>
+            {!usingInitial && game?.date ? <Text style={[styles.titleSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>{new Date(game.date).toLocaleDateString()}</Text> : null}
           </View>
         </View>
       ) : null}
@@ -1027,16 +1033,16 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75 }]} pointerEvents="box-none"> 
-            <View style={styles.commentHeader}>
-              <Text style={styles.commentTitle}>Comments</Text>
+            <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
+              <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
               <Pressable onPress={() => setCommentsVisible(false)} style={styles.commentCloseBtn}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
               </Pressable>
             </View>
             {commentsLoading && comments.length === 0 ? (
-              <ActivityIndicator color="#fff" style={{ marginVertical: 24 }} />
+              <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 24 }} />
             ) : null}
-            {commentsError ? <Text style={styles.commentError}>{commentsError}</Text> : null}
+            {commentsError ? <Text style={[styles.commentError, { color: '#dc2626' }]}>{commentsError}</Text> : null}
             <FlatList
               data={comments}
               keyExtractor={(item) => String(item.id)}
@@ -1049,13 +1055,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
               )}
               onEndReached={loadMoreComments}
               onEndReachedThreshold={0.4}
-              ListFooterComponent={commentsCursor ? <ActivityIndicator color="#fff" style={{ marginVertical: 12 }} /> : null}
+              ListFooterComponent={commentsCursor ? <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 12 }} /> : null}
             />
             <View style={styles.commentComposer}>
               <TextInput
-                style={styles.commentInput}
+                style={[styles.commentInput, { color: Colors[colorScheme].text, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
                 placeholder="Add a comment..."
-                placeholderTextColor="#6b7280"
+                placeholderTextColor={Colors[colorScheme].tabIconDefault}
                 value={commentInput}
                 onChangeText={setCommentInput}
                 editable={!commentSending}
@@ -1065,7 +1071,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
                 onPress={handleSendComment}
                 disabled={commentSending || !commentInput.trim()}
               >
-                <Text style={styles.commentSendText}>Send</Text>
+                <Text style={[styles.commentSendText, { color: Colors[colorScheme].text }]}>Send</Text>
               </Pressable>
             </View>
           </View>
@@ -1076,13 +1082,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#020617' },
+  container: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   card: { width: windowWidth, backgroundColor: 'transparent' },
   mediaContainer: { flex: 1 },
   media: { width: '100%', height: '100%' },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
-  mediaFallbackText: { color: '#fff', fontWeight: '700' },
+  mediaFallbackText: { fontWeight: '700' },
   textOnlyCard: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   textOnlyBadge: {
     position: 'absolute',
@@ -1096,8 +1102,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  textOnlyBadgeText: { color: '#fff', fontWeight: '800', fontSize: 11, marginLeft: 6 },
-  textOnlyCaption: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
+  textOnlyBadgeText: { fontWeight: '800', fontSize: 11, marginLeft: 6 },
+  textOnlyCaption: { fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
   headerOverlay: {
     position: 'absolute',
     left: 16,
@@ -1118,7 +1124,7 @@ const styles = StyleSheet.create({
   },
   avatar: { width: 32, height: 32, borderRadius: 16 },
   avatarFallback: { backgroundColor: '#374151', alignItems: 'center', justifyContent: 'center' },
-  avatarFallbackText: { color: '#fff', fontWeight: '700' },
+  avatarFallbackText: { fontWeight: '700' },
   authorName: { color: '#fff', marginLeft: 8, fontWeight: '700' },
   followBadge: {
     marginLeft: 12,
@@ -1140,7 +1146,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(0,0,0,0.32)',
   },
-  captionText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  captionText: { fontSize: 15, fontWeight: '600' },
   captionMeta: { color: '#cbd5f5', fontSize: 12, marginTop: 6 },
   rail: {
     position: 'absolute',
@@ -1190,7 +1196,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  titleText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  titleText: { fontWeight: '800', fontSize: 16 },
   titleSubtitle: { color: '#cbd5f5', marginTop: 2, fontSize: 12 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyStateTitle: { color: '#fff', fontWeight: '800', fontSize: 18 },
@@ -1202,7 +1208,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
   },
-  emptyStateBtnText: { color: '#fff', fontWeight: '700' },
+  emptyStateBtnText: { fontWeight: '700' },
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   commentModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
   commentSheet: {
@@ -1239,7 +1245,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   commentSendDisabled: { backgroundColor: '#475569' },
-  commentSendText: { color: '#fff', fontWeight: '700' },
+  commentSendText: { fontWeight: '700' },
   
   // Modal styles
   modalOverlay: {
