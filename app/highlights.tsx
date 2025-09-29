@@ -252,6 +252,7 @@ export default function HighlightsScreen() {
       setHighlights(uniqueHighlights);
     } catch (e: any) {
       console.error('Highlights load failed', e);
+      console.error('Error details:', e?.response?.data || e?.message || e);
       setError('Unable to load highlights.');
       setHighlights([]);
     } finally {

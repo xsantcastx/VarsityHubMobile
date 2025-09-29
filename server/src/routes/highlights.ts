@@ -1,12 +1,11 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { requireAuth } from '../middleware/requireAuth.js';
 
 export const highlightsRouter = Router();
 
 // GET /highlights?zip=90210&country=US&lat=..&lng=..&limit=20
-highlightsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
+highlightsRouter.get('/', async (req: AuthedRequest, res) => {
   const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
   const country = String((req.query as any).country || 'US').toUpperCase();
   const lat = (req.query as any).lat != null ? Number((req.query as any).lat) : undefined;
@@ -91,9 +90,17 @@ highlightsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) =>
     isLocal = (p: any) => typeof p.lat === 'number' && typeof p.lng === 'number' && p.lat >= lat - dLat && p.lat <= lat + dLat && p.lng >= lng - dLng && p.lng <= lng + dLng;
   }
 
-  // Followed authors
-  const follows = await prisma.follows.findMany({ where: { follower_id: req.user!.id }, select: { following_id: true } });
-  const followedSet = new Set(follows.map((f) => f.following_id));
+  // Followed authors (only if authenticated)
+  const currentUserId = req.user?.id;
+  let followedSet = new Set<string>();
+  
+  if (currentUserId) {
+    const follows = await prisma.follows.findMany({ 
+      where: { follower_id: currentUserId }, 
+      select: { following_id: true } 
+    });
+    followedSet = new Set(follows.map((f) => f.following_id));
+  }
 
   function recencyBoost(d: Date) {
     const ageDays = (Date.now() - new Date(d).getTime()) / 864e5;
