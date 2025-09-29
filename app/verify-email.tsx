@@ -18,8 +18,9 @@ export default function VerifyEmailScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       await User.verifyEmail(code.trim());
-  setInfo('Email verified!');
-  router.replace('/(tabs)/feed');
+      setInfo('Email verified!');
+      // After verification, start onboarding process
+      router.replace('/onboarding/step-2-basic');
     } catch (e: any) {
       setError(e?.message || 'Verification failed');
     } finally {
@@ -54,7 +55,7 @@ export default function VerifyEmailScreen() {
       <Pressable style={{ marginTop: 12 }} onPress={onResend}>
         <Text style={{ color: '#2563EB', fontWeight: '700' }}>Resend Code</Text>
       </Pressable>
-  <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/(tabs)/feed')}>
+  <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/onboarding/step-2-basic')}>
         <Text style={{ color: '#6b7280' }}>Skip for now</Text>
       </Pressable>
     </View>

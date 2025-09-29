@@ -341,7 +341,9 @@ export default function CommunityDiscoverScreen() {
                     style={styles.postHeaderLeft}
                     onPress={() => {
                       if (!authorId) return;
-                      router.push({ pathname: '/(tabs)/profile', params: { id: authorId, username: author?.display_name || author?.username || 'User' } });
+                      console.log('Profile clicked for user:', authorId, author?.username);
+                      // Navigate to the specific user's profile, not own profile
+                      router.push(`/user-profile?userId=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>
@@ -408,7 +410,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => router.push({ pathname: '/(tabs)/profile', params: { id: String(u.id), username: u.display_name || u.username || 'User' } })}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => router.push(`/user-profile?userId=${u.id}`)}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />

@@ -68,6 +68,14 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     upvotedIds = new Set(upvotes.map((u) => u.post_id));
     bookmarkedIds = new Set(bookmarks.map((b) => b.post_id));
     followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
+    
+    // Debug logging for follow relationships
+    console.log('[posts] Follow debug:', { 
+      currentUserId, 
+      authorIds, 
+      followingIds: Array.from(followingIds),
+      followRecords: follows.length 
+    });
   }
 
   const payload = items.map((post: any) => ({
@@ -95,6 +103,31 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   }));
 
   return res.json({ items: payload, nextCursor });
+});
+
+// Debug endpoint to check follow relationships
+postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) => {
+  const currentUserId = req.user!.id;
+  
+  const follows = await prisma.follows.findMany({
+    where: { follower_id: currentUserId },
+    select: {
+      following_id: true,
+      following: {
+        select: { id: true, display_name: true, username: true }
+      }
+    }
+  });
+
+  return res.json({
+    userId: currentUserId,
+    followingCount: follows.length,
+    following: follows.map(f => ({
+      id: f.following_id,
+      display_name: f.following.display_name,
+      username: f.following.username
+    }))
+  });
 });
 
 

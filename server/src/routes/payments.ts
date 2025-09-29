@@ -44,6 +44,44 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   const raw = planValue.trim().toLowerCase();
   if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
   const chosen = raw as MembershipPlan;
+
+  // Check if user already has this exact paid plan (allow upgrades from rookie)
+  const userId = req.user!.id;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+  const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const currentPlan = prefs.plan || 'rookie'; // Default to rookie if no plan set
+  
+  // Only block if user already has the exact same paid plan they're trying to purchase
+  // Allow upgrades from rookie to veteran/legend, and between veteran/legend
+  if (currentPlan === chosen) {
+    throw membershipError(400, 'You already have this subscription plan');
+  }
+
+  console.log(`[payments] Plan upgrade: ${currentPlan} → ${chosen} for user ${userId}`);
+
+  // Check for recent payments to prevent duplicates
+  try {
+    const recentSessions = await stripe.checkout.sessions.list({
+      limit: 10,
+      created: { gte: Math.floor((Date.now() - 10 * 60 * 1000) / 1000) } // Last 10 minutes
+    });
+    
+    const recentUserSession = recentSessions.data.find(session => 
+      session.metadata?.user_id === userId && 
+      session.metadata?.plan === chosen &&
+      session.payment_status === 'paid' // Only consider actually paid sessions
+    );
+
+    if (recentUserSession) {
+      console.log('[payments] Recent PAID session found, updating user preferences from Stripe session');
+      // Update user preferences from the recent successful session
+      await finalizeFromSession(recentUserSession);
+      throw membershipError(400, 'Payment already processed recently');
+    }
+  } catch (err: any) {
+    if (err.statusCode) throw err; // Re-throw our custom errors
+    console.warn('[payments] Failed to check recent sessions:', err?.message || err);
+  }
   const priceIdRaw = membershipPriceIds[chosen];
   const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
   const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id'];
@@ -263,6 +301,175 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
   }
 });
 
+// Debug endpoint to check and fix subscription status discrepancies
+paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    
+    const storedPlan = prefs.plan || 'rookie';
+    const storedSubscriptionId = prefs.subscription_id;
+    const storedPeriodEnd = prefs.subscription_period_end;
+
+    let stripeSubscription = null;
+    let stripeStatus = null;
+
+    // Check actual Stripe subscription status if we have a subscription ID
+    if (storedSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        stripeSubscription = await stripe.subscriptions.retrieve(storedSubscriptionId);
+        stripeStatus = stripeSubscription.status;
+      } catch (err) {
+        console.warn('Failed to retrieve Stripe subscription:', (err as any)?.message || err);
+      }
+    }
+
+    // Check if there's a mismatch
+    const hasPaidPlan = storedPlan !== 'rookie';
+    const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
+    const mismatch = hasPaidPlan && !hasValidStripeSubscription;
+
+    return res.json({
+      userId,
+      stored: {
+        plan: storedPlan,
+        subscription_id: storedSubscriptionId,
+        subscription_period_end: storedPeriodEnd
+      },
+      stripe: {
+        subscription_id: stripeSubscription?.id,
+        status: stripeStatus,
+        current_period_end: stripeSubscription?.current_period_end ? new Date(stripeSubscription.current_period_end * 1000).toISOString() : null
+      },
+      mismatch,
+      recommendation: mismatch ? 'Reset to rookie plan - no valid Stripe subscription found' : 'Status looks correct'
+    });
+  } catch (err) {
+    console.error('Error checking subscription status:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Endpoint to reset subscription status to rookie (for fixing invalid states)
+paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    
+    // Reset subscription-related preferences
+    const nextPrefs: any = { ...prefs };
+    nextPrefs.plan = 'rookie';
+    delete nextPrefs.subscription_id;
+    delete nextPrefs.subscription_period_end;
+    delete nextPrefs.stripe_customer_id;
+    delete nextPrefs.payment_pending;
+
+    await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
+
+    console.log(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Successfully reset to rookie plan',
+      newPlan: 'rookie'
+    });
+  } catch (err) {
+    console.error('Error resetting to rookie plan:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Admin endpoint to reset all users with unpaid subscriptions
+paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    // Check if user is admin (you might want to add proper admin role checking)
+    const currentUser = await prisma.user.findUnique({ where: { id: req.user!.id } });
+    if (!currentUser || currentUser.email !== 'admin@varsityhub.com') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    console.log('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
+
+    // Get all users and filter in JavaScript (simpler than complex Prisma query)
+    const allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        display_name: true,
+        preferences: true
+      }
+    });
+
+    const usersToReset = allUsers.filter(user => {
+      const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+      const plan = prefs.plan;
+      const subscriptionId = prefs.subscription_id;
+      
+      // Find users with paid plans but no subscription ID
+      return (plan === 'veteran' || plan === 'legend') && !subscriptionId;
+    });
+
+    console.log(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
+
+    if (usersToReset.length === 0) {
+      return res.json({ 
+        ok: true, 
+        message: 'No users needed to be reset',
+        usersReset: 0,
+        usersFound: 0
+      });
+    }
+
+    // Reset users
+    let resetCount = 0;
+    const resetUsers = [];
+
+    for (const user of usersToReset) {
+      try {
+        const currentPrefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+        const nextPrefs: any = { ...currentPrefs };
+        
+        // Reset subscription-related preferences
+        nextPrefs.plan = 'rookie';
+        delete nextPrefs.subscription_id;
+        delete nextPrefs.subscription_period_end;
+        delete nextPrefs.stripe_customer_id;
+        delete nextPrefs.payment_pending;
+
+        await prisma.user.update({ 
+          where: { id: user.id }, 
+          data: { preferences: nextPrefs } 
+        });
+
+        console.log(`✅ Admin reset: ${user.email} to rookie plan`);
+        resetUsers.push({
+          email: user.email,
+          name: user.display_name,
+          previousPlan: currentPrefs.plan
+        });
+        resetCount++;
+      } catch (error) {
+        console.error(`❌ Failed to reset ${user.email}:`, (error as any)?.message || error);
+      }
+    }
+
+    console.log(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
+    
+    return res.json({ 
+      ok: true, 
+      message: `Successfully reset ${resetCount} users to rookie plan`,
+      usersReset: resetCount,
+      usersFound: usersToReset.length,
+      resetUsers
+    });
+  } catch (err) {
+    console.error('Error in admin bulk reset:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Authenticated helper to finalize a Checkout Session by id when webhooks are unavailable
 paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
   try {
@@ -290,6 +497,13 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
 
 // Optional helper to finalize payment based on a Checkout Session's metadata (fallback if webhook is not configured)
 async function finalizeFromSession(session: Stripe.Checkout.Session) {
+  console.log('[payments] finalizeFromSession called', {
+    session_id: session.id,
+    payment_status: session.payment_status,
+    status: session.status,
+    metadata: session.metadata
+  });
+  
   const meta = session.metadata || {};
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
@@ -313,9 +527,26 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   const metaMembership = String(meta.membership || '').trim();
   const isMembership = metaMembership === '1' || metaMembership === 'true' || plan.length > 0;
   if (isMembership && userId && plan.length > 0) {
-    const paid = session.payment_status === 'paid' || session.status === 'complete';
+    // Only finalize if payment was actually successful
+    const paid = session.payment_status === 'paid';
+    console.log('[payments] finalize membership check', { 
+      session_id: session.id, 
+      payment_status: session.payment_status, 
+      status: session.status, 
+      paid,
+      userId,
+      plan 
+    });
+    
     if (!paid) {
-      console.warn('[payments] finalize membership skipped (unpaid session)', { session_id: session.id, status: session.status, payment_status: session.payment_status });
+      console.warn('[payments] finalize membership skipped (unpaid session)', { 
+        session_id: session.id, 
+        status: session.status, 
+        payment_status: session.payment_status,
+        userId,
+        plan
+      });
+      return; // Critical fix: don't continue processing unpaid sessions
     } else {
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
