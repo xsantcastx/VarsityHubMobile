@@ -24,9 +24,8 @@ export default function SignUpScreen() {
     setLoading(true); setError(null);
     try {
       const res: any = await User.register(email, password, name || undefined);
-      // In dev, backend may return the code to speed up verification.
-
-      router.replace('/verify-email');
+      // After successful signup, start onboarding process
+      router.replace('/onboarding/step-2-basic');
     } catch (e: any) {
       setError(e?.message || 'Sign up failed');
     } finally { setLoading(false); }
