@@ -1,7 +1,7 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { z } from 'zod';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const gamesRouter = Router();
@@ -76,18 +76,97 @@ gamesRouter.get('/', async (req, res) => {
         : { created_at: 'desc' as const };
   const games = await prisma.game.findMany({
     orderBy,
-    include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+    include: { 
+      events: { orderBy: { date: 'asc' }, take: 1 },
+      _count: { select: { events: true } }
+    },
   });
+  
+  // Get RSVP counts for all games with events
+  const gameIds = games.map(g => g.id);
+  const eventIds = games.map(g => g.events[0]?.id).filter(Boolean);
+  
+  const rsvpCounts = eventIds.length > 0 ? await prisma.eventRsvp.groupBy({
+    by: ['event_id'],
+    _count: { _all: true },
+    where: { event_id: { in: eventIds } }
+  }) : [];
+  
+  const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
+  
   const payload = games.map((game) => {
     const event = game.events[0] ?? null;
-    const { events, ...rest } = game as any;
+    const { events, _count, ...rest } = game as any;
     return {
       ...rest,
+      appearance: rest.appearance ?? null,
       event_id: event?.id ?? null,
       banner_url: rest.cover_image_url || event?.banner_url || null,
+      rsvpCount: event ? (rsvpMap.get(event.id) || 0) : 0,
     };
   });
   res.json(payload);
+});
+
+// Create a new game
+gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const schema = z.object({
+    title: z.string().min(1).max(200),
+    home_team: z.string().optional(),
+    away_team: z.string().optional(),
+    date: z.string().datetime().optional(),
+    location: z.string().optional(),
+    description: z.string().optional(),
+    cover_image_url: z.string().url().optional(),
+    banner_url: z.string().url().optional(),
+    // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
+    appearance: z.string().optional(),
+  });
+  
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ 
+      error: 'Invalid game data', 
+      issues: parsed.error.issues 
+    });
+  }
+
+  try {
+    const game = await (prisma.game.create as any)({
+      data: ({
+        ...parsed.data,
+        date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+        banner_url: parsed.data.banner_url ?? null,
+        appearance: parsed.data.appearance ?? null,
+      } as any),
+      include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+    }) as any;
+    
+    // Automatically create an associated Event for RSVP functionality
+    const event = await prisma.event.create({
+      data: {
+        title: game.title,
+        date: game.date,
+        location: game.location || null,
+        game_id: game.id,
+        status: 'approved', // Auto-approve game events
+        capacity: null, // No capacity limit by default
+      },
+    });
+    
+    const response = {
+      ...game,
+      event_id: event.id,
+      banner_url: game.cover_image_url || event.banner_url || null,
+    };
+    
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('Error creating game:', error);
+    res.status(500).json({ error: 'Failed to create game' });
+  }
 });
 
 // Get single game by id
@@ -99,8 +178,8 @@ gamesRouter.get('/:id', async (req, res) => {
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
   const event = game.events[0] ?? null;
-  const { events, ...rest } = game;
-  return res.json({ ...rest, event_id: event?.id ?? null });
+  const { events, ...rest } = game as any;
+  return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
 });
 
 // Compact summary payload for the Game Details screen
@@ -152,6 +231,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   return res.json({
     id: game.id,
     title: game.title,
+    appearance: game.appearance ?? null,
     homeTeam: game.home_team || null,
     awayTeam: game.away_team || null,
     date: game.date instanceof Date ? game.date.toISOString() : game.date,
@@ -204,6 +284,26 @@ gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, 
   await prisma.gameVote.deleteMany({ where: { game_id: gameId, user_id: req.user.id } });
   const summary = await summarizeVotes(gameId, req.user.id);
   res.json(summary);
+});
+
+// Delete a game
+gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const id = String(req.params.id);
+  
+  try {
+    // Check if game exists
+    const game = await prisma.game.findUnique({ where: { id } });
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    
+    // Delete the game (cascade deletes will handle related records)
+    await prisma.game.delete({ where: { id } });
+    
+    res.json({ message: 'Game deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting game:', error);
+    res.status(500).json({ error: 'Failed to delete game' });
+  }
 });
 
 // Posts tied to a game
@@ -259,9 +359,9 @@ gamesRouter.post('/:id/stories', async (req: AuthedRequest, res) => {
 // Update cover image
 gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const schema = z.object({ cover_image_url: z.string().url().optional() });
+  const schema = z.object({ cover_image_url: z.string().url().optional(), appearance: z.string().optional() });
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const game = await prisma.game.update({ where: { id }, data: { cover_image_url: parsed.data.cover_image_url } });
+  const game = await prisma.game.update({ where: { id }, data: { cover_image_url: parsed.data.cover_image_url, appearance: parsed.data.appearance ?? undefined } });
   return res.json(game);
 });

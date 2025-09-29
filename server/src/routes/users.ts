@@ -258,11 +258,24 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
 });
 
 // Username availability check (public to authed users)
-usersRouter.get('/username-available', async (req, res) => {
+usersRouter.get('/username-available', requireAuth as any, async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
   const valid = /^[a-z0-9_.]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });
-  const exists = await prisma.user.findFirst({ where: { display_name: { equals: username, mode: 'insensitive' } }, select: { id: true } });
+  
+  // Check both username and display_name fields for conflicts, excluding current user
+  const currentUserId = req.user?.id;
+  const exists = await prisma.user.findFirst({ 
+    where: { 
+      OR: [
+        { username: { equals: username, mode: 'insensitive' } },
+        { display_name: { equals: username, mode: 'insensitive' } }
+      ],
+      NOT: { id: currentUserId } // Exclude current user from check
+    }, 
+    select: { id: true } 
+  });
+  
   return res.json({ available: !exists, valid: true });
 });
 
@@ -291,6 +304,18 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
         following_id,
       },
     });
+    // Create follow notification for the recipient
+    try {
+      if (follower_id !== following_id) {
+        await (prisma as any).notification.create({
+          data: {
+            user_id: following_id,
+            actor_id: follower_id,
+            type: 'FOLLOW' as any,
+          },
+        });
+      }
+    } catch {}
     // Return is_following_author for caller
     res.status(201).json({ is_following_author: true });
   } catch (error) {
@@ -384,4 +409,44 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
   }
 
   res.json({ items: users, nextCursor });
+});
+
+// Public profile: basic user info plus counts and is_following flag
+// NOTE: Keep this AFTER more specific routes like /:id/full, /:id/posts, etc.,
+// so it doesn't shadow them.
+usersRouter.get('/:id', async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const currentUserId = req.user?.id || null;
+
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      display_name: true,
+      avatar_url: true,
+      bio: true,
+      created_at: true,
+    },
+  });
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  const [posts_count, followers_count, following_count, rel] = await Promise.all([
+    prisma.post.count({ where: { author_id: id } }),
+    prisma.follows.count({ where: { following_id: id } }),
+    prisma.follows.count({ where: { follower_id: id } }),
+    currentUserId
+      ? prisma.follows.findUnique({
+          where: { follower_id_following_id: { follower_id: currentUserId, following_id: id } },
+          select: { follower_id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  return res.json({
+    ...user,
+    posts_count,
+    followers_count,
+    following_count,
+    is_following: Boolean(rel),
+  });
 });

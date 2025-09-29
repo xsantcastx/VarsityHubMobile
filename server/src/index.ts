@@ -11,6 +11,8 @@ import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
 import { highlightsRouter } from './routes/highlights.js';
 import { messagesRouter } from './routes/messages.js';
+import { notificationsRouter } from './routes/notifications.js';
+import { organizationsRouter } from './routes/organizations.js';
 import { postsRouter } from './routes/posts.js';
 import { promosRouter } from './routes/promos.js';
 import { rsvpsRouter } from './routes/rsvps.js';
@@ -93,8 +95,10 @@ app.use('/auth', authLimiter, authRouter);
 app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
 app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
 app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
+app.post('/me/complete-onboarding', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
+app.use('/notifications', noStore, apiLimiter, notificationsRouter);
 app.use('/events', apiLimiter, eventsRouter);
 app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/uploads', uploadsRouter);
@@ -102,6 +106,7 @@ app.use('/uploads', uploadsRouter);
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/teams', apiLimiter, teamsRouter);
+app.use('/organizations', apiLimiter, organizationsRouter);
 app.use('/users', noStore, apiLimiter, usersRouter);
 app.use('/rsvps', noStore, apiLimiter, rsvpsRouter);
 app.use('/follows', noStore, apiLimiter, followsRouter);
@@ -112,9 +117,11 @@ app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`API listening on http://localhost:${PORT}`);
+const PORT = Number(process.env.PORT || 4000);
+// Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
+const HOST: string = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`API listening on http://${HOST}:${PORT}`);
 });
 
 

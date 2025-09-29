@@ -1,47 +1,50 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 
 export default function CreateScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);
   const verified = !!me?.email_verified;
   useEffect(() => { (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
   const go = (path: string) => {
     if (!verified) return router.push('/verify-email');
-    router.push(path);
+    router.push(path as any);
   };
 
   return (
     <View style={styles.overlay}>
       <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
-      <View style={styles.sheet}>
-        <Text style={styles.title}>Create</Text>
+      <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}>
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create</Text>
         {!verified ? (
           <Text style={{ color: '#92400E', backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A', padding: 8, borderRadius: 8, marginBottom: 4 }}>Verify your email to enable actions below.</Text>
         ) : null}
-        <Pressable style={styles.item} onPress={() => go('/create-post')}>
-          <Text style={styles.itemText}>Create Post</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>
         </Pressable>
-        <Pressable style={styles.item} onPress={() => go('/create-post?type=highlight')}>
-          <Text style={styles.itemText}>Share Highlight</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
-        <Pressable style={styles.item} onPress={() => go('/create-fan-event')}>
-          <Text style={styles.itemText}>Create Fan Event</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Fan Event</Text>
         </Pressable>
-        <Pressable style={styles.item} onPress={() => go('/create-team')}>
-          <Text style={styles.itemText}>Create Team</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
         </Pressable>
-        <Pressable style={styles.item} onPress={() => go('/submit-ad')}>
-          <Text style={styles.itemText}>Submit Ad</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>
         </Pressable>
-        <Pressable style={styles.item} onPress={() => go('/(tabs)/my-ads')}>
-          <Text style={styles.itemText}>My Ads</Text>
+        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/my-ads')}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>My Ads</Text>
         </Pressable>
-        <Pressable style={[styles.item, styles.cancel]} onPress={() => router.back()}>
-          <Text style={[styles.itemText, { color: '#111827' }]}>Cancel</Text>
+        <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={() => router.back()}>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Cancel</Text>
         </Pressable>
       </View>
     </View>
@@ -55,7 +58,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: 'white',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 16,
@@ -65,11 +67,10 @@ const styles = StyleSheet.create({
   item: {
     paddingVertical: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
     borderRadius: 12,
     alignItems: 'center',
   },
-  cancel: { backgroundColor: '#F3F4F6' },
+  cancel: {},
   itemText: { fontWeight: '700' },
 });
 

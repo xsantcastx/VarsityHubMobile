@@ -16,17 +16,21 @@ model User {
   email                      String    @unique
   password_hash              String
   display_name               String?
+  username                   String?   // Will add unique constraint later after data migration
   avatar_url                 String?
   bio                        String?
   created_at                 DateTime  @default(now())
   email_verified             Boolean   @default(false)
   email_verification_code    String?
   email_verification_expires DateTime?
+  password_reset_code        String?
+  password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
   preferences                Json      @default("{}")
 
   // Relations
   memberships TeamMembership[]
+  orgMemberships OrganizationMembership[]
   rsvps       EventRsvp[]
   stories     Story[]
   ads         Ad[]
@@ -45,6 +49,10 @@ model User {
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
+
+  // Notifications
+  notifications   Notification[] @relation("notification_user")
+  actions         Notification[] @relation("notification_actor")
 }
 
 model Game {
@@ -56,6 +64,9 @@ model Game {
   away_team       String?
   description     String?
   cover_image_url String?
+  banner_url      String?
+  // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
+  appearance      String?
   created_at      DateTime @default(now())
 
   // Back-relations
@@ -94,6 +105,7 @@ model Post {
   upvotes PostUpvote[]
   bookmarks PostBookmark[]
   categories CategoryAssignment[]
+  notifications Notification[]
 
   @@index([created_at])
   @@index([author_id])
@@ -147,6 +159,8 @@ model Comment {
 
   content    String
   created_at DateTime @default(now())
+
+  notifications Notification[]
 
   @@index([post_id, created_at])
   @@index([author_id, created_at])
@@ -303,6 +317,37 @@ model Story {
 }
 
 // ===========================
+// Notifications
+// ===========================
+
+enum NotificationType {
+  FOLLOW
+  UPVOTE
+  COMMENT
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String
+  actor_id   String
+  type       NotificationType
+  post_id    String?
+  comment_id String?
+  meta       Json?            @default("{}")
+  created_at DateTime         @default(now())
+  read_at    DateTime?
+
+  user   User @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor  User @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
+  post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@index([type, created_at])
+}
+
+// ===========================
 // Teams
 // ===========================
 
@@ -310,11 +355,65 @@ model Team {
   id          String   @id @default(cuid())
   name        String
   description String?
+  // Logo and optional avatar URL for backward compatibility with front-end
+  logo_url    String?
+  avatar_url  String?
+  sport       String?
+  season_start DateTime?
+  season_end  DateTime?
+  organization_id String?
   status      String   @default("active")
   created_at  DateTime @default(now())
 
+  organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
   memberships TeamMembership[]
   invites     TeamInvite[]
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sport       String?
+  season_start DateTime?
+  season_end  DateTime?
+  status      String   @default("active")
+  created_at  DateTime @default(now())
+
+  teams       Team[]
+  memberships OrganizationMembership[]
+  invites     OrganizationInvite[]
+}
+
+model OrganizationMembership {
+  id String @id @default(cuid())
+
+  organization_id String
+  user_id         String
+
+  role       String   @default("member") // owner | manager | member
+  status     String   @default("active") // active | invited | archived
+  created_at DateTime @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, user_id])
+  @@index([organization_id, created_at])
+}
+
+model OrganizationInvite {
+  id              String   @id @default(cuid())
+  organization_id String
+  email           String
+  role            String   @default("member") // owner | manager | member
+  status          String   @default("pending") // pending | accepted | declined | revoked
+  created_at      DateTime @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, email]) // one active invite per organization+email
+  @@index([organization_id, email])
 }
 
 model TeamMembership {
@@ -412,6 +511,7 @@ model PromoRedemption {
 
   @@index([promo_id, user_id])
 }
+
 
 
 

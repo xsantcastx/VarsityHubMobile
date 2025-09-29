@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
@@ -25,17 +25,22 @@ export function Button({
 }: ButtonProps) {
   const vs = getVariantStyles(variant);
   const ss = getSizeStyles(size);
+  const content = React.Children.map(children, (child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      return (
+        <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>
+      );
+    }
+    return child;
+  });
+
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
     >
-      {typeof children === 'string' ? (
-        <Text style={[styles.text, vs.text, ss.text, textStyle]}>{children}</Text>
-      ) : (
-        children
-      )}
+      {content}
     </Pressable>
   );
 }

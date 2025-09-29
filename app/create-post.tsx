@@ -1,19 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, Image as RNImage, Pressable, ScrollView, Switch } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 // @ts-ignore
 import { Post, User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { pickerMediaTypeFor } from '@/utils/picker';
 import { uploadFile } from '@/api/upload';
-import { Platform } from 'react-native';
+import { Input } from '@/components/ui/input';
 import VideoPlayer from '@/components/VideoPlayer';
-import { Ionicons } from '@expo/vector-icons';
 import PrimaryButton from '@/ui/PrimaryButton';
+import { pickerMediaTypeFor } from '@/utils/picker';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { Platform } from 'react-native';
 
 export default function CreatePostScreen() {
   const router = useRouter();
@@ -223,6 +222,7 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 8, borderRadius: 999, backgroundColor: 'transparent' },
   textarea: { height: 120, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', padding: 12, textAlignVertical: 'top', marginBottom: 6 },
   helper: { color: '#6B7280', marginBottom: 12 },
+  muted: { color: '#6B7280' },
   swipeBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#DBEAFE', paddingVertical: 10, borderRadius: 12, marginBottom: 12 },
   swipeText: { color: '#1D4ED8', fontWeight: '800', marginLeft: 6 },
   tilesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginBottom: 16 },

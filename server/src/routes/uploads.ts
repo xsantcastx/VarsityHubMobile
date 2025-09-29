@@ -26,15 +26,62 @@ const upload = multer({
   },
 });
 
+// General file upload (no restrictions)
+const fileUpload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for general files
+});
+
 export const uploadsRouter = Router();
 
+// Original media upload endpoint (images/videos only)
 uploadsRouter.post('/', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const rel = `/uploads/${req.file.filename}`;
   const base = `${req.protocol}://${req.get('host')}`;
   const url = `${base}${rel}`;
   const type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+  // Dev: print detailed upload info to assist debugging when running locally
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      console.log('[uploads] saved file:', {
+        originalname: req.file.originalname,
+        filename: req.file.filename,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: rel,
+        url,
+      });
+    } catch (e) {
+      // ignore logging errors
+    }
+  }
   res.status(201).json({ url, path: rel, type, mime: req.file.mimetype, size: req.file.size });
+});
+
+// General file upload endpoint (all file types)
+uploadsRouter.post('/files', fileUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const rel = `/uploads/${req.file.filename}`;
+  const base = `${req.protocol}://${req.get('host')}`;
+  const url = `${base}${rel}`;
+  
+  // Determine file type based on MIME type
+  let type = 'document';
+  if (req.file.mimetype.startsWith('image/')) type = 'image';
+  else if (req.file.mimetype.startsWith('video/')) type = 'video';
+  else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
+  else if (req.file.mimetype.includes('pdf')) type = 'pdf';
+  else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+  
+  res.status(201).json({ 
+    url, 
+    path: rel, 
+    type, 
+    mime: req.file.mimetype, 
+    size: req.file.size,
+    originalName: req.file.originalname
+  });
 });
 
 // Dev helper: list uploaded files

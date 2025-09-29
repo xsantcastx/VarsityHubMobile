@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
 import { Input } from '@/components/ui/input';
+import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import Segmented from '@/ui/Segmented';
-import DateField from '@/ui/DateField';
-import { Color, Type } from '@/ui/tokens';
+import { Type } from '@/ui/tokens';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
@@ -15,7 +15,8 @@ const usernameRe = /^[a-z0-9_.]{3,20}$/;
 
 export default function Step2Basic() {
   const router = useRouter();
-  const { state: ob, setState: setOB } = useOnboarding();
+  const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
+  const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation | null>(null);
   const [dob, setDob] = useState('');
@@ -24,8 +25,14 @@ export default function Step2Basic() {
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const returnToConfirmation = params.returnToConfirmation === 'true';
+
   useEffect(() => { (async () => { try { const me: any = await User.me(); setUsername(me?.display_name || ''); setZip(me?.preferences?.zip_code || ''); } catch {} })(); }, []);
-  useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || ''); }, [ob.affiliation, ob.dob]);
+  useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
+    try { // eslint-disable-next-line no-console
+      console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
+    } catch (e) {}
+  }, [ob.affiliation, ob.dob]);
 
   useEffect(() => {
     if (!usernameRe.test(username)) { setAvailable(null); return; }
@@ -61,8 +68,19 @@ export default function Step2Basic() {
     setSaving(true);
     try {
       setOB((prev) => ({ ...prev, display_name: username, affiliation: affiliation!, dob, zip_code: zip || null }));
+      try { // eslint-disable-next-line no-console
+        console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
+      } catch (e) {}
       await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: zip || undefined } });
-      router.push('/onboarding/step-3-plan');
+      
+      // Navigate back to confirmation if we came from there, otherwise continue to next step
+      if (returnToConfirmation) {
+        setProgress(9); // step-10 confirmation
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        setProgress(2); // step-3 plan
+        router.push('/onboarding/step-3-plan');
+      }
     } catch (e: any) { Alert.alert('Failed to save', e?.message || 'Please try again'); } finally { setSaving(false); }
   };
 
@@ -121,3 +139,5 @@ const styles = StyleSheet.create({
   muted: { color: '#6b7280' },
   mutedSmall: { color: '#9CA3AF', marginBottom: 12 },
 });
+
+

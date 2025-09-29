@@ -1,2 +1,3 @@
-export { default } from '../../team-hub';
+export { default } from './mobile-community';
+
 
