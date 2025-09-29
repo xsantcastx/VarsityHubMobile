@@ -5,7 +5,17 @@ import { Ionicons } from '@expo/vector-icons';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
 
-type Msg = { id: string | number; conversation_id?: string; sender_email?: string; recipient_email?: string; content?: string; created_date?: string };
+type MiniUser = { id: string; email?: string; display_name?: string };
+type Msg = {
+  id: string | number;
+  conversation_id?: string | null;
+  sender_id?: string;
+  recipient_id?: string;
+  content?: string;
+  created_at?: string;
+  sender?: MiniUser | null;
+  recipient?: MiniUser | null;
+};
 
 export default function MessageThreadScreen() {
   const { conversation_id, with: withParam } = useLocalSearchParams<{ conversation_id?: string; with?: string }>();
@@ -61,7 +71,28 @@ export default function MessageThreadScreen() {
     if (!content) return;
     setText('');
     try {
-      const created = await MessageApi.send({ content, conversation_id: conversation_id as string | undefined, recipient_email: withParam as string | undefined });
+      // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
+      let payload: any = { content };
+      if (conversation_id) {
+        payload.conversation_id = String(conversation_id);
+        // Try to infer the other participant id from loaded messages
+        const otherId = (() => {
+          if (!me) return null;
+          const sample = msgs.find(m => m.sender_id || m.recipient_id || m.sender || m.recipient) || null;
+          if (!sample) return null;
+          const sId = sample.sender_id || sample.sender?.id;
+          const rId = sample.recipient_id || sample.recipient?.id;
+          if (sId && String(sId) !== String(me.id)) return String(sId);
+          if (rId && String(rId) !== String(me.id)) return String(rId);
+          return null;
+        })();
+        if (otherId) payload.recipient_id = otherId;
+      } else if (withParam) {
+        const w = String(withParam);
+        if (w.includes('@')) payload.recipient_email = w; else payload.recipient_id = w;
+      }
+
+      const created = await MessageApi.send(payload);
       setMsgs((arr) => arr.concat(created));
     } catch (e) {
       setError('Failed to send message');
@@ -75,7 +106,7 @@ export default function MessageThreadScreen() {
   }, [withParam, conversation_id]);
 
   const renderItem = ({ item }: { item: Msg }) => {
-    const mine = me?.email && item.sender_email === me.email;
+    const mine = me?.id && (String(item.sender_id || item.sender?.id || '') === String(me.id));
     return (
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
         <Text style={styles.bubbleText}>{item.content}</Text>

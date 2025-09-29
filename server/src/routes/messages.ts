@@ -6,102 +6,118 @@ import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 export const messagesRouter = Router();
 
+const baseUserSelect = { id: true, email: true, display_name: true, avatar_url: true };
+
+function parseSort(q: unknown) {
+const s = String(q ?? '').trim();
+if (s === '-created_at' || s === '-created_date') return { created_at: 'desc' as const };
+if (s === 'created_at' || s === 'created_date') return { created_at: 'asc' as const };
+return { created_at: 'desc' as const };
+}
+
+async function resolveWithToUserId(withParam?: string) {
+if (!withParam) return undefined;
+if (!withParam.includes('@')) {
+const u = await prisma.user.findUnique({ where: { id: withParam } });
+if (u) return u.id;
+}
+const u = await prisma.user.findUnique({ where: { email: withParam } });
+return u?.id;
+}
+
 messagesRouter.get('/', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const sort = String(req.query.sort || '').trim();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 200);
-  const conversation_id = (req.query as any).conversation_id ? String((req.query as any).conversation_id) : undefined;
-  const withEmail = (req.query as any).with ? String((req.query as any).with) : undefined;
-  const all = String((req.query as any).all || '') === '1';
-  const orderBy = sort === '-created_date' ? { created_date: 'desc' as const } : { created_date: 'desc' as const };
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
-  const myEmail = me?.email || '';
+if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+const orderBy = parseSort((req.query as any).sort);
+const limit = Math.min(parseInt(String((req.query as any).limit ?? '50'), 10) || 50, 200);
+const conversation_id = (req.query as any).conversation_id ? String((req.query as any).conversation_id) : undefined;
+const withParam = (req.query as any).with ? String((req.query as any).with) : undefined;
+const all = String((req.query as any).all || '') === '1';
 
-  if (all) {
-    const isAdmin = await getIsAdmin(req);
-    if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
-    const msgs = await prisma.message.findMany({ orderBy, take: limit });
-    return res.json(msgs);
-  }
+if (all) {
+const isAdmin = await getIsAdmin(req);
+if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
+const msgs = await prisma.message.findMany({ orderBy, take: limit, include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } }, });
+return res.json(msgs);
+}
 
-  if (conversation_id) {
-    const messages = await prisma.message.findMany({ where: { conversation_id }, orderBy, take: limit });
-    return res.json(messages);
-  }
+const meId = req.user.id;
 
-  if (withEmail) {
-    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const me = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!me?.email) return res.status(400).json({ error: 'User email not found' });
-    const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { sender_email: myEmail, recipient_email: withEmail },
-          { sender_email: withEmail, recipient_email: myEmail },
-        ],
-      },
-      orderBy,
-      take: limit,
-    });
-    return res.json(messages);
-  }
+if (conversation_id) {
+const messages = await prisma.message.findMany({
+where: { conversation_id },
+orderBy,
+take: limit,
+include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
+});
+return res.json(messages);
+}
 
-  // Default: list my messages only
-  const messages = await prisma.message.findMany({
-    where: { OR: [{ sender_email: myEmail }, { recipient_email: myEmail }] },
-    orderBy,
-    take: limit,
-  });
-  return res.json(messages);
+const otherUserId = await resolveWithToUserId(withParam);
+
+if (otherUserId) {
+const messages = await prisma.message.findMany({
+where: { OR: [ { sender_id: meId, recipient_id: otherUserId }, { sender_id: otherUserId, recipient_id: meId }, ], },
+orderBy,
+take: limit,
+include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
+});
+return res.json(messages);
+}
+
+const messages = await prisma.message.findMany({
+where: { OR: [{ sender_id: meId }, { recipient_id: meId }] },
+orderBy,
+take: limit,
+include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
+});
+return res.json(messages);
 });
 
 const sendSchema = z.object({
-  content: z.string().min(1),
-  conversation_id: z.string().min(1).optional(),
-  recipient_email: z.string().email().optional(),
+content: z.string().min(1),
+conversation_id: z.string().min(1).optional(),
+recipient_id: z.string().min(1).optional(),
+recipient_email: z.string().email().optional(),
 });
 
 messagesRouter.post('/', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = sendSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
-  const { content, conversation_id, recipient_email } = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!me?.email) return res.status(400).json({ error: 'User email not found' });
+if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+const parsed = sendSchema.safeParse(req.body);
+if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+const { content, conversation_id, recipient_id, recipient_email } = parsed.data;
 
-  if (!conversation_id && !recipient_email) {
-    return res.status(400).json({ error: 'Provide conversation_id or recipient_email' });
-  }
+if (!conversation_id && !recipient_id && !recipient_email) {
+return res.status(400).json({ error: 'Provide conversation_id or recipient_id/email' });
+}
 
-  let convId = conversation_id;
-  let to = recipient_email || null;
-  if (!convId && recipient_email) {
-    // Deterministic DM conversation id from two emails
-    const a = [me.email, recipient_email].sort();
-    convId = `dm:${a[0]}__${a[1]}`;
-  }
+const meId = req.user.id;
+let toId = recipient_id;
 
-  const created = await prisma.message.create({
-    data: {
-      conversation_id: convId,
-      sender_email: me.email,
-      recipient_email: to,
-      content,
-    },
-  });
-  return res.status(201).json(created);
+if (!toId && recipient_email) {
+const u = await prisma.user.findUnique({ where: { email: recipient_email } });
+if (!u) return res.status(404).json({ error: 'Recipient not found' });
+toId = u.id;
+}
+
+let convId = conversation_id;
+if (!convId && toId) {
+const pair = [meId, toId].sort();
+convId = `dm:${pair[0]}__${pair[1]}`;
+}
+
+const created = await prisma.message.create({
+data: {
+conversation_id: convId!,
+sender_id: meId,
+recipient_id: toId!,
+content
+},
+include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
+});
+return res.status(201).json(created);
 });
 
-// Mark messages as read in a thread (by conversation or with specific email)
-messagesRouter.post('/mark-read', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const withEmail = (req.body && req.body.with) ? String(req.body.with) : undefined;
-  const conversation_id = (req.body && req.body.conversation_id) ? String(req.body.conversation_id) : undefined;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!me?.email) return res.status(400).json({ error: 'User email not found' });
-  const where: any = { read: false, recipient_email: me.email };
-  if (conversation_id) where.conversation_id = conversation_id;
-  if (withEmail) where.sender_email = withEmail;
-  const result = await prisma.message.updateMany({ where, data: { read: true } });
-  return res.json({ updated: result.count });
+messagesRouter.post('/mark-read', async (_req: AuthedRequest, res) => {
+// No read flag in schema yet; return OK to avoid client errors.
+return res.json({ updated: 0 });
 });

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, Alert,
 import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { pickerMediaTypesProp } from '@/utils/picker';
 import { uploadFile } from '@/api/upload';
 import settings from '@/api/settings';
 // @ts-ignore
@@ -40,13 +42,14 @@ export default function SubmitAdScreen() {
   const pickBanner = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9 });
-    if (r.canceled || !r.assets || !r.assets[0]) return;
-    const a = r.assets[0];
+    const r = await ImagePicker.launchImageLibraryAsync({ ...pickerMediaTypesProp(), allowsEditing: true, aspect: [4,3], selectionLimit: 1, quality: 0.9 } as any);
+    if ((r as any).canceled || !(r as any).assets || !(r as any).assets[0]) return;
+    const a = (r as any).assets[0];
     try {
       setUploading(true);
+      const manipulated = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-      const up = await uploadFile(base, a.uri, a.fileName || 'banner.jpg', a.mimeType || 'image/jpeg');
+      const up = await uploadFile(base, manipulated.uri, a.fileName || 'banner.jpg', 'image/jpeg');
       setBannerUrl(up?.url || up?.path || null);
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message || 'Please try again.');

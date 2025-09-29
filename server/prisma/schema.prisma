@@ -7,104 +7,210 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ===========================
+// Core Models
+// ===========================
+
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password_hash String
-  display_name  String?
-  avatar_url    String?
-  bio           String?
-  created_at    DateTime @default(now())
-  email_verified Boolean  @default(false)
-  email_verification_code String?
+  id                         String    @id @default(cuid())
+  email                      String    @unique
+  password_hash              String
+  display_name               String?
+  username                   String?   // Will add unique constraint later after data migration
+  avatar_url                 String?
+  bio                        String?
+  created_at                 DateTime  @default(now())
+  email_verified             Boolean   @default(false)
+  email_verification_code    String?
   email_verification_expires DateTime?
-  memberships   TeamMembership[]
-  rsvps         EventRsvp[]
-  stories       Story[]
-  ads           Ad[]
-  banned        Boolean  @default(false)
+  password_reset_code        String?
+  password_reset_expires     DateTime?
+  banned                     Boolean   @default(false)
+  preferences                Json      @default("{}")
+
+  // Relations
+  memberships TeamMembership[]
+  orgMemberships OrganizationMembership[]
+  rsvps       EventRsvp[]
+  stories     Story[]
+  ads         Ad[]
+  posts       Post[]
+  categoryFollows CategoryFollow[]
+  promoRedemptions PromoRedemption[]
+
+  // Follows (self-relation)
+  following Follows[] @relation("following")
+  followers Follows[] @relation("followers")
+
+  // Messages
+  messagesSent     Message[] @relation("message_sender")
+  messagesReceived Message[] @relation("message_recipient")
+  Comment          Comment[]
+  postUpvotes      PostUpvote[]
+  postBookmarks    PostBookmark[]
+  gameVotes        GameVote[]
+
+  // Notifications
+  notifications   Notification[] @relation("notification_user")
+  actions         Notification[] @relation("notification_actor")
 }
 
 model Game {
-  id          String   @id @default(cuid())
-  title       String
-  date        DateTime
-  location    String?
-  description String?
+  id              String   @id @default(cuid())
+  title           String
+  date            DateTime
+  location        String?
+  home_team       String?
+  away_team       String?
+  description     String?
   cover_image_url String?
-  created_at  DateTime @default(now())
-  // Back-relation to posts referencing this game
-  posts       Post[]
-  stories     Story[]
+  banner_url      String?
+  // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
+  appearance      String?
+  created_at      DateTime @default(now())
+
+  // Back-relations
+  posts   Post[]
+  stories Story[]
+  events  Event[]
+  votes   GameVote[]
 
   @@index([date])
 }
 
 model Post {
-  id            String   @id @default(cuid())
+  id String @id @default(cuid())
+
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id], onDelete: Cascade)
+
   title         String?
   content       String?
-  type          String?
+  type          String? // consider enum later
   media_url     String?
-  upvotes_count Int      @default(0)
-  game_id       String?
-  game          Game?    @relation(fields: [game_id], references: [id])
-  created_at    DateTime @default(now())
+  upvotes_count Int     @default(0)
+
+  // Geolocation (optional)
+  country_code String?
+  admin1       String?
+  lat          Float?
+  lng          Float?
+
+  game_id String?
+  game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+
+  comments Comment[]
+  upvotes PostUpvote[]
+  bookmarks PostBookmark[]
+  categories CategoryAssignment[]
+  notifications Notification[]
 
   @@index([created_at])
-
-  comments      Comment[]
+  @@index([author_id])
+  @@index([game_id, created_at])
 }
 
 model Event {
-  id         String    @id @default(cuid())
-  title      String?
-  date       DateTime?
+  id         String   @id @default(cuid())
+  title      String
+  date       DateTime
   location   String?
-  status     String    @default("draft")
+  banner_url String?
+  game_id    String?
+  status     String   @default("draft")
   capacity   Int?
-  created_at DateTime  @default(now())
+  created_at DateTime @default(now())
+
+  game  Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  rsvps EventRsvp[]
 
   @@index([date])
-  rsvps      EventRsvp[]
+  @@index([game_id])
 }
 
 model Message {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   conversation_id String?
-  sender_email    String?
-  recipient_email String?
-  content         String?
-  created_date    DateTime @default(now())
-  read            Boolean  @default(false)
 
-  @@index([created_date])
+  sender_id    String
+  recipient_id String
+
+  sender    User @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  content    String?
+  created_at DateTime @default(now())
+
+  @@index([created_at])
+  @@index([sender_id, created_at])
+  @@index([recipient_id, created_at])
 }
 
 model Comment {
-  id         String   @id @default(cuid())
-  post_id    String
-  post       Post     @relation(fields: [post_id], references: [id])
-  author     String?
+  id String @id @default(cuid())
+
+  post_id String
+  post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  author_id String?
+  author    User?   @relation(fields: [author_id], references: [id], onDelete: SetNull)
+
   content    String
   created_at DateTime @default(now())
 
+  notifications Notification[]
+
+  @@index([post_id, created_at])
+  @@index([author_id, created_at])
+}
+
+model PostUpvote {
+  post_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, user_id])
+  @@index([post_id, created_at])
+}
+
+model PostBookmark {
+  post_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, user_id])
   @@index([post_id, created_at])
 }
 
 model EventRsvp {
-  id         String   @id @default(cuid())
-  event_id   String
-  user_id    String
-  user_email String?
-  created_at DateTime @default(now())
+  id String @id @default(cuid())
 
-  event Event @relation(fields: [event_id], references: [id])
-  user  User  @relation(fields: [user_id], references: [id])
+  event_id String
+  user_id  String
+
+  // Optional legacy field
+  user_email String?
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now())
 
   @@unique([event_id, user_id])
   @@index([event_id, created_at])
 }
+
+// ===========================
+// Ads
+// ===========================
 
 model AdReservation {
   id         String   @id @default(cuid())
@@ -113,7 +219,7 @@ model AdReservation {
   date       DateTime
   created_at DateTime @default(now())
 
-  @@unique([date])
+  @@unique([ad_id, date]) // unique per ad per date
   @@index([ad_id, date])
 }
 
@@ -126,7 +232,7 @@ model Ad {
   business_name   String?
   banner_url      String?
   target_zip_code String?
-  radius          Int?     @default(45)
+  radius          Int      @default(45) // non-null with default
   description     String?
   status          String   @default("draft") // draft | active | archived | pending
   payment_status  String   @default("unpaid") // unpaid | paid | refunded
@@ -137,41 +243,191 @@ model Ad {
   @@index([user_id, created_at])
 }
 
-model Story {
+model Category {
   id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  icon_url   String?
+  created_at DateTime @default(now())
+
+  posts     CategoryAssignment[]
+  followers CategoryFollow[]
+
+  @@index([created_at])
+}
+
+model CategoryFollow {
+  user_id     String
+  category_id String
+  created_at  DateTime @default(now())
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, category_id])
+  @@index([category_id])
+}
+
+model CategoryAssignment {
+  id          String   @id @default(cuid())
+  category_id String
+  post_id     String
+  created_at  DateTime @default(now())
+
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  post     Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@unique([category_id, post_id])
+  @@index([post_id])
+}
+
+// ===========================
+// Stories
+// ===========================
+
+model GameVote {
+  id         String     @id @default(cuid())
   game_id    String
-  user_id    String?
+  user_id    String
+  team       String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  game Game @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([game_id, user_id])
+  @@index([game_id, team])
+}
+
+model Story {
+  id String @id @default(cuid())
+
+  game_id String
+  user_id String?
+
   media_url  String
   caption    String?
   created_at DateTime @default(now())
 
-  game Game  @relation(fields: [game_id], references: [id])
-  user User? @relation(fields: [user_id], references: [id])
+  game Game  @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([game_id, created_at])
 }
 
+// ===========================
+// Notifications
+// ===========================
+
+enum NotificationType {
+  FOLLOW
+  UPVOTE
+  COMMENT
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  user_id    String
+  actor_id   String
+  type       NotificationType
+  post_id    String?
+  comment_id String?
+  meta       Json?            @default("{}")
+  created_at DateTime         @default(now())
+  read_at    DateTime?
+
+  user   User @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor  User @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
+  post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([user_id, read_at])
+  @@index([type, created_at])
+}
+
+// ===========================
+// Teams
+// ===========================
+
 model Team {
-  id          String           @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  status      String           @default("active")
-  created_at  DateTime         @default(now())
+  // Logo and optional avatar URL for backward compatibility with front-end
+  logo_url    String?
+  avatar_url  String?
+  sport       String?
+  season_start DateTime?
+  season_end  DateTime?
+  organization_id String?
+  status      String   @default("active")
+  created_at  DateTime @default(now())
 
+  organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
   memberships TeamMembership[]
   invites     TeamInvite[]
 }
 
-model TeamMembership {
-  id         String   @id @default(cuid())
-  team_id    String
-  user_id    String
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sport       String?
+  season_start DateTime?
+  season_end  DateTime?
+  status      String   @default("active")
+  created_at  DateTime @default(now())
+
+  teams       Team[]
+  memberships OrganizationMembership[]
+  invites     OrganizationInvite[]
+}
+
+model OrganizationMembership {
+  id String @id @default(cuid())
+
+  organization_id String
+  user_id         String
+
   role       String   @default("member") // owner | manager | member
   status     String   @default("active") // active | invited | archived
   created_at DateTime @default(now())
 
-  team Team @relation(fields: [team_id], references: [id])
-  user User @relation(fields: [user_id], references: [id])
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, user_id])
+  @@index([organization_id, created_at])
+}
+
+model OrganizationInvite {
+  id              String   @id @default(cuid())
+  organization_id String
+  email           String
+  role            String   @default("member") // owner | manager | member
+  status          String   @default("pending") // pending | accepted | declined | revoked
+  created_at      DateTime @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([organization_id, email]) // one active invite per organization+email
+  @@index([organization_id, email])
+}
+
+model TeamMembership {
+  id String @id @default(cuid())
+
+  team_id String
+  user_id String
+
+  role       String   @default("member") // owner | manager | member
+  status     String   @default("active") // active | invited | archived
+  created_at DateTime @default(now())
+
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([team_id, user_id])
   @@index([team_id, created_at])
@@ -185,7 +441,77 @@ model TeamInvite {
   status     String   @default("pending") // pending | accepted | declined | revoked
   created_at DateTime @default(now())
 
-  team Team @relation(fields: [team_id], references: [id])
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
+  @@unique([team_id, email]) // one active invite per team+email
   @@index([team_id, email])
 }
+
+// ===========================
+// Social Graph
+// ===========================
+
+model Follows {
+  follower_id  String
+  following_id String
+  created_at   DateTime @default(now())
+
+  follower  User @relation("following", fields: [follower_id], references: [id], onDelete: Cascade)
+  following User @relation("followers", fields: [following_id], references: [id], onDelete: Cascade)
+
+  @@id([follower_id, following_id])
+  @@index([follower_id])
+  @@index([following_id])
+}
+
+
+
+
+// ===========================
+// Promotions
+// ===========================
+
+enum PromoType {
+  PERCENT_OFF
+  COMPLIMENTARY
+}
+
+model PromoCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  type            PromoType
+  percent_off     Int?
+  enabled         Boolean   @default(true)
+
+  start_at        DateTime?
+  end_at          DateTime?
+  max_redemptions Int?
+  uses            Int       @default(0)
+  per_user_limit  Int       @default(1)
+
+  applies_to_service String?
+
+  note        String?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  redemptions PromoRedemption[]
+}
+
+model PromoRedemption {
+  id                       String   @id @default(cuid())
+  promo_id                 String
+  user_id                  String
+  order_id                 String?
+  amount_discounted_cents  Int
+  created_at               DateTime @default(now())
+
+  promo PromoCode @relation(fields: [promo_id], references: [id])
+  user  User      @relation(fields: [user_id], references: [id])
+
+  @@index([promo_id, user_id])
+}
+
+
+
+

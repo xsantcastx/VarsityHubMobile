@@ -1,75 +1,1582 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
+interface AppUser {
+  id: string;
+  display_name: string;
+  username: string;
+  email?: string;
+  avatar_url?: string;
+  verified?: boolean;
+  mutual_friends?: number;
+}
+
+interface CustomRole {
+  id: string;
+  name: string;
+  displayName: string;
+  color: string;
+  permissions: {
+    canInviteMembers: boolean;
+    canManageRoles: boolean;
+    canEditTeam: boolean;
+    canViewStats: boolean;
+    canScheduleGames: boolean;
+    canRemoveMembers: boolean;
+  };
+  isCustom: boolean;
+  sportSpecific?: boolean;
+}
+
+type Member = {
+  id: string;
+  user?: {
+    id: string;
+    display_name?: string;
+    email?: string;
+    avatar_url?: string;
+  };
+  role: string; // Now references role ID
+  customPosition?: string; // Custom position like "Goalkeeper", "Point Guard"
+  status: 'active' | 'inactive';
+  joined_date?: string;
+  stats?: {
+    games_played: number;
+    points: number;
+  };
+};
+
 export default function TeamProfileScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
+  
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [team, setTeam] = useState<any>(null);
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'members' | 'settings'>('overview');
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('player');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  
+  // New user selection states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<AppUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [suggestedUsers, setSuggestedUsers] = useState<AppUser[]>([]);
 
+  // Default role system with sport-specific and custom roles
+  const defaultRoles: CustomRole[] = useMemo(() => [
+    {
+      id: 'owner',
+      name: 'owner',
+      displayName: 'Team Owner',
+      color: '#DC2626',
+      permissions: {
+        canInviteMembers: true,
+        canManageRoles: true,
+        canEditTeam: true,
+        canViewStats: true,
+        canScheduleGames: true,
+        canRemoveMembers: true,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'coach',
+      name: 'coach',
+      displayName: 'Head Coach',
+      color: '#7C3AED',
+      permissions: {
+        canInviteMembers: true,
+        canManageRoles: true,
+        canEditTeam: true,
+        canViewStats: true,
+        canScheduleGames: true,
+        canRemoveMembers: true,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'assistant_coach',
+      name: 'assistant_coach',
+      displayName: 'Assistant Coach',
+      color: '#9333EA',
+      permissions: {
+        canInviteMembers: false,
+        canManageRoles: false,
+        canEditTeam: false,
+        canViewStats: true,
+        canScheduleGames: true,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'captain',
+      name: 'captain',
+      displayName: 'Team Captain',
+      color: '#F59E0B',
+      permissions: {
+        canInviteMembers: true,
+        canManageRoles: false,
+        canEditTeam: false,
+        canViewStats: true,
+        canScheduleGames: false,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'vice_captain',
+      name: 'vice_captain',
+      displayName: 'Vice Captain',
+      color: '#F97316',
+      permissions: {
+        canInviteMembers: false,
+        canManageRoles: false,
+        canEditTeam: false,
+        canViewStats: true,
+        canScheduleGames: false,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'player',
+      name: 'player',
+      displayName: 'Player',
+      color: '#10B981',
+      permissions: {
+        canInviteMembers: false,
+        canManageRoles: false,
+        canEditTeam: false,
+        canViewStats: true,
+        canScheduleGames: false,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'substitute',
+      name: 'substitute',
+      displayName: 'Substitute',
+      color: '#6B7280',
+      permissions: {
+        canInviteMembers: false,
+        canManageRoles: false,
+        canEditTeam: false,
+        canViewStats: true,
+        canScheduleGames: false,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+    {
+      id: 'manager',
+      name: 'manager',
+      displayName: 'Team Manager',
+      color: '#0EA5E9',
+      permissions: {
+        canInviteMembers: true,
+        canManageRoles: false,
+        canEditTeam: true,
+        canViewStats: true,
+        canScheduleGames: true,
+        canRemoveMembers: false,
+      },
+      isCustom: false,
+    },
+  ], []);
+
+  // Sport-specific positions (basketball example)
+  const sportPositions = useMemo(() => {
+    const teamSport = team?.sport?.toLowerCase() || 'basketball';
+    
+    const positionMap: Record<string, string[]> = {
+      basketball: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
+      soccer: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Winger'],
+      football: ['Quarterback', 'Running Back', 'Wide Receiver', 'Tight End', 'Offensive Line', 'Defensive Line', 'Linebacker', 'Cornerback', 'Safety'],
+      baseball: ['Pitcher', 'Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Outfield'],
+      volleyball: ['Setter', 'Outside Hitter', 'Middle Blocker', 'Opposite Hitter', 'Libero'],
+      hockey: ['Goalie', 'Defenseman', 'Left Wing', 'Right Wing', 'Center'],
+    };
+
+    return positionMap[teamSport] || [];
+  }, [team?.sport]);
+
+  const allRoles = useMemo(() => [...defaultRoles, ...customRoles], [defaultRoles, customRoles]);
+
+  const getRoleById = (roleId: string): CustomRole | undefined => {
+    return allRoles.find(role => role.id === roleId);
+  };
+
+  const showRoleSelector = (member: Member) => {
+    const roleOptions = allRoles.map(role => ({
+      text: role.displayName,
+      onPress: () => updateMemberRole(member.id, role.id),
+    }));
+
+    Alert.alert(
+      'Change Role',
+      `Select new role for ${member.user?.display_name || 'this member'}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        ...roleOptions,
+        { text: 'Custom Position...', onPress: () => showCustomPositionEditor(member) },
+      ]
+    );
+  };
+
+  const showCustomPositionEditor = (member: Member) => {
+    Alert.prompt(
+      'Custom Position',
+      `Set a custom position for ${member.user?.display_name || 'this member'}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Save', 
+          onPress: (position) => updateMemberPosition(member.id, position || '') 
+        },
+      ],
+      'plain-text',
+      member.customPosition || ''
+    );
+  };
+
+  const updateMemberPosition = async (memberId: string, position: string) => {
+    try {
+      setMembers(prev => prev.map(m => 
+        m.id === memberId 
+          ? { ...m, customPosition: position.trim() || undefined }
+          : m
+      ));
+      
+      // TODO: Save to backend
+      console.log('Updated position:', { memberId, position });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update member position');
+    }
+  };
+
+  // User search and suggestion functions
+  const searchUsers = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      // Mock API call - replace with actual user search
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const mockResults: AppUser[] = [
+        {
+          id: '1',
+          display_name: 'John Smith',
+          username: 'johnsmith',
+          email: 'john@example.com',
+          avatar_url: undefined,
+          verified: true,
+          mutual_friends: 3,
+        },
+        {
+          id: '2',
+          display_name: 'Sarah Johnson',
+          username: 'sarahj',
+          email: 'sarah@example.com',
+          avatar_url: undefined,
+          verified: false,
+          mutual_friends: 1,
+        },
+        {
+          id: '3',
+          display_name: 'Mike Davis',
+          username: 'mikedavis',
+          email: 'mike@example.com',
+          avatar_url: undefined,
+          verified: true,
+          mutual_friends: 0,
+        },
+      ].filter(user => 
+        user.display_name.toLowerCase().includes(query.toLowerCase()) ||
+        user.username.toLowerCase().includes(query.toLowerCase())
+      );
+
+      setSearchResults(mockResults);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const loadSuggestedUsers = useCallback(async () => {
+    try {
+      // Mock API call for suggested users (friends, recent players, etc.)
+      const mockSuggestions: AppUser[] = [
+        {
+          id: '10',
+          display_name: 'Alex Wilson',
+          username: 'alexw',
+          avatar_url: undefined,
+          verified: true,
+          mutual_friends: 5,
+        },
+        {
+          id: '11',
+          display_name: 'Emma Brown',
+          username: 'emmab',
+          avatar_url: undefined,
+          verified: false,
+          mutual_friends: 2,
+        },
+        {
+          id: '12',
+          display_name: 'Chris Lee',
+          username: 'chrisl',
+          avatar_url: undefined,
+          verified: true,
+          mutual_friends: 1,
+        },
+      ];
+      
+      setSuggestedUsers(mockSuggestions);
+    } catch (error) {
+      console.error('Failed to load suggestions:', error);
+    }
+  }, []);
+
+  // Reset invite modal when opening
+  const openInviteModal = useCallback(() => {
+    setInviteModalOpen(true);
+    setSearchQuery('');
+    setSelectedUser(null);
+    setSearchResults([]);
+    loadSuggestedUsers();
+  }, [loadSuggestedUsers]);
+
+  // Debounced search
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const id = String(params?.id || '');
-      if (!id) { setLoading(false); setError('Missing team id.'); return; }
-      setLoading(true); setError(null);
-      try {
-        const [t, m] = await Promise.all([TeamApi.get(id), TeamApi.members(id)]);
-        if (!mounted) return;
-        setTeam(t);
-        setMembers(Array.isArray(m) ? m : []);
-      } catch (e: any) {
-        if (!mounted) return; setError('Failed to load team');
-      } finally { if (mounted) setLoading(false); }
-    })();
-    return () => { mounted = false; };
+    const timer = setTimeout(() => {
+      searchUsers(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchUsers]);
+
+  const loadTeamData = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const id = String(params?.id || '');
+    if (!id) { setLoading(false); setError('Missing team id.'); return; }
+    
+    if (!silent) setLoading(true);
+    setError(null);
+    
+    try {
+      const [teamData, membersData] = await Promise.all([
+        TeamApi.get(id), 
+        TeamApi.members(id)
+      ]);
+      
+      setTeam(teamData);
+      const formattedMembers = Array.isArray(membersData) ? membersData.map((m: any) => ({
+        id: String(m.id),
+        user: m.user ? {
+          id: String(m.user.id),
+          display_name: m.user.display_name || m.user.name,
+          email: m.user.email,
+          avatar_url: m.user.avatar_url,
+        } : undefined,
+        role: m.role || 'player',
+        status: m.status || 'active',
+        joined_date: m.joined_date || m.created_at,
+        stats: m.stats || { games_played: 0, points: 0 }
+      })) : [];
+      setMembers(formattedMembers);
+    } catch (e: any) {
+      console.error('Failed to load team:', e);
+      setError('Failed to load team data');
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [params?.id]);
 
-  return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Team Profile' }} />
-      {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
-      {error && !loading && <Text style={{ color: '#b91c1c' }}>{error}</Text>}
-      {team && !loading && (
-        <>
-          <Text style={styles.title}>{team.name}</Text>
-          {team.description ? <Text style={styles.muted}>{team.description}</Text> : null}
+  useEffect(() => {
+    loadTeamData();
+  }, [loadTeamData]);
 
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-            <Pressable style={styles.btn} onPress={() => router.push(`/team-contacts?id=${team.id}`)}><Text style={styles.btnText}>Contacts</Text></Pressable>
-            <Pressable style={styles.btnOutline} onPress={() => router.push('/edit-team')}><Text style={styles.btnOutlineText}>Edit Team</Text></Pressable>
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try { await loadTeamData({ silent: true }); } finally { setRefreshing(false); }
+  }, [loadTeamData]);
+
+  const sendInvite = async () => {
+    if (!selectedUser) {
+      Alert.alert('User required', 'Please select a user to invite');
+      return;
+    }
+    
+    setSendingInvite(true);
+    try {
+      // Mock API call - replace with actual implementation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      Alert.alert('Invite sent!', `Invitation sent to ${selectedUser.display_name}`);
+      setSelectedUser(null);
+      setSearchQuery('');
+      setInviteModalOpen(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send invitation');
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const updateMemberRole = async (memberId: string, newRole: string) => {
+    try {
+      // Mock API call - replace with actual implementation
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
+      Alert.alert('Updated!', 'Member role updated successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update member role');
+    }
+  };
+
+  const removeMember = async (memberId: string) => {
+    Alert.alert(
+      'Remove Member',
+      'Are you sure you want to remove this member from the team?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Mock API call - replace with actual implementation
+              setMembers(prev => prev.filter(m => m.id !== memberId));
+              Alert.alert('Removed', 'Member removed from team');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to remove member');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const activePlayers = members.filter(m => m.status === 'active');
+  const teamStats = {
+    totalGames: activePlayers.reduce((sum, m) => sum + (m.stats?.games_played || 0), 0),
+    totalPoints: activePlayers.reduce((sum, m) => sum + (m.stats?.points || 0), 0),
+    captains: members.filter(m => m.role === 'captain').length,
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Team Management', headerShown: false }} />
+        <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading team...</Text>
+      </View>
+    );
+  }
+
+  if (error || !team) {
+    return (
+      <View style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Team Management', headerShown: false }} />
+        <Ionicons name="alert-circle-outline" size={48} color={Colors[colorScheme].mutedText} />
+        <Text style={[styles.errorTitle, { color: Colors[colorScheme].text }]}>Something went wrong</Text>
+        <Text style={[styles.errorText, { color: Colors[colorScheme].mutedText }]}>{error || 'Team not found'}</Text>
+        <Pressable 
+          style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]}
+          onPress={() => loadTeamData()}
+        >
+          <Text style={styles.retryButtonText}>Try Again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <Stack.Screen options={{ title: 'Team Management', headerShown: false }} />
+      
+      {/* Custom Header */}
+      <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
+        <Pressable 
+          style={styles.moreButton}
+          onPress={() => router.push(`/edit-team?id=${team.id}`)}
+        >
+          <Ionicons name="create-outline" size={24} color={Colors[colorScheme].text} />
+        </Pressable>
+      </View>
+
+      <ScrollView 
+        style={{ flex: 1 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors[colorScheme].tint]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Team Overview Card */}
+        <View style={[styles.teamOverviewCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <View style={styles.teamHeader}>
+            <View style={styles.teamAvatarContainer}>
+              {team.avatar_url ? (
+                <Image source={{ uri: team.avatar_url }} style={styles.teamAvatar} contentFit="cover" />
+              ) : (
+                <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.teamAvatar}>
+                  <Text style={styles.teamInitials}>{team.name.charAt(0).toUpperCase()}</Text>
+                </LinearGradient>
+              )}
+              <View style={[styles.statusIndicator, { backgroundColor: '#10B981' }]} />
+            </View>
+            
+            <View style={styles.teamInfo}>
+              <Text style={[styles.teamName, { color: Colors[colorScheme].text }]} numberOfLines={1}>{team.name}</Text>
+              {team.sport && (
+                <View style={styles.teamMeta}>
+                  <Ionicons name="basketball-outline" size={14} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>
+                    {team.sport}{team.season && ` • ${team.season}`}
+                  </Text>
+                </View>
+              )}
+              {team.description && (
+                <Text style={[styles.teamDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                  {team.description}
+                </Text>
+              )}
+            </View>
           </View>
 
-          <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Members</Text>
-          <FlatList
-            data={members}
-            keyExtractor={(m) => String(m.id)}
-            renderItem={({ item }) => (
-              <View style={styles.row}><Text style={styles.member}>{item.user?.display_name || item.user?.email || 'Member'}</Text><Text style={styles.muted}>{item.role}</Text></View>
+          {/* Team Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: Colors[colorScheme].text }]}>{activePlayers.length}</Text>
+              <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>Members</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: Colors[colorScheme].text }]}>{teamStats.captains}</Text>
+              <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>Captains</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statNumber, { color: Colors[colorScheme].text }]}>{teamStats.totalGames}</Text>
+              <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>Games</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <Pressable 
+              style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={openInviteModal}
+            >
+              <Ionicons name="person-add-outline" size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Invite Player</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={[styles.quickActionButton, { backgroundColor: '#10B981' }]}
+              onPress={() => router.push(`/manage-season?teamId=${team.id}`)}
+            >
+              <Ionicons name="calendar-outline" size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Manage Season</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
+              onPress={() => router.push(`/team-contacts?id=${team.id}`)}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Team Chat</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
+          {(['overview', 'members', 'settings'] as const).map((tab) => (
+            <Pressable
+              key={tab}
+              style={[
+                styles.tab,
+                { backgroundColor: selectedTab === tab ? Colors[colorScheme].tint : 'transparent' }
+              ]}
+              onPress={() => setSelectedTab(tab)}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text }
+              ]}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Tab Content */}
+        {selectedTab === 'overview' && (
+          <View style={styles.tabContent}>
+            {/* Recent Activity */}
+            <View style={[styles.activityCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Recent Activity</Text>
+              <View style={styles.activityItem}>
+                <View style={[styles.activityIcon, { backgroundColor: '#10B981' + '20' }]}>
+                  <Ionicons name="person-add" size={16} color="#10B981" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={[styles.activityText, { color: Colors[colorScheme].text }]}>New member joined</Text>
+                  <Text style={[styles.activityTime, { color: Colors[colorScheme].mutedText }]}>2 hours ago</Text>
+                </View>
+              </View>
+              <View style={styles.activityItem}>
+                <View style={[styles.activityIcon, { backgroundColor: Colors[colorScheme].tint + '20' }]}>
+                  <Ionicons name="trophy" size={16} color={Colors[colorScheme].tint} />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={[styles.activityText, { color: Colors[colorScheme].text }]}>Game scheduled</Text>
+                  <Text style={[styles.activityTime, { color: Colors[colorScheme].mutedText }]}>1 day ago</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {selectedTab === 'members' && (
+          <View style={styles.tabContent}>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Members ({activePlayers.length})</Text>
+            {activePlayers.map((member) => (
+              <View key={member.id} style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                <View style={styles.memberInfo}>
+                  <View style={styles.memberAvatarContainer}>
+                    {member.user?.avatar_url ? (
+                      <Image source={{ uri: member.user.avatar_url }} style={styles.memberAvatar} contentFit="cover" />
+                    ) : (
+                      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.memberAvatar}>
+                        <Text style={styles.memberInitials}>
+                          {member.user?.display_name?.charAt(0)?.toUpperCase() || 'M'}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                    <View style={[styles.roleIndicator, { backgroundColor: getRoleById(member.role)?.color || '#6B7280' }]} />
+                  </View>
+                  
+                  <View style={styles.memberDetails}>
+                    <Text style={[styles.memberName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                      {member.user?.display_name || 'Unknown Member'}
+                    </Text>
+                    <Text style={[styles.memberRole, { color: Colors[colorScheme].mutedText }]}>
+                      {getRoleById(member.role)?.displayName || 'Player'}
+                      {member.customPosition && ` • ${member.customPosition}`}
+                    </Text>
+                    {member.stats && (
+                      <Text style={[styles.memberStats, { color: Colors[colorScheme].mutedText }]}>
+                        {member.stats.games_played} games • {member.stats.points} pts
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                
+                <View style={styles.memberActions}>
+                  <Pressable 
+                    style={[styles.actionButton, { backgroundColor: Colors[colorScheme].tint + '15' }]}
+                    onPress={() => showRoleSelector(member)}
+                  >
+                    <Ionicons name="person-outline" size={14} color={Colors[colorScheme].tint} />
+                  </Pressable>
+                  <Pressable 
+                    style={[styles.actionButton, { backgroundColor: '#EF4444' + '15' }]}
+                    onPress={() => removeMember(member.id)}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {selectedTab === 'settings' && (
+          <View style={styles.tabContent}>
+            {/* General Settings */}
+            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>General</Text>
+              
+              <Pressable style={styles.settingItem} onPress={() => router.push(`/edit-team?id=${team.id}`)}>
+                <Ionicons name="create-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Edit Team Info</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+              
+              <Pressable style={styles.settingItem} onPress={() => router.push(`/manage-season?teamId=${team.id}`)}>
+                <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Manage Season</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem} onPress={() => router.push(`/team-contacts?id=${team.id}`)}>
+                <Ionicons name="chatbubble-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Chat</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="camera-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Photos</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            </View>
+
+            {/* Privacy & Permissions */}
+            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Privacy & Permissions</Text>
+              
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="eye-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Visibility</Text>
+                <View style={styles.settingValue}>
+                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Public</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="people-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Who Can Join</Text>
+                <View style={styles.settingValue}>
+                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Invite Only</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="shield-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Member Permissions</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="location-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Location Sharing</Text>
+                <View style={styles.settingValue}>
+                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Team Only</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Notifications */}
+            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>
+              
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="notifications-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Push Notifications</Text>
+                <View style={[styles.toggleSwitch, { backgroundColor: Colors[colorScheme].tint }]}>
+                  <View style={[styles.toggleThumb, { transform: [{ translateX: 14 }] }]} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="mail-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Email Updates</Text>
+                <View style={[styles.toggleSwitch, { backgroundColor: '#E5E7EB' }]}>
+                  <View style={styles.toggleThumb} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Game Reminders</Text>
+                <View style={[styles.toggleSwitch, { backgroundColor: Colors[colorScheme].tint }]}>
+                  <View style={[styles.toggleThumb, { transform: [{ translateX: 14 }] }]} />
+                </View>
+              </Pressable>
+            </View>
+
+            {/* Integrations */}
+            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Integrations</Text>
+              
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Calendar Sync</Text>
+                <View style={styles.settingValue}>
+                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Google Calendar</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="stats-chart-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Stats Integration</Text>
+                <View style={styles.settingValue}>
+                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Connect</Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </View>
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="share-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Social Media</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            </View>
+
+            {/* Advanced */}
+            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Advanced</Text>
+              
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="download-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Export Team Data</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="copy-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Duplicate Team</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="swap-horizontal-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Transfer Ownership</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="archive-outline" size={20} color="#F59E0B" />
+                <Text style={[styles.settingLabel, { color: '#F59E0B' }]}>Archive Team</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+
+              <Pressable style={styles.settingItem}>
+                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                <Text style={[styles.settingLabel, { color: '#EF4444' }]}>Delete Team</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Enhanced Invite Modal */}
+      <Modal
+        visible={inviteModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setInviteModalOpen(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => setInviteModalOpen(false)}>
+              <Text style={[styles.modalCancel, { color: Colors[colorScheme].text }]}>Cancel</Text>
+            </Pressable>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Invite to Team</Text>
+            <Pressable 
+              onPress={sendInvite}
+              disabled={sendingInvite || !selectedUser}
+            >
+              <Text style={[styles.modalDone, { color: sendingInvite || !selectedUser ? Colors[colorScheme].mutedText : Colors[colorScheme].tint }]}>
+                {sendingInvite ? 'Sending...' : 'Send'}
+              </Text>
+            </Pressable>
+          </View>
+          
+          <View style={styles.modalContent}>
+            {/* Search Section */}
+            <Text style={[styles.modalLabel, { color: Colors[colorScheme].text }]}>Search Users</Text>
+            <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+              <TextInput
+                style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by name or username"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                autoCapitalize="none"
+              />
+              {searchLoading && <ActivityIndicator size="small" color={Colors[colorScheme].tint} />}
+            </View>
+
+            {/* Selected User */}
+            {selectedUser && (
+              <View style={[styles.selectedUserCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint }]}>
+                <View style={styles.userInfo}>
+                  <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+                    <Text style={styles.userInitials}>
+                      {selectedUser.display_name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.userDetails}>
+                    <View style={styles.userNameRow}>
+                      <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+                        {selectedUser.display_name}
+                      </Text>
+                      {selectedUser.verified && (
+                        <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
+                      )}
+                    </View>
+                    <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
+                      @{selectedUser.username}
+                    </Text>
+                    {selectedUser.mutual_friends && selectedUser.mutual_friends > 0 && (
+                      <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
+                        {selectedUser.mutual_friends} mutual friends
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <Pressable 
+                  style={styles.removeButton}
+                  onPress={() => setSelectedUser(null)}
+                >
+                  <Ionicons name="close" size={20} color={Colors[colorScheme].mutedText} />
+                </Pressable>
+              </View>
             )}
-            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            contentContainerStyle={{ paddingVertical: 8 }}
-          />
-        </>
-      )}
+
+            {/* Search Results */}
+            {searchQuery && !selectedUser && (
+              <View style={styles.searchResults}>
+                {searchResults.length > 0 ? (
+                  <View style={{ maxHeight: 200 }}>
+                    <FlatList
+                      data={searchResults}
+                      keyExtractor={(item) => item.id}
+                      renderItem={({ item }) => (
+                        <Pressable
+                          style={[styles.userCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                          onPress={() => setSelectedUser(item)}
+                        >
+                          <View style={styles.userInfo}>
+                            <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+                              <Text style={styles.userInitials}>
+                                {item.display_name.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                            <View style={styles.userDetails}>
+                              <View style={styles.userNameRow}>
+                                <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+                                  {item.display_name}
+                                </Text>
+                                {item.verified && (
+                                  <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
+                                )}
+                              </View>
+                              <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
+                                @{item.username}
+                              </Text>
+                              {item.mutual_friends && item.mutual_friends > 0 && (
+                                <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
+                                  {item.mutual_friends} mutual friends
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                          <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                        </Pressable>
+                      )}
+                    />
+                  </View>
+                ) : searchQuery.length > 0 && !searchLoading ? (
+                  <View style={styles.noResults}>
+                    <Text style={[styles.noResultsText, { color: Colors[colorScheme].mutedText }]}>
+                      No users found for "{searchQuery}"
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+
+            {/* Suggested Users */}
+            {!searchQuery && !selectedUser && suggestedUsers.length > 0 && (
+              <>
+                <Text style={[styles.modalLabel, { color: Colors[colorScheme].text, marginTop: 24 }]}>Suggested</Text>
+                <View style={{ maxHeight: 300 }}>
+                  <FlatList
+                    data={suggestedUsers}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        style={[styles.userCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                        onPress={() => setSelectedUser(item)}
+                      >
+                        <View style={styles.userInfo}>
+                          <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
+                            <Text style={styles.userInitials}>
+                              {item.display_name.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={styles.userDetails}>
+                            <View style={styles.userNameRow}>
+                              <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
+                                {item.display_name}
+                              </Text>
+                              {item.verified && (
+                                <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
+                              )}
+                            </View>
+                            <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
+                              @{item.username}
+                            </Text>
+                            {item.mutual_friends && item.mutual_friends > 0 && (
+                              <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
+                                {item.mutual_friends} mutual friends
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                        <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                      </Pressable>
+                    )}
+                  />
+                </View>
+              </>
+            )}
+            
+            <Text style={[styles.modalLabel, { color: Colors[colorScheme].text, marginTop: 24 }]}>Role</Text>
+            <View style={styles.roleSelector}>
+              {allRoles.filter(role => ['player', 'captain', 'substitute'].includes(role.id)).map((role) => (
+                <Pressable
+                  key={role.id}
+                  style={[
+                    styles.roleOption,
+                    { 
+                      backgroundColor: inviteRole === role.id ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                      borderColor: Colors[colorScheme].border
+                    }
+                  ]}
+                  onPress={() => setInviteRole(role.id)}
+                >
+                  <Text style={[
+                    styles.roleOptionText,
+                    { color: inviteRole === role.id ? '#fff' : Colors[colorScheme].text }
+                  ]}>
+                    {role.displayName}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 22, fontWeight: '800' },
-  sectionTitle: { fontSize: 16, fontWeight: '800' },
-  muted: { color: '#6b7280' },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  member: { fontWeight: '700' },
-  btn: { backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  btnText: { color: 'white', fontWeight: '700' },
-  btnOutline: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-  btnOutlineText: { color: '#111827', fontWeight: '700' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F8FAFC' 
+  },
+  centerContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  // Loading States
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  retryButton: {
+    marginTop: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  moreButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Team Overview
+  teamOverviewCard: {
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  teamHeader: {
+    flexDirection: 'row',
+    marginBottom: 20,
+  },
+  teamAvatarContainer: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  teamAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamInitials: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  statusIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  teamInfo: {
+    flex: 1,
+  },
+  teamName: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  teamMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  metaText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  teamDescription: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  // Stats
+  statsContainer: {
+    flexDirection: 'row',
+    paddingTop: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E2E8F0',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  // Quick Actions
+  quickActionsCard: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  quickActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginRight: 12,
+    gap: 8,
+  },
+  quickActionText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Tabs
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  // Sections
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  // Activity
+  activityCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  activityTime: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  // Members
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  memberAvatarContainer: {
+    position: 'relative',
+    marginRight: 12,
+  },
+  memberAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberInitials: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  roleIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  memberDetails: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  memberRole: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  memberStats: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  memberActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Settings
+  settingsCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  settingLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 12,
+  },
+  // Modal
+  modalContainer: {
+    flex: 1,
+    paddingTop: 60,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalCancel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalDone: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalContent: {
+    padding: 16,
+  },
+  modalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  modalInput: {
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    fontSize: 16,
+  },
+  roleSelector: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  roleOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  roleOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // User Selection Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    height: '100%',
+  },
+  searchResults: {
+    maxHeight: 200,
+  },
+  selectedUserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginBottom: 16,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 8,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  userInitials: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  userUsername: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  mutualFriends: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  removeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noResults: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
+
+  // Settings Styles
+  settingValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  settingValueText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  toggleSwitch: {
+    width: 32,
+    height: 18,
+    borderRadius: 9,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#fff',
+  },
 });

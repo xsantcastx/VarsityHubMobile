@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Alert } from 'react-native';
 import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -49,8 +49,8 @@ export default function TeamInvitesScreen() {
                 <Text style={styles.muted}>Role: {item.role || 'member'}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button size="sm" onPress={() => accept(item.id)}>Accept</Button>
-                <Button size="sm" variant="outline" onPress={() => decline(item.id)}>Decline</Button>
+                <Button size="sm" onPress={() => accept(item.id)}><Text>Accept</Text></Button>
+                <Button size="sm" variant="outline" onPress={() => decline(item.id)}><Text>Decline</Text></Button>
               </View>
             </View>
           )}

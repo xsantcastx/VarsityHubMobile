@@ -1,10 +1,10 @@
 import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet, type ViewStyle, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, type ViewStyle } from 'react-native';
 import Animated, {
-  interpolate,
-  useAnimatedRef,
-  useAnimatedStyle,
-  useScrollViewOffset,
+    interpolate,
+    useAnimatedRef,
+    useAnimatedStyle,
+    useScrollViewOffset,
 } from 'react-native-reanimated';
 
 import { ThemedView } from '@/components/ThemedView';
@@ -24,7 +24,8 @@ export default function ParallaxScrollView({
   headerBackgroundColor,
 }: Props) {
   const colorScheme = useColorScheme() ?? 'light';
-  const scrollRef = useAnimatedRef<ScrollView>();
+  // useAnimatedRef typing in reanimated can be strict; cast to any to avoid AnimatedScrollView mismatch
+  const scrollRef = useAnimatedRef<any>();
   const scrollOffset = useScrollViewOffset(scrollRef);
   const bottom = useBottomTabOverflow();
   const headerAnimatedStyle = useAnimatedStyle<ViewStyle>(() => {
