@@ -1,3 +1,5 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -108,13 +110,13 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
-const HighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item: HighlightItem) => void }) => {
+const HighlightCard = ({ item, onPress, colorScheme }: { item: HighlightItem; onPress: (item: HighlightItem) => void; colorScheme: 'light' | 'dark' }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   const category = getSportCategory(item.title, item.content);
   const hasMedia = !!item.media_url;
   
   return (
-    <Pressable style={styles.card} onPress={() => onPress(item)}>
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
         {/* Media Section */}
         <View style={styles.mediaSection}>
@@ -159,7 +161,7 @@ const HighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item:
           </View>
 
           {/* Title */}
-          <Text style={styles.cardTitle} numberOfLines={2}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]} numberOfLines={2}>
             {item.title || item.caption || item.content || 'Sports Update'}
           </Text>
 
@@ -173,7 +175,7 @@ const HighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item:
                   <Ionicons name="person" size={12} color="#fff" />
                 </View>
               )}
-              <Text style={styles.authorName} numberOfLines={1}>
+              <Text style={[styles.authorName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
                 {item.author?.display_name || 'Anonymous'}
               </Text>
             </View>
@@ -203,14 +205,15 @@ const HighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item:
   );
 };
 
-const TabButton = ({ title, active, onPress }: { title: string; active: boolean; onPress: () => void }) => (
-  <Pressable style={[styles.tabButton, active && styles.activeTab]} onPress={onPress}>
-    <Text style={[styles.tabText, active && styles.activeTabText]}>{title}</Text>
+const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
+  <Pressable style={[styles.tabButton, active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }], !active && { backgroundColor: Colors[colorScheme].surface }]} onPress={onPress}>
+    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].tabIconDefault }]}>{title}</Text>
   </Pressable>
 );
 
 export default function HighlightsScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -302,15 +305,15 @@ export default function HighlightsScreen() {
   }, [highlights, activeTab]);
 
   const renderHighlight = ({ item }: { item: HighlightItem }) => (
-    <HighlightCard item={item} onPress={handleHighlightPress} />
+    <HighlightCard item={item} onPress={handleHighlightPress} colorScheme={colorScheme} />
   );
 
   const statusBarHeight = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" />
@@ -322,8 +325,8 @@ export default function HighlightsScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
@@ -339,14 +342,14 @@ export default function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
       
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
+      <View style={[styles.header, { paddingTop: statusBarHeight, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Highlights</Text>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
           <View style={styles.headerStats}>
             <Ionicons name="trophy" size={16} color="#FFB800" />
             <Text style={styles.headerStatsText}>{filteredHighlights.length} highlights</Text>
@@ -364,25 +367,28 @@ export default function HighlightsScreen() {
             title="🔥 Trending" 
             active={activeTab === 'trending'} 
             onPress={() => setActiveTab('trending')} 
+            colorScheme={colorScheme}
           />
           <TabButton 
             title="🕐 Recent" 
             active={activeTab === 'recent'} 
             onPress={() => setActiveTab('recent')} 
+            colorScheme={colorScheme}
           />
           <TabButton 
             title="👑 Top" 
             active={activeTab === 'top'} 
             onPress={() => setActiveTab('top')} 
+            colorScheme={colorScheme}
           />
         </ScrollView>
       </View>
 
       {filteredHighlights.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="trophy-outline" size={64} color="#9CA3AF" />
-          <Text style={styles.emptyText}>No highlights available</Text>
-          <Text style={styles.emptySubtext}>Check back later for amazing sports moments</Text>
+          <Ionicons name="trophy-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
+          <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No highlights available</Text>
+          <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>Check back later for amazing sports moments</Text>
         </View>
       ) : (
         <FlatList
@@ -408,7 +414,6 @@ export default function HighlightsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
@@ -418,7 +423,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6B7280',
     fontWeight: '500',
   },
   errorContainer: {
@@ -445,9 +449,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   header: {
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
     paddingBottom: 8,
   },
   headerContent: {
@@ -460,7 +462,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#111827',
   },
   headerStats: {
     flexDirection: 'row',
@@ -487,19 +488,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
   },
-  activeTab: {
-    backgroundColor: '#2563EB',
-  },
+  activeTab: {},
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
   },
-  activeTabText: {
-    color: '#fff',
-  },
+  activeTabText: {},
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -510,12 +505,10 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#374151',
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#6B7280',
     textAlign: 'center',
   },
   list: {
@@ -523,7 +516,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
@@ -629,7 +621,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -658,7 +649,6 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
     flex: 1,
   },
   timeText: {
