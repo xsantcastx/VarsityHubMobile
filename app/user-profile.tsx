@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore api exports
 import { User } from '@/api/entities';
+import { BackHeader } from '@/components/ui/BackHeader';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 export default function UserProfileScreen() {
@@ -104,7 +105,12 @@ export default function UserProfileScreen() {
 
   return (
     <View style={S.page}>
-      <Stack.Screen options={{ title: params.username ? String(params.username) : 'Profile' }} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <BackHeader 
+        title={user?.display_name || user?.username || 'Profile'} 
+        backgroundColor="#ffffff"
+        textColor="#1F2937"
+      />
       {loading ? (
         <View style={S.center}><ActivityIndicator /></View>
       ) : error ? (
@@ -113,51 +119,82 @@ export default function UserProfileScreen() {
         <View style={S.center}><Text>Not found</Text></View>
       ) : (
         <>
-          <View style={S.header}>
-            <View style={S.avatarWrap}>
-              {user.avatar_url ? (
-                <Image source={{ uri: String(user.avatar_url) }} style={S.avatar} contentFit="cover" />
-              ) : (
-                <View style={[S.avatar, { backgroundColor: '#E5E7EB' }]} />
+          {/* Enhanced Header Section */}
+          <View style={S.headerSection}>
+            <View style={S.profileHeader}>
+              <View style={S.avatarWrap}>
+                {user.avatar_url ? (
+                  <Image source={{ uri: String(user.avatar_url) }} style={S.avatar} contentFit="cover" />
+                ) : (
+                  <View style={[S.avatar, S.avatarFallback]}>
+                    <Ionicons name="person" size={32} color="#6B7280" />
+                  </View>
+                )}
+              </View>
+              
+              <View style={S.profileInfo}>
+                <Text style={S.displayName}>{user.display_name || user.username || 'User'}</Text>
+                {user.bio && <Text style={S.bio}>{user.bio}</Text>}
+                
+                {/* Role and verification badges */}
+                <View style={S.badgesRow}>
+                  {user.role && user.role !== 'fan' && (
+                    <View style={[S.roleBadge, user.role === 'coach' && S.roleBadgeCoach]}>
+                      <Text style={S.roleBadgeText}>{user.role}</Text>
+                    </View>
+                  )}
+                  {user.verified && (
+                    <View style={S.verifiedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Follow button */}
+              {me?.id && user?.id && me.id !== user.id && (
+                <View style={S.actionSection}>
+                  <Pressable
+                    onPress={async () => {
+                      const next = !user.is_following;
+                      setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
+                      try {
+                        if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
+                      } catch (e) {
+                        setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
+                      }
+                    }}
+                    style={[S.followBtn, user.is_following && S.followBtnActive]}
+                  >
+                    <Text style={[S.followBtnText, user.is_following && S.followBtnTextActive]}>
+                      {user.is_following ? 'Following' : 'Follow'}
+                    </Text>
+                  </Pressable>
+                </View>
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={S.name}>{user.display_name || user.username || 'User'}</Text>
-              {user.bio ? <Text style={S.bio}>{user.bio}</Text> : null}
-            </View>
-            {me?.id && user?.id && me.id !== user.id ? (
-              <Pressable
-                onPress={async () => {
-                  const next = !user.is_following;
-                  setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
-                  try {
-                    if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                  } catch (e) {
-                    // revert on failure
-                    setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
-                  }
-                }}
-                style={[S.followBtn, user.is_following && S.followBtnOn]}
-              >
-                <Text style={[S.followBtnText, user.is_following && S.followBtnTextOn]}>{user.is_following ? 'Following' : 'Follow'}</Text>
-              </Pressable>
-            ) : null}
-          </View>
 
-          {/* Stats row */}
-          <View style={S.statsRow}>
-            <View style={S.statBox}>
-              <Text style={S.statNum}>{user.posts_count ?? 0}</Text>
-              <Text style={S.statLabel}>Posts</Text>
+            {/* Stats Section */}
+            <View style={S.statsContainer}>
+              <View style={S.statItem}>
+                <Text style={S.statValue}>{user.posts_count ?? 0}</Text>
+                <Text style={S.statLabel}>Posts</Text>
+              </View>
+              <Pressable 
+                style={S.statItem} 
+                onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}
+              >
+                <Text style={S.statValue}>{user.followers_count ?? 0}</Text>
+                <Text style={S.statLabel}>Followers</Text>
+              </Pressable>
+              <Pressable 
+                style={S.statItem} 
+                onPress={() => router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}
+              >
+                <Text style={S.statValue}>{user.following_count ?? 0}</Text>
+                <Text style={S.statLabel}>Following</Text>
+              </Pressable>
             </View>
-            <Pressable style={S.statBox} onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
-              <Text style={S.statNum}>{user.followers_count ?? 0}</Text>
-              <Text style={S.statLabel}>Followers</Text>
-            </Pressable>
-            <Pressable style={S.statBox} onPress={() => router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
-              <Text style={S.statNum}>{user.following_count ?? 0}</Text>
-              <Text style={S.statLabel}>Following</Text>
-            </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 24 }}>

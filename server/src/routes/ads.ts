@@ -74,11 +74,15 @@ adsRouter.get('/for-feed', async (req, res) => {
   const start = new Date(dateISO + 'T00:00:00.000Z');
   const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
+  console.log('[ads] for-feed query:', { dateParam, dateISO, zip, limit, start, next });
+
   const whereAd: any = {
     payment_status: 'paid',
-    banner_url: { not: null },
+    // Removed banner_url requirement - allow ads with or without banners
   };
   if (zip) whereAd.target_zip_code = zip;
+
+  console.log('[ads] for-feed where clause for ads:', whereAd);
 
   const ads = await prisma.ad.findMany({
     where: {
@@ -89,9 +93,22 @@ adsRouter.get('/for-feed', async (req, res) => {
     },
     orderBy: { created_at: 'desc' },
     take: limit,
+    include: {
+      reservations: true, // Include reservations for debugging
+    },
   });
 
-  return res.json({ date: dateISO, ads });
+  console.log('[ads] for-feed found ads:', { 
+    count: ads.length, 
+    ads: ads.map(ad => ({
+      id: ad.id,
+      payment_status: ad.payment_status,
+      banner_url: !!ad.banner_url,
+      reservations: ad.reservations.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() }))
+    }))
+  });
+
+  return res.json({ date: dateISO, ads: ads.map(ad => ({ ...ad, reservations: undefined })) }); // Remove reservations from response
 });
 
 // Get a single Ad with its reservations (dates)
@@ -130,8 +147,19 @@ adsRouter.get('/reservations', async (req, res) => {
   if (from) where.date.gte = from;
   if (to) where.date.lte = to;
   if (adId) where.ad_id = adId;
+  
+  console.log('[ads] GET /reservations query:', { from, to, adId, where });
+  
   const list = await prisma.adReservation.findMany({ where, orderBy: { date: 'asc' } });
   const dates = list.map((r) => r.date.toISOString().slice(0, 10));
+  
+  console.log('[ads] Found reservations:', { 
+    adId, 
+    count: list.length, 
+    rawDates: list.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() })),
+    formattedDates: dates 
+  });
+  
   if (adId) return res.json({ ad_id: adId, dates });
   return res.json({ dates });
 });

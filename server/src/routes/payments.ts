@@ -107,9 +107,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       }];
 
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
-  const baseUrl = String(appBase).replace(/\/$/, '');
-  const success = baseUrl + '/payments/success?session_id={CHECKOUT_SESSION_ID}';
-  const cancel = baseUrl + '/payments/cancel';
+  // Use deep links for mobile app redirects
+  const appScheme = 'varsityhubmobile';
+  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancel = `${appScheme}://payment-cancel`;
 
   const session = await stripe.checkout.sessions.create(({
     mode: 'subscription',
@@ -177,9 +178,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     return res.json({ free: true });
   }
 
-  const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
-  const success = `${appBase.replace(/\/$/, '')}/payments/success?session_id={CHECKOUT_SESSION_ID}`;
-  const cancel = `${appBase.replace(/\/$/, '')}/payments/cancel`;
+  // Use deep links for mobile app redirects
+  const appScheme = 'varsityhubmobile';
+  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancel = `${appScheme}://payment-cancel`;
 
   const session = await stripe.checkout.sessions.create(({
     mode: 'payment',
@@ -509,13 +511,31 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   let dates: string[] = [];
   try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
   if (ad_id && Array.isArray(dates) && dates.length) {
+    console.log('[payments] Processing ad reservation payment', {
+      ad_id,
+      dates,
+      session_id: session.id,
+      payment_status: session.payment_status
+    });
     try {
-      await prisma.$transaction([
+      const result = await prisma.$transaction([
         prisma.ad.update({ where: { id: ad_id }, data: { payment_status: 'paid' } }),
         prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
+      console.log('[payments] Ad reservation payment completed successfully', {
+        ad_id,
+        dates,
+        session_id: session.id
+      });
     } catch (e) {
-      // Ignore conflicts
+      console.error('[payments] Error processing ad reservation payment', {
+        ad_id,
+        dates,
+        session_id: session.id,
+        error: e
+      });
+      // Don't ignore the error silently anymore
+      throw e;
     }
   }
 

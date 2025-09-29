@@ -8,6 +8,7 @@
     "strict": true,
     "skipLibCheck": true,
     "outDir": "dist",
+    "rootDir": "src",
     "resolveJsonModule": true,
     "declaration": false,
     "removeComments": true,
@@ -16,7 +17,13 @@
     "allowSyntheticDefaultImports": true,
     "sourceMap": false,
     "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "./node_modules/@types"
+    ]
   },
   "include": [
     "src/**/*.ts"
@@ -25,5 +32,6 @@
     "node_modules",
     "dist",
     "prisma/**/*.ts"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

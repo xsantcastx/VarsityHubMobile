@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p .",
-    "start": "node dist/src/index.js",
+    "start": "node dist/index.js",
     "railway:deploy": "npx prisma generate && npm run build",
     "postdeploy": "npx prisma migrate deploy && npm run seed",
     "prisma:generate": "prisma generate",
@@ -38,7 +38,9 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^2.0.0",
     "@types/node": "^20.11.30",
+    "@types/nodemailer": "^7.0.1",
     "nodemon": "^3.1.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.0",

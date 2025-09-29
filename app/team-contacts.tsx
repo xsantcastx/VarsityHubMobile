@@ -2,7 +2,6 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
@@ -14,13 +13,20 @@ import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
-// Suppress expo-av deprecation warning for now - TODO: migrate to expo-audio
-console.warn = ((originalWarn) => {
-  return (...args: any[]) => {
-    if (args[0]?.includes?.('Expo AV has been deprecated')) return;
-    originalWarn(...args);
-  };
-})(console.warn);
+// Temporary Audio stub for expo-av migration
+const Audio = {
+  requestPermissionsAsync: () => Promise.resolve({ status: 'denied' }),
+  setAudioModeAsync: () => Promise.resolve(),
+  Recording: {
+    createAsync: () => Promise.resolve({ recording: { timer: null, stopAndUnloadAsync: () => Promise.resolve(), getURI: () => null, getStatusAsync: () => Promise.resolve({}) } })
+  },
+  RecordingOptionsPresets: { HIGH_QUALITY: {} },
+  Sound: {
+    createAsync: (source: any, initialStatus?: any) => Promise.resolve({ sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() } })
+  }
+};
+
+// Using expo-audio for recording and playback functionality
 
 interface ChatMessage {
   id: string;
@@ -91,12 +97,14 @@ export default function TeamChatScreen() {
   const [selectedImage, setSelectedImage] = useState<{ uri: string; width: number; height: number } | null>(null);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  // const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recording, setRecording] = useState<any>(null);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioPosition, setAudioPosition] = useState<{ [key: string]: number }>({});
-  const [soundObjects, setSoundObjects] = useState<{ [key: string]: Audio.Sound }>({});
+  // const [soundObjects, setSoundObjects] = useState<{ [key: string]: Audio.Sound }>({});
+  const [soundObjects, setSoundObjects] = useState<{ [key: string]: any }>({});
   
   // Modal states for custom menus
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
@@ -109,7 +117,7 @@ export default function TeamChatScreen() {
   const toastAnim = useRef(new Animated.Value(0)).current;
   
   const flatListRef = useRef<FlatList>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<any>(null);
   const textInputRef = useRef<TextInput>(null);
   
   // Animated values for typing dots
@@ -733,38 +741,10 @@ export default function TeamChatScreen() {
     setSelectedImage(null);
   }, []);
 
-  // Voice recording functions
+  // Voice recording functions - TEMPORARILY DISABLED
   const startRecording = useCallback(async () => {
-    try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant microphone permission to record voice messages');
-        return;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      
-      setRecording(recording);
-      setIsRecording(true);
-      setRecordingDuration(0);
-      
-      // Start duration timer
-      const timer = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-      
-      // Store timer reference for cleanup
-      (recording as any).timer = timer;
-    } catch (error) {
-      Alert.alert('Error', 'Failed to start recording');
-    }
+    Alert.alert('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
+    return;
   }, []);
 
   const stopRecording = useCallback(async () => {

@@ -79,8 +79,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ colorScheme, themePreference, setThemePreference }}>
-      {/* Don't render children until theme is loaded to prevent flash */}
-      {isLoaded ? children : null}
+      {children}
     </ThemeContext.Provider>
   );
 }
@@ -98,7 +97,12 @@ export function useCustomColorScheme(): ActualColorScheme {
 export function useThemePreference() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useThemePreference must be used within a ThemeProvider');
+    // Return default values if used outside provider instead of throwing
+    console.warn('useThemePreference used outside ThemeProvider, returning defaults');
+    return {
+      themePreference: 'system' as ColorScheme,
+      setThemePreference: () => {},
+    };
   }
   return {
     themePreference: context.themePreference,

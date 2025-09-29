@@ -10,13 +10,13 @@ import {
     Platform,
     Pressable,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Highlights, User } from '@/api/entities';
 

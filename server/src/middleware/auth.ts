@@ -1,8 +1,9 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { verifyJwt } from '../lib/jwt.js';
 
 export interface AuthedRequest extends Request {
   user?: { id: string };
+  file?: Express.Multer.File;
 }
 
 export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFunction) {

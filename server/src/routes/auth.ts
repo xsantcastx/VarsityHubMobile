@@ -26,7 +26,14 @@ authRouter.post('/register', async (req, res) => {
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const user = await prisma.user.create({ data: { email, password_hash, display_name, email_verified: false, email_verification_code: code, email_verification_expires: exp } });
   const access_token = signJwt({ id: user.id });
-  try { await sendVerificationEmail(email, code); } catch (e) { req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); }
+  try { 
+    console.log('[email] Sending verification email to:', email);
+    await sendVerificationEmail(email, code); 
+    console.log('[email] Verification email sent successfully');
+  } catch (e) { 
+    console.error('[email] Email send failed:', e);
+    req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); 
+  }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   return res.status(201).json(payload);
@@ -71,8 +78,11 @@ authRouter.post('/password/forgot', async (req, res) => {
   });
 
   try {
+    console.log('[email] Sending password reset email to:', user.email);
     await sendPasswordResetEmail(user.email, code);
+    console.log('[email] Password reset email sent successfully');
   } catch (e) {
+    console.error('[email] Password reset email failed:', e);
     req.log?.warn?.({ err: e }, 'Password reset email failed');
   }
 
@@ -419,3 +429,26 @@ async function sendPasswordResetEmail(to: string, code: string) {
   });
   console.log(`Password reset email sent to ${to}`);
 }
+
+// Test email endpoint (development only)
+authRouter.post('/test-email', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Test endpoint not available in production' });
+  }
+  
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email required' });
+  }
+  
+  try {
+    console.log('[email-test] Testing email functionality...');
+    await sendVerificationEmail(email, '123456');
+    res.json({ success: true, message: 'Test email sent successfully' });
+  } catch (error) {
+    console.error('[email-test] Test email failed:', error);
+    res.status(500).json({ success: false, error: (error as any).message || 'Unknown error' });
+  }
+});
+
+export default authRouter;

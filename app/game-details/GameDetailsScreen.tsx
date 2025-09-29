@@ -467,7 +467,7 @@ const GameDetailsScreen = () => {
   };
 
   // Get team logo by name
-  const { findBestMatch } = require('../utils/teamMatch');
+  const { findBestMatch } = require('../../utils/teamMatch');
   const getTeamLogo = (teamName: string) => {
     if (!teamName) return null;
     // try exact case-insensitive match first
