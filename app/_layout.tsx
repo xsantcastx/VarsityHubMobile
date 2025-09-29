@@ -1,42 +1,18 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, ActivityIndicator, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import React from 'react';
 
 export default function RootLayout() {
-  // Dev-only filters for noisy warnings
-  if (process.env.NODE_ENV !== 'production') {
-    // Suppress specific RN Web deprecations on web
-    if (Platform.OS === 'web') {
-      const originalWarn = console.warn;
-      console.warn = (...args: any[]) => {
-        const msg = String(args?.[0] ?? '');
-        if (
-          msg.includes('"shadow*" style props are deprecated') ||
-          msg.includes('props.pointerEvents is deprecated. Use style.pointerEvents')
-        ) {
-          return;
-        }
-        originalWarn(...args);
-      };
-    }
-    // Suppress dev overlay's raw-text warning which can originate from tooling
-    const originalError = console.error;
-    console.error = (...args: any[]) => {
-      const msg = String(args?.[0] ?? '');
-      if (msg.includes('Text strings must be rendered within a <Text>')) {
-        return;
-      }
-      originalError(...args);
-    };
-  }
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -47,20 +23,39 @@ export default function RootLayout() {
   const lastRedirectRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    // Wait until navigation is mounted
+    if (!__DEV__) return;
+    LogBox.ignoreLogs([
+      'Non-serializable values were found in the navigation state',
+    ]);
+    if (Platform.OS === 'web') {
+      LogBox.ignoreLogs([
+        '"shadow*" style props are deprecated',
+        'props.pointerEvents is deprecated. Use style.pointerEvents',
+      ]);
+    }
+  }, []);
+
+  React.useEffect(() => {
     if (!navState?.key) return;
     const first = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email']);
     const isPublic = publicRoutes.has(first);
     (async () => {
       try {
-        await User.me();
-        if (isPublic && lastRedirectRef.current !== '/(tabs)') {
-          lastRedirectRef.current = '/(tabs)';
-          router.replace('/(tabs)');
+        const me: any = await User.me();
+        const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
+        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-2-basic') {
+          lastRedirectRef.current = '/onboarding/step-2-basic';
+          router.replace('/onboarding/step-2-basic');
+          return;
         }
-      } catch {
-        if (!isPublic && lastRedirectRef.current !== '/sign-in') {
+        if (isPublic && lastRedirectRef.current !== '/(tabs)/feed') {
+          lastRedirectRef.current = '/(tabs)/feed';
+          router.replace('/(tabs)/feed');
+        }
+      } catch (err: any) {
+        const status = err?.status;
+        if (!isPublic && (status === 401 || status === 403) && lastRedirectRef.current !== '/sign-in') {
           lastRedirectRef.current = '/sign-in';
           router.replace('/sign-in');
         }
@@ -68,22 +63,25 @@ export default function RootLayout() {
     })();
   }, [navState?.key, Array.isArray(segments) ? segments.join('/') : '']);
 
-  // Simple inline loader to avoid flicker while checking auth/fonts
   if (!loaded || !navState?.key) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+        </NavigationThemeProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -1,20 +1,116 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Stack } from 'expo-router';
+import { User } from '@/api/entities';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FollowingScreen() {
-  return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Following' }} />
-      <Text style={styles.title}>Following</Text>
-      <Text style={styles.subtitle}>Mobile implementation coming soon.</Text>
+  const router = useRouter();
+  const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const loadFollowing = async (cursor?: string) => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const { items, nextCursor: newCursor } = await User.following(id, cursor);
+      setUsers(prev => (cursor ? [...prev, ...items] : items));
+      setNextCursor(newCursor);
+    } catch (error) {
+      console.error('Failed to load following', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFollowing();
+  }, [id]);
+
+  const handleFollow = async (userId: string, isFollowing: boolean) => {
+    try {
+      if (isFollowing) {
+        await User.unfollow(userId);
+      } else {
+        await User.follow(userId);
+      }
+      setUsers(users.map(u => u.id === userId ? { ...u, is_following: !isFollowing } : u));
+    } catch (error) {
+      console.error('Follow/unfollow failed', error);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!search) return users;
+    return users.filter(u => u.display_name?.toLowerCase().includes(search.toLowerCase()));
+  }, [users, search]);
+
+  const renderUser = ({ item }: { item: any }) => (
+    <View style={styles.userRow}>
+      <Pressable 
+        style={styles.userInfo}
+        onPress={() => router.push(`/user-profile?id=${item.id}`)}
+      >
+        <Avatar uri={item.avatar_url} />
+        <Text style={styles.userName}>{item.display_name}</Text>
+      </Pressable>
+      <Button
+        variant={item.is_following ? 'outline' : 'default'}
+        onPress={() => handleFollow(item.id, item.is_following)}
+      >
+        {item.is_following ? 'Following' : 'Follow'}
+      </Button>
     </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <Stack.Screen options={{ title: `${username} is Following` }} />
+      <Input
+        placeholder="Search following..."
+        value={search}
+        onChangeText={setSearch}
+        style={styles.searchInput}
+      />
+      {loading && users.length === 0 ? (
+        <ActivityIndicator style={{ marginTop: 20 }} />
+      ) : (
+        <FlatList
+          data={filteredUsers}
+          renderItem={renderUser}
+          keyExtractor={(item) => item.id}
+          onEndReached={() => nextCursor && loadFollowing(nextCursor)}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={loading ? <ActivityIndicator /> : null}
+          ListEmptyComponent={<Text style={styles.emptyText}>Not following anyone yet.</Text>}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { color: '#6b7280' },
+  container: { flex: 1, backgroundColor: 'white' },
+  searchInput: { margin: 16 },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  userName: { flex: 1, fontWeight: '600' },
+  emptyText: { textAlign: 'center', marginTop: 32, color: '#6B7280' },
 });
-

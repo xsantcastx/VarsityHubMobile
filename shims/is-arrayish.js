@@ -8,4 +8,3 @@ module.exports = function isArrayish(obj) {
   if (typeof obj === 'string') return false;
   return typeof obj.length === 'number';
 };
-

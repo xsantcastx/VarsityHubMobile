@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert, FlatList } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
@@ -94,7 +94,7 @@ export default function MyAdsScreen() {
           )}
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{item.business_name}</Text>
-            <Text style={styles.meta}>{item.contact_name} · {item.contact_email}</Text>
+            <Text style={styles.meta}>{item.contact_name} ï¿½ {item.contact_email}</Text>
             <Text style={styles.meta}>Zip {item.zip_code}</Text>
           </View>
         </View>
@@ -102,9 +102,13 @@ export default function MyAdsScreen() {
         <Text style={styles.section}>Scheduled Dates</Text>
         {dates.length > 0 ? (
           <View style={styles.badgeWrap}>
-            {dates.map((d) => (
-              <View key={d} style={styles.badge}><Text style={styles.badgeText}>{d}</Text></View>
-            ))}
+            {dates.map((d) => {
+              let label = d;
+              try { label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch {}
+              return (
+                <View key={d} style={styles.badge}><Text style={styles.badgeText}>{label}</Text></View>
+              );
+            })}
           </View>
         ) : (
           <Text style={styles.muted}>None yet</Text>

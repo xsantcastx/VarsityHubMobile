@@ -1,46 +1,55 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/HapticTab';
+import CenterTabButton from '@/components/ui/CenterTabButton';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import CenterTabButton from '@/components/ui/CenterTabButton';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const hiddenTab = {
+    href: null,
+  } as const;
   
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         headerShown: false,
-        tabBarButton: HapticTab,
         tabBarShowLabel: true,
-        tabBarLabelStyle: { fontSize: 12 },
+        tabBarLabelStyle: { 
+          fontSize: 12,
+          color: Colors[colorScheme ?? 'light'].text,
+        },
         tabBarBackground: TabBarBackground,
         tabBarStyle: {
           height: Math.max(64, 56 + insets.bottom),
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
+          backgroundColor: Colors[colorScheme ?? 'light'].card,
+          borderTopColor: Colors[colorScheme ?? 'light'].border,
+          borderTopWidth: 1,
         },
       }}>
       <Tabs.Screen
-        name="index"
+        name="feed/index"
         options={{
           title: 'Feed',
+          tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="square.grid.2x2.fill" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="highlights"
+        name="highlights/index"
         options={{
           title: 'Highlights',
+          tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="video.fill" color={color} />,
         }}
       />
@@ -54,33 +63,46 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="discover/index"
         options={{
           title: 'Discover',
+          tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
         }}
       />
-      {/* Hidden detail routes to keep tab bar visible when pushed */}
-      <Tabs.Screen name="game-detail" options={{ href: null }} />
-      <Tabs.Screen name="game-photos" options={{ href: null }} />
-      <Tabs.Screen name="game-highlights" options={{ href: null }} />
-      <Tabs.Screen name="game-reviews" options={{ href: null }} />
-      <Tabs.Screen name="my-ads" options={{ href: null }} />
-      <Tabs.Screen name="submit-ad" options={{ href: null }} />
-      <Tabs.Screen name="ad-calendar" options={{ href: null }} />
-      <Tabs.Screen name="edit-ad" options={{ href: null }} />
-      <Tabs.Screen name="admin-ads" options={{ href: null }} />
-      <Tabs.Screen name="admin-messages" options={{ href: null }} />
-      <Tabs.Screen name="admin-teams" options={{ href: null }} />
-      <Tabs.Screen name="admin-users" options={{ href: null }} />
-      <Tabs.Screen name="admin-user-detail" options={{ href: null }} />
+  {/* Hidden screens within (tabs) that should not appear as tabs */}
+  <Tabs.Screen name="notifications/index" options={hiddenTab} />
+  {/* Hide nested game routes under Feed */}
+  <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
+  <Tabs.Screen name="feed/game/index" options={hiddenTab} />
+  {/* Hide nested routes under Discover */}
+  <Tabs.Screen name="discover/mobile-community" options={hiddenTab} />
+  <Tabs.Screen name="discover/game/index" options={hiddenTab} />
+  <Tabs.Screen name="discover/game/[id]" options={hiddenTab} />
+  <Tabs.Screen name="admin-ads" options={hiddenTab} />
+  <Tabs.Screen name="admin-messages" options={hiddenTab} />
+  <Tabs.Screen name="admin-teams" options={hiddenTab} />
+  <Tabs.Screen name="admin-users" options={hiddenTab} />
+  <Tabs.Screen name="admin-user-detail" options={hiddenTab} />
+  <Tabs.Screen name="ad-calendar" options={hiddenTab} />
+  <Tabs.Screen name="edit-ad" options={hiddenTab} />
+  <Tabs.Screen name="game-detail" options={hiddenTab} />
+  <Tabs.Screen name="game-photos" options={hiddenTab} />
+  <Tabs.Screen name="game-highlights" options={hiddenTab} />
+  <Tabs.Screen name="game-reviews" options={hiddenTab} />
+  <Tabs.Screen name="my-ads" options={hiddenTab} />
+  <Tabs.Screen name="submit-ad" options={hiddenTab} />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
           title: 'Profile',
+          tabBarButton: HapticTab,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.crop.circle" color={color} />,
         }}
       />
     </Tabs>
   );
 }
+
+
+

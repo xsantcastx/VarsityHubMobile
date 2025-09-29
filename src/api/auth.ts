@@ -40,7 +40,22 @@ export const auth = {
   },
   async me() {
     await loadToken();
-    return httpGet('/me');
+    const options = {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'If-None-Match': '',
+      },
+    };
+    try {
+      return await httpGet('/me', options);
+    } catch (e: any) {
+      // Only clear session on explicit unauthenticated (401).
+      if (e && e.status === 401) {
+        try { await auth.logout(); } catch {}
+      }
+      throw e;
+    }
   },
   async logout() {
     clearAuthToken();
@@ -57,7 +72,14 @@ export const auth = {
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
   },
+  async requestPasswordReset(email: string) {
+    return httpPost('/auth/password/forgot', { email });
+  },
+  async resetPassword(email: string, code: string, password: string) {
+    return httpPost('/auth/password/reset', { email, code, password });
+  },
   getToken: loadToken,
 };
 
 export default auth;
+
