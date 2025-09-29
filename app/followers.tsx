@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function FollowersScreen() {
@@ -53,8 +53,13 @@ export default function FollowersScreen() {
 
   const renderUser = ({ item }: { item: any }) => (
     <View style={styles.userRow}>
-      <Avatar uri={item.avatar_url} />
-      <Text style={styles.userName}>{item.display_name}</Text>
+      <Pressable 
+        style={styles.userInfo}
+        onPress={() => router.push(`/user-profile?id=${item.id}`)}
+      >
+        <Avatar uri={item.avatar_url} />
+        <Text style={styles.userName}>{item.display_name}</Text>
+      </Pressable>
       <Button
         variant={item.is_following ? 'outline' : 'default'}
         onPress={() => handleFollow(item.id, item.is_following)}
@@ -98,6 +103,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    gap: 12,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     gap: 12,
   },
   userName: { flex: 1, fontWeight: '600' },

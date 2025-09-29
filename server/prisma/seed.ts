@@ -45,23 +45,74 @@ async function main() {
 
   // --- Posts (now require author) ---
   const postsCreated: Array<{ id: string; created_at: Date }> = [];
-  for (let i = 0; i < 10; i++) {
+  
+  // Sports content categories
+  const sportsContent = [
+    { title: 'INSANE Basketball Dunk! 🏀', content: 'Just witnessed the most incredible slam dunk at tonight\'s game. Player cleared the defender by 3 feet!', media: 'https://picsum.photos/seed/dunk1/640/360', upvotes: 45 },
+    { title: 'TOUCHDOWN! Game Winner! 🏈', content: 'Last second touchdown pass wins the championship! What a throw under pressure!', media: 'https://picsum.photos/seed/football1/640/360', upvotes: 78 },
+    { title: 'Soccer Goal from Half Field! ⚽', content: 'Unbelievable goal scored from the center line. Keeper had no chance!', media: 'https://picsum.photos/seed/soccer1/640/360', upvotes: 32 },
+    { title: 'Triple Play Baseball Highlight ⚾', content: 'Rare triple play executed perfectly! Runner caught stealing, double play at second and first.', media: 'https://picsum.photos/seed/baseball1/640/360', upvotes: 28 },
+    { title: 'Hockey Hat Trick! 🏒', content: 'Three goals in the third period to complete the comeback win!', media: 'https://picsum.photos/seed/hockey1/640/360', upvotes: 41 },
+    { title: 'Tennis Match Point Winner 🎾', content: 'Championship point won with an ace down the line. What a serve!', media: 'https://picsum.photos/seed/tennis1/640/360', upvotes: 19 },
+    { title: 'Volleyball Spike Compilation 🏐', content: 'Best spikes from this weekend\'s tournament. The power is unreal!', media: 'https://picsum.photos/seed/volleyball1/640/360', upvotes: 25 },
+    { title: 'Swimming Record Broken! 🏊‍♂️', content: 'New school record in the 100m freestyle! Sub-50 seconds for the first time!', upvotes: 33 },
+    { title: 'Track & Field Long Jump 🏃‍♀️', content: 'Personal best jump of 6.2 meters! Regional qualification secured!', media: 'https://picsum.photos/seed/track1/640/360', upvotes: 29 },
+    { title: 'Wrestling Pin in 30 Seconds! 🤼‍♂️', content: 'Fastest pin of the season! Technical takedown to immediate pin.', media: 'https://picsum.photos/seed/wrestling1/640/360', upvotes: 37 },
+    { title: 'Cross Country Victory! 🏃‍♂️', content: 'Team takes first place in the regional championship. All runners in top 15!', upvotes: 22 },
+    { title: 'Gymnastics Perfect 10! 🤸‍♀️', content: 'Flawless floor routine earns a perfect score! State championship here we come!', media: 'https://picsum.photos/seed/gymnastics1/640/360', upvotes: 44 },
+    { title: 'Golf Hole-in-One! ⛳', content: 'Ace on the 16th hole! 150-yard shot with a 7-iron straight into the cup!', upvotes: 31 },
+    { title: 'Lacrosse Goal of the Year! 🥍', content: 'Behind-the-back shot while falling down. Pure skill and luck combined!', media: 'https://picsum.photos/seed/lacrosse1/640/360', upvotes: 26 },
+    { title: 'Cheerleading Pyramid! 📣', content: 'Three-tier pyramid executed flawlessly at halftime. Great team spirit!', media: 'https://picsum.photos/seed/cheer1/640/360', upvotes: 18 },
+    { title: 'Debate Team Wins State! 🎤', content: 'Our debate team takes the state championship! Incredible arguments and rebuttals.', upvotes: 15 },
+    { title: 'Quiz Bowl Victory! 🧠', content: 'Academic team wins the regional quiz bowl. Final question was about physics!', upvotes: 14 },
+    { title: 'Band Halftime Show! 🎺', content: 'Marching band delivers amazing halftime performance. Standing ovation!', media: 'https://picsum.photos/seed/band1/640/360', upvotes: 27 },
+    { title: 'Drama Club Performance! 🎭', content: 'Spring musical was absolutely fantastic! Sold out all three nights.', upvotes: 21 },
+    { title: 'Science Fair Winner! 🔬', content: 'Chemistry project on renewable energy wins first place at regionals!', upvotes: 16 }
+  ];
+
+  for (let i = 0; i < sportsContent.length; i++) {
+    const content = sportsContent[i];
+    const authorId = [u1.id, u2.id, u3.id][i % 3];
+    
+    // Create posts with varied creation times for better trending
+    const createdAt = new Date();
+    createdAt.setHours(createdAt.getHours() - Math.random() * 72); // Within last 3 days
+    
     const post = await prisma.post.create({
       data: {
-        title: `Post ${i + 1}`,
-        content: `Sample content ${i + 1}`,
-        type: i % 2 ? 'update' : 'post',
-        media_url: null,
-        upvotes_count: Math.floor(Math.random() * 10),
-
-        // REQUIRED: link to an author
-        author_id: i % 2 === 0 ? u1.id : u2.id,
-
-        // Optional: link some posts to games
-        game_id: gameIds[i % gameIds.length],
+        title: content.title,
+        content: content.content,
+        type: content.media ? 'highlight' : 'update',
+        media_url: content.media || null,
+        upvotes_count: content.upvotes,
+        author_id: authorId,
+        game_id: i < gameIds.length ? gameIds[i % gameIds.length] : null,
+        country_code: 'US',
+        lat: 40.7128 + (Math.random() - 0.5) * 0.1, // NYC area with variation
+        lng: -74.0060 + (Math.random() - 0.5) * 0.1,
+        created_at: createdAt,
       },
     });
     postsCreated.push(post);
+  }
+  
+  // Add some comments to popular posts
+  const topPosts = postsCreated.filter(p => p.id).slice(0, 5);
+  for (const post of topPosts) {
+    for (let j = 0; j < Math.floor(Math.random() * 8) + 2; j++) {
+      await prisma.comment.create({
+        data: {
+          content: [
+            'Amazing play!', 'Incredible skill!', 'Best I\'ve ever seen!', 
+            'How did they do that?', 'Unreal!', 'Championship material!',
+            'This deserves more views!', 'Sharing this everywhere!',
+            'Coach must be proud!', 'Natural talent right there!'
+          ][j % 10],
+          post_id: post.id,
+          author_id: [u1.id, u2.id, u3.id][j % 3],
+        }
+      });
+    }
   }
 
   // --- Categories and plays ---

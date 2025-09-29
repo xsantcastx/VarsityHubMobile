@@ -2,18 +2,18 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, { 
-  useAnimatedGestureHandler, 
-  useAnimatedStyle, 
-  useSharedValue, 
-  withSpring, 
-  runOnJS,
-  interpolate 
+import Animated, {
+    runOnJS,
+    useAnimatedGestureHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring
 } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { Input } from '@/components/ui/input';
+import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { pickerMediaTypeFor } from '@/utils/picker';
@@ -195,7 +195,7 @@ export default function CreatePostScreen() {
     : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Header */}
@@ -203,18 +203,22 @@ export default function CreatePostScreen() {
         <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color="#111827" />
         </Pressable>
-        <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+        <View style={styles.headerSpacer} />
+        <View style={styles.postButtonContainer}>
+          <PrimaryButton label={buttonLabel} onPress={onSubmit} disabled={!canPost || submitting} loading={submitting} />
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
         {/* Composer Section */}
         <View style={styles.composerSection}>
-          <Input
+          <MentionInput
             value={content}
             onChangeText={setContent}
             placeholder="Respect for every player on the field."
             multiline
             style={styles.textarea}
+            maxLength={500}
           />
           <Text style={styles.helper}>Use # to tag teams and @ to mention players</Text>
         </View>
@@ -291,26 +295,33 @@ export default function CreatePostScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    padding: 16, 
     backgroundColor: '#FFFFFF' 
   },
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    justifyContent: 'space-between', 
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 20 
   },
   iconBtn: { 
     padding: 8, 
     borderRadius: 999, 
     backgroundColor: 'transparent' 
+  },
+  headerSpacer: {
+    flex: 1
+  },
+  postButtonContainer: {
+    minWidth: 80,
+    alignItems: 'flex-end'
   },
   
   // Composer Section

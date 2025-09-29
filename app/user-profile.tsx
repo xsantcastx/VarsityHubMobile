@@ -27,15 +27,18 @@ export default function UserProfileScreen() {
 
   const load = useCallback(async () => {
     if (!params.id) { setError('No user id'); setLoading(false); return; }
+    console.log('Loading user profile for id:', params.id);
     setLoading(true); setError(null);
     try {
       // Fetch current user and the public profile for target id
       try { const current = await User.me(); setMe(current); } catch {}
       const u = await User.getPublic(String(params.id));
+      console.log('Loaded user profile:', u);
       setUser(u);
       const page = await User.postsForProfile(String(params.id), { limit: 10, sort: 'newest' });
       setPosts(page.items || []);
     } catch (e: any) {
+      console.error('Error loading user profile:', e);
       setError(e?.message || 'Failed to load user');
     } finally { setLoading(false); }
   }, [params.id]);
