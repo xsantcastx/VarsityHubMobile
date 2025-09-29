@@ -411,6 +411,63 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
   res.json({ items: users, nextCursor });
 });
 
+// Search users for mentions/tagging
+usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedRequest, res) => {
+  const currentUserId = req.user!.id;
+  const query = String((req.query as any).q || '').trim().toLowerCase();
+  const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
+
+  if (!query) {
+    return res.json({ users: [] });
+  }
+
+  // Search users I'm following or who follow me, plus exact username matches
+  const users = await prisma.user.findMany({
+    where: {
+      AND: [
+        { banned: false },
+        {
+          OR: [
+            // Users I follow
+            {
+              id: {
+                in: await prisma.follows.findMany({
+                  where: { follower_id: currentUserId },
+                  select: { following_id: true }
+                }).then(follows => follows.map(f => f.following_id))
+              }
+            },
+            // Users who follow me
+            {
+              id: {
+                in: await prisma.follows.findMany({
+                  where: { following_id: currentUserId },
+                  select: { follower_id: true }
+                }).then(follows => follows.map(f => f.follower_id))
+              }
+            },
+            // Exact username matches (for discoverability)
+            { display_name: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        // Match query in display name
+        { display_name: { contains: query, mode: 'insensitive' } }
+      ]
+    },
+    select: {
+      id: true,
+      display_name: true,
+      avatar_url: true,
+    },
+    take: limit,
+    orderBy: [
+      { display_name: 'asc' }
+    ]
+  });
+
+  res.json({ users });
+});
+
 // Public profile: basic user info plus counts and is_following flag
 // NOTE: Keep this AFTER more specific routes like /:id/full, /:id/posts, etc.,
 // so it doesn't shadow them.

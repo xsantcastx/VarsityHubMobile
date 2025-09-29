@@ -227,11 +227,48 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   res.status(201).json({ ...post, location: { lat, lng, place_name, country_code } });
 });
 
-postsRouter.get('/:id', async (req, res) => {
+postsRouter.get('/:id', async (req: AuthedRequest, res) => {
   const { id } = req.params;
-  const post = await prisma.post.findUnique({ where: { id }, include: { _count: { select: { comments: true } } } });
+  const currentUserId = req.user?.id ?? null;
+
+  const post = await prisma.post.findUnique({ 
+    where: { id }, 
+    include: { 
+      author: { select: { id: true, display_name: true, avatar_url: true } },
+      _count: { select: { comments: true, bookmarks: true } } 
+    } 
+  });
+  
   if (!post) return res.status(404).json({ error: 'Not found' });
-  res.json(post);
+
+  let has_upvoted = false;
+  let has_bookmarked = false;
+  let is_following_author = false;
+
+  if (currentUserId && post) {
+    const [upvotes, bookmarks, follows] = await Promise.all([
+      prisma.postUpvote.findUnique({ where: { post_id_user_id: { post_id: id, user_id: currentUserId } } }),
+      prisma.postBookmark.findUnique({ where: { post_id_user_id: { post_id: id, user_id: currentUserId } } }),
+      post.author_id ? prisma.follows.findUnique({ where: { follower_id_following_id: { follower_id: currentUserId, following_id: post.author_id } } }) : null,
+    ]);
+    
+    has_upvoted = !!upvotes;
+    has_bookmarked = !!bookmarks;
+    is_following_author = !!follows;
+  }
+
+  const response = {
+    ...post,
+    has_upvoted,
+    has_bookmarked,
+    is_following_author,
+    media_type: detectMediaType(post.media_url),
+    caption: post.content ?? null,
+    bookmarks_count: post._count?.bookmarks ?? 0,
+    comments_count: post._count?.comments ?? 0,
+  };
+
+  res.json(response);
 });
 
 // Comments
@@ -263,7 +300,14 @@ postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
   const schema = z.object({ content: z.string().min(1).max(1000) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const comment = await prisma.comment.create({ data: { post_id: id, author_id: req.user.id, content: parsed.data.content } });
+  
+  const comment = await prisma.comment.create({ 
+    data: { post_id: id, author_id: req.user.id, content: parsed.data.content },
+    include: {
+      author: { select: { id: true, display_name: true, avatar_url: true } }
+    }
+  });
+  
   // Notify post author (if not self)
   try {
     const post = await prisma.post.findUnique({ where: { id }, select: { author_id: true } });

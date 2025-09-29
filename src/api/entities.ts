@@ -28,7 +28,7 @@ export const User = {
   followers: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
   following: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
   follow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow`, {}),
-  unfollow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow?_method=DELETE`, {}),
+  unfollow: (id: string) => httpDelete(`/users/${encodeURIComponent(id)}/follow`),
   postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
     const q: string[] = [];
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
@@ -51,6 +51,8 @@ export const User = {
   resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
   // Public profile fetch
   getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
+  // Search users for mentions
+  searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
 };
 
 export const Game = {

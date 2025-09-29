@@ -2,43 +2,49 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
     FlatList,
-    Modal,
+    Platform,
     Pressable,
     RefreshControl,
+    SafeAreaView,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     View,
 } from 'react-native';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 // @ts-ignore legacy export shape
 import { Highlights, User } from '@/api/entities';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const FEATURE_HEIGHT = SCREEN_WIDTH * 0.62;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH - 32; // Single column with margins
+const CARD_HEIGHT = 220; // Larger cards for sports app feel
 
 type HighlightItem = {
   id: string;
   title?: string | null;
   caption?: string | null;
+  content?: string | null;
   media_url?: string | null;
   upvotes_count?: number | null;
   created_at?: string | null;
-  game_id?: string | null;
-  author?: { display_name?: string | null; avatar_url?: string | null } | null;
+  author?: { 
+    id?: string;
+    display_name?: string | null; 
+    avatar_url?: string | null;
+  } | null;
   _count?: { comments?: number | null } | null;
+  lat?: number | null;
+  lng?: number | null;
+  country_code?: string | null;
+  _score?: number;
 };
 
-type HighlightBuckets = {
-  nationalTop?: HighlightItem[];
-  ranked?: HighlightItem[];
-};
+type TabType = 'trending' | 'recent' | 'top';
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
@@ -48,12 +54,16 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     id: String(idValue),
     title: input.title ?? input.caption ?? null,
     caption: input.caption ?? null,
+    content: input.content ?? null,
     media_url: typeof input.media_url === 'string' ? input.media_url : null,
     upvotes_count: typeof input.upvotes_count === 'number' ? input.upvotes_count : null,
     created_at: typeof input.created_at === 'string' ? input.created_at : null,
-    game_id: input.game_id ? String(input.game_id) : null,
     author: input.author ?? null,
     _count: input._count ?? null,
+    lat: typeof input.lat === 'number' ? input.lat : null,
+    lng: typeof input.lng === 'number' ? input.lng : null,
+    country_code: typeof input.country_code === 'string' ? input.country_code : null,
+    _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
 
@@ -62,87 +72,140 @@ const timeAgo = (value?: string | Date | null) => {
   const ts = typeof value === 'string' ? new Date(value).getTime() : new Date(value).getTime();
   const diff = Math.max(0, Date.now() - ts) / 1000;
   const days = Math.floor(diff / 86400);
-  if (days >= 30) return 'about 1 month ago';
-  if (days >= 7) return `${Math.floor(days / 7)} weeks ago`;
-  if (days >= 1) return `${days} days ago`;
+  if (days >= 30) return '1 month ago';
+  if (days >= 7) return `${Math.floor(days / 7)}w ago`;
+  if (days >= 1) return `${days}d ago`;
   const hours = Math.floor(diff / 3600);
-  if (hours >= 1) return `${hours} hours ago`;
+  if (hours >= 1) return `${hours}h ago`;
   const minutes = Math.floor(diff / 60);
-  if (minutes >= 1) return `${minutes} minutes ago`;
-  return 'just now';
+  if (minutes >= 1) return `${minutes}m ago`;
+  return 'now';
 };
 
 const formatCount = (value?: number | null) => {
   if (!value) return '0';
   if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
   return String(value);
 };
 
-const StatChip = ({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) => (
-  <View style={styles.statChip}>
-    <Ionicons name={icon} size={16} color="#2563EB" />
-    <View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  </View>
-);
+const getCountryFlag = (countryCode?: string | null) => {
+  const flags: { [key: string]: string } = {
+    'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
+    'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'BR': '🇧🇷', 'MX': '🇲🇽',
+  };
+  return flags[countryCode || ''] || '🌍';
+};
 
-const HighlightThumbnail = ({ item, onPress }: { item: HighlightItem; onPress: (item: HighlightItem) => void }) => (
-  <Pressable style={styles.horizontalCard} onPress={() => onPress(item)} disabled={!item.game_id}>
-    <View style={styles.horizontalMediaWrapper}>
-      {item.media_url ? (
-        <Image source={{ uri: item.media_url }} style={styles.horizontalMedia} contentFit="cover" />
-      ) : (
-        <LinearGradient colors={['#1f2937', '#0f172a']} style={styles.horizontalMedia} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      )}
-      <LinearGradient colors={['rgba(15,23,42,0)', 'rgba(15,23,42,0.75)']} style={styles.horizontalOverlay} />
-      <Text style={styles.horizontalTitle} numberOfLines={2}>{item.title || 'Highlight'}</Text>
-    </View>
-    <View style={styles.horizontalMetaRow}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Ionicons name="arrow-up" size={14} color="#2563EB" />
-        <Text style={styles.horizontalMeta}>{formatCount(item.upvotes_count || 0)}</Text>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Ionicons name="chatbubble-ellipses" size={14} color="#6b7280" />
-        <Text style={styles.horizontalMeta}>{formatCount(item._count?.comments || 0)}</Text>
-      </View>
-    </View>
-  </Pressable>
-);
+const getSportCategory = (title?: string | null, content?: string | null) => {
+  const text = (title + ' ' + content || '').toLowerCase();
+  if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+  if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+  if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+  if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+  if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+  if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+  return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
+};
 
-const VerticalHighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item: HighlightItem) => void }) => (
-  <Pressable style={[styles.verticalCard, !item.game_id && styles.cardDisabled]} onPress={() => onPress(item)} disabled={!item.game_id}>
-    <View style={styles.verticalHeader}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{String(item.author?.display_name || 'A').charAt(0).toUpperCase()}</Text>
+const HighlightCard = ({ item, onPress }: { item: HighlightItem; onPress: (item: HighlightItem) => void }) => {
+  const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
+  const category = getSportCategory(item.title, item.content);
+  const hasMedia = !!item.media_url;
+  
+  return (
+    <Pressable style={styles.card} onPress={() => onPress(item)}>
+      <View style={styles.cardContainer}>
+        {/* Media Section */}
+        <View style={styles.mediaSection}>
+          {hasMedia ? (
+            <View style={styles.mediaContainer}>
+              <Image source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              {isVideo && (
+                <View style={styles.videoOverlay}>
+                  <View style={styles.playButton}>
+                    <Ionicons name="play" size={24} color="#fff" />
+                  </View>
+                </View>
+              )}
+              {/* Live badge for recent posts */}
+              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveText}>LIVE</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <LinearGradient 
+              colors={[category.color + '80', category.color + '40']} 
+              style={styles.mediaContainer}
+            >
+              <View style={styles.noMediaContent}>
+                <Text style={styles.categoryIcon}>{category.icon}</Text>
+                <Text style={styles.noMediaText}>Text Post</Text>
+              </View>
+            </LinearGradient>
+          )}
+        </View>
+
+        {/* Content Section */}
+        <View style={styles.contentSection}>
+          {/* Header */}
+          <View style={styles.cardHeader}>
+            <View style={[styles.categoryBadge, { backgroundColor: category.color }]}>
+              <Text style={styles.categoryText}>{category.name}</Text>
+            </View>
+            <Text style={styles.countryFlag}>{getCountryFlag(item.country_code)}</Text>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.title || item.caption || item.content || 'Sports Update'}
+          </Text>
+
+          {/* Author & Time */}
+          <View style={styles.authorRow}>
+            <View style={styles.authorInfo}>
+              {item.author?.avatar_url ? (
+                <Image source={{ uri: item.author.avatar_url }} style={styles.authorAvatar} />
+              ) : (
+                <View style={[styles.authorAvatar, styles.defaultAvatar]}>
+                  <Ionicons name="person" size={12} color="#fff" />
+                </View>
+              )}
+              <Text style={styles.authorName} numberOfLines={1}>
+                {item.author?.display_name || 'Anonymous'}
+              </Text>
+            </View>
+            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
+          </View>
+
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Ionicons name="arrow-up" size={16} color="#2563EB" />
+              <Text style={styles.statText}>{formatCount(item.upvotes_count || 0)}</Text>
+            </View>
+            <View style={styles.stat}>
+              <Ionicons name="chatbubble-outline" size={16} color="#6B7280" />
+              <Text style={styles.statText}>{formatCount(item._count?.comments || 0)}</Text>
+            </View>
+            {item._score && (
+              <View style={styles.stat}>
+                <Ionicons name="trending-up" size={16} color="#10B981" />
+                <Text style={styles.statText}>{Math.round(item._score)}</Text>
+              </View>
+            )}
+          </View>
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.author}>{item.author?.display_name || 'Anonymous'}</Text>
-        <Text style={styles.meta}>{timeAgo(item.created_at)}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-    </View>
-    {item.title ? <Text style={styles.verticalTitle}>{item.title}</Text> : null}
-    <View style={styles.verticalMediaWrapper}>
-      {item.media_url ? (
-        <Image source={{ uri: item.media_url }} style={styles.verticalMedia} contentFit="cover" />
-      ) : (
-        <LinearGradient colors={['#1f2937', '#0f172a']} style={styles.verticalMedia} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      )}
-      <LinearGradient colors={['rgba(15,23,42,0)', 'rgba(15,23,42,0.85)']} style={styles.verticalMediaOverlay} />
-    </View>
-    <View style={styles.verticalFooterRow}>
-      <View style={styles.metaRow}>
-        <Ionicons name="arrow-up" size={14} color="#2563EB" />
-        <Text style={styles.meta}> {formatCount(item.upvotes_count || 0)}</Text>
-        <Ionicons name="chatbubble-ellipses" size={14} color="#6B7280" style={{ marginLeft: 12 }} />
-        <Text style={styles.meta}> {formatCount(item._count?.comments || 0)}</Text>
-      </View>
-      <Ionicons name="bookmark-outline" size={18} color="#111827" />
-    </View>
+    </Pressable>
+  );
+};
+
+const TabButton = ({ title, active, onPress }: { title: string; active: boolean; onPress: () => void }) => (
+  <Pressable style={[styles.tabButton, active && styles.activeTab]} onPress={onPress}>
+    <Text style={[styles.tabText, active && styles.activeTabText]}>{title}</Text>
   </Pressable>
 );
 
@@ -151,11 +214,8 @@ export default function HighlightsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [national, setNational] = useState<HighlightItem[]>([]);
-  const [ranked, setRanked] = useState<HighlightItem[]>([]);
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const [viewerIndex, setViewerIndex] = useState(0);
+  const [highlights, setHighlights] = useState<HighlightItem[]>([]);
+  const [activeTab, setActiveTab] = useState<TabType>('trending');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,20 +223,37 @@ export default function HighlightsScreen() {
     try {
       const me: any = await User.me().catch(() => null);
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
-      const payload: HighlightBuckets = await Highlights.fetch({ country, limit: 40 });
-      const mappedNational = Array.isArray(payload?.nationalTop)
-        ? payload.nationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]
-        : [];
-      const mappedRanked = Array.isArray(payload?.ranked)
-        ? payload.ranked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]
-        : [];
-      setNational(mappedNational);
-      setRanked(mappedRanked);
+      const lat = me?.lat;
+      const lng = me?.lng;
+      
+      // Request better data with more posts
+      const payload = await Highlights.fetch({ 
+        country, 
+        limit: 50,
+        lat,
+        lng
+      });
+      
+      // Merge all highlights from different buckets
+      const allHighlights = [
+        ...(Array.isArray(payload?.nationalTop) ? payload.nationalTop : []),
+        ...(Array.isArray(payload?.ranked) ? payload.ranked : [])
+      ];
+      
+      const mapped = allHighlights
+        .map(mapHighlightItem)
+        .filter(Boolean) as HighlightItem[];
+      
+      // Remove duplicates by ID
+      const uniqueHighlights = Array.from(
+        new Map(mapped.map(item => [item.id, item])).values()
+      );
+      
+      setHighlights(uniqueHighlights);
     } catch (e: any) {
       console.error('Highlights load failed', e);
       setError('Unable to load highlights.');
-      setNational([]);
-      setRanked([]);
+      setHighlights([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,340 +270,413 @@ export default function HighlightsScreen() {
   }, [load]);
 
   const handleHighlightPress = useCallback((item: HighlightItem) => {
-    if (!item?.game_id) return;
-    router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.game_id) } });
+    // Navigate to post detail screen
+    router.push(`/post-detail?id=${item.id}`);
   }, [router]);
 
-  const mapToFeedPost = (input: HighlightItem | null): FeedPost | null => {
-    if (!input) return null;
-    const id = String(input.id);
-    const media_url = typeof input.media_url === 'string' ? input.media_url : null;
-    if (!media_url) return null;
-    const isVideo = /\.(mp4|mov|webm|m4v|avi)$/i.test(media_url);
-    return {
-      id,
-      media_url,
-      media_type: isVideo ? 'video' : 'image',
-      caption: input.caption || input.title || '',
-      upvotes_count: input.upvotes_count || 0,
-      comments_count: input._count?.comments || 0,
-      bookmarks_count: 0,
-      created_at: input.created_at || null,
-      author: input.author ? { id, display_name: input.author.display_name || null, avatar_url: input.author.avatar_url || null } : null,
-      has_upvoted: false,
-      has_bookmarked: false,
-      is_following_author: false,
-    };
-  };
-
-  const openViewerForAll = useCallback(() => {
-    const merged = [...national, ...ranked];
-    const items = merged.map(mapToFeedPost).filter(Boolean) as FeedPost[];
-    if (!items.length) return;
-    setViewerItems(items);
-    setViewerIndex(0);
-    setViewerVisible(true);
-  }, [national, ranked]);
-
-  const featuredHighlight = useMemo(() => {
-    if (national.length) return national[0];
-    if (ranked.length) return ranked[0];
-    return null;
-  }, [national, ranked]);
-
-  const secondaryNational = useMemo(() => (
-    national.length > 1 ? national.slice(1) : []
-  ), [national]);
-
-  const stats = useMemo(() => {
-    const merged = [...national, ...ranked];
-    if (!merged.length) {
-      return {
-        totalHighlights: 0,
-        totalUpvotes: 0,
-        totalComments: 0,
-        uniqueGames: 0,
-      };
+  const getFilteredHighlights = useCallback(() => {
+    let filtered = [...highlights];
+    
+    switch (activeTab) {
+      case 'trending':
+        // Sort by score (if available) or upvotes + recency
+        filtered.sort((a, b) => {
+          if (a._score && b._score) return b._score - a._score;
+          const aScore = (a.upvotes_count || 0) + (new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 10 : 0);
+          const bScore = (b.upvotes_count || 0) + (new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 10 : 0);
+          return bScore - aScore;
+        });
+        break;
+      case 'recent':
+        // Sort by creation time
+        filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        break;
+      case 'top':
+        // Sort by upvotes only
+        filtered.sort((a, b) => (b.upvotes_count || 0) - (a.upvotes_count || 0));
+        break;
     }
-    const totalHighlights = merged.length;
-    const totalUpvotes = merged.reduce((sum, item) => sum + (item.upvotes_count || 0), 0);
-    const totalComments = merged.reduce((sum, item) => sum + (item._count?.comments || 0), 0);
-    const uniqueGames = new Set(merged.map((item) => item.game_id || item.id)).size;
-    return { totalHighlights, totalUpvotes, totalComments, uniqueGames };
-  }, [national, ranked]);
+    
+    return filtered;
+  }, [highlights, activeTab]);
+
+  const renderHighlight = ({ item }: { item: HighlightItem }) => (
+    <HighlightCard item={item} onPress={handleHighlightPress} />
+  );
+
+  const statusBarHeight = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+        <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={styles.loadingText}>Loading sports highlights...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+        <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#DC2626" />
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={load}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const filteredHighlights = getFilteredHighlights();
 
   return (
-    <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Highlights' }} />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
-      >
-        <Text style={styles.header}>Highlights</Text>
-        <Text style={styles.sub}>The most upvoted moments from across the nation.</Text>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {loading ? (
-          <View style={[styles.center, { minHeight: 240 }]}>
-            <ActivityIndicator color="#2563EB" />
+    <SafeAreaView style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+      
+      {/* Custom Header */}
+      <View style={[styles.header, { paddingTop: statusBarHeight }]}>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Sports Central</Text>
+          <View style={styles.headerStats}>
+            <Ionicons name="trophy" size={16} color="#FFB800" />
+            <Text style={styles.headerStatsText}>{filteredHighlights.length} highlights</Text>
           </View>
-        ) : null}
-
-        {!loading && featuredHighlight ? (
-          <Pressable
-            style={styles.featuredCard}
-            onPress={() => handleHighlightPress(featuredHighlight)}
-            disabled={!featuredHighlight.game_id}
-          >
-            {featuredHighlight.media_url ? (
-              <Image source={{ uri: featuredHighlight.media_url }} style={styles.featuredMedia} contentFit="cover" />
-            ) : (
-              <LinearGradient colors={['#0f172a', '#0b1120']} style={styles.featuredMedia} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-            )}
-            <LinearGradient colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']} style={styles.featuredOverlay} />
-            <View style={styles.featuredContent}>
-              <View style={styles.featuredBadge}>
-                <Ionicons name="flame" size={18} color="#fff" />
-                <Text style={styles.featuredBadgeText}>TOP PLAY</Text>
-              </View>
-              <Text style={styles.featuredTitle} numberOfLines={2}>{featuredHighlight.title || 'Highlight'}</Text>
-              <View style={styles.featuredMetaRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="arrow-up" size={16} color="#fff" />
-                  <Text style={styles.featuredMeta}>{formatCount(featuredHighlight.upvotes_count || 0)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="chatbubble-ellipses" size={16} color="#fff" />
-                  <Text style={styles.featuredMeta}>{formatCount(featuredHighlight._count?.comments || 0)}</Text>
-                </View>
-                <Text style={styles.featuredMeta}>{timeAgo(featuredHighlight.created_at)}</Text>
-              </View>
-            </View>
-          </Pressable>
-        ) : null}
-
-        {!loading && (national.length || ranked.length) ? (
-          <View style={styles.statsRow}>
-            <StatChip icon="sparkles" label="Highlights" value={formatCount(stats.totalHighlights)} />
-            <StatChip icon="arrow-up" label="Total Upvotes" value={formatCount(stats.totalUpvotes)} />
-            <StatChip icon="chatbubble" label="Comments" value={formatCount(stats.totalComments)} />
-            <StatChip icon="trophy" label="Games Featured" value={formatCount(stats.uniqueGames)} />
-          </View>
-        ) : null}
-
-        {/* Reel-like opener for the vertical viewer */}
-        {!loading && (national.length || ranked.length) ? (
-          <Pressable style={styles.reelCard} onPress={openViewerForAll}>
-            {featuredHighlight?.media_url ? (
-              <Image source={{ uri: featuredHighlight.media_url }} style={styles.reelCardBg} contentFit="cover" />
-            ) : (
-              <LinearGradient colors={['#0f172a', '#0b1120']} style={styles.reelCardBg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-            )}
-            <View style={styles.reelCardContent}>
-              <View style={styles.reelBadge}><Ionicons name="flash" size={22} color="#fff" /></View>
-              <Text style={styles.reelTitle}>Watch Highlights</Text>
-              <Text style={styles.reelSub}>Tap to view all in a vertical reel</Text>
-            </View>
-            {/* Tiny overlay with aggregated like/comment totals */}
-            <View style={styles.reelCountsRow}>
-              <View style={styles.reelCountPill}>
-                <Ionicons name="arrow-up" size={14} color="#fff" />
-                <Text style={styles.reelCountText}>{formatCount(stats.totalUpvotes)}</Text>
-              </View>
-              <View style={[styles.reelCountPill, { marginLeft: 8 }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={14} color="#fff" />
-                <Text style={styles.reelCountText}>{formatCount(stats.totalComments)}</Text>
-              </View>
-            </View>
-          </Pressable>
-        ) : null}
-
-        {/* National Top (secondary) */}
-        {secondaryNational.length ? (
-          <View style={{ marginTop: 24 }}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>National Top</Text>
-              <View style={styles.sectionDivider} />
-            </View>
-            <FlatList
-              horizontal
-              data={secondaryNational}
-              contentContainerStyle={{ paddingVertical: 6, paddingRight: 24 }}
-              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-              renderItem={({ item }) => (
-                <HighlightThumbnail item={item} onPress={handleHighlightPress} />
-              )}
-              keyExtractor={(item) => item.id}
-              showsHorizontalScrollIndicator={false}
-            />
-          </View>
-        ) : null}
-
-        {/* Ranked near you */}
-        {ranked.length ? (
-          <View style={{ marginTop: 32 }}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Trending Near You</Text>
-              <View style={styles.sectionDivider} />
-            </View>
-            {ranked.map((item) => (
-              <VerticalHighlightCard key={item.id} item={item} onPress={handleHighlightPress} />
-            ))}
-          </View>
-        ) : null}
-      </ScrollView>
-
-      {/* Vertical viewer modal */}
-      <Modal visible={viewerVisible} animationType="slide" onRequestClose={() => setViewerVisible(false)}>
-        <View style={styles.verticalFeedModal}>
-          {viewerVisible ? (
-            <GameVerticalFeedScreen
-              onClose={() => setViewerVisible(false)}
-              showHeader
-              initialPosts={viewerItems}
-              startIndex={viewerIndex}
-              title="Highlights"
-            />
-          ) : null}
         </View>
-      </Modal>
-    </View>
+        
+        {/* Tabs */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.tabsContainer}
+          contentContainerStyle={styles.tabsContent}
+        >
+          <TabButton 
+            title="🔥 Trending" 
+            active={activeTab === 'trending'} 
+            onPress={() => setActiveTab('trending')} 
+          />
+          <TabButton 
+            title="🕐 Recent" 
+            active={activeTab === 'recent'} 
+            onPress={() => setActiveTab('recent')} 
+          />
+          <TabButton 
+            title="👑 Top" 
+            active={activeTab === 'top'} 
+            onPress={() => setActiveTab('top')} 
+          />
+        </ScrollView>
+      </View>
+
+      {filteredHighlights.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="trophy-outline" size={64} color="#9CA3AF" />
+          <Text style={styles.emptyText}>No highlights available</Text>
+          <Text style={styles.emptySubtext}>Check back later for amazing sports moments</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredHighlights}
+          renderItem={renderHighlight}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              tintColor="#2563EB"
+              colors={['#2563EB']}
+            />
+          }
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: 16, paddingBottom: 48 },
-  header: { fontSize: 34, fontWeight: '800', marginBottom: 4, color: '#0f172a' },
-  sub: { color: '#64748b', marginBottom: 16, fontSize: 16 },
-  center: { paddingVertical: 24, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#b91c1c', marginBottom: 12 },
-  featuredCard: {
-    position: 'relative',
-    borderRadius: 20,
-    overflow: 'hidden',
-    height: FEATURE_HEIGHT,
-    marginBottom: 20,
-    backgroundColor: '#0f172a',
+  screen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
-  featuredMedia: { ...StyleSheet.absoluteFillObject },
-  featuredOverlay: { ...StyleSheet.absoluteFillObject },
-  featuredContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 10 },
-  featuredBadge: {
-    alignSelf: 'flex-start',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#DC2626',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  retryButton: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  header: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 8,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  headerStats: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: 'rgba(37,99,235,0.85)',
+    borderRadius: 16,
   },
-  featuredBadgeText: { color: '#fff', fontWeight: '700', fontSize: 12, letterSpacing: 1 },
-  featuredTitle: { color: '#fff', fontSize: 24, fontWeight: '800', lineHeight: 30 },
-  featuredMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  featuredMeta: { color: '#e2e8f0', fontWeight: '600' },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
-  statChip: {
+  headerStatsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  tabsContainer: {
+    paddingHorizontal: 16,
+  },
+  tabsContent: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  tabButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+  },
+  activeTab: {
+    backgroundColor: '#2563EB',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  activeTabText: {
+    color: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  list: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  cardContainer: {
+    flexDirection: 'row',
+    height: CARD_HEIGHT,
+  },
+  mediaSection: {
+    width: '40%',
+  },
+  mediaContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  mediaImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noMediaContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryIcon: {
+    fontSize: 32,
+  },
+  noMediaText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 2, // Slight offset for visual centering
+  },
+  liveBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  liveText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  contentSection: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  categoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  countryFlag: {
+    fontSize: 16,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  authorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  authorInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    flex: 1,
   },
-  statValue: { color: '#1e293b', fontWeight: '800', fontSize: 16 },
-  statLabel: { color: '#64748b', fontSize: 12, fontWeight: '600' },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  sectionTitle: { fontWeight: '800', fontSize: 20, color: '#111827' },
-  sectionDivider: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#E2E8F0' },
-  horizontalCard: {
-    width: SCREEN_WIDTH * 0.52,
-    borderRadius: 18,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
+  authorAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
-  horizontalMediaWrapper: { position: 'relative', height: 150 },
-  horizontalMedia: { ...StyleSheet.absoluteFillObject },
-  horizontalOverlay: { ...StyleSheet.absoluteFillObject },
-  horizontalTitle: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 14,
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  horizontalMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  horizontalMeta: { color: '#1f2937', fontWeight: '700' },
-  verticalCard: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: '#fff',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    marginBottom: 16,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  cardDisabled: { opacity: 0.6 },
-  verticalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#111827', fontWeight: '800' },
-  author: { color: '#111827', fontWeight: '800' },
-  meta: { color: '#6B7280', fontSize: 14 },
-  verticalTitle: { fontWeight: '800', fontSize: 18, marginBottom: 12, color: '#0f172a' },
-  verticalMediaWrapper: { borderRadius: 14, overflow: 'hidden', backgroundColor: '#1f2937' },
-  verticalMedia: { width: '100%', height: 200 },
-  verticalMediaOverlay: { ...StyleSheet.absoluteFillObject },
-  verticalFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  voteChip: { alignItems: 'flex-end', gap: 4 },
-  voteChipBar: { flexDirection: 'row', borderRadius: 999, overflow: 'hidden', height: 28, width: 180, backgroundColor: '#e2e8f0' },
-  voteChipSegmentA: { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
-  voteChipSegmentB: { backgroundColor: '#A5B4FC', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
-  voteChipText: { color: '#fff', fontWeight: '700', fontSize: 11 },
-  voteChipHint: { color: '#64748b', fontSize: 11 },
-  reelCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 160, justifyContent: 'flex-end' },
-  reelCardBg: { ...StyleSheet.absoluteFillObject },
-  reelCardContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
-  reelBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)' },
-  reelTitle: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
-  reelSub: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
-  reelCountsRow: {
-    position: 'absolute',
-    right: 12,
-    bottom: 12,
-    flexDirection: 'row',
+  defaultAvatar: {
+    backgroundColor: '#9CA3AF',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  reelCountPill: {
+  authorName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  timeText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  stat: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    gap: 4,
   },
-  reelCountText: { color: '#fff', fontWeight: '700', marginLeft: 4, fontSize: 12 },
-  verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
+  statText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
 });
