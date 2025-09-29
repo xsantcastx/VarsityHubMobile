@@ -311,7 +311,7 @@ export default function HighlightsScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-        <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2563EB" />
           <Text style={styles.loadingText}>Loading sports highlights...</Text>
@@ -324,7 +324,7 @@ export default function HighlightsScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-        <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+        <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
           <Text style={styles.errorText}>{error}</Text>
@@ -341,12 +341,12 @@ export default function HighlightsScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      <Stack.Screen options={{ title: 'Sports Central', headerShown: false }} />
+      <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
       
       {/* Custom Header */}
       <View style={[styles.header, { paddingTop: statusBarHeight }]}>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Sports Central</Text>
+          <Text style={styles.headerTitle}>Highlights</Text>
           <View style={styles.headerStats}>
             <Ionicons name="trophy" size={16} color="#FFB800" />
             <Text style={styles.headerStatsText}>{filteredHighlights.length} highlights</Text>
