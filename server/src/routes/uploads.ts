@@ -1,15 +1,20 @@
-import { Router } from 'express';
+import { Request, Router } from 'express';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
+
+// Extend Request type to include multer file
+interface MulterRequest extends Request {
+  file?: Express.Multer.File;
+}
 
 // Save under server/uploads regardless of where the process is started
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOAD_DIR),
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname) || '';
     const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     cb(null, name);
@@ -19,7 +24,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
-  fileFilter: (_req, file, cb) => {
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const ok = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/');
     if (!ok) return cb(new Error('Only image or video files are allowed'));
     cb(null, true);
@@ -35,7 +40,7 @@ const fileUpload = multer({
 export const uploadsRouter = Router();
 
 // Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', upload.single('file'), (req, res) => {
+uploadsRouter.post('/', upload.single('file'), (req: MulterRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const rel = `/uploads/${req.file.filename}`;
   const base = `${req.protocol}://${req.get('host')}`;
@@ -60,7 +65,7 @@ uploadsRouter.post('/', upload.single('file'), (req, res) => {
 });
 
 // General file upload endpoint (all file types)
-uploadsRouter.post('/files', fileUpload.single('file'), (req, res) => {
+uploadsRouter.post('/files', fileUpload.single('file'), (req: MulterRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const rel = `/uploads/${req.file.filename}`;
   const base = `${req.protocol}://${req.get('host')}`;

@@ -1,5 +1,5 @@
 import VideoPlayer from '@/components/VideoPlayer';
-import { Image } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -10,7 +10,6 @@ import {
     Modal,
     Platform,
     Pressable,
-    SafeAreaView,
     ScrollView,
     Share,
     StatusBar,
@@ -19,6 +18,7 @@ import {
     TextInput,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -318,7 +318,7 @@ export default function PostDetailScreen() {
           {hasMedia ? (
             <View style={styles.mediaContainer}>
               {isImage && (
-                <Image source={{ uri: post.media_url }} style={styles.heroImage} contentFit="cover" />
+                <ExpoImage source={{ uri: post.media_url }} style={styles.heroImage} contentFit="cover" />
               )}
               {isVideo && (
                 <View style={styles.videoContainer}>
@@ -375,7 +375,7 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <View style={styles.authorInfo}>
               {post.author?.avatar_url ? (
-                <Image source={{ uri: post.author.avatar_url }} style={styles.authorAvatar} />
+                <ExpoImage source={{ uri: post.author.avatar_url }} style={styles.authorAvatar} />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={20} color="#fff" />
@@ -464,7 +464,7 @@ export default function PostDetailScreen() {
           {/* Add Comment */}
           <View style={styles.addCommentContainer}>
             {currentUser?.avatar_url ? (
-              <Image source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
+              <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
               <View style={[styles.commentAvatar, styles.defaultAvatar]}>
                 <Ionicons name="person" size={16} color="#fff" />
@@ -504,7 +504,7 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <View style={styles.commentAuthor}>
                       {c.author?.avatar_url ? (
-                        <Image source={{ uri: c.author.avatar_url }} style={styles.commentAvatar} />
+                        <ExpoImage source={{ uri: c.author.avatar_url }} style={styles.commentAvatar} />
                       ) : (
                         <View style={[styles.commentAvatar, styles.defaultAvatar]}>
                           <Ionicons name="person" size={16} color="#fff" />

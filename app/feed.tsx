@@ -12,8 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { findBestMatch } from '../utils/teamMatch';
 import MatchBanner from './components/MatchBanner';
-import { findBestMatch } from './utils/teamMatch';
 
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
@@ -272,7 +272,7 @@ export default function FeedScreen() {
         setHighlightPreview(null);
       }
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
-        const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a && !!a.banner_url);
+        const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
         // Shuffle order for fairness
         for (let i = list.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));

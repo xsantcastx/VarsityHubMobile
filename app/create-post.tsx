@@ -1,10 +1,9 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     runOnJS,
-    useAnimatedGestureHandler,
     useAnimatedStyle,
     useSharedValue,
     withSpring
@@ -109,14 +108,14 @@ export default function CreatePostScreen() {
   };
 
   // Gesture handler for swipe up to camera
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
       swipeOpacity.value = withSpring(0.7);
-    },
-    onActive: (event) => {
+    })
+    .onUpdate((event) => {
       translateY.value = event.translationY;
-    },
-    onEnd: (event) => {
+    })
+    .onEnd((event) => {
       if (event.translationY < -50 && event.velocityY < -500) {
         // Trigger camera with scale animation
         cameraScale.value = withSpring(1.1, {}, () => {
@@ -126,8 +125,7 @@ export default function CreatePostScreen() {
       }
       translateY.value = withSpring(0);
       swipeOpacity.value = withSpring(1);
-    }
-  });
+    });
 
   const animatedSwipeStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: Math.min(translateY.value, 0) }],
@@ -224,7 +222,7 @@ export default function CreatePostScreen() {
         </View>
 
         {/* Interactive Swipe Camera */}
-        <PanGestureHandler onGestureEvent={gestureHandler}>
+        <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.swipeSection, animatedSwipeStyle]}>
             <View style={styles.swipeIndicator}>
               <Ionicons name="chevron-up" size={20} color="#1D4ED8" />
@@ -232,7 +230,7 @@ export default function CreatePostScreen() {
               <Ionicons name="camera-outline" size={16} color="#1D4ED8" />
             </View>
           </Animated.View>
-        </PanGestureHandler>
+        </GestureDetector>
 
         {/* Media Actions */}
         <View style={styles.mediaSection}>

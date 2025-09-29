@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { resolveMatchBannerPalette, type MatchBannerPalette, type ResolvePaletteInput } from '../utils/resolveMatchBannerPalette';
+import { resolveMatchBannerPalette, type MatchBannerPalette, type ResolvePaletteInput } from '../../utils/resolveMatchBannerPalette';
 
 type Props = {
   input: ResolvePaletteInput;

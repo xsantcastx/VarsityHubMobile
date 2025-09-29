@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { uploadFile } from '@/api/upload';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -29,6 +33,8 @@ export default function EditProfileScreen() {
   const [zipCode, setZipCode] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
@@ -50,6 +56,7 @@ export default function EditProfileScreen() {
       // Direct fields
       setDisplayName(me?.display_name || '');
       setBio(me?.bio || '');
+      setAvatarUrl(me?.avatar_url || null);
       
       // Fields from preferences
       const prefs = me?.preferences || {};
@@ -128,6 +135,84 @@ export default function EditProfileScreen() {
     return date.toISOString().split('T')[0]; // YYYY-MM-DD format
   };
 
+  const pickAvatarImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Gallery permission is needed to select a profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const takeAvatarPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Camera permission is needed to take a profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setUploadingAvatar(true);
+    try {
+      // Compress and resize the image
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 400, height: 400 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      // Upload to server
+      const baseUrl = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) || 'https://api-production-8ac3.up.railway.app';
+      const uploadResult = await uploadFile(baseUrl, manipulatedImage.uri, 'avatar.jpg', 'image/jpeg');
+      
+      if (uploadResult?.url) {
+        setAvatarUrl(uploadResult.url);
+        Alert.alert('Success', 'Profile picture uploaded successfully!');
+      } else {
+        throw new Error('Upload failed - no URL returned');
+      }
+    } catch (error: any) {
+      console.error('Avatar upload error:', error);
+      Alert.alert('Upload Failed', error?.message || 'Failed to upload profile picture. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const showAvatarOptions = () => {
+    Alert.alert(
+      'Profile Picture',
+      'Choose how you\'d like to update your profile picture',
+      [
+        { text: 'Take Photo', onPress: takeAvatarPhoto },
+        { text: 'Choose from Gallery', onPress: pickAvatarImage },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   const onSave = async () => {
     if (!displayName.trim()) {
       Alert.alert('Error', 'Display name is required.');
@@ -141,6 +226,11 @@ export default function EditProfileScreen() {
         display_name: displayName.trim(),
         bio: bio.trim() || undefined,
       };
+
+      // Include avatar URL if it was updated
+      if (avatarUrl) {
+        directFields.avatar_url = avatarUrl;
+      }
 
       // Store additional fields in preferences object
       const preferences: any = {};
@@ -205,6 +295,57 @@ export default function EditProfileScreen() {
                 <Text style={[styles.error, { color: '#EF4444' }]}>{error}</Text>
               </View>
             ) : null}
+
+            {/* Profile Picture Section */}
+            <View style={[styles.section, { 
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border,
+            }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <Ionicons name="camera-outline" size={20} color={Colors[colorScheme].tint} />
+                {' '}Profile Picture
+              </Text>
+              
+              <View style={styles.avatarSection}>
+                <View style={styles.avatarContainer}>
+                  {avatarUrl ? (
+                    <Image 
+                      source={{ uri: avatarUrl }} 
+                      style={styles.avatar}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+                      <Ionicons 
+                        name="person-outline" 
+                        size={40} 
+                        color={Colors[colorScheme].mutedText} 
+                      />
+                    </View>
+                  )}
+                  
+                  {uploadingAvatar && (
+                    <View style={styles.avatarLoader}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
+                
+                <Pressable 
+                  onPress={showAvatarOptions}
+                  disabled={uploadingAvatar}
+                  style={[styles.changeAvatarButton, { 
+                    backgroundColor: Colors[colorScheme].tint,
+                    opacity: uploadingAvatar ? 0.6 : 1,
+                  }]}
+                >
+                  <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.changeAvatarText}>
+                    {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
 
             {/* Basic Information Section */}
             <View style={[styles.section, { 
@@ -594,4 +735,53 @@ const styles = StyleSheet.create({
     right: 12,
   },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
+  
+  // Avatar styles
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+  },
+  avatarLoader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  changeAvatarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  changeAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
