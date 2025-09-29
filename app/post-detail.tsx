@@ -102,7 +102,15 @@ export default function PostDetailScreen() {
     try {
       const [p, c] = await Promise.all([PostApi.get(id), PostApi.comments(id)]);
       setPost(p);
-      setComments(Array.isArray(c) ? c : []);
+      
+      // Handle comments response - it returns { items, nextCursor }
+      let commentsArray = [];
+      if (Array.isArray(c)) {
+        commentsArray = c;
+      } else if (c && Array.isArray(c.items)) {
+        commentsArray = c.items;
+      }
+      setComments(commentsArray);
       
       // Initialize follow and save states from post data
       if (p) {
@@ -112,9 +120,11 @@ export default function PostDetailScreen() {
         if (typeof p.has_bookmarked === 'boolean') {
           setSaved(p.has_bookmarked);
         }
+        // Note: has_upvoted is stored directly in post state for UI
       }
     } catch (e: any) {
       setError('Failed to load post');
+      console.error('Error loading post and comments:', e);
     } finally {
       setLoading(false);
     }
@@ -137,6 +147,7 @@ export default function PostDetailScreen() {
       }));
     } catch (error) {
       console.error('Error toggling upvote:', error);
+      console.error('Upvote error details:', error?.response?.data || error?.message || error);
     } finally {
       setVoting(false);
     }
@@ -151,6 +162,7 @@ export default function PostDetailScreen() {
       setComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
+      console.error('Comment error details:', error?.response?.data || error?.message || error);
     } finally {
       setCommenting(false);
     }
@@ -413,12 +425,22 @@ export default function PostDetailScreen() {
             
             <View style={styles.actions}>
               <Pressable 
-                style={[styles.actionButton, styles.upvoteButton]} 
+                style={[
+                  styles.actionButton, 
+                  styles.upvoteButton,
+                  post?.has_upvoted && styles.upvoteButtonActive
+                ]} 
                 onPress={onUpvote}
                 disabled={voting}
               >
-                <Ionicons name="arrow-up" size={20} color="#fff" />
-                <Text style={styles.actionText}>{voting ? '...' : 'Upvote'}</Text>
+                <Ionicons 
+                  name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"} 
+                  size={20} 
+                  color={post?.has_upvoted ? "#fff" : "#fff"} 
+                />
+                <Text style={[styles.actionText, post?.has_upvoted && styles.actionTextActive]}>
+                  {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
+                </Text>
               </Pressable>
               
               <Pressable style={styles.actionButton} onPress={onSave}>
@@ -856,10 +878,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     borderColor: '#2563EB',
   },
+  upvoteButtonActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
   actionText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  actionTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
 
   // Comments Section

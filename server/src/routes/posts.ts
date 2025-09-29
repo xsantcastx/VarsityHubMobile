@@ -294,7 +294,7 @@ postsRouter.get('/:id/comments', async (req, res) => {
   res.json({ items, nextCursor });
 });
 
-postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { id } = req.params;
   const schema = z.object({ content: z.string().min(1).max(1000) });
