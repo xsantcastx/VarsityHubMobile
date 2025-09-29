@@ -1,6 +1,8 @@
 import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Colors } from '@/constants/Colors';
+import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
@@ -49,6 +51,11 @@ type CurrentUser = {
   display_name?: string;
   avatar_url?: string;
   bio?: string;
+  preferences?: {
+    role?: 'fan' | 'coach' | string | null;
+    plan?: string | null;
+    [key: string]: any;
+  } | null;
   _count?: {
     posts?: number;
     followers?: number;
@@ -58,6 +65,8 @@ type CurrentUser = {
 };
 
 export default function ProfileScreen() {
+  const colorScheme = useCustomColorScheme();
+  const theme = Colors[colorScheme];
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +93,15 @@ export default function ProfileScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const _profileResetCount = useRef(0);
+  const setIfDifferent = useCallback((setter: any, next: any) => {
+    setter((prev: any) => {
+      try {
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const handleAvatarPress = async () => {
     setIsUploadingAvatar(true);
@@ -246,6 +264,12 @@ export default function ProfileScreen() {
     }
   }, [interCursor, interHasMore, interLoading, interType, sort]);
 
+  const preferences = me?.preferences as { role?: string | null; plan?: string | null } | null;
+  const rawRole = preferences?.role ?? (me as any)?.role ?? '';
+  const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
+  const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
+  const planLabel = typeof preferences?.plan === 'string' ? preferences.plan : null;
+  const formattedPlan = planLabel ? `${planLabel.charAt(0).toUpperCase()}${planLabel.slice(1)}` : null;
   const name = me?.display_name || me?.username || 'User';
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
@@ -282,29 +306,51 @@ export default function ProfileScreen() {
             </Pressable>
           ))}
         </View>
+        <Pressable onPress={() => router.push('/settings')} style={styles.settingsButtonTopRight}>
+          <SimpleLineIcons name="settings" size={20} color={theme.icon} />
+        </Pressable>
       </View>
       <View style={styles.bioContainer}>
         <Text style={styles.name}>{name}</Text>
-        {me.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
+        {(roleLabel || formattedPlan) ? (
+          <View style={styles.badgesRow}>
+                {roleLabel ? (
+                  <View style={[styles.roleBadge, roleRaw === 'coach' ? styles.roleBadgeCoach : styles.roleBadgeFan, { backgroundColor: roleRaw === 'coach' ? '#1d4ed8' : '#f59e0b' }]}>
+                    <Ionicons
+                      name={roleRaw === 'coach' ? 'ribbon-outline' : 'star-outline'}
+                      size={14}
+                      color="#fff"
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+                  </View>
+                ) : null}
+            {formattedPlan ? (
+              // Always show the plan badge when the user has an active plan (veteran/legend).
+              // Previously the plan badge only rendered for coaches; show it for fans too.
+              <View style={styles.planBadge}>
+                <Text style={styles.planBadgeText}>{formattedPlan} Plan</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        {me?.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
       </View>
       <View style={styles.actionsContainer}>
-  <Button style={{ flex: 1 }} onPress={() => router.push('/edit-profile')}><Text>Edit Profile</Text></Button>
-        <Button variant="outline" size="icon" onPress={() => router.push('/settings')}>
-          <SimpleLineIcons name="settings" size={20} color="black" />
-        </Button>
+        <Button style={styles.editProfileButton} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
       </View>
-      <View style={styles.tabsContainer}>
+      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
           onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
-          style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
-          <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
+          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'posts' && { color: theme.text } ]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
         </Pressable>
         <Pressable
           onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch {} }}
-          style={[styles.tab, activeTab === 'interactions' && styles.activeTab]}
+          style={[styles.tab, activeTab === 'interactions' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
-          <Text style={[styles.tabText, activeTab === 'interactions' && styles.activeTabText]}>Interactions</Text>
+          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'interactions' && { color: theme.text }]}>Interactions</Text>
         </Pressable>
       </View>
 
@@ -344,7 +390,7 @@ export default function ProfileScreen() {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No posts yet</Text>
       <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-  <Button onPress={() => router.push('/create-post')}><Text>Create Your First Post</Text></Button>
+    <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
     </View>
   );
 
@@ -408,19 +454,28 @@ export default function ProfileScreen() {
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = mapped[index]?.id;
                   const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  if (__DEV__) console.debug('Profile opening viewer', { index, targetIdx, total: items.length });
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);
                 }}
               >
                 {thumb ? (
-                  <>
+                  <View style={styles.gridImageContainer}>
                     <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                  </>
+                    <View style={styles.gridImageOverlay} />
+                  </View>
                 ) : (
                   <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
-                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                    <LinearGradient 
+                      colors={["#667eea", "#764ba2", "#f093fb"]} 
+                      style={StyleSheet.absoluteFillObject as any} 
+                      start={{ x: 0, y: 0 }} 
+                      end={{ x: 1, y: 1 }}
+                    />
+                    <View style={styles.textPostOverlay}>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
+                    </View>
                   </View>
                 )}
                 {/* Counts overlay (shown for both media and text tiles) */}
@@ -444,67 +499,74 @@ export default function ProfileScreen() {
           ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       ) : (
-        <FlatList
-          data={interactions}
-          key={activeTab + '-grid'}
-          numColumns={3}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const p = unwrapPost(item);
-            return `${p?.id ?? item?.id ?? index}-${index}`;
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No activity yet</Text></View>}
-          contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 2 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedInteractions}
-          renderItem={({ item, index }) => {
-            const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(interactions[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                  </>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
-                    <Text numberOfLines={3} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={interLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-        />
+        <View style={styles.container}>
+          {renderHeader()}
+          {interactions.length === 0 ? (
+            <View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No activity yet</Text></View>
+          ) : (
+            <View style={styles.masonryContainer}>
+              {interactions.map((item, index) => {
+                const postItem = unwrapPost(item);
+                const thumb = postItem?.media_url;
+                const likes = postItem?.upvotes_count ?? 0;
+                const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+                
+                // Create varied aspect ratios for dynamic look
+                const aspectRatios = [1, 1.2, 0.8, 1.5, 0.75, 1.1, 0.9, 1.3];
+                const aspectRatio = aspectRatios[index % aspectRatios.length];
+                
+                return (
+                  <Pressable
+                    key={`${postItem?.id ?? item?.id ?? index}-${index}`}
+                    style={[styles.masonryItem, { aspectRatio }]}
+                    onPress={() => {
+                      const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
+                      const items = mapped.filter(Boolean) as FeedPost[];
+                      const targetId = unwrapPost(interactions[index])?.id;
+                      const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                      setViewerItems(items);
+                      setViewerIndex(Math.max(0, targetIdx));
+                      setViewerOpen(true);
+                    }}
+                  >
+                    {thumb ? (
+                      <View style={styles.gridImageContainer}>
+                        <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                        <View style={styles.gridImageOverlay} />
+                      </View>
+                    ) : (
+                      <View style={[styles.gridImage, styles.gridImageFallback]}>
+                        <LinearGradient 
+                          colors={["#667eea", "#764ba2", "#f093fb"]} 
+                          style={StyleSheet.absoluteFillObject as any} 
+                          start={{ x: 0, y: 0 }} 
+                          end={{ x: 1, y: 1 }}
+                        />
+                        <View style={styles.textPostOverlay}>
+                          <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                        </View>
+                      </View>
+                    )}
+                    <View style={styles.gridCounts}>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="arrow-up" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{likes}</Text>
+                      </View>
+                      <View style={styles.gridCountItem}>
+                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                        <Text style={styles.gridCountText}>{comments}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.gridIconBadge}>
+                      <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+          {interLoading && <ActivityIndicator style={{ marginVertical: 16 }} />}
+        </View>
       )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
@@ -521,37 +583,86 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12, position: 'relative' },
+  statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', paddingLeft: 20 },
+  settingsButtonTopRight: {
+    position: 'absolute',
+    top: 20,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   statItem: { alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: 'bold' },
-  statLabel: { fontSize: 14, color: '#6B7280' },
-  bioContainer: { paddingHorizontal: 16, paddingBottom: 16 },
-  name: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  bio: { fontSize: 14, color: '#4B5563' },
-  actionsContainer: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
-  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
+  statLabel: { fontSize: 13, color: '#6B7280', fontWeight: '500', marginTop: 2 },
+  bioContainer: { paddingHorizontal: 16, paddingBottom: 20 },
+  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
+  bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
+  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
+  roleBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  roleBadgeCoach: { backgroundColor: '#1d4ed8' },
+  roleBadgeFan: { backgroundColor: '#f59e0b' },
+  roleBadgeText: { color: '#fff', fontWeight: '700', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+  planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  planBadgeText: { color: '#fff', fontWeight: '600', fontSize: 11, letterSpacing: 0.3 },
+  actionsContainer: { flexDirection: 'row', paddingHorizontal: 16, justifyContent: 'center', paddingBottom: 20 },
+  editProfileButton: { 
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  masonryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 8,
+    paddingBottom: 32,
+  },
+  masonryItem: {
+    width: '32%',
+    margin: '0.66%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: 'white' },
+  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
-  tabText: { color: '#6B7280', fontWeight: '600' },
+  tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
   activeTabText: { color: 'black' },
-  filtersBar: { paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 8 },
-  segmentedRow: { flexDirection: 'row', gap: 8 },
-  segment: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
+  filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12, backgroundColor: 'white' },
+  segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#F3F4F6' },
   segmentActive: { backgroundColor: '#111827' },
-  segmentText: { color: '#111827', fontWeight: '600' },
+  segmentText: { color: '#111827', fontWeight: '600', fontSize: 13 },
   segmentTextActive: { color: 'white' },
-  sortRow: { flexDirection: 'row', gap: 8 },
-  sortPill: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 14, backgroundColor: '#F3F4F6' },
+  sortRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  sortPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
   sortPillActive: { backgroundColor: '#111827' },
-  sortText: { color: '#111827', fontWeight: '600' },
+  sortText: { color: '#111827', fontWeight: '600', fontSize: 12 },
   sortTextActive: { color: 'white' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: 'bold' },
-  emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 16 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
+  emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
   avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -564,13 +675,83 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  gridRow: { gap: 2 },
-  gridItem: { flex: 1, aspectRatio: 1, margin: 2, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F3F4F6' },
+  gridRow: { gap: 3 },
+  gridItem: { 
+    flex: 1, 
+    aspectRatio: 1, 
+    margin: 1.5, 
+    borderRadius: 12, 
+    overflow: 'hidden', 
+    backgroundColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
   gridImage: { width: '100%', height: '100%' },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 8 },
-  gridTextOnly: { textAlign: 'center', color: '#111827', fontWeight: '700' },
-  gridIconBadge: { position: 'absolute', bottom: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  gridCounts: { position: 'absolute', left: 6, bottom: 6, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 3, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  gridCountText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  gridImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
+  textPostOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8,
+    margin: 8,
+    backdropFilter: 'blur(10px)'
+  },
+  gridTextOnly: { 
+    textAlign: 'center', 
+    color: '#ffffff', 
+    fontWeight: '700', 
+    fontSize: 12, 
+    lineHeight: 16,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
+  },
+  gridIconBadge: { 
+    position: 'absolute', 
+    bottom: 8, 
+    right: 8, 
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    borderRadius: 14, 
+    width: 28, 
+    height: 28, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
+  },
+  gridCounts: { 
+    position: 'absolute', 
+    left: 8, 
+    bottom: 8, 
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    borderRadius: 14, 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
+  },
+  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 });
+

@@ -72,7 +72,14 @@ export const auth = {
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
   },
+  async requestPasswordReset(email: string) {
+    return httpPost('/auth/password/forgot', { email });
+  },
+  async resetPassword(email: string, code: string, password: string) {
+    return httpPost('/auth/password/reset', { email, code, password });
+  },
   getToken: loadToken,
 };
 
 export default auth;
+

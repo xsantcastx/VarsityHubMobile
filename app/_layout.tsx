@@ -1,12 +1,13 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 
@@ -61,21 +62,23 @@ export default function RootLayout() {
     })();
   }, [navState?.key, Array.isArray(segments) ? segments.join('/') : '']);
 
-    if (!loaded || !navState?.key) {
+  if (!loaded || !navState?.key) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
+    <ThemeProvider>
+      <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      </NavigationThemeProvider>
     </ThemeProvider>
   );
 }

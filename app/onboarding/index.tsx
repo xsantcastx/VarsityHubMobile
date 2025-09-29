@@ -1,9 +1,12 @@
-import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 export default function OnboardingIndex() {
   const router = useRouter();
-  useEffect(() => { router.replace('/onboarding/step-2-basic'); }, []);
+  useEffect(() => { 
+    // Start with role selection
+    router.replace('/onboarding/step-1-role'); 
+  }, []);
   return null;
 }
 

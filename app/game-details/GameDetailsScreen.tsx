@@ -1,3 +1,4 @@
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -7,11 +8,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
-import { Event, Game } from '@/api/entities';
+import { Event, Game, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
@@ -19,6 +21,7 @@ import GameVerticalFeedScreen from './GameVerticalFeedScreen';
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+const GAME_WINDOW_MS = 3 * 60 * 60 * 1000; // 3 hours live window
 
 type MediaItem = {
   id: string;
@@ -27,6 +30,212 @@ type MediaItem = {
   created_at?: string;
   caption?: string | null;
 };
+
+type StoriesViewerProps = {
+  visible: boolean;
+  items: MediaItem[];
+  index: number;
+  onClose: () => void;
+  onSeen: (id: string) => void;
+};
+
+function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewerProps) {
+  const insets = useSafeAreaInsets();
+  const [current, setCurrent] = useState(index);
+  const w = useWindowDimensions().width;
+  const progress = useRef(new Animated.Value(0)).current;
+  const [paused, setPaused] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const progressFracRef = useRef(0);
+
+  // Sync starting index when viewer opens or caller changes it
+  useEffect(() => {
+    if (visible) setCurrent(index);
+  }, [visible, index]);
+
+  const goNext = useCallback(() => {
+    setCurrent((prev) => {
+      const next = prev + 1;
+      if (next >= items.length) {
+        onClose();
+        return prev;
+      }
+      return next;
+    });
+  }, [items.length, onClose]);
+
+  const goPrev = useCallback(() => {
+    setCurrent((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  // Guard taps right after long-press to avoid accidental nav
+  const skipTapUntil = useRef<number>(0);
+  const onLongPress = useCallback(() => {
+    setPaused(true);
+    skipTapUntil.current = Date.now() + 120;
+  }, []);
+  const onPressOut = useCallback(() => {
+    setPaused(false);
+  }, []);
+  const onNavLeft = useCallback(() => {
+    if (Date.now() < skipTapUntil.current) return;
+    goPrev();
+  }, [goPrev]);
+  const onNavRight = useCallback(() => {
+    if (Date.now() < skipTapUntil.current) return;
+    goNext();
+  }, [goNext]);
+
+  // Reset progress when current changes
+  useEffect(() => {
+    progress.stopAnimation();
+    progress.setValue(0);
+    setPlaying(false);
+  }, [current, progress]);
+
+  // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
+  useEffect(() => {
+    const item = items[current];
+    if (!item) return;
+    onSeen(item.id);
+    if (item.kind === 'photo') {
+      const duration = 5000;
+      let startTime = Date.now();
+      let raf: number;
+      let advanced = false;
+      const tick = () => {
+        if (!paused) {
+          const elapsed = Date.now() - startTime;
+          const ratio = Math.min(1, elapsed / duration);
+          progressFracRef.current = ratio;
+          progress.setValue(ratio);
+          if (ratio >= 1 && !advanced) {
+            advanced = true;
+            goNext();
+            return;
+          }
+        } else {
+          startTime = Date.now() - progressFracRef.current * duration;
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [current, items, goNext, paused, onSeen, progress]);
+
+  if (!visible) return null;
+  const item = items[current];
+  const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
+  return (
+    <Modal
+      visible={visible}
+      animationType="none"
+      presentationStyle="fullScreen"
+      onRequestClose={onClose}
+      hardwareAccelerated
+      statusBarTranslucent
+    >
+      <View
+        style={styles.storyViewerRoot}
+        needsOffscreenAlphaCompositing
+        renderToHardwareTextureAndroid
+      >
+        <View style={[styles.storyViewerTopBar, { paddingTop: insets.top + 8 }]}> 
+          <View style={styles.storyProgressRow}>
+            {items.map((_, i) => {
+              const isPast = i < current;
+              const isFuture = i > current;
+              const isActive = i === current;
+              return (
+                <View key={i} style={styles.storyProgressSegment}>
+                  <View style={styles.storyProgressTrack} />
+                  {isPast ? (
+                    <View style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 1 }] }]} />
+                  ) : isFuture ? (
+                    <View style={[styles.storyProgressFillAbs, { transform: [{ scaleX: 0 }] }]} />
+                  ) : isActive ? (
+                    <Animated.View style={[styles.storyProgressFillAbs, { transform: [{ scaleX: progress }] }]} />
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+          <Text style={styles.storyTopLabel}>{current + 1} / {items.length}</Text>
+          <Pressable onPress={onClose} style={styles.storyCloseBtn} accessibilityLabel="Close stories">
+            <Ionicons name="close" size={22} color="#fff" />
+          </Pressable>
+        </View>
+
+        <View
+          style={styles.storyStage}
+          needsOffscreenAlphaCompositing
+          renderToHardwareTextureAndroid
+          collapsable={false}
+        >
+            {isVideo ? (
+              // start videos paused to avoid unexpected audio/looping; user can tap to play
+              <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+                <VideoPlayer uri={item.url} autoPlay={false} onEnd={goNext} nativeControls paused={!playing} style={{ width: '100%', height: '100%' }} />
+                {!playing ? (
+                  <Pressable onPress={() => setPlaying(true)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Play video">
+                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="play" size={28} color="#fff" />
+                    </View>
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={() => setPlaying(false)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Pause video" />
+                )}
+              </View>
+            ) : (
+              <Image
+                source={{ uri: item.url }}
+                style={{ width: w, aspectRatio: 9 / 16, backgroundColor: '#000' }}
+                contentFit="cover"
+                transition={0}
+                cachePolicy="memory-disk"
+                recyclingKey={item.url}
+              />
+            )}
+        </View>
+
+        {/* Preload next photo to minimize flicker on advance */}
+        {(() => {
+          const nextIndex = current + 1;
+          const next = nextIndex < items.length ? items[nextIndex] : null;
+          if (!next || next.kind === 'video') return null;
+          return (
+            <Image
+              source={{ uri: next.url }}
+              style={{ width: 1, height: 1, position: 'absolute', left: -1000, top: -1000, opacity: 0 }}
+              contentFit="cover"
+              transition={0}
+              cachePolicy="memory-disk"
+              recyclingKey={next.url}
+            />
+          );
+        })()}
+
+        <View style={styles.storyTouchLayer}>
+          <Pressable
+            style={styles.storyTouchHalf}
+            onPress={onNavLeft}
+            onLongPress={onLongPress}
+            onPressOut={onPressOut}
+            delayLongPress={150}
+          />
+          <Pressable
+            style={styles.storyTouchHalf}
+            onPress={onNavRight}
+            onLongPress={onLongPress}
+            onPressOut={onPressOut}
+            delayLongPress={150}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 type TeamInfo = { id: string; name: string; avatarUrl?: string | null };
 
@@ -137,20 +346,42 @@ const GameDetailsScreen = () => {
   const [vm, setVm] = useState<GameVM | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [teams, setTeams] = useState<TeamInfo[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionKey>('overview');
   const [rsvpBusy, setRsvpBusy] = useState(false);
   const [viewer, setViewer] = useState<{ visible: boolean; url: string | null; kind: 'photo' | 'video' } | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
   const [verticalFeedOpen, setVerticalFeedOpen] = useState(false);
+  const [storiesViewer, setStoriesViewer] = useState<{ visible: boolean; items: MediaItem[]; index: number } | null>(null);
+  const viewerOpenRef = useRef(false);
+  const [seenStories, setSeenStories] = useState<Record<string, true>>({});
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const livePulse = useRef(new Animated.Value(0)).current;
 
   const [voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
   const [voteBusy, setVoteBusy] = useState(false);
   const voteAnimated = useRef({ A: new Animated.Value(50), B: new Animated.Value(50) }).current;
+  // micro-animation values for VS modal cards
+  const vsScaleA = useRef(new Animated.Value(1)).current;
+  const vsScaleB = useRef(new Animated.Value(1)).current;
+  const pctAnimA = useRef(new Animated.Value(0)).current;
+  const pctAnimB = useRef(new Animated.Value(0)).current;
+  // animated numeric counters
+  const numAnimA = useRef(new Animated.Value(0)).current;
+  const numAnimB = useRef(new Animated.Value(0)).current;
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [displayPctA, setDisplayPctA] = useState(0);
+  const [displayPctB, setDisplayPctB] = useState(0);
+  // theme colors for VS modal
+  const themeBgA = useThemeColor({ light: '#f8fafc', dark: '#0b1220' }, 'background');
+  const themeBgOn = useThemeColor({ light: '#2563EB', dark: '#1f6feb' }, 'tint');
+  const themeTextColor = useThemeColor({ light: '#0f172a', dark: '#e6eefc' }, 'text');
   const feedY = useRef(new Animated.Value(0)).current;
   const [headerH, setHeaderH] = useState(0);
   const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
   const [showTopFab, setShowTopFab] = useState(false);
+  const [vsModalOpen, setVsModalOpen] = useState(false);
   const showTopFabRef = useRef(false);
   const headerTranslateY = useMemo(() => feedY.interpolate({
     inputRange: [0, headerH || 1],
@@ -167,6 +398,40 @@ const GameDetailsScreen = () => {
     showTopFabRef.current = false;
     setShowTopFab(false);
   }, [headerH]);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v));
+    const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
+    return () => { try { ev?.remove?.(); } catch (e) {} };
+  }, []);
+
+  // update display percentages from animated numeric values
+  useEffect(() => {
+    const idA = numAnimA.addListener(({ value }) => setDisplayPctA(Math.round(value)));
+    const idB = numAnimB.addListener(({ value }) => setDisplayPctB(Math.round(value)));
+    // initialize
+    numAnimA.setValue(displayPctA);
+    numAnimB.setValue(displayPctB);
+    return () => {
+      try { numAnimA.removeListener(idA); } catch (e) {}
+      try { numAnimB.removeListener(idB); } catch (e) {}
+    };
+  }, [numAnimA, numAnimB]);
+
+  // Track if the stories viewer is open to avoid unnecessary re-renders that can cause flicker on some devices
+  useEffect(() => {
+    viewerOpenRef.current = !!storiesViewer?.visible;
+  }, [storiesViewer?.visible]);
+
+  // Tick every second to update countdown/live status (paused while stories viewer is open)
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!viewerOpenRef.current) {
+        setNowTs(Date.now());
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
@@ -185,7 +450,98 @@ const GameDetailsScreen = () => {
   const displayTime = formatTimeLabel(vm?.date);
   const goingCount = capCount(vm?.rsvpCount, vm?.capacity);
   const bannerUrl = useMemo(() => pickBannerFromArrays(vm ?? {}, vm?.media ?? []), [vm]);
-  const showRsvp = !!vm?.eventId && !vm?.isPast;
+
+  // Load teams data
+  const loadTeams = async () => {
+    try {
+      const teamsData = await Team.list();
+      const teamInfo: TeamInfo[] = teamsData.map((team: any) => ({
+        id: team.id,
+        name: team.name,
+        avatarUrl: team.logo_url || team.avatar_url,
+      }));
+      setTeams(teamInfo);
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+    }
+  };
+
+  // Get team logo by name
+  const { findBestMatch } = require('../utils/teamMatch');
+  const getTeamLogo = (teamName: string) => {
+    if (!teamName) return null;
+    // try exact case-insensitive match first
+    const exact = (teams || []).find((t: any) => String(t.name || '').toLowerCase() === String(teamName || '').toLowerCase());
+    if (exact && exact.avatarUrl) return exact.avatarUrl;
+    const matched = findBestMatch(teamName, teams as any);
+    return matched?.avatarUrl || null;
+  };
+
+  // Derive game phase from date and now
+  const { phase: gamePhase, diffMs: startsInMs } = useMemo(() => {
+    const iso = vm?.date;
+    if (!iso) return { phase: 'final' as 'upcoming' | 'live' | 'final', diffMs: 0 };
+    const startMs = new Date(iso).getTime();
+    if (!Number.isFinite(startMs)) return { phase: 'final' as const, diffMs: 0 };
+    const diff = startMs - nowTs;
+    if (diff > 0) return { phase: 'upcoming' as const, diffMs: diff };
+    const elapsed = nowTs - startMs;
+    if (elapsed < GAME_WINDOW_MS) return { phase: 'live' as const, diffMs: 0 };
+    return { phase: 'final' as const, diffMs: 0 };
+  }, [vm?.date, nowTs]);
+
+  // RSVP only shown before the game starts
+  const hasEvent = !!vm?.eventId;
+  const canRsvpNow = hasEvent && gamePhase === 'upcoming';
+  // Smart RSVP bottom sheet state
+  const [rsvpSheetOpen, setRsvpSheetOpen] = useState(false);
+
+  const rsvpChipLabel = useMemo(() => {
+    if (!hasEvent) return null;
+    const n = goingCount != null ? goingCount : 0;
+    if (gamePhase === 'upcoming') return vm?.userRsvped ? `Going • ${n}` : `RSVP • ${n}`;
+    if (gamePhase === 'live') return `${n} going`;
+    return `${n} went`;
+  }, [hasEvent, goingCount, gamePhase, vm?.userRsvped]);
+
+  const openRsvpSheet = useCallback(() => {
+    if (!hasEvent) return;
+    setRsvpSheetOpen(true);
+  }, [hasEvent]);
+
+  const closeRsvpSheet = useCallback(() => setRsvpSheetOpen(false), []);
+
+  // Start/stop pulse when LIVE
+  useEffect(() => {
+    if (gamePhase !== 'live') {
+      livePulse.stopAnimation();
+      livePulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(livePulse, { toValue: 0, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+    };
+  }, [gamePhase, livePulse]);
+
+  const formatCountdown = useCallback((ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const two = (n: number) => n.toString().padStart(2, '0');
+    if (days >= 1) {
+      return `${days}d ${two(hours)}:${two(minutes)}:${two(seconds)}`;
+    }
+    return `${two(hours)}:${two(minutes)}:${two(seconds)}`;
+  }, []);
 
   const postsCount = Array.isArray(vm?.posts) ? vm.posts.length : 0;
   const postsSubtitle = postsCount ? `${postsCount} highlight${postsCount === 1 ? '' : 's'}` : 'No highlights yet';
@@ -216,10 +572,10 @@ const GameDetailsScreen = () => {
 
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
-      const routeBase = Array.isArray(segments) && (segments as string[]).includes('discover') ? '/(tabs)/discover/game/[id]' : '/(tabs)/feed/game/[id]';
+      const routeBase = '/(tabs)/feed/game/[id]';
       router.replace({ pathname: routeBase, params: { id: gameIdValue } });
     },
-    [router, segments],
+    [router],
   );
 
   const mapTeams = (input: any): TeamInfo[] => {
@@ -440,6 +796,10 @@ const GameDetailsScreen = () => {
       }
       if (isRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
+      
+      // Load teams data
+      await loadTeams();
+      
       try {
         if (gameIdValue) {
           await loadGameById(gameIdValue);
@@ -484,11 +844,16 @@ const GameDetailsScreen = () => {
     const hasVotes = total > 0;
     const targetA = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctA ?? 0)) : 50;
     const targetB = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctB ?? 0)) : 50;
+    const dur = prefersReducedMotion ? 0 : 400;
     Animated.parallel([
-      Animated.timing(voteAnimated.A, { toValue: targetA, duration: 200, useNativeDriver: false }),
-      Animated.timing(voteAnimated.B, { toValue: targetB, duration: 200, useNativeDriver: false }),
+      Animated.timing(voteAnimated.A, { toValue: targetA, duration: prefersReducedMotion ? 0 : 200, useNativeDriver: false }),
+      Animated.timing(voteAnimated.B, { toValue: targetB, duration: prefersReducedMotion ? 0 : 200, useNativeDriver: false }),
+      Animated.timing(pctAnimA, { toValue: targetA, duration: dur, useNativeDriver: false }),
+      Animated.timing(pctAnimB, { toValue: targetB, duration: dur, useNativeDriver: false }),
+      Animated.timing(numAnimA, { toValue: targetA, duration: dur, useNativeDriver: false }),
+      Animated.timing(numAnimB, { toValue: targetB, duration: dur, useNativeDriver: false }),
     ]).start();
-  }, [voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total]);
+  }, [voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total, prefersReducedMotion]);
 
   const onRefresh = useCallback(() => {
     load(true);
@@ -496,10 +861,26 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    // snapshot current vm for potential rollback
+    const snapshot = vm;
+    const nextDesired = !vm.userRsvped;
+
+    // optimistic local update so UI feels instant
+    setVm((prev) => {
+      if (!prev) return prev;
+      const prevCount = typeof prev.rsvpCount === 'number' ? prev.rsvpCount : 0;
+      const newCount = nextDesired ? prevCount + 1 : Math.max(0, prevCount - 1);
+      return {
+        ...prev,
+        userRsvped: nextDesired,
+        rsvpCount: typeof prev.rsvpCount === 'number' ? newCount : prev.rsvpCount,
+      };
+    });
+
     setRsvpBusy(true);
     try {
-      const nextDesired = !vm.userRsvped;
       const res: any = await Event.rsvp(vm.eventId, nextDesired);
+      // reconcile with authoritative server response
       setVm((prev) => {
         if (!prev) return prev;
         return {
@@ -509,8 +890,12 @@ const GameDetailsScreen = () => {
           capacity: typeof res?.capacity === 'number' ? res.capacity : prev.capacity,
         };
       });
+      // notify user of success
+      Alert.alert('RSVP updated', nextDesired ? 'You are marked as going.' : 'You are no longer marked as going.');
     } catch (err) {
       console.error('Failed to toggle RSVP', err);
+      // rollback optimistic update
+      setVm(snapshot);
       Alert.alert('RSVP', 'Unable to update RSVP right now. Please try again.');
     } finally {
       setRsvpBusy(false);
@@ -599,6 +984,42 @@ const GameDetailsScreen = () => {
       setVoteBusy(false);
     }
   }, [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router]);
+
+  const renderStoriesCarousel = () => {
+    const mediaItems = (vm?.media ?? []).map((m) => ({ id: m.id, url: m.url, kind: m.kind }));
+    if (!mediaItems.length) return null;
+    return (
+      <View style={styles.storiesWrap}>
+        <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesRow}>
+          {mediaItems.map((it, idx) => {
+            const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
+            const wasSeen = !!seenStories[it.id];
+            return (
+              <Pressable
+                key={`${it.id}-${idx}`}
+                style={[styles.storyItem, styles.storyItemGap, wasSeen ? styles.storyItemSeen : null]}
+                onPress={() => setStoriesViewer({ visible: true, items: mediaItems as any, index: idx })}
+              >
+                <View style={styles.storyTile}>
+                  {isVideo ? (
+                    <View style={[styles.storyThumb, styles.storyThumbVideo]}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                  ) : (
+                    <Image source={{ uri: it.url }} style={styles.storyThumb} contentFit="cover" transition={0} cachePolicy="memory-disk" recyclingKey={it.url}
+                    />
+                  )}
+                  {wasSeen ? <View style={styles.storySeenOverlay} /> : null}
+                </View>
+              </Pressable>
+            );
+          })}
+        </Animated.ScrollView>
+      </View>
+    );
+  };
+
+  // inline StoriesViewer removed; using top-level component below
 
 
 const renderVoteSection = () => {
@@ -742,50 +1163,155 @@ const renderVoteSection = () => {
 
 
   const renderBanner = () => {
-    const content = bannerUrl ? (
-      <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
+  // Prefer a full MatchBanner hero if both teams have logos available
+  const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
+  const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
+  const isHero = Boolean(leftLogo && rightLogo);
+  const bannerHeight = isHero ? 320 : 200;
+
+    // attempt to pull team color accents from vm.teams if present
+    const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
+    const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
+    const heroBanner = leftLogo && rightLogo ? (
+      <MatchBanner
+        leftImage={leftLogo}
+        rightImage={rightLogo}
+        leftName={vm?.homeTeam ?? ''}
+        rightName={vm?.awayTeam ?? ''}
+        height={bannerHeight}
+        variant="full"
+        hero={true}
+        appearance={(vm as any)?.appearance || 'classic'}
+        headerFade={headerOpacity}
+        onVsPress={() => setVsModalOpen(true)}
+        leftColor={(homeTeamObj as any)?.color}
+        rightColor={(awayTeamObj as any)?.color}
+        goingCount={goingCount}
+        onGoingPress={onToggleRsvp}
+      />
     ) : (
-      <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+      bannerUrl ? (
+        <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
+      ) : (
+        <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+      )
     );
-    return (
-      <View style={styles.bannerWrapper}>
-        {content}
-        <LinearGradient colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
+
+      return (
+        <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
+          {heroBanner}
+    {/* Shade the banner less when this is a hero image so logos are visible */}
+    <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
+
+        {/* Team Logos Overlay (kept for cases where only one team has a logo) */}
+        {(!leftLogo || !rightLogo) && (vm?.homeTeam || vm?.awayTeam) && (
+          <View style={styles.teamLogosOverlay}>
+            <View style={styles.teamMatchup}>
+              {/* Home Team */}
+              <View style={styles.teamSideInBanner}>
+                <View style={styles.teamLogoInBanner}>
+                  {getTeamLogo(vm?.homeTeam || '') ? (
+                    <Image 
+                      source={{ uri: getTeamLogo(vm?.homeTeam || '') }} 
+                      style={styles.teamLogoImage}
+                    />
+                  ) : (
+                    <Text style={styles.teamLogoEmojiInBanner}>🏠</Text>
+                  )}
+                </View>
+                <Text style={styles.teamNameInBanner}>{vm?.homeTeam || 'Home'}</Text>
+                <Text style={styles.teamLabelInBanner}>HOME</Text>
+              </View>
+              
+              {/* VS Divider */}
+              <View style={styles.vsDividerInBanner}>
+                <View style={styles.vsCircleInBanner}>
+                  <Text style={styles.vsTextInBanner}>VS</Text>
+                </View>
+              </View>
+              
+              {/* Away Team */}
+              <View style={styles.teamSideInBanner}>
+                <View style={styles.teamLogoInBanner}>
+                  {getTeamLogo(vm?.awayTeam || '') ? (
+                    <Image 
+                      source={{ uri: getTeamLogo(vm?.awayTeam || '') }} 
+                      style={styles.teamLogoImage}
+                    />
+                  ) : (
+                    <Text style={styles.teamLogoEmojiInBanner}>✈️</Text>
+                  )}
+                </View>
+                <Text style={styles.teamNameInBanner}>{vm?.awayTeam || 'Away'}</Text>
+                <Text style={styles.teamLabelInBanner}>AWAY</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.circleButton}>
             <Ionicons name="chevron-back" size={20} color="#111827" />
           </Pressable>
-          <Pressable onPress={onShare} accessibilityRole="button" style={styles.circleButton}>
-            <Ionicons name="share-outline" size={18} color="#111827" />
-          </Pressable>
+          <View style={styles.bannerTopRightRow}>
+            {hasEvent ? (
+              <Pressable
+                onPress={openRsvpSheet}
+                style={[
+                  styles.circleButton,
+                  gamePhase !== 'upcoming' ? styles.rsvpDisabled : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Event RSVP"
+                accessibilityHint={rsvpChipLabel}
+              >
+                <Ionicons
+                  name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}
+                  size={18}
+                  color={gamePhase === 'upcoming' ? (vm?.userRsvped ? '#0f172a' : '#2563EB') : '#6B7280'}
+                />
+              </Pressable>
+            ) : null}
+            <Pressable onPress={onShare} accessibilityRole="button" style={styles.circleButton}>
+              <Ionicons name="share-outline" size={18} color="#111827" />
+            </Pressable>
+          </View>
         </View>
         <View style={styles.bannerBottomRow}>
-          <View style={styles.dateChip}>
-            <Ionicons name="calendar" size={14} color="#2563EB" />
-            <Text style={styles.dateChipText}>{displayDate || 'Upcoming Game'}</Text>
-            {displayTime ? <Text style={styles.dateChipTime}>{displayTime}</Text> : null}
-          </View>
-          {showRsvp ? (
-            <Pressable
-              onPress={onToggleRsvp}
-              disabled={rsvpBusy}
-              style={[styles.rsvpChip, vm?.userRsvped ? styles.rsvpOn : null, rsvpBusy ? styles.rsvpDisabled : null]}
-            >
-              <Ionicons
-                name={vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline'}
-                size={18}
-                color={vm?.userRsvped ? '#0f172a' : '#2563EB'}
-              />
-              <Text style={[styles.rsvpText, vm?.userRsvped ? styles.rsvpTextOn : null]}>
-                {vm?.userRsvped ? 'Going' : 'RSVP'}
-              </Text>
-            </Pressable>
-          ) : vm?.isPast ? (
-            <View style={styles.finalChip}>
-              <Ionicons name="flag" size={14} color="#EF4444" />
-              <Text style={styles.finalText}>Final</Text>
+          <View style={styles.bannerBottomLeft}>
+            <View style={styles.dateChip}>
+              <Ionicons name="calendar" size={14} color="#2563EB" />
+              <Text style={styles.dateChipText}>{displayDate || 'Upcoming Game'}</Text>
+              {displayTime ? <Text style={styles.dateChipTime}>{displayTime}</Text> : null}
             </View>
-          ) : null}
+            {gamePhase === 'upcoming' ? (
+              <View style={[styles.statusChip, styles.statusUpcoming]}>
+                <Text style={styles.statusText}>Starts in {formatCountdown(startsInMs)}</Text>
+              </View>
+            ) : gamePhase === 'live' ? (
+              <View style={[styles.statusChip, styles.statusLive]}>
+                <Animated.View
+                  style={[
+                    styles.liveDot,
+                    {
+                      transform: [
+                        {
+                          scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.25] }),
+                        },
+                      ],
+                      opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
+                    },
+                  ]}
+                />
+                <Text style={styles.statusText}>LIVE</Text>
+              </View>
+            ) : (
+              <View style={[styles.statusChip, styles.statusFinal]}>
+                <Text style={styles.statusText}>FINAL</Text>
+              </View>
+            )}
+          </View>
+          {/* RSVP moved to top bar */}
         </View>
       </View>
     );
@@ -795,7 +1321,7 @@ const renderVoteSection = () => {
     const stats = [
       { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '\u2014' },
       { key: 'reviews', label: 'Reviews', value: vm?.reviewsCount != null ? String(vm.reviewsCount) : '\u2014' },
-      { key: 'media', label: 'Media', value: vm?.media?.length ? String(vm.media.length) : '0' },
+      { key: 'media', label: 'Stories', value: vm?.media?.length ? String(vm.media.length) : '0' },
     ];
     return (
       <View style={styles.statRow}>
@@ -824,6 +1350,14 @@ const renderVoteSection = () => {
       </View>
     );
   };
+
+  // Sanitize generic placeholder descriptions
+  const displayDescription = useMemo(() => {
+    const s = (vm?.description || '').replace(/\s+/g, ' ').trim();
+    if (!s) return null;
+    if (/^friendly match$/i.test(s)) return null;
+    return s;
+  }, [vm?.description]);
 
   const renderMediaGrid = () => {
     if (!vm?.media?.length) {
@@ -867,23 +1401,6 @@ const renderVoteSection = () => {
         {vm ? (
           <>
             {renderBanner()}
-            {renderVoteSection()}
-              <View style={styles.tabRow}>
-                {(['overview', 'media', 'posts'] as SectionKey[]).map((key) => (
-                  <Pressable
-                    key={key}
-                    style={[styles.tabBtn, activeSection === key ? styles.tabBtnOn : null]}
-                    onPress={() => {
-                      if (key === 'overview') setActiveSection('overview');
-                      else scrollToSection(key);
-                    }}
-                  >
-                    <Text style={[styles.tabText, activeSection === key ? styles.tabTextOn : null]}>
-                      {key === 'overview' ? 'Overview' : key === 'media' ? 'Media' : 'Posts'}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
           </>
         ) : null}
       </Animated.View>
@@ -913,7 +1430,30 @@ const renderVoteSection = () => {
           ) : null}
           {vm && !loading ? (
             <>
+              <View style={styles.tabRowWrap}>
+                <View style={styles.tabRowCapsule}>
+                  {(['overview', 'media', 'posts'] as SectionKey[]).map((key) => (
+                    <Pressable
+                      key={key}
+                      style={({ pressed }) => [
+                        styles.tabBtnCapsule,
+                        activeSection === key ? styles.tabBtnCapsuleOn : null,
+                        pressed ? { opacity: 0.85 } : null,
+                      ]}
+                      onPress={() => {
+                        if (key === 'overview') setActiveSection('overview');
+                        else scrollToSection(key);
+                      }}
+                    >
+                      <Text style={[styles.tabText, activeSection === key ? styles.tabTextOn : null]}>
+                        {key === 'overview' ? 'Overview' : key === 'media' ? 'Stories' : 'Posts'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
               <Text style={styles.title}>{vm.title}</Text>
+              {renderVoteSection()}
               {vm.location ? (
                 <Pressable style={styles.locationRow} onPress={onPressLocation}>
                   <Ionicons name="location" size={16} color="#2563EB" />
@@ -921,57 +1461,33 @@ const renderVoteSection = () => {
                 </Pressable>
               ) : null}
 
-              <View style={styles.actionsRow}>
-                <Pressable
-                  style={styles.actionBtn}
-                  onPress={() => {
-                    if (!vm.gameId) return;
-                    router.push({ pathname: '/game-reviews', params: { game_id: vm.gameId } });
-                  }}
-                  disabled={!vm.gameId}
-                >
-                  <Ionicons name="star" size={16} color="#111827" />
-                  <Text style={styles.actionText}>Reviews</Text>
-                </Pressable>
-                <Pressable style={styles.actionBtn} onPress={() => scrollToSection('media')}>
-                  <Ionicons name="images" size={16} color="#111827" />
-                  <Text style={styles.actionText}>Photos & Videos</Text>
-                </Pressable>
-                <Pressable style={styles.actionBtn} onPress={onShare}>
-                  <Ionicons name="arrow-redo" size={16} color="#111827" />
-                  <Text style={styles.actionText}>Share</Text>
-                </Pressable>
-              </View>
+              {/* Removed the under-game actions row (Reviews, Stories, Share) per request */}
               <View style={styles.secondaryActionsRow}>
                 <Pressable
                   style={[styles.actionBtn, !vm?.gameId ? styles.actionBtnDisabled : null]}
-                  onPress={handleCreateHighlight}
+                  onPress={handleAddStory}
                   disabled={!vm?.gameId}
                 >
-                  <Ionicons name="flash-outline" size={16} color="#DC2626" />
-                  <Text style={styles.actionText}>Add Highlight</Text>
+                  <Ionicons name="add-circle-outline" size={16} color="#2563EB" />
+                  <Text style={styles.actionText}>Add Story</Text>
                 </Pressable>
               </View>
-
-              <View style={styles.section}>
-                {vm.description ? <Text style={styles.bodyText}>{vm.description}</Text> : <Text style={styles.muted}>No description yet.</Text>}
-                {renderStats()}
-                <Text style={styles.sectionTitle}>Teams</Text>
-                {renderTeams()}
-              </View>
-
+              {/* Stories carousel (only stories section). Also anchor the Stories tab to this position. */}
               <View
-                style={styles.section}
                 onLayout={(e) => {
                   sectionOffsets.current.media = e.nativeEvent.layout.y;
                 }}
               >
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Media</Text>
-                  <Text style={styles.sectionSubtitle}>{vm.media.length ? `${vm.media.length} items` : 'Add highlights'}</Text>
-                </View>
-                {renderMediaGrid()}
+                {renderStoriesCarousel()}
               </View>
+
+              <View style={styles.section}>
+                {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
+                <Text style={styles.sectionTitle}>Teams</Text>
+                {renderTeams()}
+              </View>
+
+              {/* Removed the secondary stories grid section to avoid duplication. */}
 
               <View
                 style={styles.section}
@@ -1060,7 +1576,180 @@ const renderVoteSection = () => {
         onRequestClose={() => setVerticalFeedOpen(false)}
       >
         <View style={styles.verticalFeedModal}>
-          <GameVerticalFeedScreen onClose={() => setVerticalFeedOpen(false)} />
+          <GameVerticalFeedScreen
+            onClose={() => setVerticalFeedOpen(false)}
+            gameId={vm?.gameId || null}
+            excludeMediaUrls={(vm?.media || []).map((m) => m.url).filter(Boolean) as string[]}
+          />
+        </View>
+      </Modal>
+
+      {/* VS quick modal - interactive quick poll */}
+      <Modal visible={vsModalOpen} animationType="fade" transparent onRequestClose={() => setVsModalOpen(false)}>
+        <Pressable style={styles.vsModalBackdrop} onPress={() => setVsModalOpen(false)}>
+          <Pressable style={styles.vsModalCard} onPress={() => {}}>
+            <Text style={styles.vsModalTitle}>{vm?.homeTeam || 'Team A'} vs {vm?.awayTeam || 'Team B'}</Text>
+
+            {/* Poll row */}
+            <View style={styles.vsPollRow}>
+              {(() => {
+                const summary = voteSummary ?? buildVoteSummary(0, 0, null);
+                const pctA = summary.total ? Math.round(summary.pctA) : 50;
+                const pctB = summary.total ? Math.round(summary.pctB) : 50;
+                const selected = summary.userVote;
+                const disabled = Boolean(vm?.isPast) || voteBusy;
+                const bgA = themeBgA;
+                const bgOn = themeBgOn;
+                const textColor = themeTextColor;
+                return (
+                  <>
+                    <Animated.View style={{ flex: 1, transform: [{ scale: vsScaleA }] }}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${teamALabel} vote`}
+                        accessibilityHint={selected === 'A' ? 'Tap to clear your vote' : 'Tap to vote for this team'}
+                        style={[styles.vsTeamCard, { backgroundColor: selected === 'A' ? bgOn : bgA } as any]}
+                        onPress={() => {
+                          if (selected === 'A') {
+                            handleClearVote();
+                            if (!prefersReducedMotion) Animated.spring(vsScaleA, { toValue: 1, useNativeDriver: true }).start();
+                          } else {
+                            handleVote('A');
+                            if (!prefersReducedMotion) Animated.sequence([
+                              Animated.spring(vsScaleA, { toValue: 1.06, useNativeDriver: true }),
+                              Animated.spring(vsScaleA, { toValue: 1, useNativeDriver: true }),
+                            ]).start();
+                          }
+                        }}
+                        disabled={disabled}
+                      >
+                        <Text style={[styles.vsTeamName, { color: selected === 'A' ? '#fff' : textColor }]}>{teamALabel}</Text>
+                        <Text style={[styles.vsTeamPct, { color: selected === 'A' ? '#fff' : textColor }]}>{displayPctA}%</Text>
+                        <Text style={[styles.vsTeamVotes, { color: selected === 'A' ? 'rgba(255,255,255,0.9)' : '#64748b' }]}>{String(summary.teamA)} votes</Text>
+
+                        <View style={styles.vsPctBarWrap} accessibilityElementsHidden>
+                          <Animated.View
+                            style={[
+                              styles.vsPctBarFill,
+                              {
+                                width: pctAnimA.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) as any,
+                                backgroundColor: selected === 'A' ? bgOn : undefined,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+
+                    <View style={styles.vsDivider} />
+
+                    <Animated.View style={{ flex: 1, transform: [{ scale: vsScaleB }] }}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${teamBLabel} vote`}
+                        accessibilityHint={selected === 'B' ? 'Tap to clear your vote' : 'Tap to vote for this team'}
+                        style={[styles.vsTeamCard, { backgroundColor: selected === 'B' ? bgOn : bgA } as any]}
+                        onPress={() => {
+                          if (selected === 'B') {
+                            handleClearVote();
+                            if (!prefersReducedMotion) Animated.spring(vsScaleB, { toValue: 1, useNativeDriver: true }).start();
+                          } else {
+                            handleVote('B');
+                            if (!prefersReducedMotion) Animated.sequence([
+                              Animated.spring(vsScaleB, { toValue: 1.06, useNativeDriver: true }),
+                              Animated.spring(vsScaleB, { toValue: 1, useNativeDriver: true }),
+                            ]).start();
+                          }
+                        }}
+                        disabled={disabled}
+                      >
+                        <Text style={[styles.vsTeamName, { color: selected === 'B' ? '#fff' : textColor }]}>{teamBLabel}</Text>
+                        <Text style={[styles.vsTeamPct, { color: selected === 'B' ? '#fff' : textColor }]}>{displayPctB}%</Text>
+                        <Text style={[styles.vsTeamVotes, { color: selected === 'B' ? 'rgba(255,255,255,0.9)' : '#64748b' }]}>{String(summary.teamB)} votes</Text>
+
+                        <View style={styles.vsPctBarWrap} accessibilityElementsHidden>
+                          <Animated.View
+                            style={[
+                              styles.vsPctBarFill,
+                              {
+                                width: pctAnimB.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) as any,
+                                backgroundColor: selected === 'B' ? bgOn : undefined,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+                  </>
+                );
+              })()}
+            </View>
+
+            <Text style={styles.vsModalBody}>{vm?.isPast ? 'Game finished' : 'Tap a side to vote or tap again to clear your vote.'}</Text>
+
+            <Pressable style={styles.vsModalClose} onPress={() => setVsModalOpen(false)}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {storiesViewer?.visible ? (
+        <StoriesViewer
+          visible={storiesViewer.visible}
+          items={storiesViewer.items}
+          index={storiesViewer.index}
+          onClose={() => setStoriesViewer(null)}
+          onSeen={(id) => setSeenStories((prev) => (prev[id] ? prev : { ...prev, [id]: true }))}
+        />
+      ) : null}
+      {/* RSVP Bottom Sheet */}
+      <Modal
+        visible={rsvpSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setRsvpSheetOpen(false)}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={closeRsvpSheet}>
+          <View />
+        </Pressable>
+        <View style={styles.sheetContainer}>
+          <View style={styles.sheetHandleBar} />
+          <View style={styles.sheetHeaderRow}>
+            <Ionicons name="people" size={18} color="#2563EB" />
+            <Text style={styles.sheetTitle}>{rsvpChipLabel || 'Event RSVP'}</Text>
+          </View>
+
+          {gamePhase === 'upcoming' ? (
+            <>
+              <Pressable
+                onPress={async () => { await onToggleRsvp(); setRsvpSheetOpen(false); }}
+                disabled={rsvpBusy || !canRsvpNow}
+                style={[styles.sheetPrimaryBtn, vm?.userRsvped ? styles.sheetBtnOn : null, (rsvpBusy || !canRsvpNow) ? styles.rsvpDisabled : null]}
+                accessibilityRole="button"
+                accessibilityLabel={vm?.userRsvped ? 'Mark not going' : 'RSVP going'}
+              >
+                <Ionicons name={vm?.userRsvped ? 'close-circle' : 'checkmark-circle'} size={18} color="#fff" />
+                <Text style={styles.sheetPrimaryBtnText}>{vm?.userRsvped ? 'Mark not going' : 'I am going'}</Text>
+              </Pressable>
+              <Text style={styles.sheetNote}>You can change this anytime before kickoff.</Text>
+            </>
+          ) : (
+            <Text style={styles.sheetNote}>RSVP is closed for this event.</Text>
+          )}
+
+          <View style={styles.sheetStatsRow}>
+            <View style={styles.sheetStatCard}>
+              <Text style={styles.sheetStatValue}>{goingCount != null ? String(goingCount) : '0'}</Text>
+              <Text style={styles.sheetStatLabel}>{gamePhase === 'final' ? 'Went' : 'Going'}</Text>
+            </View>
+            {vm?.capacity ? (
+              <View style={styles.sheetStatCard}>
+                <Text style={styles.sheetStatValue}>{String(vm.capacity)}</Text>
+                <Text style={styles.sheetStatLabel}>Capacity</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </Modal>
       {showTopFab ? (
@@ -1138,6 +1827,57 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   voteBarDisabled: { opacity: 0.65 },
+  // RSVP sheet styles
+  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheetContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
+  sheetHandleBar: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e5e7eb',
+    marginBottom: 10,
+  },
+  sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  sheetPrimaryBtn: {
+    marginTop: 4,
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  sheetBtnOn: { backgroundColor: '#ef4444' },
+  sheetPrimaryBtnText: { color: '#fff', fontWeight: '700' },
+  sheetNote: { marginTop: 10, color: '#6B7280' },
+  sheetStatsRow: { marginTop: 16, flexDirection: 'row', gap: 10 },
+  sheetStatCard: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+  },
+  sheetStatValue: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  sheetStatLabel: { marginTop: 2, fontSize: 12, color: '#6B7280', fontWeight: '600' },
   voteFill: { height: '100%', overflow: 'hidden' },
   voteFillA: {
     backgroundColor: '#2563EB',
@@ -1214,6 +1954,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  bannerTopRightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bannerBottomRow: {
     position: 'absolute',
     left: 16,
@@ -1223,6 +1964,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  bannerBottomLeft: { flexDirection: 'column', gap: 8, maxWidth: '70%' },
   dateChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1234,6 +1976,21 @@ const styles = StyleSheet.create({
   },
   dateChipText: { fontWeight: '700', color: '#111827', fontSize: 13 },
   dateChipTime: { fontWeight: '600', color: '#2563EB', fontSize: 13 },
+  statusChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  statusUpcoming: { backgroundColor: 'rgba(219,234,254,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#bfdbfe' },
+  statusLive: { backgroundColor: 'rgba(254,226,226,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#fecaca' },
+  statusFinal: { backgroundColor: 'rgba(229,231,235,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db' },
+  statusText: { fontWeight: '800', color: '#0f172a' },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
   rsvpChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1249,6 +2006,8 @@ const styles = StyleSheet.create({
   rsvpDisabled: { opacity: 0.6 },
   rsvpText: { fontWeight: '700', color: '#2563EB' },
   rsvpTextOn: { color: '#0f172a' },
+  rsvpTopInline: { paddingHorizontal: 10, paddingVertical: 6 },
+  rsvpTextInline: { fontSize: 13 },
   finalChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1315,6 +2074,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     padding: 4,
   },
+  tabRowWrap: { marginBottom: 12, paddingHorizontal: 8 },
+  tabRowCapsule: { flexDirection: 'row', backgroundColor: '#eef2ff', borderRadius: 999, padding: 6, alignItems: 'center', justifyContent: 'center' },
+  tabBtnCapsule: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, marginHorizontal: 4 },
+  tabBtnCapsuleOn: { backgroundColor: '#fff', borderWidth: StyleSheet.hairlineWidth, borderColor: '#c7d2fe' },
   tabBtn: { flex: 1, borderRadius: 999, alignItems: 'center', paddingVertical: 8 },
   tabBtnOn: { backgroundColor: 'white', borderWidth: StyleSheet.hairlineWidth, borderColor: '#c7d2fe' },
   tabText: { fontWeight: '600', color: '#475569' },
@@ -1344,6 +2107,21 @@ const styles = StyleSheet.create({
   mediaThumb: { width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   mediaThumbContent: { flex: 1 },
   mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' },
+  storiesWrap: { marginTop: 12 },
+  storiesRow: { paddingHorizontal: 4, paddingVertical: 6 },
+  storyItem: { width: 88, height: 140, borderRadius: 14, overflow: 'hidden' },
+  storyItemGap: { marginLeft: 8 },
+  storyTile: { flex: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: '#0f172a' },
+  storyItemSeen: { opacity: 0.6 },
+  storyTileCountdown: { alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: '#0f172a' },
+  storyTileLabel: { color: '#cbd5e1', fontWeight: '700', fontSize: 12, marginBottom: 6 },
+  storyTileTime: { color: '#ffffff', fontWeight: '900', fontSize: 16 },
+  storyLiveRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  storyLiveText: { color: '#ffffff', fontWeight: '900' },
+  storyFinalText: { color: '#e5e7eb', fontWeight: '800' },
+  storyThumb: { flex: 1 },
+  storyThumbVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(2,6,23,0.85)' },
+  storySeenOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,6,23,0.25)' },
   verticalFeedPreview: {
     marginTop: 16,
     borderRadius: 20,
@@ -1378,6 +2156,128 @@ const styles = StyleSheet.create({
   viewerBackDrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.9)', alignItems: 'center', justifyContent: 'center' },
   viewerContent: { width: '90%', aspectRatio: 3 / 4, maxHeight: '80%' },
   viewerMedia: { width: '100%', height: '100%', borderRadius: 16 },
+  // Story viewer styles
+  storyViewerRoot: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  storyViewerTopBar: { position: 'absolute', left: 12, right: 12, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  storyTopLabel: { color: '#fff', fontWeight: '800' },
+  storyCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  storyStage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  storyTouchLayer: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
+  storyTouchHalf: { flex: 1 },
+  storyProgressRow: { flex: 1, flexDirection: 'row', gap: 4, marginRight: 8 },
+  storyProgressSegment: { flex: 1, height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: 'transparent' },
+  storyProgressTrack: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.35)' },
+  storyProgressFillAbs: { ...StyleSheet.absoluteFillObject, backgroundColor: '#fff', transformOrigin: 'left center' as any },
+  // Team logos banner overlay styles
+  teamLogosOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 120,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  teamMatchup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  teamSideInBanner: {
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 80,
+  },
+  teamLogoInBanner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+    overflow: 'hidden',
+  },
+  teamLogoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  teamLogoEmojiInBanner: {
+    fontSize: 28,
+  },
+  teamNameInBanner: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  teamLabelInBanner: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  vsDividerInBanner: {
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 60,
+  },
+  vsCircleInBanner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(37,99,235,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  vsTextInBanner: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  // VS quick-modal styles
+  vsModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  vsModalCard: {
+    width: '86%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  vsModalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' },
+  vsModalBody: { color: '#6B7280', textAlign: 'center', marginBottom: 12 },
+  vsModalClose: { backgroundColor: '#2563EB', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  vsPollRow: { flexDirection: 'row', width: '100%', gap: 8, marginVertical: 8 },
+  vsTeamCard: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
+  },
+  vsTeamCardOn: { backgroundColor: '#2563EB', borderColor: '#1e40af' },
+  vsTeamName: { fontWeight: '800', color: '#0f172a', marginBottom: 4, textAlign: 'center' },
+  vsTeamPct: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
+  vsTeamVotes: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  vsDivider: { width: 12 },
+  vsPctBarWrap: { width: '100%', height: 6, backgroundColor: '#e6eefc', borderRadius: 6, overflow: 'hidden', marginTop: 8 },
+  vsPctBarFill: { height: '100%', backgroundColor: '#1e40af', width: '0%' },
 });
 
 

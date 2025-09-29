@@ -1,9 +1,11 @@
+import CollageView, { type CollageData } from '@/components/CollageView';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { ResizeMode, Video } from 'expo-av';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -21,6 +23,7 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
@@ -56,6 +59,10 @@ export type FeedPost = {
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
+  // Collage support (optional)
+  type?: string | null;
+  collage?: CollageData | null;
+  preview_url?: string | null;
 };
 
 type CommentItem = {
@@ -112,6 +119,8 @@ type GameVerticalFeedScreenProps = {
   initialPosts?: FeedPost[];
   startIndex?: number;
   title?: string | null;
+  // Exclude any posts whose media_url matches one of these URLs (case-insensitive, query/hash ignored)
+  excludeMediaUrls?: string[];
 };
 
 
@@ -130,6 +139,8 @@ const FeedCard = memo(
     onSharePost,
     onToggleFollow,
     onDoubleTap,
+    onDeletePost,
+    onEditPost,
     registerVideo,
     insets,
   }: {
@@ -141,26 +152,84 @@ const FeedCard = memo(
     onSharePost: () => void;
     onToggleFollow: () => void;
     onDoubleTap: () => void;
-    registerVideo: (id: string, ref: Video | null) => void;
+    onDeletePost?: () => void;
+    onEditPost?: (caption: string) => void;
+    registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
   }) => {
-    const videoRef = useRef<Video | null>(null);
     const lastTapRef = useRef(0);
+    const collageRef = useRef<View | null>(null);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+    const [editCaption, setEditCaption] = useState('');
 
+    // Load current user
     useEffect(() => {
-      registerVideo(post.id, videoRef.current);
-      return () => registerVideo(post.id, null);
-    }, [post.id, registerVideo]);
+      const loadUser = async () => {
+        try {
+          const user = await User.me();
+          setCurrentUser(user);
+        } catch (error) {
+          console.error('Failed to load user:', error);
+        }
+      };
+      loadUser();
+    }, []);
 
-    useEffect(() => {
-      const ref = videoRef.current;
-      if (!ref) return;
-      if (isActive && post.media_type === 'video') {
-        ref.playAsync().catch(() => {});
-      } else {
-        ref.pauseAsync().catch(() => {});
+    // Check if current user is the author of the post
+    const isAuthor = currentUser && post.author?.id && currentUser.id === post.author.id;
+
+    const handleDeletePost = () => {
+      setShowDeleteConfirm(true);
+    };
+
+    const confirmDelete = async () => {
+      try {
+        await Post.delete(post.id);
+        setShowDeleteConfirm(false);
+        onDeletePost?.();
+      } catch (error) {
+        console.error('Failed to delete post:', error);
       }
-    }, [isActive, post.media_type]);
+    };
+
+    const handleEditPost = () => {
+      setEditCaption(post.caption || '');
+      setShowEditModal(true);
+    };
+
+    const confirmEdit = async () => {
+      try {
+        await Post.update(post.id, { content: editCaption });
+        setShowEditModal(false);
+        onEditPost?.(editCaption);
+      } catch (error) {
+        console.error('Failed to update post:', error);
+      }
+    };
+
+    // Create per-card player
+    const player = useVideoPlayer(post.media_url || null, (p) => {
+      p.loop = true;
+      p.muted = true;
+      if (isActive && post.media_type === 'video') {
+        try { p.play(); } catch {}
+      }
+    });
+
+    useEffect(() => {
+      registerVideo(post.id, player);
+      return () => registerVideo(post.id, null);
+    }, [post.id, player, registerVideo]);
+
+    useEffect(() => {
+      if (post.media_type !== 'video') return;
+      try {
+        if (isActive) player.play(); else player.pause();
+      } catch {}
+    }, [isActive, post.media_type, player]);
 
     const handleTap = () => {
       const now = Date.now();
@@ -172,18 +241,30 @@ const FeedCard = memo(
 
     const authorLabel = post.author?.display_name || 'Anonymous';
 
+    const onLongPressExport = useCallback(async () => {
+      if (!post?.collage) return;
+      try {
+        const perm = await MediaLibrary.requestPermissionsAsync();
+        if (perm.status !== 'granted') return;
+        const uri = await captureRef(collageRef, { format: 'jpg', quality: 0.92 } as any);
+        await MediaLibrary.saveToLibraryAsync(uri as any);
+      } catch {}
+    }, [post?.collage]);
+
     return (
       <View style={[styles.card, { height: windowHeight }]}>
-        <Pressable style={styles.mediaContainer} onPress={handleTap}>
-          {post.media_type === 'video' && post.media_url ? (
-            <Video
-              ref={videoRef}
-              source={{ uri: post.media_url }}
+        <Pressable style={styles.mediaContainer} onPress={handleTap} onLongPress={onLongPressExport} delayLongPress={350}>
+          {post?.collage ? (
+            <View ref={collageRef as any} style={styles.media}>
+              <CollageView collage={post.collage} style={{ width: '100%', height: '100%' }} />
+            </View>
+          ) : post.media_type === 'video' && post.media_url ? (
+            <VideoView
+              player={player}
               style={styles.media}
-              resizeMode={ResizeMode.COVER}
-              isLooping
-              shouldPlay={isActive}
-              isMuted
+              contentFit="cover"
+              nativeControls={false}
+              allowsFullscreen={false}
             />
           ) : post.media_url ? (
             <FastImage
@@ -260,20 +341,122 @@ const FeedCard = memo(
             <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={28} color="#fff" />
             <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
           </Pressable>
+
+          {isAuthor && (
+            <Pressable onPress={() => setShowOptionsMenu(true)} style={styles.railBtn}>
+              <Ionicons name="ellipsis-horizontal" size={28} color="#fff" />
+              <Text style={styles.railLabel}>Options</Text>
+            </Pressable>
+          )}
         </View>
+
+        {/* Options Menu Modal */}
+        <Modal visible={showOptionsMenu} transparent animationType="fade">
+          <Pressable style={styles.modalOverlay} onPress={() => setShowOptionsMenu(false)}>
+            <View style={styles.optionsMenu}>
+              <Pressable 
+                onPress={() => {
+                  setShowOptionsMenu(false);
+                  handleEditPost();
+                }} 
+                style={styles.optionButton}
+              >
+                <Ionicons name="pencil-outline" size={20} color="#fff" />
+                <Text style={styles.optionText}>Edit Post</Text>
+              </Pressable>
+              <Pressable 
+                onPress={() => {
+                  setShowOptionsMenu(false);
+                  handleDeletePost();
+                }} 
+                style={styles.optionButton}
+              >
+                <Ionicons name="trash-outline" size={20} color="#dc2626" />
+                <Text style={[styles.optionText, { color: '#dc2626' }]}>Delete Post</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal visible={showDeleteConfirm} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Delete Post?</Text>
+              <Text style={styles.modalText}>Are you sure you want to delete this post? This action cannot be undone.</Text>
+              <View style={styles.modalButtons}>
+                <Pressable onPress={() => setShowDeleteConfirm(false)} style={styles.modalCancelBtn}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={confirmDelete} style={styles.modalDeleteBtn}>
+                  <Text style={styles.modalDeleteText}>Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Modal */}
+        <Modal visible={showEditModal} transparent animationType="fade">
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit Post</Text>
+              <TextInput
+                style={styles.editInput}
+                value={editCaption}
+                onChangeText={setEditCaption}
+                placeholder="Post caption..."
+                multiline
+                textAlignVertical="top"
+              />
+              <View style={styles.modalButtons}>
+                <Pressable onPress={() => setShowEditModal(false)} style={styles.modalCancelBtn}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={confirmEdit} style={styles.modalSaveBtn}>
+                  <Text style={styles.modalSaveText}>Save</Text>
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     );
   }
 );
 FeedCard.displayName = 'FeedCard';
 
-export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, title }: GameVerticalFeedScreenProps = {}) {
+export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, title, excludeMediaUrls = [] }: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const gameId = externalGameId ? String(externalGameId) : (gameIdParam ? String(gameIdParam) : null);
   const usingInitial = useMemo(() => Array.isArray(initialPosts) && initialPosts.length > 0, [initialPosts]);
   const normalizedCountry = useMemo(() => (countryCode ? String(countryCode).toUpperCase() : undefined), [countryCode]);
+  const normalizeUrl = useCallback((u: any) => {
+    if (!u || typeof u !== 'string') return null;
+    try {
+      // strip hash and query
+      let s = u.trim();
+      const hashIdx = s.indexOf('#');
+      if (hashIdx >= 0) s = s.slice(0, hashIdx);
+      const qIdx = s.indexOf('?');
+      if (qIdx >= 0) s = s.slice(0, qIdx);
+      s = s.replace(/^https?:\/\//i, '');
+      s = s.replace(/\/+$/, '');
+      return s.toLowerCase();
+    } catch {
+      return null;
+    }
+  }, []);
+  const excludeSet = useMemo(() => {
+    const set = new Set<string>();
+    (excludeMediaUrls || []).forEach((u) => {
+      const n = normalizeUrl(u);
+      if (n) set.add(n);
+    });
+    return set;
+  }, [excludeMediaUrls, normalizeUrl]);
   const handleBack = useCallback(() => {
     if (onClose) {
       onClose();
@@ -301,33 +484,54 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
   const [meInfo, setMeInfo] = useState<{ id?: string; display_name?: string | null; username?: string | null } | null>(null);
 
-  const videoRefs = useRef<Record<string, Video | null>>({});
+  // Store VideoPlayer instances by post id
+  const videoRefs = useRef<Record<string, any | null>>({});
   const isScreenFocusedRef = useRef(true);
   const flatListRef = useRef<FlatList<FeedPost>>(null);
 
   const cursorRef = useRef<string | null>(null);
   const hasMoreRef = useRef(true);
+  const _resetRunCount = useRef(0);
+  const setIfDifferent = useCallback((setter: any, next: any) => {
+    setter((prev: any) => {
+      try {
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+      } catch {
+        // If comparison fails, fall back to setting the new value
+      }
+      return next;
+    });
+  }, []);
+  const _initialSeedSig = useRef<string | null>(null);
 
   useEffect(() => {
-    setPosts([]);
-    setCursor(null);
-    setHasMore(true);
+    // Defensive reset: only update states when the new value differs from current.
+    // This prevents repeated effect runs from creating new object/array instances
+    // which can otherwise trigger re-renders and lead to "maximum update depth" loops.
+    _resetRunCount.current += 1;
+    if (__DEV__) {
+      console.debug('GameVerticalFeedScreen.reset effect run', { run: _resetRunCount.current, gameId, usingInitial });
+      if (_resetRunCount.current > 5) console.debug('GameVerticalFeedScreen reset effect executed repeatedly', { run: _resetRunCount.current, gameId, usingInitial });
+    }
+    setIfDifferent(setPosts, []);
+    setIfDifferent(setCursor, null);
+    setIfDifferent(setHasMore, true);
     cursorRef.current = null;
     hasMoreRef.current = true;
-    setActiveIndex(0);
-    setLoading(true);
-    setRefreshing(false);
-    setLoadingMore(false);
-    setGame(null);
-    setComments([]);
-    setCommentsCursor(null);
-    setCommentTarget(null);
-    setCommentsError(null);
-    setCommentInput('');
-    setCommentSending(false);
-    setCommentsVisible(false);
-    setCommentsLoading(false);
-  }, [gameId, usingInitial]);
+    setIfDifferent(setActiveIndex, 0);
+    setIfDifferent(setLoading, true);
+    setIfDifferent(setRefreshing, false);
+    setIfDifferent(setLoadingMore, false);
+    setIfDifferent(setGame, null);
+    setIfDifferent(setComments, []);
+    setIfDifferent(setCommentsCursor, null);
+    setIfDifferent(setCommentTarget, null);
+    setIfDifferent(setCommentsError, null);
+    setIfDifferent(setCommentInput, '');
+    setIfDifferent(setCommentSending, false);
+    setIfDifferent(setCommentsVisible, false);
+    setIfDifferent(setCommentsLoading, false);
+  }, [gameId, usingInitial, setIfDifferent]);
 
   // If acting as a generic viewer with provided posts, seed posts and index.
   useEffect(() => {
@@ -335,20 +539,33 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     const items = Array.isArray(initialPosts)
       ? initialPosts.filter((p) => !!p && !!p.id)
       : [];
-    setPosts(items);
-    setActiveIndex(Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
-    setCursor(null);
+    // filter excluded
+    const filtered = items.filter((p) => {
+      const n = normalizeUrl(p.media_url);
+      return n ? !excludeSet.has(n) : true;
+    });
+    // Create a small signature to avoid reseeding the same content repeatedly
+    const sig = filtered.map((p) => p.id).join('|') + `::${startIndex || 0}`;
+    if (_initialSeedSig.current === sig) {
+      if (__DEV__) console.debug('GameVerticalFeedScreen initial posts seed skipped (same signature)');
+      return;
+    }
+    _initialSeedSig.current = sig;
+    if (__DEV__) console.debug('GameVerticalFeedScreen seeding initial posts', { count: filtered.length, sig });
+    setIfDifferent(setPosts, filtered);
+    setIfDifferent(setActiveIndex, Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
+    setIfDifferent(setCursor, null);
     cursorRef.current = null;
-    setHasMore(false);
+    setIfDifferent(setHasMore, false);
     hasMoreRef.current = false;
-    setLoading(false);
-  }, [usingInitial, initialPosts, startIndex]);
+    setIfDifferent(setLoading, false);
+  }, [usingInitial, initialPosts, startIndex, excludeSet, normalizeUrl, setIfDifferent]);
 
-  const registerVideo = useCallback((id: string, ref: Video | null) => {
-    if (!ref) {
+  const registerVideo = useCallback((id: string, player: any | null) => {
+    if (!player) {
       delete videoRefs.current[id];
     } else {
-      videoRefs.current[id] = ref;
+      videoRefs.current[id] = player;
     }
   }, []);
 
@@ -357,8 +574,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       isScreenFocusedRef.current = true;
       return () => {
         isScreenFocusedRef.current = false;
-        Object.values(videoRefs.current).forEach((ref) => {
-          ref?.pauseAsync().catch(() => {});
+        Object.values(videoRefs.current).forEach((player) => {
+          try { player?.pause?.(); } catch {}
         });
       };
     }, []),
@@ -371,6 +588,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       return;
     }
     let cancelled = false;
+    if (__DEV__) console.debug('GameVerticalFeedScreen.summary effect starting', { gameId });
     (async () => {
       try {
         const summary: any = await Game.summary(gameId).catch(() => null);
@@ -388,6 +606,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   const loadFeed = useCallback(
     async (reset = false) => {
+      if (__DEV__) console.debug('GameVerticalFeedScreen.loadFeed called', { reset, gameId, usingInitial });
       if (usingInitial) {
         // No-op: using provided posts
         setLoading(false);
@@ -411,6 +630,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             if (!mappedItem || !mappedItem.id) continue;
             if (seen.has(mappedItem.id)) continue;
             if (!mappedItem.media_url) continue;
+            const n = normalizeUrl(mappedItem.media_url);
+            if (n && excludeSet.has(n)) continue;
             seen.add(mappedItem.id);
             mapped.push(mappedItem);
           }
@@ -444,7 +665,11 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           sort: 'trending',
         });
         const items = Array.isArray(page?.items) ? page.items : [];
-        setPosts((prev) => (reset ? items : [...prev, ...items]));
+        const filtered = items.filter((p) => {
+          const n = normalizeUrl((p as any)?.media_url);
+          return n ? !excludeSet.has(n) : true;
+        });
+        setPosts((prev) => (reset ? filtered : [...prev, ...filtered]));
         const nextCursor = page?.nextCursor ?? null;
         cursorRef.current = nextCursor;
         setCursor(nextCursor);
@@ -459,10 +684,11 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         setLoadingMore(false);
       }
     },
-    [gameId, normalizedCountry, usingInitial],
+    [gameId, normalizedCountry, usingInitial, excludeSet, normalizeUrl],
   );
 
   useEffect(() => {
+    if (__DEV__) console.debug('GameVerticalFeedScreen.loadFeed trigger effect', { usingInitial, gameId });
     loadFeed(true);
   }, [loadFeed]);
 
@@ -472,6 +698,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     const target = Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1));
     if (!posts.length) return;
     try {
+      if (__DEV__) console.debug('GameVerticalFeedScreen initial scroll effect', { target, postsLength: posts.length });
       // Give FlatList a tick to mount
       requestAnimationFrame(() => {
         flatListRef.current?.scrollToIndex({ index: target, animated: false });
@@ -507,13 +734,15 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   useEffect(() => {
     const activeId = posts[activeIndex]?.id;
-    Object.entries(videoRefs.current).forEach(([postId, ref]) => {
-      if (!ref) return;
-      if (postId === activeId && posts[activeIndex]?.media_type === 'video' && isScreenFocusedRef.current) {
-        ref.playAsync().catch(() => {});
-      } else {
-        ref.pauseAsync().catch(() => {});
-      }
+    Object.entries(videoRefs.current).forEach(([postId, player]) => {
+      if (!player) return;
+      try {
+        if (postId === activeId && posts[activeIndex]?.media_type === 'video' && isScreenFocusedRef.current) {
+          player.play?.();
+        } else {
+          player.pause?.();
+        }
+      } catch {}
     });
   }, [activeIndex, posts]);
 
@@ -604,6 +833,25 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
    const message = post.caption ? `${post.caption}\n${deepLink}` : deepLink;
    Share.share({ message }).catch(() => {});
   }, []);
+
+  const handleDeletePost = useCallback(
+    (post: FeedPost) => {
+      // Remove the post from the current posts array
+      setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+    },
+    []
+  );
+
+  const handleEditPost = useCallback(
+    (post: FeedPost, newCaption: string) => {
+      // Update the post in the current posts array
+      updatePost(post.id, (p) => ({
+        ...p,
+        caption: newCaption,
+      }));
+    },
+    [updatePost]
+  );
 
   const openComments = useCallback(
     async (post: FeedPost) => {
@@ -699,11 +947,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         onSharePost={() => handleShare(item)}
         onToggleFollow={() => handleToggleFollow(item)}
         onDoubleTap={() => handleDoubleTap(item)}
+        onDeletePost={() => handleDeletePost(item)}
+        onEditPost={(newCaption: string) => handleEditPost(item, newCaption)}
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
       />
     ),
-    [activeIndex, handleDoubleTap, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo],
+    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo],
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
@@ -990,5 +1240,103 @@ const styles = StyleSheet.create({
   },
   commentSendDisabled: { backgroundColor: '#475569' },
   commentSendText: { color: '#fff', fontWeight: '700' },
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#cbd5e1',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: '#475569',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    backgroundColor: '#dc2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalDeleteText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalSaveBtn: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  editInput: {
+    backgroundColor: '#334155',
+    color: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    minHeight: 120,
+    marginBottom: 24,
+    textAlignVertical: 'top',
+  },
+  optionsMenu: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 40,
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  optionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
 

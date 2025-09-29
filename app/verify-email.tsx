@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -18,11 +18,13 @@ export default function VerifyEmailScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       await User.verifyEmail(code.trim());
-      setInfo('Email verified!');
-      router.replace('/(tabs)');
+  setInfo('Email verified!');
+  router.replace('/(tabs)/feed');
     } catch (e: any) {
       setError(e?.message || 'Verification failed');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const onResend = async () => {
@@ -32,7 +34,9 @@ export default function VerifyEmailScreen() {
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
       setError(e?.message || 'Resend failed');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,7 +54,7 @@ export default function VerifyEmailScreen() {
       <Pressable style={{ marginTop: 12 }} onPress={onResend}>
         <Text style={{ color: '#2563EB', fontWeight: '700' }}>Resend Code</Text>
       </Pressable>
-      <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/(tabs)')}>
+  <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/(tabs)/feed')}>
         <Text style={{ color: '#6b7280' }}>Skip for now</Text>
       </Pressable>
     </View>
@@ -64,4 +68,3 @@ const styles = StyleSheet.create({
   error: { color: '#b91c1c', marginTop: 8 },
   info: { color: '#065F46', marginTop: 8 },
 });
-

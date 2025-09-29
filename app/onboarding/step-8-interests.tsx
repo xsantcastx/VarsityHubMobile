@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { useOnboarding } from '@/context/OnboardingContext';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -17,6 +18,7 @@ const OPTIONS: { key: Intent; label: string }[] = [
 
 export default function Step8Interests() {
   const router = useRouter();
+  const { setProgress } = useOnboarding();
   const [sel, setSel] = useState<Intent[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -26,9 +28,10 @@ export default function Step8Interests() {
     if (!sel.length) { Alert.alert('Select at least one option'); return; }
     setSaving(true);
     try {
-      await User.updatePreferences({ primary_intents: sel });
-      await User.updatePreferences({ onboarding_completed: true });
-      router.replace('/onboarding/finish');
+  await User.updatePreferences({ primary_intents: sel });
+  await User.updatePreferences({ onboarding_completed: true });
+  setProgress(8);
+  router.replace('/onboarding/finish');
     } catch (e: any) {
       Alert.alert('Failed to save', e?.message || 'Try again');
     } finally { setSaving(false); }

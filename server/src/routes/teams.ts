@@ -23,7 +23,7 @@ teamsRouter.get('/', async (req, res) => {
     orderBy: { created_at: 'desc' },
     include: { _count: { select: { memberships: true } } },
   });
-  const list = rows.map((t) => ({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships }));
+  const list = rows.map((t) => ({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null }));
   return res.json(list);
 });
 
@@ -32,7 +32,7 @@ teamsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
   const t = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { memberships: true } } } });
   if (!t) return res.status(404).json({ error: 'Not found' });
-  return res.json({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships });
+  return res.json({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null });
 });
 
 // Team members list
@@ -82,6 +82,134 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
+});
+
+// Update team (auth required). Only owners/admins can update.
+// Accept full URLs or relative paths (uploads return .path) or empty string to clear
+const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
+const updateSchema = z.object({ 
+  name: z.string().min(2).optional(), 
+  description: z.string().optional(),
+  sport: z.string().optional(),
+  season: z.string().optional(),
+  logo_url: z.string().optional().or(z.literal('')),
+});
+teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  const parsed = updateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const teamId = String(req.params.id);
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  
+  // Check if user is owner or admin
+  const membership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  });
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin && (!membership || membership.role !== 'owner')) {
+    return res.status(403).json({ error: 'Only team owners can update team information' });
+  }
+  
+  const updateData: any = {};
+  if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
+  if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
+  if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
+  if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
+  
+  try {
+  const updatedTeam = await prisma.team.update({ where: { id: teamId }, data: updateData as any });
+    // Return a compact team object including logo/avatar fields for client convenience
+    return res.json({ id: updatedTeam.id, name: updatedTeam.name, description: updatedTeam.description, sport: updatedTeam.sport, season_start: updatedTeam.season_start, season_end: updatedTeam.season_end, logo_url: (updatedTeam as any).logo_url || null, avatar_url: (updatedTeam as any).avatar_url || null, status: updatedTeam.status, created_at: updatedTeam.created_at });
+  } catch (err: any) {
+    console.error('Failed to update team', err?.message || err);
+    // Handle common Prisma client runtime errors gracefully
+    return res.status(500).json({ error: 'Failed to update team', detail: err?.message || String(err) });
+  }
+});
+
+// Dev helper: update just the logo_url of a team (useful for testing uploads quickly)
+if (process.env.NODE_ENV !== 'production') {
+  teamsRouter.post('/:id/dev-set-logo', async (req, res) => {
+    const id = String(req.params.id);
+    const { logo_url } = req.body || {};
+    try {
+  const t = await prisma.team.update({ where: { id }, data: ({ logo_url: logo_url === '' ? null : logo_url } as any) });
+  return res.json({ ok: true, team: { id: t.id, logo_url: (t as any).logo_url } });
+    } catch (e: any) {
+      console.error('dev-set-logo failed', e?.message || e);
+      return res.status(500).json({ error: 'dev-set-logo failed', detail: e?.message || String(e) });
+    }
+  });
+}
+
+// Enhanced create team for onboarding
+const createTeamSchema = z.object({
+  name: z.string().min(1).max(255),
+  description: z.string().max(1000).optional(),
+  sport: z.string().max(100).optional(),
+  season_start: z.string().optional(),
+  season_end: z.string().optional(),
+  organization_id: z.string().optional(),
+  authorized_users: z.array(z.object({
+    email: z.string().email().optional(),
+    user_id: z.string().optional(),
+    role: z.string().optional(),
+    assign_team: z.string().optional(),
+  })).optional(),
+});
+
+teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+  const parsed = createTeamSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const data = parsed.data;
+  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Create team
+  const team = await prisma.team.create({ 
+    data: {
+      name: data.name,
+      description: data.description,
+      sport: data.sport,
+      season_start: data.season_start ? new Date(data.season_start) : null,
+      season_end: data.season_end ? new Date(data.season_end) : null,
+      organization_id: data.organization_id,
+    }
+  });
+  
+  // Add creator as owner
+  await prisma.teamMembership.create({ 
+    data: { 
+      team_id: team.id, 
+      user_id: me.id, 
+      role: 'owner' 
+    } 
+  });
+  
+  // Send invites to authorized users
+  if (data.authorized_users && data.authorized_users.length > 0) {
+    const invites = data.authorized_users
+      .filter(user => user.email)
+      .map(user => ({
+        team_id: team.id,
+        email: user.email!,
+        role: user.role || 'member',
+      }));
+    
+    if (invites.length > 0) {
+      await prisma.teamInvite.createMany({
+        data: invites,
+        skipDuplicates: true,
+      });
+    }
+  }
+  
+  return res.status(201).json(team);
 });
 
 // Invite user by email to a team

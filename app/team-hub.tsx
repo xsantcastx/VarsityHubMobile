@@ -1,24 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { format } from 'date-fns';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Color, Radius, Type } from '@/ui/tokens';
 // @ts-ignore api exports
 import { Event } from '@/api/entities';
 
-const PLACEHOLDER = ['#0f172a', '#1e3a8a'];
+const PLACEHOLDER = ['#0f172a', '#1e3a8a'] as const;
 
 const formatEventDate = (iso?: string) => {
   if (!iso) return 'TBD';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'TBD';
-  return format(d, 'EEE, MMM d • h:mm a');
+  return format(d, 'EEE, MMM d ï¿½ h:mm a');
 };
 
 const computeGoing = (count?: number | null, capacity?: number | null) => {
@@ -72,16 +72,16 @@ export default function TeamHubScreen() {
     if (!evt) return;
     if (evt.game_id || evt.game?.id) {
       const targetId = String(evt.game_id || evt.game.id);
-      router.push({ pathname: '/(tabs)/discover/game/[id]', params: { id: targetId } });
+      router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: targetId } });
       return;
     }
-    router.push({ pathname: '/(tabs)/discover/game', params: { eventId: String(evt.id) } });
+  router.push({ pathname: '/(tabs)/feed/game' as any, params: { eventId: String(evt.id) } } as any);
   };
 
   return (
     <SafeAreaView style={S.page} edges={['top']}>
-      <Stack.Screen options={{ title: 'Discover' }} />
-      <Text style={[Type.h0 as any, { color: Color.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Discover</Text>
+      <Stack.Screen options={{ title: 'Team Hub' }} />
+      <Text style={[Type.h0 as any, { color: Color.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
 
       {/* Search */}
       <View style={S.searchWrap}>
@@ -135,7 +135,7 @@ export default function TeamHubScreen() {
         {eventsLoading ? (
           <ActivityIndicator color={Color.primary} />
         ) : eventsError ? (
-          <Text style={[Type.sub as any, { color: Color.danger }]}>{eventsError}</Text>
+          <Text style={[Type.sub as any, { color: '#b91c1c' }]}>{eventsError}</Text>
         ) : upcomingEvents.length === 0 ? (
           <Text style={S.eventsEmpty}>No upcoming events yet.</Text>
         ) : (

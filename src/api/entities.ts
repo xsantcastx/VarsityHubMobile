@@ -10,6 +10,7 @@ export const User = {
   updateMe: (data: any) => httpPut('/auth/me', data),
   patchMe: (data: any) => httpPatch('/me', data),
   updatePreferences: (patch: any) => httpPatch('/me/preferences', patch),
+  completeOnboarding: (data: any) => httpPost('/me/complete-onboarding', data),
   requestVerification: () => auth.requestEmailVerification(),
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
@@ -45,12 +46,19 @@ export const User = {
     const qs = q.length ? '?' + q.join('&') : '';
     return httpGet(`/users/${encodeURIComponent(id)}/interactions` + qs);
   },
+  // Password reset helpers (delegates to auth)
+  requestPasswordReset: (email: string) => auth.requestPasswordReset(email),
+  resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
+  // Public profile fetch
+  getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
 };
 
 export const Game = {
   list: (sort?: string) => httpGet('/games' + (sort ? `?sort=${encodeURIComponent(sort)}` : '')),
   get: (id: string) => httpGet('/games/' + encodeURIComponent(id)),
   summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary'),
+  create: (data: any) => httpPost('/games', data),
+  delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
     const q: string[] = [];
     if (typeof options.limit === 'number') q.push('limit=' + encodeURIComponent(String(options.limit)));
@@ -140,9 +148,23 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostPage(res);
   },
+  // Additional helpers used in UI
+  trendingPage: async (cursor?: string | null, limit: number = 20) => {
+    const q: string[] = [];
+    if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
+    if (limit) q.push('limit=' + String(limit));
+    const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
+    // normalize to page shape
+    return normalizePostPage(res);
+  },
+  createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
   comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
+  deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
+  updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
+  delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
+  update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
 };
@@ -197,12 +219,72 @@ export const Message = {
 };
 
 // Stubs for future entities
+export const Organization = {
+  list: (q?: string, limit: number = 50) => {
+    const params: string[] = [];
+    if (q) params.push('q=' + encodeURIComponent(q));
+    if (typeof limit === 'number') params.push('limit=' + encodeURIComponent(String(limit)));
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet('/organizations' + qs);
+  },
+  get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
+  members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
+  createOrganization: (data: { name: string; description?: string; sport?: string; season_start?: string; season_end?: string }) => httpPost('/organizations', data),
+  createWithTeams: (data: any) => httpPost('/organizations/create', data),
+  invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
+  myInvites: () => httpGet('/organizations/invites/me'),
+  acceptInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
+  declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+};
+
 export const Team = {
   list: (q?: string) => httpGet('/teams' + (q ? `?q=${encodeURIComponent(q)}` : '')),
   get: (id: string) => httpGet('/teams/' + encodeURIComponent(id)),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
   allMembers: (q?: string) => httpGet('/teams/members/all' + (q ? `?q=${encodeURIComponent(q)}` : '')),
-  create: (data: { name: string; description?: string }) => httpPost('/teams', data),
+  create: (data: {
+    name: string;
+    description?: string;
+    sport?: string;
+    season?: string;
+    season_start?: string;
+    season_end?: string;
+    organization_id?: string;
+    logo_url?: string | null;
+    authorized_users?: Array<{ email?: string; user_id?: string; role?: string; assign_team?: string }>;
+  }) => {
+    const payload: Record<string, any> = {};
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined) return;
+      if (key === 'logo_url') {
+        if (typeof value === 'string' && value.length > 0) {
+          payload.logo_url = value;
+        }
+        return;
+      }
+      payload[key] = value;
+    });
+    return httpPost('/teams/create', payload);
+  },
+  createBasic: (data: { name: string; description?: string }) => httpPost('/teams', data),
+  update: (id: string, data: {
+    name?: string;
+    description?: string;
+    sport?: string;
+    season?: string;
+    logo_url?: string | null;
+  }) => {
+    const payload: Record<string, any> = {};
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined) return;
+      if (key === 'logo_url' && value === null) {
+        payload[key] = '';
+      } else {
+        payload[key] = value;
+      }
+    });
+    return httpPut('/teams/' + encodeURIComponent(id), payload);
+  },
   invite: (teamId: string, email: string, role?: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/invite`, { email, role }),
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
@@ -214,12 +296,32 @@ export const Support = {
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
+export const Subscriptions = {
+  createCheckout: (plan: string) => httpPost('/payments/checkout', { plan }),
+  finalizeSession: (sessionId: string) => httpPost('/payments/finalize-session', { session_id: sessionId }),
+  cancel: () => httpPost('/payments/subscription/cancel', {}),
+};
+
+
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
 };
 
 export const TeamInvites = {
   create: (data: { team_id: string; email: string; role?: string }) => httpPost('/team-invites', data),
+};
+
+export const Notification = {
+  listPage: (cursor?: string | null, limit: number = 20, unreadOnly: boolean = false) => {
+    const params: string[] = [];
+    params.push('limit=' + encodeURIComponent(String(limit)));
+    if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
+    if (unreadOnly) params.push('unread=1');
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet('/notifications' + qs);
+  },
+  markRead: (id: string) => httpPost(`/notifications/${encodeURIComponent(id)}/read`, {}),
+  markAllRead: () => httpPost('/notifications/mark-read-all', {}),
 };
 
 export const CollaborativePost = {} as any;

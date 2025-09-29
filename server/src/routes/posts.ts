@@ -72,6 +72,9 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
 
   const payload = items.map((post: any) => ({
     id: post.id,
+    author_id: post.author_id, // Include author_id for ownership checks
+    title: post.title ?? null, // Include title for editing
+    content: post.content ?? null, // Include content for editing
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
     caption: post.content ?? null,
@@ -206,6 +209,9 @@ postsRouter.get('/:id/comments', async (req, res) => {
   const query: any = {
     where: { post_id: id },
     orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    include: {
+      author: { select: { id: true, display_name: true, avatar_url: true } }
+    },
     take: limit + 1,
   };
   if (cursor) {
@@ -224,7 +230,15 @@ postsRouter.post('/:id/comments', async (req: AuthedRequest, res) => {
   const schema = z.object({ content: z.string().min(1).max(1000) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const comment = await prisma.comment.create({ data: { post_id: id, content: parsed.data.content } });
+  const comment = await prisma.comment.create({ data: { post_id: id, author_id: req.user.id, content: parsed.data.content } });
+  // Notify post author (if not self)
+  try {
+    const post = await prisma.post.findUnique({ where: { id }, select: { author_id: true } });
+    const recipient = post?.author_id;
+    if (recipient && recipient !== req.user.id) {
+      await (prisma as any).notification.create({ data: { user_id: recipient, actor_id: req.user.id, type: 'COMMENT', post_id: id, comment_id: comment.id } });
+    }
+  } catch {}
   res.status(201).json(comment);
 });
 
@@ -250,6 +264,14 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
     prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
   ]);
   const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
+  // Notify post author (if not self)
+  try {
+    const post = await prisma.post.findUnique({ where: { id: postId }, select: { author_id: true } });
+    const recipient = post?.author_id;
+    if (recipient && recipient !== userId) {
+      await (prisma as any).notification.create({ data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId } });
+    }
+  } catch {}
   return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
 });
 
@@ -268,5 +290,165 @@ postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest,
   await prisma.postBookmark.create({ data: { post_id: postId, user_id: userId } });
   const bookmarks_count = await prisma.postBookmark.count({ where: { post_id: postId } });
   return res.json({ has_bookmarked: true, bookmarks_count, bookmarked: true });
+});
+
+// Delete post (author only)
+postsRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+
+  try {
+    // Check if post exists and user is the author
+    const post = await prisma.post.findUnique({ 
+      where: { id: postId },
+      select: { id: true, author_id: true }
+    });
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    if (post.author_id !== userId) {
+      return res.status(403).json({ error: 'You can only delete your own posts' });
+    }
+    
+    // Delete the post (cascade will handle related records)
+    await prisma.post.delete({ where: { id: postId } });
+    
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// Update post (author only)
+postsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  const postId = String(req.params.id);
+  const userId = req.user!.id;
+  
+  const schema = z.object({
+    content: z.string().min(1).max(5000).optional(),
+    title: z.string().max(200).optional(),
+  });
+  
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+
+  try {
+    // Check if post exists and user is the author
+    const post = await prisma.post.findUnique({ 
+      where: { id: postId },
+      select: { id: true, author_id: true }
+    });
+    
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    
+    if (post.author_id !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own posts' });
+    }
+    
+    // Update the post
+    const updatedPost = await prisma.post.update({ 
+      where: { id: postId },
+      data: parsed.data,
+      include: {
+        author: { select: { id: true, display_name: true, avatar_url: true } },
+        _count: { select: { comments: true } },
+      }
+    });
+    
+    res.json(updatedPost);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// Delete comment (author only)
+postsRouter.delete('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
+  const { postId, commentId } = req.params;
+  const userId = req.user!.id;
+
+  try {
+    // Check if comment exists and user is the author
+    const comment = await prisma.comment.findUnique({ 
+      where: { id: commentId },
+      select: { id: true, author_id: true, post_id: true }
+    });
+    
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    
+    if (comment.post_id !== postId) {
+      return res.status(400).json({ error: 'Comment does not belong to this post' });
+    }
+    
+    if (comment.author_id !== userId) {
+      return res.status(403).json({ error: 'You can only delete your own comments' });
+    }
+    
+    // Delete the comment
+    await prisma.comment.delete({ where: { id: commentId } });
+    
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    res.status(500).json({ error: 'Failed to delete comment' });
+  }
+});
+
+// Update comment (author only)
+postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req: AuthedRequest, res) => {
+  const { postId, commentId } = req.params;
+  const userId = req.user!.id;
+  
+  const schema = z.object({
+    content: z.string().min(1).max(1000),
+  });
+  
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
+  }
+
+  try {
+    // Check if comment exists and user is the author
+    const comment = await prisma.comment.findUnique({ 
+      where: { id: commentId },
+      select: { id: true, author_id: true, post_id: true }
+    });
+    
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    
+    if (comment.post_id !== postId) {
+      return res.status(400).json({ error: 'Comment does not belong to this post' });
+    }
+    
+    if (comment.author_id !== userId) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
+    }
+    
+    // Update the comment
+    const updatedComment = await prisma.comment.update({ 
+      where: { id: commentId },
+      data: { content: parsed.data.content },
+      include: {
+        author: { select: { id: true, display_name: true, avatar_url: true } }
+      }
+    });
+    
+    res.json(updatedComment);
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    res.status(500).json({ error: 'Failed to update comment' });
+  }
 });
 
