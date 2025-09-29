@@ -1,20 +1,19 @@
 import { User } from '@/api/entities';
-import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -68,6 +67,7 @@ export default function ProfileScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
@@ -279,20 +279,100 @@ export default function ProfileScreen() {
 
   const renderHeader = () => (
     <>
-      <View style={styles.header}>
-        <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar}>
-          <Avatar uri={me.avatar_url} size={80} />
-          {isUploadingAvatar && (
-            <View style={styles.avatarOverlay}>
-              <ActivityIndicator color="white" />
-            </View>
-          )}
+      {/* Modern Sport-Inspired Header */}
+      <View style={styles.headerContainer}>
+        {/* Background Gradient */}
+        <LinearGradient
+          colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        
+        {/* Settings Button */}
+        <Pressable onPress={() => router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
+          <Ionicons name="settings-outline" size={20} color="#ffffff" />
         </Pressable>
-        <View style={styles.statsContainer}>
-          {stats.map((stat) => (
-            <Pressable
-              key={stat.label}
-              style={styles.statItem}
+        
+        {/* Profile Content */}
+        <View style={styles.profileContent}>
+          {/* Avatar Section */}
+          <View style={styles.avatarSection}>
+            <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar}>
+              <View style={styles.avatarContainer}>
+                {me.avatar_url ? (
+                  <Image source={{ uri: String(me.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={36} color="#ffffff" />
+                  </View>
+                )}
+                {isUploadingAvatar && (
+                  <View style={styles.avatarOverlay}>
+                    <ActivityIndicator color="white" />
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          </View>
+
+          {/* User Info */}
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{name}</Text>
+            
+            {/* Role and Plan Badges Row */}
+            {(roleLabel || formattedPlan) && (
+              <View style={styles.badgesRow}>
+                {roleLabel && (
+                  <View style={[styles.roleBadge, 
+                    roleRaw === 'coach' && styles.coachBadge,
+                    roleRaw === 'player' && styles.playerBadge,
+                    roleRaw === 'fan' && styles.fanBadge
+                  ]}>
+                    <Ionicons 
+                      name={roleRaw === 'coach' ? 'flag' : roleRaw === 'player' ? 'american-football' : 'heart'} 
+                      size={12} 
+                      color="#ffffff" 
+                    />
+                    <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+                  </View>
+                )}
+                {formattedPlan && (
+                  <View style={[styles.planBadge, 
+                    formattedPlan.toLowerCase() === 'rookie' && styles.rookieBadge,
+                    formattedPlan.toLowerCase() === 'veteran' && styles.veteranBadge,
+                    formattedPlan.toLowerCase() === 'legend' && styles.legendBadge
+                  ]}>
+                    <Ionicons 
+                      name={formattedPlan.toLowerCase() === 'rookie' ? 'shield' : 
+                           formattedPlan.toLowerCase() === 'veteran' ? 'medal' : 'trophy'} 
+                      size={12} 
+                      color="#ffffff" 
+                    />
+                    <Text style={styles.planBadgeText}>{formattedPlan.toUpperCase()}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            
+            {me?.bio && <Text style={styles.userBio}>{me.bio}</Text>}
+          </View>
+
+          {/* Edit Profile Button */}
+          <View style={styles.actionsContainer}>
+            <Pressable style={styles.editButton} onPress={() => router.push('/edit-profile')}>
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {/* Athletic Stats Card */}
+      <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        {stats.map((stat, index) => (
+          <React.Fragment key={stat.label}>
+            <Pressable 
+              style={styles.statItem} 
               onPress={() => {
                 if (stat.label === 'followers') {
                   router.push(`/followers?id=${me.id}&username=${name}`);
@@ -301,43 +381,12 @@ export default function ProfileScreen() {
                 }
               }}
             >
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
+              <Text style={[styles.statNumber, { color: theme.text }]}>{stat.value}</Text>
+              <Text style={[styles.statLabel, { color: theme.mutedText }]}>{stat.label}</Text>
             </Pressable>
-          ))}
-        </View>
-        <Pressable onPress={() => router.push('/settings')} style={styles.settingsButtonTopRight}>
-          <SimpleLineIcons name="settings" size={20} color={theme.icon} />
-        </Pressable>
-      </View>
-      <View style={styles.bioContainer}>
-        <Text style={styles.name}>{name}</Text>
-        {(roleLabel || formattedPlan) ? (
-          <View style={styles.badgesRow}>
-                {roleLabel ? (
-                  <View style={[styles.roleBadge, roleRaw === 'coach' ? styles.roleBadgeCoach : styles.roleBadgeFan, { backgroundColor: roleRaw === 'coach' ? '#1d4ed8' : '#f59e0b' }]}>
-                    <Ionicons
-                      name={roleRaw === 'coach' ? 'ribbon-outline' : 'star-outline'}
-                      size={14}
-                      color="#fff"
-                      style={{ marginRight: 4 }}
-                    />
-                    <Text style={styles.roleBadgeText}>{roleLabel}</Text>
-                  </View>
-                ) : null}
-            {formattedPlan ? (
-              // Always show the plan badge when the user has an active plan (veteran/legend).
-              // Previously the plan badge only rendered for coaches; show it for fans too.
-              <View style={styles.planBadge}>
-                <Text style={styles.planBadgeText}>{formattedPlan} Plan</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-        {me?.bio ? <Text style={styles.bio}>{me.bio}</Text> : null}
-      </View>
-      <View style={styles.actionsContainer}>
-        <Button style={styles.editProfileButton} onPress={() => router.push('/edit-profile')}>Edit Profile</Button>
+            {index < stats.length - 1 && <View style={styles.statDivider} />}
+          </React.Fragment>
+        ))}
       </View>
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
@@ -366,16 +415,16 @@ export default function ProfileScreen() {
                 ? `Comments${counts ? ` (${counts.comments})` : ''}`
                 : `Saves${counts ? ` (${counts.saves})` : ''}`;
               return (
-                <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, interType === t && styles.segmentActive]}>
-                  <Text style={[styles.segmentText, interType === t && styles.segmentTextActive]}>{label}</Text>
+                <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, { backgroundColor: theme.surface }, interType === t && [styles.segmentActive, { backgroundColor: theme.tint }]]}>
+                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{label}</Text>
                 </Pressable>
               );
             })}
           </View>
           <View style={styles.sortRow}>
             {(['newest','most_upvoted','most_commented'] as const).map(s => (
-              <Pressable key={s} onPress={() => setSort(s)} style={[styles.sortPill, sort === s && styles.sortPillActive]}>
-                <Text style={[styles.sortText, sort === s && styles.sortTextActive]}>
+              <Pressable key={s} onPress={() => setSort(s)} style={[styles.sortPill, { backgroundColor: theme.surface }, sort === s && [styles.sortPillActive, { backgroundColor: theme.tint }]]}>
+                <Text style={[styles.sortText, { color: theme.text }, sort === s && styles.sortTextActive]}>
                   {s === 'newest' ? 'Newest' : s === 'most_upvoted' ? 'Most upvoted' : 'Most commented'}
                 </Text>
               </Pressable>
@@ -427,7 +476,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: 'Profile' }} />
       {activeTab === 'posts' ? (
         <FlatList
@@ -438,7 +487,7 @@ export default function ProfileScreen() {
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: 32, paddingHorizontal: 2 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 2 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -499,10 +548,10 @@ export default function ProfileScreen() {
           ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       ) : (
-        <View style={styles.container}>
+        <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}>
           {renderHeader()}
           {interactions.length === 0 ? (
-            <View style={styles.emptyContainer}><Text style={styles.emptyTitle}>No activity yet</Text></View>
+            <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No activity yet</Text></View>
           ) : (
             <View style={styles.masonryContainer}>
               {interactions.map((item, index) => {
@@ -566,7 +615,7 @@ export default function ProfileScreen() {
             </View>
           )}
           {interLoading && <ActivityIndicator style={{ marginVertical: 16 }} />}
-        </View>
+        </ScrollView>
       )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
@@ -583,43 +632,228 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { 
+    flex: 1
+  },
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12, position: 'relative' },
-  statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', paddingLeft: 20 },
+  
+  // Modern Sport Header Styles
+  headerContainer: {
+    position: 'relative',
+    paddingBottom: 20,
+  },
+  headerGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  profileContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20, // Safe area is handled by SafeAreaView
+    paddingBottom: 30,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 46,
+  },
   settingsButtonTopRight: {
     position: 'absolute',
-    top: 20,
-    right: 16,
+    right: 20,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 10,
   },
-  statItem: { alignItems: 'center' },
+  userInfo: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  userBio: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 8,
+    paddingHorizontal: 20,
+  },
+  badgesRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    marginTop: 8, 
+    marginBottom: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'center'
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#f59e0b',
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  coachBadge: { backgroundColor: '#1d4ed8' },
+  playerBadge: { backgroundColor: '#dc2626' },
+  fanBadge: { backgroundColor: '#7c3aed' },
+  roleText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  rookieBadge: { backgroundColor: '#22c55e' },
+  veteranBadge: { backgroundColor: '#f59e0b' },
+  legendBadge: { backgroundColor: '#dc2626' },
+  planBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  actionsContainer: {
+    alignItems: 'center',
+  },
+  editButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  editButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  
+  // Athletic Stats Card
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: -10,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 16,
+  },
+  
+  // Legacy styles kept for existing components
   statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  statLabel: { fontSize: 13, color: '#6B7280', fontWeight: '500', marginTop: 2 },
-  bioContainer: { paddingHorizontal: 16, paddingBottom: 20 },
   name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
-  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4 },
-  roleBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  roleBadgeCoach: { backgroundColor: '#1d4ed8' },
-  roleBadgeFan: { backgroundColor: '#f59e0b' },
-  roleBadgeText: { color: '#fff', fontWeight: '700', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
-  planBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#111827', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-  planBadgeText: { color: '#fff', fontWeight: '600', fontSize: 11, letterSpacing: 0.3 },
-  actionsContainer: { flexDirection: 'row', paddingHorizontal: 16, justifyContent: 'center', paddingBottom: 20 },
   editProfileButton: { 
     flex: 1,
     height: 44,
@@ -644,32 +878,25 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2
   },
-  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: 'white' },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, backgroundColor: 'transparent' },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
   tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
   activeTabText: { color: 'black' },
-  filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', gap: 12, backgroundColor: 'white' },
+  filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
   segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#F3F4F6' },
-  segmentActive: { backgroundColor: '#111827' },
-  segmentText: { color: '#111827', fontWeight: '600', fontSize: 13 },
+  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
+  segmentActive: {},
+  segmentText: { fontWeight: '600', fontSize: 13 },
   segmentTextActive: { color: 'white' },
   sortRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  sortPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16, backgroundColor: '#F3F4F6' },
-  sortPillActive: { backgroundColor: '#111827' },
-  sortText: { color: '#111827', fontWeight: '600', fontSize: 12 },
+  sortPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16 },
+  sortPillActive: {},
+  sortText: { fontWeight: '600', fontSize: 12 },
   sortTextActive: { color: 'white' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
   emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
-  avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 40,
-  },
   activityItem: {
     padding: 16,
     borderBottomWidth: 1,
