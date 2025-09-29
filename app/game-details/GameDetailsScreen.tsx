@@ -1,3 +1,5 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -41,6 +43,7 @@ type StoriesViewerProps = {
 
 function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewerProps) {
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
   const [current, setCurrent] = useState(index);
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
@@ -163,7 +166,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
           </View>
           <Text style={styles.storyTopLabel}>{current + 1} / {items.length}</Text>
           <Pressable onPress={onClose} style={styles.storyCloseBtn} accessibilityLabel="Close stories">
-            <Ionicons name="close" size={22} color="#fff" />
+            <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
 
@@ -175,12 +178,12 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
         >
             {isVideo ? (
               // start videos paused to avoid unexpected audio/looping; user can tap to play
-              <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
                 <VideoPlayer uri={item.url} autoPlay={false} onEnd={goNext} nativeControls paused={!playing} style={{ width: '100%', height: '100%' }} />
                 {!playing ? (
                   <Pressable onPress={() => setPlaying(true)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Play video">
                     <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="play" size={28} color="#fff" />
+                      <Ionicons name="play" size={28} color={Colors[colorScheme].text} />
                     </View>
                   </Pressable>
                 ) : (
@@ -190,7 +193,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
             ) : (
               <Image
                 source={{ uri: item.url }}
-                style={{ width: w, aspectRatio: 9 / 16, backgroundColor: '#000' }}
+                style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface }}
                 contentFit="cover"
                 transition={0}
                 cachePolicy="memory-disk"
@@ -339,6 +342,7 @@ const GameDetailsScreen = () => {
   const router = useRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
   const { width: windowWidth } = useWindowDimensions();
   const scrollRef = useRef<any>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
@@ -1251,7 +1255,7 @@ const renderVoteSection = () => {
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.circleButton}>
-            <Ionicons name="chevron-back" size={20} color="#111827" />
+            <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.bannerTopRightRow}>
             {hasEvent ? (
@@ -1273,14 +1277,14 @@ const renderVoteSection = () => {
               </Pressable>
             ) : null}
             <Pressable onPress={onShare} accessibilityRole="button" style={styles.circleButton}>
-              <Ionicons name="share-outline" size={18} color="#111827" />
+              <Ionicons name="share-outline" size={18} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
         </View>
         <View style={styles.bannerBottomRow}>
           <View style={styles.bannerBottomLeft}>
             <View style={styles.dateChip}>
-              <Ionicons name="calendar" size={14} color="#2563EB" />
+              <Ionicons name="calendar" size={14} color={Colors[colorScheme].tint} />
               <Text style={styles.dateChipText}>{displayDate || 'Upcoming Game'}</Text>
               {displayTime ? <Text style={styles.dateChipTime}>{displayTime}</Text> : null}
             </View>
@@ -1343,7 +1347,7 @@ const renderVoteSection = () => {
       <View style={styles.teamList}>
         {vm.teams.map((team) => (
           <View key={team.id} style={styles.teamPill}>
-            <Ionicons name="people" size={16} color="#2563EB" />
+            <Ionicons name="people" size={16} color={Colors[colorScheme].tint} />
             <Text style={styles.teamPillText}>{team.name}</Text>
           </View>
         ))}
@@ -1375,7 +1379,7 @@ const renderVoteSection = () => {
             >
               {isVideo ? (
                 <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
-                  <Ionicons name="play" size={24} color="#fff" />
+                  <Ionicons name="play" size={24} color={Colors[colorScheme].text} />
                 </View>
               ) : (
                 <Image source={{ uri: item.url }} style={styles.mediaThumbContent} contentFit="cover" />
@@ -1409,7 +1413,7 @@ const renderVoteSection = () => {
         ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: 48 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors[colorScheme].tint} />}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], { useNativeDriver: true, listener: handleScroll })}
         scrollEventThrottle={16}
       >
