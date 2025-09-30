@@ -146,6 +146,7 @@ const FeedCard = memo(
     registerVideo,
     insets,
     colorScheme,
+    meInfo,
   }: {
     post: FeedPost;
     isActive: boolean;
@@ -160,6 +161,7 @@ const FeedCard = memo(
     registerVideo: (id: string, player: any | null) => void;
     insets: { top: number; bottom: number };
     colorScheme: 'light' | 'dark';
+    meInfo?: { id?: string; display_name?: string | null; username?: string | null } | null;
   }) => {
     const lastTapRef = useRef(0);
     const collageRef = useRef<View | null>(null);
@@ -294,17 +296,14 @@ const FeedCard = memo(
         </Pressable>
 
         <View style={[styles.headerOverlay, { paddingTop: insets.top + 12 }]}>
-          <Pressable onPress={() => onToggleFollow()} style={styles.headerAvatar}>
+          <View style={styles.headerAvatar}>
             {post.author?.avatar_url ? (
               <FastImage source={{ uri: post.author.avatar_url }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarFallback]}><Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text></View>
             )}
             <Text style={styles.authorName}>{authorLabel}</Text>
-            <View style={[styles.followBadge, post.is_following_author ? styles.followBadgeActive : null]}>
-              <Text style={[styles.followBadgeText, post.is_following_author ? styles.followBadgeTextActive : null]}>{post.is_following_author ? 'Following' : 'Follow'}</Text>
-            </View>
-          </Pressable>
+          </View>
         </View>
 
         <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom, 24) }]}>
@@ -313,18 +312,21 @@ const FeedCard = memo(
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
-          <Pressable onPress={onToggleFollow} style={styles.railAvatarBtn}>
-            {post.author?.avatar_url ? (
-              <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
-            ) : (
-              <View style={[styles.railAvatarImg, styles.avatarFallback]}><Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text></View>
-            )}
-            {!post.is_following_author ? (
-              <View style={styles.railFollowPlus}>
-                <Ionicons name="add" size={16} color={Colors[colorScheme].text} />
-              </View>
-            ) : null}
-          </Pressable>
+          {/* Only show follow button if it's not the user's own post */}
+          {post.author?.id !== meInfo?.id ? (
+            <Pressable onPress={onToggleFollow} style={styles.railAvatarBtn}>
+              {post.author?.avatar_url ? (
+                <FastImage source={{ uri: post.author.avatar_url }} style={styles.railAvatarImg} />
+              ) : (
+                <View style={[styles.railAvatarImg, styles.avatarFallback]}><Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text></View>
+              )}
+              {!post.is_following_author ? (
+                <View style={styles.railFollowPlus}>
+                  <Ionicons name="add" size={16} color={Colors[colorScheme].text} />
+                </View>
+              ) : null}
+            </Pressable>
+          ) : null}
 
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
             <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={30} color={post.has_upvoted ? Colors[colorScheme].tint : Colors[colorScheme].text} />
@@ -957,9 +959,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         registerVideo={registerVideo}
         insets={{ top: insets.top, bottom: insets.bottom }}
         colorScheme={colorScheme}
+        meInfo={meInfo}
       />
     ),
-    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme],
+    [activeIndex, handleDoubleTap, handleDeletePost, handleEditPost, handleShare, handleToggleBookmark, handleToggleFollow, handleToggleUpvote, insets.bottom, insets.top, openComments, registerVideo, colorScheme, meInfo],
   );
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
