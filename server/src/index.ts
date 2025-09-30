@@ -29,6 +29,10 @@ import { adsRouter } from './routes/ads.js';
 import { paymentsRouter } from './routes/payments.js';
 
 const app = express();
+
+// Trust proxy headers from Railway (required for express-rate-limit and IP detection)
+app.set('trust proxy', true);
+
 // pino-http ESM interop can require using the default property in some setups
 const pinoMiddleware = (typeof (pinoHttp as any) === 'function' ? (pinoHttp as any) : (pinoHttp as any).default) || pinoHttp;
 app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
