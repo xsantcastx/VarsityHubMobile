@@ -380,26 +380,49 @@ function sanitizeUser(u: any) {
 }
 
 async function sendVerificationEmail(to: string, code: string) {
+  console.log(`[email] Starting sendVerificationEmail for ${to}`);
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = process.env.FROM_EMAIL || 'no-reply@example.com';
+  
+  console.log(`[email] SMTP Config - Host: ${host}, Port: ${port}, User: ${user ? user.substring(0, 3) + '***' : 'undefined'}, From: ${from}`);
+  
   if (!host || !user || !pass || !port) {
     console.log(`[dev] Email verification code for ${to}: ${code}`);
     return;
   }
-  const nodemailerModule = await import('nodemailer');
-  const nodemailer = (nodemailerModule as any).default ?? nodemailerModule;
-  const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : port === 465;
-  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } } as any);
-  await transporter.sendMail({
-    from,
-    to,
-    subject: 'Verify your email',
-    text: `Your VarsityHub verification code is ${code}.`,
-  });
-  console.log(`Verification email sent to ${to}`);
+  
+  try {
+    console.log(`[email] Importing nodemailer...`);
+    const nodemailerModule = await import('nodemailer');
+    const nodemailer = (nodemailerModule as any).default ?? nodemailerModule;
+    const secure = port === 465; // Only use SSL for port 465
+    
+    console.log(`[email] Creating transport with secure=${secure}...`);
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    console.log(`[email] Sending verification email to ${to}...`);
+    await transporter.sendMail({
+      from,
+      to,
+      subject: 'Verify your email',
+      text: `Your VarsityHub verification code is ${code}.`,
+    });
+    console.log(`[email] ✅ Verification email sent successfully to ${to}`);
+  } catch (error) {
+    console.error(`[email] ❌ Failed to send verification email to ${to}:`, error);
+    throw error;
+  }
 }
 
 
@@ -408,26 +431,49 @@ async function sendVerificationEmail(to: string, code: string) {
 
 
 async function sendPasswordResetEmail(to: string, code: string) {
+  console.log(`[email] Starting sendPasswordResetEmail for ${to}`);
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = process.env.FROM_EMAIL || 'no-reply@example.com';
+  
+  console.log(`[email] SMTP Config - Host: ${host}, Port: ${port}, User: ${user ? user.substring(0, 3) + '***' : 'undefined'}, From: ${from}`);
+  
   if (!host || !user || !pass || !port) {
     console.log(`[dev] Password reset code for ${to}: ${code}`);
     return;
   }
-  const nodemailerModule = await import('nodemailer');
-  const nodemailer = (nodemailerModule as any).default ?? nodemailerModule;
-  const secure = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === 'true' : port === 465;
-  const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } } as any);
-  await transporter.sendMail({
-    from,
-    to,
-    subject: 'Reset your VarsityHub password',
-    text: `Use code ${code} to reset your VarsityHub password. This code expires in 30 minutes.`,
-  });
-  console.log(`Password reset email sent to ${to}`);
+  
+  try {
+    console.log(`[email] Importing nodemailer...`);
+    const nodemailerModule = await import('nodemailer');
+    const nodemailer = (nodemailerModule as any).default ?? nodemailerModule;
+    const secure = port === 465; // Only use SSL for port 465
+    
+    console.log(`[email] Creating transport with secure=${secure}...`);
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    console.log(`[email] Sending password reset email to ${to}...`);
+    await transporter.sendMail({
+      from,
+      to,
+      subject: 'Reset your VarsityHub password',
+      text: `Use code ${code} to reset your VarsityHub password. This code expires in 30 minutes.`,
+    });
+    console.log(`[email] ✅ Password reset email sent successfully to ${to}`);
+  } catch (error) {
+    console.error(`[email] ❌ Failed to send password reset email to ${to}:`, error);
+    throw error;
+  }
 }
 
 // Test email endpoint (development only)
