@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { Stack } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Team as TeamApi, User } from '@/api/entities';
 
@@ -13,7 +13,7 @@ export default function AdminTeamsScreen() {
     setLoading(true); setError(null);
     try {
       await User.me();
-      const list = await TeamApi.list(''); // default list
+      const list = await TeamApi.list('', false); // Explicitly pass false for mine parameter to get all teams
       setTeams(Array.isArray(list) ? list : []);
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load teams'));
