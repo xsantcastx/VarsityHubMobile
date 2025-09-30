@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 type Invite = { id: string; role?: string; team?: { id: string; name?: string } };
 
 export default function TeamInvitesScreen() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -24,8 +25,24 @@ export default function TeamInvitesScreen() {
 
   useEffect(() => { load(); }, []);
 
-  const accept = async (id: string) => {
-    try { await TeamApi.acceptInvite(id); await load(); } catch { Alert.alert('Error', 'Failed to accept invite'); }
+  const accept = async (id: string, teamId?: string) => {
+    try { 
+      await TeamApi.acceptInvite(id); 
+      await load(); 
+      // Show success and option to view team
+      if (teamId) {
+        Alert.alert(
+          'Invite Accepted!', 
+          'You have successfully joined the team. Would you like to view the team now?',
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'View Team', onPress: () => router.push(`/team-viewer?id=${teamId}`) }
+          ]
+        );
+      }
+    } catch { 
+      Alert.alert('Error', 'Failed to accept invite'); 
+    }
   };
   const decline = async (id: string) => {
     try { await TeamApi.declineInvite(id); await load(); } catch { Alert.alert('Error', 'Failed to decline invite'); }
@@ -49,7 +66,7 @@ export default function TeamInvitesScreen() {
                 <Text style={styles.muted}>Role: {item.role || 'member'}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button size="sm" onPress={() => accept(item.id)}><Text>Accept</Text></Button>
+                <Button size="sm" onPress={() => accept(item.id, item.team?.id)}><Text>Accept</Text></Button>
                 <Button size="sm" variant="outline" onPress={() => decline(item.id)}><Text>Decline</Text></Button>
               </View>
             </View>

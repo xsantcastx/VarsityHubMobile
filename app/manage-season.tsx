@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI } from '@/api/entities';
 import AddGameModal, { GameFormData } from '@/components/AddGameModal';
+import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 
 interface Game {
@@ -74,6 +75,7 @@ export default function ManageSeasonScreen() {
   const [selectedTab, setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>('schedule');
   const [showAddGameModal, setShowAddGameModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
+  const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
 
   const loadGames = useCallback(async () => {
@@ -237,51 +239,19 @@ export default function ManageSeasonScreen() {
     }
   ];
 
-  const upcomingGames: Game[] = [
-    {
-      id: '1',
-      opponent: 'Warriors',
-      date: '2025-09-28',
-      time: '7:00 PM',
-      location: 'Home Stadium',
-      type: 'home',
-      status: 'upcoming',
-    },
-    {
-      id: '2',
-      opponent: 'Lightning',
-      date: '2025-10-05',
-      time: '3:00 PM',
-      location: 'Away Arena',
-      type: 'away',
-      status: 'upcoming',
-    },
-    ...games.filter(g => g.status === 'upcoming'),
-  ];
+  const upcomingGames: Game[] = games.filter(g => {
+    const gameDate = new Date(g.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return gameDate >= today && g.status === 'upcoming';
+  });
 
-  const recentGames: Game[] = [
-    {
-      id: '3',
-      opponent: 'Thunder',
-      date: '2025-09-21',
-      time: '6:00 PM',
-      location: 'Home Stadium',
-      type: 'home',
-      status: 'completed',
-      score: { team: 24, opponent: 17 },
-    },
-    {
-      id: '4',
-      opponent: 'Rockets',
-      date: '2025-09-14',
-      time: '5:00 PM',
-      location: 'Neutral Field',
-      type: 'neutral',
-      status: 'completed',
-      score: { team: 21, opponent: 28 },
-    },
-    ...games.filter(g => g.status === 'completed'),
-  ];
+  const recentGames: Game[] = games.filter(g => {
+    const gameDate = new Date(g.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return gameDate < today || g.status === 'completed';
+  });
 
   // Load games on mount
   useEffect(() => {
@@ -506,9 +476,155 @@ export default function ManageSeasonScreen() {
     }
   };
 
+  const handleSaveBulkGames = async (bulkGames: any[]) => {
+    try {
+      const promises = bulkGames.map(async (gameData) => {
+        // Convert 12-hour time to 24-hour format for ISO string
+        const convertTo24Hour = (time12h: string) => {
+          const [time, modifier] = time12h.split(' ');
+          let [hours, minutes] = time.split(':');
+          hours = hours.padStart(2, '0');
+          
+          if (hours === '12') {
+            hours = modifier === 'AM' ? '00' : '12';
+          } else if (modifier === 'PM') {
+            hours = String(parseInt(hours, 10) + 12).padStart(2, '0');
+          }
+          return `${hours}:${minutes || '00'}`;
+        };
+
+        // Create proper datetime for API
+        const time24h = convertTo24Hour(gameData.time);
+        const [year, month, day] = gameData.date.split('-');
+        const [hours, minutes] = time24h.split(':');
+        
+        const gameDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
+        
+        if (isNaN(gameDateTime.getTime())) {
+          throw new Error(`Invalid date/time for game vs ${gameData.opponent}`);
+        }
+        
+        const gamePayload = {
+          title: `My Team vs ${gameData.opponent}`,
+          home_team: gameData.type === 'home' ? 'My Team' : gameData.opponent,
+          away_team: gameData.type === 'home' ? gameData.opponent : 'My Team',
+          date: gameDateTime.toISOString(),
+          location: gameData.location,
+          description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: My Team vs ${gameData.opponent}`,
+        };
+
+        return GameAPI.create(gamePayload);
+      });
+
+      const savedGames = await Promise.all(promises);
+      
+      // Convert to local game format and add to state
+      const newGames: Game[] = savedGames.map((savedGame, index) => {
+        const originalData = bulkGames[index];
+        return {
+          id: savedGame.id || Date.now().toString() + index,
+          homeTeam: originalData.type === 'home' ? 'My Team' : originalData.opponent,
+          awayTeam: originalData.type === 'home' ? originalData.opponent : 'My Team',
+          opponent: originalData.opponent,
+          date: originalData.date,
+          time: originalData.time,
+          location: originalData.location,
+          type: originalData.type,
+          status: 'upcoming',
+        };
+      });
+
+      setGames(prev => [...prev, ...newGames]);
+      Alert.alert('Success!', `Successfully created ${savedGames.length} games!`);
+      
+    } catch (error) {
+      Alert.alert('Error', `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Error creating bulk games:', error);
+    }
+  };
+
   const getWinPercentage = () => {
     if (seasonStats.gamesPlayed === 0) return 0;
     return ((seasonStats.wins + seasonStats.ties * 0.5) / seasonStats.gamesPlayed * 100).toFixed(1);
+  };
+
+  const handlePlayoffMatchupPress = (matchup: PlayoffMatchup) => {
+    if (matchup.status === 'completed') {
+      Alert.alert(
+        'Game Result',
+        `${matchup.team1?.name} ${matchup.score1} - ${matchup.score2} ${matchup.team2?.name}`,
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'Edit Result', onPress: () => handleEditPlayoffResult(matchup) },
+        ]
+      );
+    } else if (matchup.status === 'upcoming' && matchup.team1 && matchup.team2) {
+      Alert.alert(
+        'Playoff Game',
+        `${matchup.team1.name} vs ${matchup.team2.name}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Enter Result', onPress: () => handleEditPlayoffResult(matchup) },
+          { text: 'Schedule Game', onPress: () => handleSchedulePlayoffGame(matchup) },
+        ]
+      );
+    }
+  };
+
+  const handleEditPlayoffResult = (matchup: PlayoffMatchup) => {
+    if (!matchup.team1 || !matchup.team2) return;
+    
+    Alert.prompt(
+      'Enter Game Result',
+      `${matchup.team1.name} vs ${matchup.team2.name}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Save', 
+          onPress: (input) => {
+            if (input) {
+              const scores = input.split('-').map(s => parseInt(s.trim()));
+              if (scores.length === 2 && !isNaN(scores[0]) && !isNaN(scores[1])) {
+                updatePlayoffResult(matchup.id, scores[0], scores[1]);
+              } else {
+                Alert.alert('Error', 'Please enter scores in format: 21-14');
+              }
+            }
+          }
+        }
+      ],
+      'plain-text',
+      matchup.status === 'completed' ? `${matchup.score1}-${matchup.score2}` : ''
+    );
+  };
+
+  const handleSchedulePlayoffGame = (matchup: PlayoffMatchup) => {
+    Alert.prompt(
+      'Schedule Game',
+      'Enter game date (YYYY-MM-DD):',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Schedule', 
+          onPress: (dateInput) => {
+            if (dateInput) {
+              // In a real app, you'd validate the date and save to backend
+              Alert.alert('Success', `Game scheduled for ${dateInput}`);
+            }
+          }
+        }
+      ],
+      'plain-text',
+      new Date().toISOString().split('T')[0]
+    );
+  };
+
+  const updatePlayoffResult = (matchupId: string, score1: number, score2: number) => {
+    // In a real app, this would update the backend and refresh data
+    Alert.alert(
+      'Result Updated',
+      `Score updated to ${score1}-${score2}. In a real implementation, this would update the playoff bracket and advance the winner to the next round.`
+    );
   };
 
   return (
@@ -574,7 +690,7 @@ export default function ManageSeasonScreen() {
           
           <Pressable 
             style={[styles.quickActionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => router.push('/admin-teams')}
+            onPress={() => setShowBulkScheduleModal(true)}
           >
             <Ionicons name="calendar-outline" size={20} color="#fff" />
             <Text style={styles.quickActionText}>Bulk Schedule</Text>
@@ -582,7 +698,7 @@ export default function ManageSeasonScreen() {
           
           <Pressable 
             style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
-            onPress={() => router.push('/highlights')}
+            onPress={() => router.push('/season-stats')}
           >
             <Ionicons name="stats-chart-outline" size={20} color="#fff" />
             <Text style={styles.quickActionText}>View Stats</Text>
@@ -843,7 +959,11 @@ export default function ManageSeasonScreen() {
                     <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>Semifinals</Text>
                     
                     {playoffBracket.filter(match => match.round === 1).map((match) => (
-                      <View key={match.id} style={[styles.matchupCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+                      <Pressable 
+                        key={match.id} 
+                        style={[styles.matchupCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
+                        onPress={() => handlePlayoffMatchupPress(match)}
+                      >
                         <View style={styles.matchupHeader}>
                           <Text style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}>
                             {match.gameDate ? new Date(match.gameDate).toLocaleDateString() : 'TBD'}
@@ -911,7 +1031,7 @@ export default function ManageSeasonScreen() {
                             </Text>
                           )}
                         </View>
-                      </View>
+                      </Pressable>
                     ))}
                   </View>
 
@@ -925,7 +1045,11 @@ export default function ManageSeasonScreen() {
                     <Text style={[styles.roundTitle, { color: Colors[colorScheme].text }]}>Championship</Text>
                     
                     {playoffBracket.filter(match => match.round === 2).map((match) => (
-                      <View key={match.id} style={[styles.matchupCard, styles.championshipCard, { backgroundColor: Colors[colorScheme].background, borderColor: '#F59E0B' }]}>
+                      <Pressable 
+                        key={match.id} 
+                        style={[styles.matchupCard, styles.championshipCard, { backgroundColor: Colors[colorScheme].background, borderColor: '#F59E0B' }]}
+                        onPress={() => handlePlayoffMatchupPress(match)}
+                      >
                         <View style={styles.matchupHeader}>
                           <Ionicons name="trophy" size={16} color="#F59E0B" />
                           <Text style={[styles.matchupDate, { color: Colors[colorScheme].mutedText }]}>
@@ -976,7 +1100,7 @@ export default function ManageSeasonScreen() {
                             </Text>
                           )}
                         </View>
-                      </View>
+                      </Pressable>
                     ))}
                   </View>
                 </View>
@@ -1014,6 +1138,15 @@ export default function ManageSeasonScreen() {
         onClose={() => setShowQuickAddModal(false)}
         onSave={handleSaveQuickGame}
         currentTeamName="My Team" // You can replace this with actual team context
+      />
+
+      {/* Bulk Schedule Modal */}
+      <BulkScheduleModal
+        visible={showBulkScheduleModal}
+        onClose={() => setShowBulkScheduleModal(false)}
+        onSave={handleSaveBulkGames}
+        currentTeamName="My Team"
+        currentTeamId={params.teamId || ''}
       />
     </View>
   );
