@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "VarsityHubMobile",
+    "name": "VarsityHub",
     "slug": "VarsityHubMobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,15 +11,20 @@
     "locales": {
       "en": "./locales/en.json"
     },
+    "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
+    "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
+        "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
+        "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile."
       },
-      "bundleIdentifier": "com.anonymous.VarsityHubMobile"
+      "bundleIdentifier": "com.xsantcastx.varsityhub"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,9 +34,12 @@
       "edgeToEdgeEnabled": true,
       "usesCleartextTraffic": true,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
-      "package": "com.anonymous.VarsityHubMobile"
+      "package": "com.xsantcastx.varsityhub"
     },
     "web": {
       "bundler": "metro",
@@ -52,9 +60,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to attach images to posts.",
-          "cameraPermission": "Allow $(PRODUCT_NAME) to use the camera for capturing photos and videos.",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access the microphone for recording videos."
+          "photosPermission": "Allow VarsityHub to access your photos to attach images to posts.",
+          "cameraPermission": "Allow VarsityHub to use the camera for capturing photos and videos.",
+          "microphonePermission": "Allow VarsityHub to access the microphone for recording videos."
         }
       ],
       "expo-video",
