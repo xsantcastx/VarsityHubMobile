@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
+import { Team as TeamApi, User } from '@/api/entities';
 
 interface AppUser {
   id: string;
@@ -283,46 +283,26 @@ export default function TeamProfileScreen() {
 
     setSearchLoading(true);
     try {
-      // Mock API call - replace with actual user search
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Use real API for user search
+      const results = await User.searchForMentions(query, 10);
       
-      const mockResults: AppUser[] = [
-        {
-          id: '1',
-          display_name: 'John Smith',
-          username: 'johnsmith',
-          email: 'john@example.com',
-          avatar_url: undefined,
-          verified: true,
-          mutual_friends: 3,
-        },
-        {
-          id: '2',
-          display_name: 'Sarah Johnson',
-          username: 'sarahj',
-          email: 'sarah@example.com',
-          avatar_url: undefined,
-          verified: false,
-          mutual_friends: 1,
-        },
-        {
-          id: '3',
-          display_name: 'Mike Davis',
-          username: 'mikedavis',
-          email: 'mike@example.com',
-          avatar_url: undefined,
-          verified: true,
-          mutual_friends: 0,
-        },
-      ].filter(user => 
-        user.display_name.toLowerCase().includes(query.toLowerCase()) ||
-        user.username.toLowerCase().includes(query.toLowerCase())
-      );
-
-      setSearchResults(mockResults);
+      // Convert to AppUser format
+      const convertedResults: AppUser[] = results.map((user: any) => ({
+        id: user.id,
+        display_name: user.display_name || user.username,
+        username: user.username,
+        email: user.email,
+        avatar_url: user.avatar_url,
+        verified: user.verified || false,
+        mutual_friends: user.mutual_friends || 0,
+      }));
+      
+      setSearchResults(convertedResults);
     } catch (error) {
-      console.error('Search failed:', error);
+      console.error('User search failed:', error);
+      // Fallback to empty results on error
       setSearchResults([]);
+      Alert.alert('Search Error', 'Failed to search for users. Please try again.');
     } finally {
       setSearchLoading(false);
     }
@@ -433,16 +413,24 @@ export default function TeamProfileScreen() {
       return;
     }
     
+    if (!team?.id) {
+      Alert.alert('Error', 'Team information not available');
+      return;
+    }
+    
     setSendingInvite(true);
     try {
-      // Mock API call - replace with actual implementation
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Use real API to send team invitation
+      await TeamApi.invite(team.id, selectedUser.email || selectedUser.username, 'member');
       Alert.alert('Invite sent!', `Invitation sent to ${selectedUser.display_name}`);
       setSelectedUser(null);
       setSearchQuery('');
+      setSearchResults([]);
       setInviteModalOpen(false);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send invitation');
+    } catch (error: any) {
+      console.error('Failed to send invitation:', error);
+      const errorMessage = error?.message || 'Failed to send invitation';
+      Alert.alert('Error', errorMessage);
     } finally {
       setSendingInvite(false);
     }
@@ -525,12 +513,20 @@ export default function TeamProfileScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
-        <Pressable 
-          style={styles.moreButton}
-          onPress={() => router.push(`/edit-team?id=${team.id}`)}
-        >
-          <Ionicons name="create-outline" size={24} color={Colors[colorScheme].text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable 
+            style={styles.actionButton}
+            onPress={() => router.push(`/team-viewer?id=${team.id}`)}
+          >
+            <Ionicons name="eye-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Pressable 
+            style={styles.actionButton}
+            onPress={() => router.push(`/edit-team?id=${team.id}`)}
+          >
+            <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView 
@@ -1158,6 +1154,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   // Team Overview
   teamOverviewCard: {
