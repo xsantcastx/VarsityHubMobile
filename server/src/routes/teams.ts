@@ -227,6 +227,7 @@ const createTeamSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
+  logo_url: z.string().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -253,6 +254,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
       organization_id: data.organization_id,
+      logo_url: data.logo_url,
     }
   });
   

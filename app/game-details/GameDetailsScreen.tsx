@@ -1211,7 +1211,7 @@ const renderVoteSection = () => {
         {(!leftLogo || !rightLogo) && (vm?.homeTeam || vm?.awayTeam) && (
           <View style={styles.teamLogosOverlay}>
             <View style={styles.teamMatchup}>
-              {/* Home Team */}
+              {/* Home Team Logo */}
               <View style={styles.teamSideInBanner}>
                 <View style={styles.teamLogoInBanner}>
                   {getTeamLogo(vm?.homeTeam || '') ? (
@@ -1223,18 +1223,14 @@ const renderVoteSection = () => {
                     <Text style={styles.teamLogoEmojiInBanner}>🏠</Text>
                   )}
                 </View>
-                <Text style={styles.teamNameInBanner}>{vm?.homeTeam || 'Home'}</Text>
-                <Text style={styles.teamLabelInBanner}>HOME</Text>
               </View>
-              
               {/* VS Divider */}
               <View style={styles.vsDividerInBanner}>
                 <View style={styles.vsCircleInBanner}>
                   <Text style={styles.vsTextInBanner}>VS</Text>
                 </View>
               </View>
-              
-              {/* Away Team */}
+              {/* Away Team Logo */}
               <View style={styles.teamSideInBanner}>
                 <View style={styles.teamLogoInBanner}>
                   {getTeamLogo(vm?.awayTeam || '') ? (
@@ -1246,8 +1242,6 @@ const renderVoteSection = () => {
                     <Text style={styles.teamLogoEmojiInBanner}>✈️</Text>
                   )}
                 </View>
-                <Text style={styles.teamNameInBanner}>{vm?.awayTeam || 'Away'}</Text>
-                <Text style={styles.teamLabelInBanner}>AWAY</Text>
               </View>
             </View>
           </View>
@@ -1341,15 +1335,36 @@ const renderVoteSection = () => {
 
   const renderTeams = () => {
     if (!vm?.teams?.length) {
-      return <Text style={styles.muted}>Teams will appear here once linked.</Text>;
+      return (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
+          {[0, 1].map((i) => (
+            <View key={i} style={{ flex: 1, alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 18, padding: 18, minHeight: 120, opacity: 0.7 }}>
+              <Ionicons name="people" size={32} color={Colors[colorScheme].mutedText} style={{ marginBottom: 8 }} />
+              <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>Team {i === 0 ? 'A' : 'B'}</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>No team linked</Text>
+            </View>
+          ))}
+        </View>
+      );
     }
     return (
-      <View style={styles.teamList}>
-        {vm.teams.map((team) => (
-          <View key={team.id} style={styles.teamPill}>
-            <Ionicons name="people" size={16} color={Colors[colorScheme].tint} />
-            <Text style={styles.teamPillText}>{team.name}</Text>
-          </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
+        {vm.teams.slice(0, 2).map((team) => (
+          <Pressable
+            key={team.id}
+            style={{ flex: 1, alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
+            onPress={() => router.push({ pathname: '/team-viewer', params: { id: team.id } })}
+            accessibilityRole="button"
+            accessibilityLabel={`View team ${team.name}`}
+          >
+            {team.avatarUrl ? (
+              <Image source={{ uri: team.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
+            ) : (
+              <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
+            )}
+            <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>{team.name}</Text>
+            <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap for details</Text>
+          </Pressable>
         ))}
       </View>
     );
@@ -1592,7 +1607,7 @@ const renderVoteSection = () => {
       <Modal visible={vsModalOpen} animationType="fade" transparent onRequestClose={() => setVsModalOpen(false)}>
         <Pressable style={styles.vsModalBackdrop} onPress={() => setVsModalOpen(false)}>
           <Pressable style={styles.vsModalCard} onPress={() => {}}>
-            <Text style={styles.vsModalTitle}>{vm?.homeTeam || 'Team A'} vs {vm?.awayTeam || 'Team B'}</Text>
+            <Text style={styles.vsModalTitle}>{vm?.homeTeam && vm?.awayTeam ? `${vm.homeTeam} vs ${vm.awayTeam}` : 'Matchup'}</Text>
 
             {/* Poll row */}
             <View style={styles.vsPollRow}>
