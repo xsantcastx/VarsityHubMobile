@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -19,6 +19,7 @@ type Team = {
   season?: string;
   description?: string;
   avatar_url?: string;
+  my_role?: string;
 };
 
 export default function ManageTeamsScreen() {
@@ -31,11 +32,14 @@ export default function ManageTeamsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
 
-  const loadTeams = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+  const loadTeams = useCallback(async ({ silent = false, searchQuery = '' }: { silent?: boolean; searchQuery?: string } = {}) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const list: any[] = await TeamApi.list();
+      console.log('Loading managed teams only...');
+      const list: any[] = await TeamApi.managed(searchQuery || undefined); // Pass search query to API
+      console.log('Loaded teams:', list.length, list.map(t => t.name));
+      
       const formattedTeams = list.map((t: any) => ({
         id: String(t.id),
         name: String(t.name || 'Team'),
@@ -45,11 +49,16 @@ export default function ManageTeamsScreen() {
         season: t.season || null,
         description: t.description || null,
         avatar_url: t.avatar_url || null,
+        my_role: t.my_role || null,
       }));
       setTeams(formattedTeams);
     } catch (e: any) {
       console.error('Failed to load teams:', e);
-      setError('Failed to load teams');
+      if (e?.status === 401) {
+        setError('Please log in to view your managed teams');
+      } else {
+        setError('Failed to load teams');
+      }
       setTeams([]);
     } finally {
       if (!silent) setLoading(false);
@@ -60,21 +69,30 @@ export default function ManageTeamsScreen() {
     loadTeams();
   }, [loadTeams]);
 
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (query.trim()) {
+        loadTeams({ silent: true, searchQuery: query.trim() });
+      } else {
+        loadTeams({ silent: true });
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [query, loadTeams]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await loadTeams({ silent: true }); } finally { setRefreshing(false); }
-  }, [loadTeams]);
+    try { 
+      await loadTeams({ silent: true, searchQuery: query.trim() || undefined }); 
+    } finally { 
+      setRefreshing(false); 
+    }
+  }, [loadTeams, query]);
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return teams;
-    const q = query.toLowerCase().trim();
-    return teams.filter(team => 
-      team.name.toLowerCase().includes(q) ||
-      team.sport?.toLowerCase().includes(q) ||
-      team.description?.toLowerCase().includes(q)
-    );
-  }, [query, teams]);
-
+  // Since search is now done at API level, we don't need frontend filtering
+  const filtered = teams;
   const activeTeams = filtered.filter(t => t.status === 'active');
   const archivedTeams = filtered.filter(t => t.status === 'archived');
 
@@ -83,7 +101,7 @@ export default function ManageTeamsScreen() {
       <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Manage Teams</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-          Create and organize your teams
+          Manage teams where you have administrative access
         </Text>
       </View>
 
@@ -181,16 +199,21 @@ export default function ManageTeamsScreen() {
             <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.emptyIcon}>
               <Ionicons name="people-outline" size={32} color="#fff" />
             </LinearGradient>
-            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No teams yet</Text>
+            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No managed teams found</Text>
             <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
-              Create your first team to get started with managing players and organizing games.
+              {query.trim() ? 
+                `No teams match "${query.trim()}". Try a different search term.` :
+                'You don\'t have management access to any teams yet. Create a new team or ask to be added as a manager to an existing team.'
+              }
             </Text>
             <Pressable 
               style={[styles.emptyAction, { backgroundColor: Colors[colorScheme].tint }]}
               onPress={() => router.push('/create-team')}
             >
               <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.emptyActionText}>Create Your First Team</Text>
+              <Text style={styles.emptyActionText}>
+                {query.trim() ? 'Create New Team' : 'Create Your First Team'}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -222,6 +245,25 @@ export default function ManageTeamsScreen() {
                   <Text style={[styles.teamName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
                     {team.name}
                   </Text>
+                  
+                  {/* Role Badge */}
+                  {team.my_role && (
+                    <View style={styles.roleContainer}>
+                      <View style={[styles.roleBadge, { 
+                        backgroundColor: team.my_role === 'owner' ? '#DC2626' : 
+                                       team.my_role === 'manager' ? '#0EA5E9' :
+                                       team.my_role === 'coach' ? '#7C3AED' : '#10B981' 
+                      }]}>
+                        <Text style={styles.roleText}>
+                          {team.my_role === 'owner' ? 'Owner' :
+                           team.my_role === 'manager' ? 'Manager' :
+                           team.my_role === 'coach' ? 'Coach' :
+                           team.my_role === 'assistant_coach' ? 'Asst. Coach' : team.my_role}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  
                   {team.sport && (
                     <View style={styles.teamMeta}>
                       <Ionicons name="basketball-outline" size={14} color={Colors[colorScheme].mutedText} />
@@ -484,6 +526,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  roleContainer: {
+    marginBottom: 4,
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  roleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
   },
   teamMeta: {
     flexDirection: 'row',

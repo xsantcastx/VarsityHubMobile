@@ -6,45 +6,27 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Highlights, User } from '@/api/entities';
+import RankingBadge from '../components/RankingBadge';
+import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32; // Single column with margins
 const CARD_HEIGHT = 220; // Larger cards for sports app feel
-
-type HighlightItem = {
-  id: string;
-  title?: string | null;
-  caption?: string | null;
-  content?: string | null;
-  media_url?: string | null;
-  upvotes_count?: number | null;
-  created_at?: string | null;
-  author?: { 
-    id?: string;
-    display_name?: string | null; 
-    avatar_url?: string | null;
-  } | null;
-  _count?: { comments?: number | null } | null;
-  lat?: number | null;
-  lng?: number | null;
-  country_code?: string | null;
-  _score?: number;
-};
 
 type TabType = 'trending' | 'recent' | 'top';
 
@@ -52,19 +34,28 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
   const idValue = input.id ?? input.post_id ?? input.highlight_id;
   if (!idValue) return null;
+  const authorId = input.author_id ?? input.author?.id ?? '';
+  if (!authorId) return null; // Required for ranking calculations
   return {
     id: String(idValue),
-    title: input.title ?? input.caption ?? null,
-    caption: input.caption ?? null,
-    content: input.content ?? null,
-    media_url: typeof input.media_url === 'string' ? input.media_url : null,
-    upvotes_count: typeof input.upvotes_count === 'number' ? input.upvotes_count : null,
-    created_at: typeof input.created_at === 'string' ? input.created_at : null,
-    author: input.author ?? null,
-    _count: input._count ?? null,
-    lat: typeof input.lat === 'number' ? input.lat : null,
-    lng: typeof input.lng === 'number' ? input.lng : null,
-    country_code: typeof input.country_code === 'string' ? input.country_code : null,
+    title: input.title ?? input.caption ?? undefined,
+    caption: input.caption ?? undefined,
+    content: input.content ?? undefined,
+    media_url: typeof input.media_url === 'string' ? input.media_url : undefined,
+    upvotes_count: typeof input.upvotes_count === 'number' ? input.upvotes_count : undefined,
+    created_at: typeof input.created_at === 'string' ? input.created_at : new Date().toISOString(),
+    author_id: String(authorId),
+    author: input.author ? {
+      id: String(input.author.id || authorId),
+      display_name: String(input.author.display_name || 'Anonymous'),
+      avatar_url: input.author.avatar_url || undefined,
+    } : undefined,
+    _count: input._count ? {
+      comments: typeof input._count.comments === 'number' ? input._count.comments : 0
+    } : undefined,
+    lat: typeof input.lat === 'number' ? input.lat : undefined,
+    lng: typeof input.lng === 'number' ? input.lng : undefined,
+    country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
@@ -110,10 +101,31 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
-const HighlightCard = ({ item, onPress, colorScheme }: { item: HighlightItem; onPress: (item: HighlightItem) => void; colorScheme: 'light' | 'dark' }) => {
+const HighlightCard = ({ 
+  item, 
+  index = 0,
+  currentTab = 'trending',
+  nationalTop = [],
+  ranked = [],
+  userLocation,
+  onPress, 
+  colorScheme 
+}: { 
+  item: HighlightItem; 
+  index?: number;
+  currentTab?: string;
+  nationalTop?: HighlightItem[];
+  ranked?: HighlightItem[];
+  userLocation?: { lat: number; lng: number };
+  onPress: (item: HighlightItem) => void; 
+  colorScheme: 'light' | 'dark' 
+}) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   const category = getSportCategory(item.title, item.content);
   const hasMedia = !!item.media_url;
+  
+  // Calculate ranking for this item
+  const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
   
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
@@ -129,6 +141,13 @@ const HighlightCard = ({ item, onPress, colorScheme }: { item: HighlightItem; on
                     <Ionicons name="play" size={24} color="#fff" />
                   </View>
                 </View>
+              )}
+              {/* Ranking Badge */}
+              {ranking.show && (
+                <RankingBadge 
+                  type={ranking.type} 
+                  position={ranking.position}
+                />
               )}
               {/* Live badge for recent posts */}
               {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
@@ -146,6 +165,13 @@ const HighlightCard = ({ item, onPress, colorScheme }: { item: HighlightItem; on
                 <Text style={styles.categoryIcon}>{category.icon}</Text>
                 <Text style={styles.noMediaText}>Text Post</Text>
               </View>
+              {/* Ranking Badge for text posts */}
+              {ranking.show && (
+                <RankingBadge 
+                  type={ranking.type} 
+                  position={ranking.position}
+                />
+              )}
             </LinearGradient>
           )}
         </View>
@@ -218,6 +244,9 @@ export default function HighlightsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<HighlightItem[]>([]);
+  const [nationalTop, setNationalTop] = useState<HighlightItem[]>([]);
+  const [ranked, setRanked] = useState<HighlightItem[]>([]);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
 
   const load = useCallback(async () => {
@@ -229,6 +258,11 @@ export default function HighlightsScreen() {
       const lat = me?.lat;
       const lng = me?.lng;
       
+      // Store user location for ranking calculations
+      if (lat && lng) {
+        setUserLocation({ lat, lng });
+      }
+      
       // Request better data with more posts
       const payload = await Highlights.fetch({ 
         country, 
@@ -237,10 +271,17 @@ export default function HighlightsScreen() {
         lng
       });
       
+      // Store raw ranking data for badge calculations
+      const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
+      const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
+      
+      setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
+      setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
+      
       // Merge all highlights from different buckets
       const allHighlights = [
-        ...(Array.isArray(payload?.nationalTop) ? payload.nationalTop : []),
-        ...(Array.isArray(payload?.ranked) ? payload.ranked : [])
+        ...rawNationalTop,
+        ...rawRanked
       ];
       
       const mapped = allHighlights
@@ -304,8 +345,17 @@ export default function HighlightsScreen() {
     return filtered;
   }, [highlights, activeTab]);
 
-  const renderHighlight = ({ item }: { item: HighlightItem }) => (
-    <HighlightCard item={item} onPress={handleHighlightPress} colorScheme={colorScheme} />
+  const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
+    <HighlightCard 
+      item={item} 
+      index={index}
+      currentTab={activeTab}
+      nationalTop={nationalTop}
+      ranked={ranked}
+      userLocation={userLocation}
+      onPress={handleHighlightPress} 
+      colorScheme={colorScheme} 
+    />
   );
 
   const statusBarHeight = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
