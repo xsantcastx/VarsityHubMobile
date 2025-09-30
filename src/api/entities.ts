@@ -240,7 +240,26 @@ export const Organization = {
 };
 
 export const Team = {
-  list: (q?: string) => httpGet('/teams' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+  list: (q?: string, mine?: boolean) => {
+    if (mine) {
+      // Use dedicated managed teams endpoint
+      const params: string[] = [];
+      if (q) params.push(`q=${encodeURIComponent(q)}`);
+      const qs = params.length ? '?' + params.join('&') : '';
+      return httpGet('/teams/managed' + qs);
+    }
+    
+    const params: string[] = [];
+    if (q) params.push(`q=${encodeURIComponent(q)}`);
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet('/teams' + qs);
+  },
+  managed: (q?: string) => {
+    const params: string[] = [];
+    if (q) params.push(`q=${encodeURIComponent(q)}`);
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet('/teams/managed' + qs);
+  },
   get: (id: string) => httpGet('/teams/' + encodeURIComponent(id)),
   members: (id: string) => httpGet(`/teams/${encodeURIComponent(id)}/members`),
   allMembers: (q?: string) => httpGet('/teams/members/all' + (q ? `?q=${encodeURIComponent(q)}` : '')),

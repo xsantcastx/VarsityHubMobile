@@ -2,22 +2,96 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 export const teamsRouter = Router();
 
+// Get teams managed by current user (requires authentication)
+teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  
+  const q = String((req.query as any).q || '').trim().toLowerCase();
+  const userId = req.user.id;
+  const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+  
+  let where: any = {
+    memberships: {
+      some: {
+        user_id: userId,
+        role: { in: managementRoles },
+        status: 'active'
+      }
+    }
+  };
+  
+  if (q) {
+    where.name = { contains: q, mode: 'insensitive' };
+  }
+  
+  const rows = await prisma.team.findMany({
+    where,
+    orderBy: { created_at: 'desc' },
+    include: { 
+      _count: { select: { memberships: true } },
+      memberships: {
+        where: { user_id: userId, status: 'active' },
+        select: { role: true }
+      }
+    },
+  });
+  
+  const list = rows.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    status: t.status,
+    sport: (t as any).sport,
+    season: (t as any).season,
+    members: (t as any)._count.memberships,
+    logo_url: (t as any).logo_url || null,
+    avatar_url: (t as any).avatar_url || null,
+    my_role: (t as any).memberships?.[0]?.role || null
+  }));
+  
+  return res.json(list);
+});
+
 // List teams with member counts; optional search q
 teamsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const all = String((req.query as any).all || '') === '1';
+  const mine = String((req.query as any).mine || '') === '1';
+  
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
     const isAdmin = await getIsAdmin(req as any);
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
   }
-  const where: any = {};
+  
+  let where: any = {};
   if (q) where.name = { contains: q, mode: 'insensitive' };
+  
+  // Filter to only teams where the current user has management roles
+  if (mine) {
+    const authReq = req as AuthedRequest;
+    if (!authReq.user) {
+      return res.status(401).json({ error: 'Authentication required to view managed teams' });
+    }
+    
+    const userId = authReq.user.id;
+    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+    
+    where.memberships = {
+      some: {
+        user_id: userId,
+        role: { in: managementRoles },
+        status: 'active'
+      }
+    };
+  }
+  
   const rows = await prisma.team.findMany({
     where,
     orderBy: { created_at: 'desc' },
