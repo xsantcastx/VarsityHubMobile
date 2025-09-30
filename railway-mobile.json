@@ -1,0 +1,15 @@
+{
+  "name": "varsityhub-mobile-dev",
+  "version": "1.0.0",
+  "description": "VarsityHub Mobile Development Server",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --tunnel --non-interactive"
+  },
+  "dependencies": {
+    "@expo/cli": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
