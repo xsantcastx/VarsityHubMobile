@@ -4,14 +4,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore api exports
 import { User } from '@/api/entities';
 import { BackHeader } from '@/components/ui/BackHeader';
+import { Colors } from '@/constants/Colors';
+import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id?: string; username?: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const colorScheme = useCustomColorScheme();
+  const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -104,12 +110,12 @@ export default function UserProfileScreen() {
   const { colA, colB } = makeMasonryColumns(posts);
 
   return (
-    <View style={S.page}>
+    <View style={[S.page, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <BackHeader 
         title={user?.display_name || user?.username || 'Profile'} 
-        backgroundColor="#ffffff"
-        textColor="#1F2937"
+        backgroundColor={theme.background}
+        textColor={theme.text}
       />
       {loading ? (
         <View style={S.center}><ActivityIndicator /></View>
@@ -119,88 +125,126 @@ export default function UserProfileScreen() {
         <View style={S.center}><Text>Not found</Text></View>
       ) : (
         <>
-          {/* Enhanced Header Section */}
-          <View style={S.headerSection}>
-            <View style={S.profileHeader}>
-              <View style={S.avatarWrap}>
-                {user.avatar_url ? (
-                  <Image source={{ uri: String(user.avatar_url) }} style={S.avatar} contentFit="cover" />
-                ) : (
-                  <View style={[S.avatar, S.avatarFallback]}>
-                    <Ionicons name="person" size={32} color="#6B7280" />
-                  </View>
-                )}
-              </View>
-              
-              <View style={S.profileInfo}>
-                <Text style={S.displayName}>{user.display_name || user.username || 'User'}</Text>
-                {user.bio && <Text style={S.bio}>{user.bio}</Text>}
-                
-                {/* Role and verification badges */}
-                <View style={S.badgesRow}>
-                  {user.role && user.role !== 'fan' && (
-                    <View style={[S.roleBadge, user.role === 'coach' && S.roleBadgeCoach]}>
-                      <Text style={S.roleBadgeText}>{user.role}</Text>
+          {/* Modern Sport-Inspired Header with proper spacing */}
+          <View style={[S.headerContainer, { marginTop: 8 }]}>
+            {/* Background Gradient */}
+            <LinearGradient
+              colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+              style={S.headerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            
+            {/* Profile Content */}
+            <View style={S.profileContent}>
+              {/* Avatar Section */}
+              <View style={S.avatarSection}>
+                <View style={S.avatarContainer}>
+                  {user.avatar_url ? (
+                    <Image source={{ uri: String(user.avatar_url) }} style={S.avatarImage} contentFit="cover" />
+                  ) : (
+                    <View style={S.avatarPlaceholder}>
+                      <Ionicons name="person" size={36} color="#ffffff" />
                     </View>
                   )}
                   {user.verified && (
                     <View style={S.verifiedBadge}>
-                      <Ionicons name="checkmark-circle" size={16} color="#3B82F6" />
+                      <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
                     </View>
                   )}
                 </View>
               </View>
 
-              {/* Follow button */}
-              {me?.id && user?.id && me.id !== user.id && (
-                <View style={S.actionSection}>
-                  <Pressable
-                    onPress={async () => {
-                      const next = !user.is_following;
-                      setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
-                      try {
-                        if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                      } catch (e) {
-                        setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
-                      }
-                    }}
-                    style={[S.followBtn, user.is_following && S.followBtnActive]}
-                  >
-                    <Text style={[S.followBtnText, user.is_following && S.followBtnTextActive]}>
-                      {user.is_following ? 'Following' : 'Follow'}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-
-            {/* Stats Section */}
-            <View style={S.statsContainer}>
-              <View style={S.statItem}>
-                <Text style={S.statValue}>{user.posts_count ?? 0}</Text>
-                <Text style={S.statLabel}>Posts</Text>
+              {/* User Info */}
+              <View style={S.userInfo}>
+                <Text style={S.userName}>{user.display_name || user.username || 'User'}</Text>
+                
+                {/* Role and Plan Badges */}
+                {(user.role || user.preferences?.plan) && (
+                  <View style={S.badgesRow}>
+                    {user.role && (
+                      <View style={[S.roleBadge, 
+                        user.role === 'coach' && S.coachBadge,
+                        user.role === 'player' && S.playerBadge,
+                        user.role === 'fan' && S.fanBadge
+                      ]}>
+                        <Ionicons 
+                          name={user.role === 'coach' ? 'flag' : user.role === 'player' ? 'american-football' : 'heart'} 
+                          size={12} 
+                          color="#ffffff" 
+                        />
+                        <Text style={S.roleText}>{user.role.toUpperCase()}</Text>
+                      </View>
+                    )}
+                    {user.preferences?.plan && (
+                      <View style={[S.planBadge,
+                        user.preferences.plan.toLowerCase() === 'rookie' && S.rookieBadge,
+                        user.preferences.plan.toLowerCase() === 'veteran' && S.veteranBadge,
+                        user.preferences.plan.toLowerCase() === 'legend' && S.legendBadge
+                      ]}>
+                        <Ionicons 
+                          name={user.preferences.plan.toLowerCase() === 'rookie' ? 'shield' : 
+                               user.preferences.plan.toLowerCase() === 'veteran' ? 'medal' : 'trophy'} 
+                          size={12} 
+                          color="#ffffff" 
+                        />
+                        <Text style={S.planBadgeText}>{user.preferences.plan.toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+                
+                {user.bio && <Text style={S.userBio}>{user.bio}</Text>}
               </View>
-              <Pressable 
-                style={S.statItem} 
-                onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}
-              >
-                <Text style={S.statValue}>{user.followers_count ?? 0}</Text>
-                <Text style={S.statLabel}>Followers</Text>
-              </Pressable>
-              <Pressable 
-                style={S.statItem} 
-                onPress={() => router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}
-              >
-                <Text style={S.statValue}>{user.following_count ?? 0}</Text>
-                <Text style={S.statLabel}>Following</Text>
-              </Pressable>
+
+              {/* Follow Button */}
+              {me?.id && user?.id && me.id !== user.id && (
+                <Pressable
+                  onPress={async () => {
+                    const next = !user.is_following;
+                    setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
+                    try {
+                      if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
+                    } catch (e) {
+                      setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
+                    }
+                  }}
+                  style={[S.followButton, user.is_following && S.followingButton]}
+                >
+                  <Text style={[S.followButtonText, user.is_following && S.followingButtonText]}>
+                    {user.is_following ? 'Following' : 'Follow'}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
 
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: 24 }}>
+          {/* Athletic Stats Card */}
+          <View style={[S.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Pressable style={S.statItem} onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+              <Text style={[S.statNumber, { color: theme.text }]}>{user.posts_count ?? 0}</Text>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>Posts</Text>
+            </Pressable>
+            
+            <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+            
+            <Pressable style={S.statItem} onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+              <Text style={[S.statNumber, { color: theme.text }]}>{user.followers_count ?? 0}</Text>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>Followers</Text>
+            </Pressable>
+            
+            <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+            
+            <Pressable style={S.statItem} onPress={() => router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+              <Text style={[S.statNumber, { color: theme.text }]}>{user.following_count ?? 0}</Text>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>Following</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: Math.max(24, insets.bottom) }}>
             {posts.length === 0 ? (
               <View style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ color: '#6B7280' }}>No posts yet.</Text>
+                <Text style={{ color: theme.mutedText }}>No posts yet.</Text>
               </View>
             ) : (
               <View style={{ flexDirection: 'row', gap: GUTTER }} onLayout={(e) => setPostsWrapWidth(e.nativeEvent.layout.width)}>
@@ -314,9 +358,220 @@ export default function UserProfileScreen() {
 }
 
 const S = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#FFFFFF' },
+  page: { 
+    flex: 1
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#b91c1c' },
+  error: { color: '#dc2626', fontSize: 16, fontWeight: '500' },
+
+  // Modern Sport Header Styles
+  headerContainer: {
+    position: 'relative',
+    paddingBottom: 20,
+    marginTop: 8, // Space for BackHeader
+  },
+  headerGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  profileContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  userInfo: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  userBio: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginTop: 8,
+    paddingHorizontal: 20,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'center'
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#f59e0b',
+    marginTop: 8,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  coachBadge: { backgroundColor: '#1d4ed8' },
+  playerBadge: { backgroundColor: '#dc2626' },
+  fanBadge: { backgroundColor: '#7c3aed' },
+  roleText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#111827',
+    gap: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  rookieBadge: { backgroundColor: '#22c55e' },
+  veteranBadge: { backgroundColor: '#f59e0b' },
+  legendBadge: { backgroundColor: '#dc2626' },
+  planBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  followButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  followingButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  followButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  followingButtonText: {
+    color: '#1e3a8a',
+  },
+
+  // Athletic Stats Card
+  statsCard: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: -8, // Adjusted for proper spacing
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: '#e2e8f0',
+    marginHorizontal: 16,
+  },
+
+  // Legacy styles for backward compatibility
   header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   avatarWrap: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden' },
   avatar: { width: 64, height: 64, borderRadius: 32 },
@@ -329,16 +584,19 @@ const S = StyleSheet.create({
   statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 8 },
   statBox: { alignItems: 'center' },
   statNum: { fontWeight: '900', fontSize: 16 },
-  statLabel: { color: '#6b7280', fontSize: 12 },
+
+  // Enhanced Grid Styles
   gridItem: { 
-    borderRadius: 12, 
+    borderRadius: 16, 
     overflow: 'hidden', 
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
   gridImage: { width: '100%', height: '100%' },
@@ -350,43 +608,46 @@ const S = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.05)',
   },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
+  gridImageFallback: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    padding: 16, 
+    position: 'relative',
+    backgroundColor: '#f8fafc',
+  },
   textPostOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
     margin: 8,
-    backdropFilter: 'blur(10px)'
   },
   gridTextOnly: { 
     textAlign: 'center', 
-    color: '#ffffff', 
+    color: '#1e40af', 
     fontWeight: '700', 
-    fontSize: 11, 
-    lineHeight: 14,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
+    fontSize: 12, 
+    lineHeight: 16,
   },
   gridCounts: { 
     position: 'absolute', 
     left: 8, 
     bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
+    backgroundColor: 'rgba(0,0,0,0.75)', 
+    borderRadius: 16, 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 6,
+    gap: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 2
+    shadowRadius: 4,
+    elevation: 4,
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  gridCountText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
 });

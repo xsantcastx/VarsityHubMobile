@@ -6,8 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useMemo, useState, useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View, Alert, Modal, TextInput } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import VideoPlayer from './VideoPlayer';
 
 type PostCardProps = {
@@ -152,7 +152,14 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
-      style={[styles.container, pressed && styles.containerPressed]}
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: Colors[colorScheme].card, 
+          borderColor: Colors[colorScheme].border 
+        }, 
+        pressed && styles.containerPressed
+      ]}
     >
       {showAuthorHeader && author ? (
         <View style={styles.authorRow}>
@@ -236,9 +243,14 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
 
       {/* Meta + actions footer */}
       <View style={styles.footer}>
-        <Pressable onPress={onUpvote} style={styles.upvoteBtn} accessibilityRole="button" accessibilityLabel="Upvote">
-          <Ionicons name="arrow-up" size={16} color="#fff" />
-          <Text style={styles.upvoteText}>{upvotesCount}</Text>
+        <Pressable 
+          onPress={onUpvote} 
+          style={[styles.upvoteBtn, { backgroundColor: Colors[colorScheme].tint }]} 
+          accessibilityRole="button" 
+          accessibilityLabel="Upvote"
+        >
+          <Ionicons name="arrow-up" size={16} color={Colors[colorScheme].background} />
+          <Text style={[styles.upvoteText, { color: Colors[colorScheme].background }]}>{upvotesCount}</Text>
         </Pressable>
         <View style={{ flex: 1 }} />
         <View style={styles.metaRow}>
@@ -331,12 +343,10 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 12,
     marginBottom: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
     shadowColor: '#0f172a',
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -356,10 +366,10 @@ const styles = StyleSheet.create({
   textTile: { height: 180, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 12, marginBottom: 10 },
   textTileCaption: { color: 'white', fontWeight: '800', fontSize: 16, textAlign: 'center' },
   footer: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  upvoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#111827' },
-  upvoteText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
-  bookmarkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', marginLeft: 8 },
-  bookmarkText: { color: '#111827', fontWeight: '800', fontSize: 13 },
+  upvoteBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  upvoteText: { fontWeight: '800', fontSize: 13 },
+  bookmarkBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginLeft: 8 },
+  bookmarkText: { fontWeight: '800', fontSize: 13 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 6 },
   metaText: { color: '#6B7280', fontWeight: '700', fontSize: 12 },
   // Team ribbon styles
@@ -372,9 +382,9 @@ const styles = StyleSheet.create({
   // Author header styles
   authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  authorAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', backgroundColor: '#E5E7EB' },
+  authorAvatarWrap: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden' },
   authorAvatar: { width: 28, height: 28, borderRadius: 14 },
-  authorName: { fontWeight: '700', color: '#111827', maxWidth: 220 },
+  authorName: { fontWeight: '700', maxWidth: 220 },
   actionsButton: { padding: 4, borderRadius: 12 },
   
   // Modal styles

@@ -1,10 +1,11 @@
 import VideoPlayer from '@/components/VideoPlayer';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
     Alert,
     Dimensions,
     Modal,
@@ -69,6 +70,7 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -82,6 +84,68 @@ export default function PostDetailScreen() {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Skeleton loading component
+  const SkeletonLoader = () => (
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Header Skeleton */}
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
+        <View style={[styles.skeletonButton, { backgroundColor: Colors[colorScheme].surface }]} />
+        <View style={[styles.skeletonTitle, { backgroundColor: Colors[colorScheme].surface }]} />
+        <View style={[styles.skeletonButton, { backgroundColor: Colors[colorScheme].surface }]} />
+      </View>
+      
+      <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
+        {/* Hero Skeleton */}
+        <View style={[styles.skeletonHero, { backgroundColor: Colors[colorScheme].surface }]} />
+        
+        {/* Content Skeleton */}
+        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
+          <View style={[styles.skeletonLine, styles.skeletonLineTitle, { backgroundColor: Colors[colorScheme].surface }]} />
+          <View style={[styles.skeletonLine, styles.skeletonLineText, { backgroundColor: Colors[colorScheme].surface }]} />
+          <View style={[styles.skeletonLine, styles.skeletonLineText, { backgroundColor: Colors[colorScheme].surface }]} />
+          
+          {/* Author Skeleton */}
+          <View style={styles.authorSection}>
+            <View style={styles.authorInfo}>
+              <View style={[styles.authorAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
+              <View style={styles.authorDetails}>
+                <View style={[styles.skeletonAuthorName, { backgroundColor: Colors[colorScheme].surface }]} />
+                <View style={[styles.skeletonAuthorTime, { backgroundColor: Colors[colorScheme].surface }]} />
+              </View>
+            </View>
+            <View style={[styles.skeletonFollowButton, { backgroundColor: Colors[colorScheme].surface }]} />
+          </View>
+        </View>
+        
+        {/* Comments Skeleton */}
+        <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
+          <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
+            <View style={[styles.skeletonCommentsTitle, { backgroundColor: Colors[colorScheme].surface }]} />
+            <View style={[styles.skeletonCommentsCount, { backgroundColor: Colors[colorScheme].surface }]} />
+          </View>
+          
+          {Array.from({ length: 3 }).map((_, i) => (
+            <View key={i} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
+              <View style={styles.commentHeader}>
+                <View style={styles.commentAuthor}>
+                  <View style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
+                  <View style={styles.commentAuthorInfo}>
+                    <View style={[styles.skeletonCommentAuthor, { backgroundColor: Colors[colorScheme].surface }]} />
+                    <View style={[styles.skeletonCommentDate, { backgroundColor: Colors[colorScheme].surface }]} />
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.skeletonCommentText, { backgroundColor: Colors[colorScheme].surface }]} />
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 
   // Load current user
   useEffect(() => {
@@ -266,22 +330,13 @@ export default function PostDetailScreen() {
   const hasMedia = !!post?.media_url;
 
   if (loading) {
-    return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar barStyle="light-content" backgroundColor="#111827" />
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Loading post...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <SkeletonLoader />;
   }
 
   if (error && !loading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <StatusBar barStyle="light-content" backgroundColor="#111827" />
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
@@ -297,22 +352,22 @@ export default function PostDetailScreen() {
   if (!post) return null;
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <StatusBar barStyle="light-content" backgroundColor="#111827" />
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Custom Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Post Details</Text>
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
         <Pressable style={styles.shareButton} onPress={onShare}>
-          <Ionicons name="share-outline" size={24} color="#fff" />
+          <Ionicons name="share-outline" size={24} color={Colors[colorScheme].text} />
         </Pressable>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
@@ -360,20 +415,28 @@ export default function PostDetailScreen() {
         </View>
 
         {/* Post Content */}
-        <View style={styles.postContent}>
+        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
           {/* Title */}
           {post.title && (
-            <Text style={styles.postTitle}>{post.title}</Text>
+            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{post.title}</Text>
           )}
           
           {/* Content */}
           {post.content && (
-            <Text style={styles.postText}>{post.content}</Text>
+            <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{post.content}</Text>
           )}
 
           {/* Author Info */}
           <View style={styles.authorSection}>
-            <View style={styles.authorInfo}>
+            <Pressable 
+              style={styles.authorInfo}
+              onPress={() => {
+                if (post.author_id) {
+                  router.push(`/user-profile?id=${post.author_id}`);
+                }
+              }}
+              disabled={!post.author_id}
+            >
               {post.author?.avatar_url ? (
                 <ExpoImage source={{ uri: post.author.avatar_url }} style={styles.authorAvatar} />
               ) : (
@@ -382,24 +445,33 @@ export default function PostDetailScreen() {
                 </View>
               )}
               <View style={styles.authorDetails}>
-                <Text style={styles.authorName}>
+                <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
                   {post.author?.display_name || 'Anonymous'}
                 </Text>
-                <Text style={styles.postTime}>{timeAgo(post.created_at)}</Text>
+                <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(post.created_at)}</Text>
               </View>
-            </View>
+            </Pressable>
             
             {post.author_id && String(post.author_id) !== String(currentUser?.id) && (
               <Pressable 
-                style={[styles.followButton, following && styles.followingButton]} 
+                style={[
+                  styles.followButton, 
+                  { 
+                    borderColor: following ? Colors[colorScheme].tint : Colors[colorScheme].tint,
+                    backgroundColor: following ? Colors[colorScheme].tint + '20' : 'transparent'
+                  }
+                ]} 
                 onPress={onFollow}
               >
                 <Ionicons 
                   name={following ? "checkmark" : "person-add"} 
                   size={16} 
-                  color={following ? "#10B981" : "#2563EB"} 
+                  color={following ? Colors[colorScheme].tint : Colors[colorScheme].tint} 
                 />
-                <Text style={[styles.followText, following && styles.followingText]}>
+                <Text style={[
+                  styles.followText, 
+                  { color: following ? Colors[colorScheme].tint : Colors[colorScheme].tint }
+                ]}>
                   {following ? "Following" : "Follow"}
                 </Text>
               </Pressable>
@@ -455,14 +527,14 @@ export default function PostDetailScreen() {
         </View>
 
         {/* Comments Section */}
-        <View style={styles.commentsSection}>
-          <View style={styles.commentsHeader}>
-            <Text style={styles.commentsTitle}>Comments</Text>
-            <Text style={styles.commentsCount}>{comments.length}</Text>
+        <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
+          <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.commentsTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
+            <Text style={[styles.commentsCount, { color: Colors[colorScheme].tabIconDefault, backgroundColor: Colors[colorScheme].surface }]}>{comments.length}</Text>
           </View>
           
           {/* Add Comment */}
-          <View style={styles.addCommentContainer}>
+          <View style={[styles.addCommentContainer, { borderBottomColor: Colors[colorScheme].border }]}>
             {currentUser?.avatar_url ? (
               <ExpoImage source={{ uri: currentUser.avatar_url }} style={styles.commentAvatar} />
             ) : (
@@ -471,8 +543,13 @@ export default function PostDetailScreen() {
               </View>
             )}
             <TextInput
-              style={styles.commentInput}
+              style={[styles.commentInput, { 
+                backgroundColor: Colors[colorScheme].surface, 
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text
+              }]}
               placeholder="Add a comment..."
+              placeholderTextColor={Colors[colorScheme].tabIconDefault}
               value={comment}
               onChangeText={setComment}
               multiline
@@ -493,16 +570,24 @@ export default function PostDetailScreen() {
           {/* Comments List */}
           {comments.length === 0 ? (
             <View style={styles.emptyComments}>
-              <Ionicons name="chatbubbles-outline" size={48} color="#9CA3AF" />
-              <Text style={styles.emptyCommentsText}>No comments yet</Text>
-              <Text style={styles.emptyCommentsSubtext}>Be the first to share your thoughts!</Text>
+              <Ionicons name="chatbubbles-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
+              <Text style={[styles.emptyCommentsText, { color: Colors[colorScheme].text }]}>No comments yet</Text>
+              <Text style={[styles.emptyCommentsSubtext, { color: Colors[colorScheme].tabIconDefault }]}>Be the first to share your thoughts!</Text>
             </View>
           ) : (
             <View style={styles.commentsList}>
               {comments.map((c) => (
-                <View key={String(c.id)} style={styles.commentCard}>
+                <View key={String(c.id)} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
                   <View style={styles.commentHeader}>
-                    <View style={styles.commentAuthor}>
+                    <Pressable 
+                      style={styles.commentAuthor}
+                      onPress={() => {
+                        if (c.author_id) {
+                          router.push(`/user-profile?id=${c.author_id}`);
+                        }
+                      }}
+                      disabled={!c.author_id}
+                    >
                       {c.author?.avatar_url ? (
                         <ExpoImage source={{ uri: c.author.avatar_url }} style={styles.commentAvatar} />
                       ) : (
@@ -511,12 +596,12 @@ export default function PostDetailScreen() {
                         </View>
                       )}
                       <View style={styles.commentAuthorInfo}>
-                        <Text style={styles.commentAuthorName}>
+                        <Text style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}>
                           {c.author?.display_name || 'User'}
                         </Text>
-                        <Text style={styles.commentDate}>{timeAgo(c.created_at)}</Text>
+                        <Text style={[styles.commentDate, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(c.created_at)}</Text>
                       </View>
-                    </View>
+                    </Pressable>
                     
                     {currentUser && c.author_id && String(currentUser.id) === String(c.author_id) && (
                       <View style={styles.commentActions}>
@@ -538,7 +623,7 @@ export default function PostDetailScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.commentText}>{c.content}</Text>
+                  <Text style={[styles.commentText, { color: Colors[colorScheme].text }]}>{c.content}</Text>
                 </View>
               ))}
             </View>
@@ -555,25 +640,30 @@ export default function PostDetailScreen() {
           setEditCommentText('');
         }}
       >
-        <SafeAreaView style={styles.editModal}>
-          <View style={styles.editHeader}>
+        <SafeAreaView style={[styles.editModal, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={[styles.editHeader, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
             <Pressable onPress={() => {
               setEditCommentId(null);
               setEditCommentText('');
             }}>
-              <Text style={styles.cancelButton}>Cancel</Text>
+              <Text style={[styles.cancelButton, { color: Colors[colorScheme].tabIconDefault }]}>Cancel</Text>
             </Pressable>
-            <Text style={styles.editTitle}>Edit Comment</Text>
+            <Text style={[styles.editTitle, { color: Colors[colorScheme].text }]}>Edit Comment</Text>
             <Pressable onPress={handleEditComment} disabled={updatingComment}>
-              <Text style={[styles.saveButton, updatingComment && styles.saveButtonDisabled]}>
+              <Text style={[styles.saveButton, updatingComment && styles.saveButtonDisabled, { color: updatingComment ? Colors[colorScheme].tabIconDefault : Colors[colorScheme].tint }]}>
                 {updatingComment ? 'Saving...' : 'Save'}
               </Text>
             </Pressable>
           </View>
           <View style={styles.editContent}>
             <TextInput
-              style={styles.editCommentInput}
+              style={[styles.editCommentInput, { 
+                backgroundColor: Colors[colorScheme].card, 
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text
+              }]}
               placeholder="Edit your comment..."
+              placeholderTextColor={Colors[colorScheme].tabIconDefault}
               value={editCommentText}
               onChangeText={setEditCommentText}
               multiline
@@ -591,7 +681,6 @@ const styles = StyleSheet.create({
   // Base Layout
   screen: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   loadingContainer: {
     flex: 1,
@@ -601,7 +690,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6B7280',
     fontWeight: '500',
   },
   errorContainer: {
@@ -635,8 +723,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#111827',
     paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    borderBottomWidth: 1,
   },
   backButton: {
     padding: 8,
@@ -645,7 +733,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#fff',
   },
   shareButton: {
     padding: 8,
@@ -746,7 +833,6 @@ const styles = StyleSheet.create({
 
   // Post Content
   postContent: {
-    backgroundColor: '#fff',
     padding: 20,
     marginTop: -20,
     marginHorizontal: 16,
@@ -765,13 +851,11 @@ const styles = StyleSheet.create({
   postTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#111827',
     lineHeight: 32,
     marginBottom: 12,
   },
   postText: {
     fontSize: 16,
-    color: '#374151',
     lineHeight: 24,
     marginBottom: 20,
   },
@@ -784,7 +868,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   authorInfo: {
     flexDirection: 'row',
@@ -808,12 +891,10 @@ const styles = StyleSheet.create({
   authorName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
     marginBottom: 2,
   },
   postTime: {
     fontSize: 13,
-    color: '#6B7280',
     fontWeight: '500',
   },
   followButton: {
@@ -823,21 +904,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#2563EB',
     borderRadius: 20,
   },
-  followingButton: {
-    borderColor: '#10B981',
-    backgroundColor: '#F0FDF4',
-  },
+  followingButton: {},
   followText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563EB',
   },
-  followingText: {
-    color: '#10B981',
-  },
+  followingText: {},
 
   // Stats & Actions
   statsSection: {
@@ -894,7 +968,6 @@ const styles = StyleSheet.create({
 
   // Comments Section
   commentsSection: {
-    backgroundColor: '#fff',
     margin: 16,
     borderRadius: 16,
     ...Platform.select({
@@ -914,18 +987,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   commentsTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
   },
   commentsCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
-    backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -938,7 +1007,6 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   commentAvatar: {
     width: 36,
@@ -948,7 +1016,6 @@ const styles = StyleSheet.create({
   commentInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -976,17 +1043,14 @@ const styles = StyleSheet.create({
   emptyCommentsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#374151',
   },
   emptyCommentsSubtext: {
     fontSize: 14,
-    color: '#6B7280',
     textAlign: 'center',
   },
   commentCard: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   commentHeader: {
     flexDirection: 'row',
@@ -1006,12 +1070,10 @@ const styles = StyleSheet.create({
   commentAuthorName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
     marginBottom: 2,
   },
   commentDate: {
     fontSize: 12,
-    color: '#9CA3AF',
     fontWeight: '500',
   },
   commentActions: {
@@ -1024,48 +1086,40 @@ const styles = StyleSheet.create({
   },
   commentText: {
     fontSize: 15,
-    color: '#111827',
     lineHeight: 20,
   },
 
   // Edit Modal
   editModal: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   editHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   editTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
   },
   cancelButton: {
     fontSize: 16,
-    color: '#6B7280',
     fontWeight: '500',
   },
   saveButton: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2563EB',
   },
   saveButtonDisabled: {
-    color: '#9CA3AF',
+    // Color handled dynamically in component
   },
   editContent: {
     flex: 1,
     padding: 16,
   },
   editCommentInput: {
-    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#D1D5DB',
     borderRadius: 12,
@@ -1083,5 +1137,77 @@ const styles = StyleSheet.create({
         elevation: 2,
       },
     }),
+  },
+
+  // Skeleton Loading Styles
+  skeletonButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+  },
+  skeletonTitle: {
+    width: 120,
+    height: 20,
+    borderRadius: 4,
+  },
+  skeletonHero: {
+    width: '100%',
+    height: 280,
+  },
+  skeletonLine: {
+    height: 16,
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  skeletonLineTitle: {
+    width: '80%',
+    height: 24,
+    marginBottom: 12,
+  },
+  skeletonLineText: {
+    width: '100%',
+  },
+  skeletonAuthorName: {
+    width: '60%',
+    height: 16,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  skeletonAuthorTime: {
+    width: '40%',
+    height: 12,
+    borderRadius: 4,
+  },
+  skeletonFollowButton: {
+    width: 80,
+    height: 32,
+    borderRadius: 16,
+  },
+  skeletonCommentsTitle: {
+    width: 100,
+    height: 20,
+    borderRadius: 4,
+  },
+  skeletonCommentsCount: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  skeletonCommentAuthor: {
+    width: '50%',
+    height: 14,
+    borderRadius: 4,
+    marginBottom: 2,
+  },
+  skeletonCommentDate: {
+    width: '30%',
+    height: 12,
+    borderRadius: 4,
+  },
+  skeletonCommentText: {
+    width: '90%',
+    height: 14,
+    borderRadius: 4,
+    marginTop: 8,
   },
 });
