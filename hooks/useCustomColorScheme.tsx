@@ -15,11 +15,11 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = 'VarsityHub_theme_preference';
+const THEME_STORAGE_KEY = 'vh_theme_preference';
 
 function storageKeyForUser(userId?: string | null) {
-  if (!userId) return THEME_STORAGE_KEY + ':global';
-  return `${THEME_STORAGE_KEY}:${userId}`;
+  if (!userId) return THEME_STORAGE_KEY + '_global';
+  return `${THEME_STORAGE_KEY}_${userId}`;
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
