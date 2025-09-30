@@ -1,0 +1,9 @@
+# Railway Deployment Trigger
+# Updated to include TypeScript dependencies
+# Timestamp: 2025-09-30
+
+TypeScript dependencies included:
+- typescript@~5.9.2
+- @types/react@~19.1.10
+
+This file triggers a fresh Railway deployment.
