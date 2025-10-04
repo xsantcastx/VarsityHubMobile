@@ -1,6 +1,6 @@
 import React, { createContext, PropsWithChildren, useContext, useState } from 'react';
 
-export type Affiliation = 'school' | 'independent';
+export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 export type UserRole = 'fan' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';

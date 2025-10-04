@@ -247,7 +247,7 @@ export default function TeamViewerScreen() {
               ) : (
                 <View style={[styles.teamLogoPlaceholder, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                   <Text style={styles.teamLogoText}>
-                    {team.name.charAt(0).toUpperCase()}
+                    {team.name ? team.name.charAt(0).toUpperCase() : ''}
                   </Text>
                 </View>
               )}
@@ -300,7 +300,7 @@ export default function TeamViewerScreen() {
               styles.tabText,
               { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text }
             ]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab ? tab.charAt(0).toUpperCase() + tab.slice(1) : ''}
             </Text>
           </Pressable>
         ))}
@@ -425,7 +425,7 @@ export default function TeamViewerScreen() {
                     ) : (
                       <View style={[styles.memberAvatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
                         <Text style={[styles.memberAvatarText, { color: Colors[colorScheme].text }]}>
-                          {member.display_name.charAt(0).toUpperCase()}
+                          {member.display_name ? member.display_name.charAt(0).toUpperCase() : ''}
                         </Text>
                       </View>
                     )}
@@ -479,7 +479,7 @@ export default function TeamViewerScreen() {
                     ) : (
                       <View style={[styles.fullMemberAvatarPlaceholder, { backgroundColor: Colors[colorScheme].border }]}>
                         <Text style={[styles.fullMemberAvatarText, { color: Colors[colorScheme].text }]}>
-                          {member.display_name.charAt(0).toUpperCase()}
+                          {member.display_name ? member.display_name.charAt(0).toUpperCase() : ''}
                         </Text>
                       </View>
                     )}

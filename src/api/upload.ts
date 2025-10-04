@@ -34,20 +34,29 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   console.log('[upload] POST', target, { filename, mimeType, tokenPresent: !!token });
 
   try {
+    console.log('[upload] Making fetch request...');
     const res = await fetch(target, {
       method: 'POST',
       headers,
       body: form as any,
     });
+    console.log('[upload] Response received:', { status: res.status, statusText: res.statusText, ok: res.ok });
+    
     const text = await res.text();
+    console.log('[upload] Response text:', text);
+    
     const data = text ? JSON.parse(text) : null;
+    console.log('[upload] Parsed response data:', data);
+    
     if (!res.ok) {
       const err: any = new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
       err.status = res.status; err.data = data; throw err;
     }
+    console.log('[upload] Upload successful, returning data:', data);
     return data; // { url, path, type, mime, size }
   } catch (err: any) {
     console.error('[upload] error uploading to', target, err?.message || err);
+    console.error('[upload] full error object:', err);
     if (err instanceof TypeError && err.message === 'Network request failed') {
       throw new Error('Network error: unable to reach upload endpoint. Ensure EXPO_PUBLIC_API_URL is set correctly for your device/emulator and the dev server is running.');
     }

@@ -428,7 +428,7 @@ export default function FeedScreen() {
       {/* Top bar with brand and messages quick link */}
       <View style={styles.headerRow}>
         <View style={styles.brandRow}>
-          <Ionicons name="shield-outline" size={28} color="#2563EB" />
+          <Image source={require('../assets/images/logo.png')} style={{ width: 28, height: 28 }} />
           <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>VarsityHub</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>

@@ -46,6 +46,8 @@ const serializeEvent = (event: any | null) =>
     : null;
 
 const pickBannerUrl = (game: any, event: any | null, media: Array<{ url: string }>) => {
+  // Fixed: Prioritize game.banner_url first, then fallback to others
+  if (game?.banner_url) return game.banner_url;
   if (game?.cover_image_url) return game.cover_image_url;
   if (event?.banner_url) return event.banner_url;
   return media.length > 0 ? media[0]?.url ?? null : null;
@@ -101,7 +103,8 @@ gamesRouter.get('/', async (req, res) => {
       ...rest,
       appearance: rest.appearance ?? null,
       event_id: event?.id ?? null,
-      banner_url: rest.cover_image_url || event?.banner_url || null,
+      // Fixed: Prioritize game.banner_url over other sources
+      banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
       rsvpCount: event ? (rsvpMap.get(event.id) || 0) : 0,
     };
   });
@@ -134,6 +137,13 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   }
 
   try {
+    console.log('Creating game with data:', {
+      ...parsed.data,
+      date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      banner_url: parsed.data.banner_url ?? null,
+      appearance: parsed.data.appearance ?? null,
+    });
+    
     const game = await (prisma.game.create as any)({
       data: ({
         ...parsed.data,
@@ -143,6 +153,12 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       } as any),
       include: { events: { orderBy: { date: 'asc' }, take: 1 } },
     }) as any;
+    
+    console.log('Game created in database:', { 
+      id: game.id, 
+      banner_url: game.banner_url, 
+      cover_image_url: game.cover_image_url 
+    });
     
     // Automatically create an associated Event for RSVP functionality
     const event = await prisma.event.create({
@@ -159,8 +175,14 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     const response = {
       ...game,
       event_id: event.id,
-      banner_url: game.cover_image_url || event.banner_url || null,
+      // Fixed: Ensure banner_url from game data is preserved
+      banner_url: game.banner_url,
     };
+    
+    console.log('Final response being sent:', { 
+      id: response.id, 
+      banner_url: response.banner_url 
+    });
     
     res.status(201).json(response);
   } catch (error) {
