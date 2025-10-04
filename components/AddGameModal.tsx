@@ -23,6 +23,7 @@ interface AddGameModalProps {
   visible: boolean;
   onClose: () => void;
   onSave: (gameData: GameFormData) => void;
+  currentTeamName?: string;
 }
 
 export interface GameFormData {
@@ -42,7 +43,7 @@ type TeamOption = {
   logo?: string;
 };
 
-export default function AddGameModal({ visible, onClose, onSave }: AddGameModalProps) {
+export default function AddGameModal({ visible, onClose, onSave, currentTeamName }: AddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   
@@ -53,7 +54,7 @@ export default function AddGameModal({ visible, onClose, onSave }: AddGameModalP
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   
   const [formData, setFormData] = useState<GameFormData>({
-    currentTeam: 'My Team', // Default current team name
+    currentTeam: currentTeamName || 'My Team', // Use prop or default
     opponent: '',
     date: new Date(),
     time: new Date(),
@@ -144,7 +145,7 @@ export default function AddGameModal({ visible, onClose, onSave }: AddGameModalP
 
   const resetForm = () => {
     setFormData({
-      currentTeam: 'My Team',
+      currentTeam: currentTeamName || 'My Team',
       opponent: '',
       date: new Date(),
       time: new Date(),
