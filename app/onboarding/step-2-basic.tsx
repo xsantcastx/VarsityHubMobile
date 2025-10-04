@@ -170,10 +170,10 @@ export default function Step2Basic() {
         />
 
         <Text style={styles.label}>Date of birth</Text>
-        <DateField 
+        <DateField
+          label="Date of birth"
           value={dob} 
-          onChange={setDob} 
-          placeholder="Select your date of birth"
+          onChange={setDob}
         />
         {dobError && (
           <Text style={styles.error}>Please enter a valid date of birth</Text>
@@ -182,14 +182,14 @@ export default function Step2Basic() {
         <Text style={styles.label}>Zip code (optional)</Text>
         <Input value={zip} onChangeText={setZip} autoCapitalize="none" placeholder="12345" keyboardType="numeric" />
 
-        <PrimaryButton
-          onPress={onContinue}
-          disabled={!canContinue}
-          loading={saving}
-          style={{ marginTop: 20 }}
-        >
-          Continue
-        </PrimaryButton>
+        <View style={{ marginTop: 20 }}>
+          <PrimaryButton
+            label="Continue"
+            onPress={onContinue}
+            disabled={!canContinue}
+            loading={saving}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   title: {
-    ...Type.title3,
+    ...Type.h2,
     marginBottom: 8,
   },
   subtitle: {
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    ...Type.headline,
+    ...Type.h1,
     marginTop: 16,
     marginBottom: 8,
   },
