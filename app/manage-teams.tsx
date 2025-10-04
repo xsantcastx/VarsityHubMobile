@@ -98,7 +98,7 @@ export default function ManageTeamsScreen() {
 
   const ListHeader = (
     <View>
-      <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
+      <View style={[styles.header]}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Manage Teams</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
           Manage teams where you have administrative access
@@ -189,11 +189,22 @@ export default function ManageTeamsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background, paddingTop: 0 }]}>
       <Stack.Screen options={{ title: 'Manage Teams', headerShown: false }} />
       
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top + 80, backgroundColor: Colors[colorScheme].background, zIndex: 5, paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pressable style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+        </Pressable>
+        <View style={{ flexDirection: 'column', alignItems: 'center' }}>
+          <Text style={[styles.title, { color: Colors[colorScheme].text, fontSize: 20, fontWeight: '800' }]}>Manage Teams</Text>
+          
+        </View>
+        <View style={{ width: 32 }} />
+      </View>
+      
       {activeTeams.length === 0 && !loading && !error ? (
-        <View style={styles.emptyStateContainer}>
+        <View style={[styles.emptyStateContainer, { paddingTop: insets.top + 80 }]}>
           <View style={ListHeader.props.children} />
           <View style={[styles.emptyCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
             <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.emptyIcon}>
@@ -299,7 +310,7 @@ export default function ManageTeamsScreen() {
             </Pressable>
           )}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingTop: insets.top + 80, paddingBottom: 24 }}
           refreshing={refreshing}
           onRefresh={onRefresh}
           showsVerticalScrollIndicator={false}

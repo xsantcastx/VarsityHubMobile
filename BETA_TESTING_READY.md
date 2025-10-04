@@ -115,3 +115,9 @@ Production: Railway backend → Railway database
 ```
 
 Both modes use the same production database, ensuring consistent data across testing phases.
+
+
+
+npx expo start --tunnel 
+
+
