@@ -1,6 +1,8 @@
+import CustomActionModal from '@/components/CustomActionModal';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -31,21 +33,38 @@ export default function TeamInvitesScreen() {
       await load(); 
       // Show success and option to view team
       if (teamId) {
-        Alert.alert(
-          'Invite Accepted!', 
-          'You have successfully joined the team. Would you like to view the team now?',
-          [
-            { text: 'Later', style: 'cancel' },
-            { text: 'View Team', onPress: () => router.push(`/team-viewer?id=${teamId}`) }
+        setModal({
+          title: 'Invite Accepted!',
+          message: 'You have successfully joined the team. Would you like to view the team now?',
+          options: [
+            { label: 'Later', onPress: () => {}, color: '#6b7280' },
+            { label: 'View Team', onPress: () => router.push(`/team-viewer?id=${teamId}`), color: '#2563eb' }
           ]
-        );
+        });
       }
-    } catch { 
-      Alert.alert('Error', 'Failed to accept invite'); 
+    } catch {
+      setModal({
+        title: 'Error',
+        message: 'Failed to accept invite',
+        options: [
+          { label: 'OK', onPress: () => {}, color: '#2563eb' }
+        ]
+      });
     }
   };
   const decline = async (id: string) => {
-    try { await TeamApi.declineInvite(id); await load(); } catch { Alert.alert('Error', 'Failed to decline invite'); }
+    try {
+      await TeamApi.declineInvite(id);
+      await load();
+    } catch {
+      setModal({
+        title: 'Error',
+        message: 'Failed to decline invite',
+        options: [
+          { label: 'OK', onPress: () => {}, color: '#2563eb' }
+        ]
+      });
+    }
   };
 
   return (
@@ -72,6 +91,15 @@ export default function TeamInvitesScreen() {
             </View>
           )}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        />
+      )}
+      {modal && (
+        <CustomActionModal
+          visible={!!modal}
+          title={modal.title}
+          message={modal.message}
+          options={modal.options}
+          onClose={() => setModal(null)}
         />
       )}
     </View>

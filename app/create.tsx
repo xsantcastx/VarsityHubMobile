@@ -17,6 +17,14 @@ export default function CreateScreen() {
     router.push(path as any);
   };
 
+  const safeBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push('/(tabs)' as any);
+    }
+  };
+
   return (
     <View style={styles.overlay}>
       <Stack.Screen options={{ presentation: 'modal', title: 'Create' }} />
@@ -43,7 +51,7 @@ export default function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/(tabs)/my-ads')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>My Ads</Text>
         </Pressable>
-        <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={() => router.back()}>
+        <Pressable style={[styles.item, styles.cancel, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]} onPress={safeBack}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Cancel</Text>
         </Pressable>
       </View>
