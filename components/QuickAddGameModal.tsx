@@ -3,17 +3,19 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -35,6 +37,8 @@ export interface QuickGameData {
   date: string; // Will be today + some days
   time: string; // Selected time
   type: 'home' | 'away';
+  banner_url?: string; // Add banner URL support
+  appearance?: string; // Add appearance support
 }
 
 type TeamOption = {
@@ -67,6 +71,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
   const [editorVisible, setEditorVisible] = useState(false);
+  const [uploadingCustomBanner, setUploadingCustomBanner] = useState(false);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
 
   // Update current team when prop changes
@@ -174,6 +179,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   };
 
   const handleSave = () => {
+    console.log('=== QUICK ADD SAVE STARTED ===');
+    console.log('Current bannerUrl state:', bannerUrl);
+    
     if (!validateForm()) {
       return;
     }
@@ -190,14 +198,23 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       type: gameType,
     };
 
+    console.log('Base game data:', baseGameData);
+
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
     const doSave = async () => {
-      let finalData: any = { ...baseGameData };
-      finalData.appearance = appearance;
+      let finalData: QuickGameData = { 
+        ...baseGameData,
+        appearance: appearance,
+      };
+      
+      // Priority: custom uploaded banner > auto-generated banner
       if (bannerUrl) {
+        // User has uploaded a custom banner, use it directly
+        console.log('Using custom banner:', bannerUrl); // Debug log
         finalData.banner_url = bannerUrl;
+        console.log('Final data with custom banner:', finalData);
       } else if (getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
-        // Try capture the preview and upload
+        // No custom banner, try to capture the auto-generated preview and upload
         if (viewShotRef.current) {
           try {
             setUploadingBanner(true);
@@ -206,7 +223,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             const uploaded = await uploadFile(base, uri, 'match-banner.png', 'image/png');
             const url = uploaded?.url || uploaded?.path || null;
             if (url) {
-              setBannerUrl(url);
               finalData.banner_url = url;
             }
           } catch (e) {
@@ -217,9 +233,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         }
       }
 
-        onSave(finalData);
-    resetForm();
-    onClose();
+      console.log('About to call onSave with finalData:', finalData);
+      onSave(finalData);
+      resetForm();
+      onClose();
     };
 
     // run save (async allowed)
@@ -234,11 +251,118 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setSelectedTime(new Date(new Date().setHours(19, 0, 0, 0)));
     setGameType('home');
     setErrors({});
+    setBannerUrl(null);
+    setEditingImageUri(null);
+    setUploadingCustomBanner(false);
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  const pickCustomBanner = async () => {
+    try {
+      const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (result.granted === false) {
+        Alert.alert('Permission Required', 'Please allow access to your photos to upload a banner.');
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+      });
+
+      if (!pickerResult.canceled && pickerResult.assets[0]) {
+        await uploadCustomBanner(pickerResult.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const takeCustomBannerPhoto = async () => {
+    try {
+      const result = await ImagePicker.requestCameraPermissionsAsync();
+      if (result.granted === false) {
+        Alert.alert('Permission Required', 'Please allow camera access to take a banner photo.');
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+      });
+
+      if (!pickerResult.canceled && pickerResult.assets[0]) {
+        await uploadCustomBanner(pickerResult.assets[0].uri);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const uploadCustomBanner = async (uri: string) => {
+    setUploadingCustomBanner(true);
+    try {
+      // Use the production Railway API URL directly
+      const base = 'https://api-production-8ac3.up.railway.app';
+      console.log('[QuickAddGameModal] Starting upload to:', base);
+      console.log('[QuickAddGameModal] Upload URI:', uri);
+      
+      const uploaded = await uploadFile(base, uri, 'custom-banner.jpg', 'image/jpeg');
+      console.log('[QuickAddGameModal] Upload completed, result:', uploaded);
+      
+      const url = uploaded?.url || uploaded?.path;
+      console.log('[QuickAddGameModal] Extracted URL:', url);
+      
+      if (url) {
+        setBannerUrl(url);
+        console.log('[QuickAddGameModal] Banner URL set to:', url);
+        console.log('[QuickAddGameModal] Current bannerUrl state after set:', url);
+      } else {
+        console.error('[QuickAddGameModal] No URL in upload response:', uploaded);
+        throw new Error('Upload failed - no URL returned');
+      }
+    } catch (error: any) {
+      console.error('[QuickAddGameModal] Custom banner upload error:', error);
+      console.error('[QuickAddGameModal] Error details:', {
+        message: error?.message,
+        status: error?.status,
+        data: error?.data
+      });
+      Alert.alert('Upload Failed', error?.message || 'Failed to upload banner. Please try again.');
+    } finally {
+      setUploadingCustomBanner(false);
+    }
+  };
+
+  const showCustomBannerOptions = () => {
+    Alert.alert(
+      'Upload Custom Banner',
+      'Choose how you want to add your game banner',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Photo Library', onPress: pickCustomBanner },
+        { text: 'Take Photo', onPress: takeCustomBannerPhoto },
+      ]
+    );
+  };
+
+  const removeCustomBanner = () => {
+    Alert.alert(
+      'Remove Custom Banner',
+      'This will remove your custom banner and use the auto-generated one instead.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => setBannerUrl(null) },
+      ]
+    );
   };
 
   const formatPreviewDate = () => {
@@ -439,44 +563,96 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>Game Preview</Text>
               
-              {/* Teams Matchup — use MatchBanner for accurate preview */}
-              <View style={styles.matchupContainer}>
-                <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }} style={{ width: '100%' }}>
-                  {/* Render MatchBanner so appearance and images are visible in the preview */}
-                  <MatchBanner
-                    leftImage={getTeamLogo(getHomeAwayTeams().homeTeam) || undefined}
-                    rightImage={getTeamLogo(getHomeAwayTeams().awayTeam) || undefined}
-                    leftName={getHomeAwayTeams().homeTeam}
-                    rightName={getHomeAwayTeams().awayTeam}
-                    height={120}
-                    variant="compact"
-                    leftColor={(teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)?.color}
-                    rightColor={(teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)?.color}
-                    appearance={appearance}
-                  />
-                </ViewShot>
-                  <Pressable style={{ marginTop: 8, alignSelf: 'flex-end' }} onPress={() => {
-                    // Open editor with the current captured banner (if already uploaded use that, else capture)
-                    const openEditorWithCurrent = async () => {
-                      if (bannerUrl) {
-                        setEditingImageUri(bannerUrl);
-                        setEditorVisible(true);
-                        return;
-                      }
-                      if (viewShotRef.current) {
-                        try {
-                          const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
-                          setEditingImageUri(uri as any);
-                          setEditorVisible(true);
-                        } catch (e) {
-                          console.warn('Capture failed', e);
-                        }
-                      }
-                    };
-                    void openEditorWithCurrent();
-                  }}>
-                    <Text style={{ color: Colors[colorScheme].tint, fontWeight: '700' }}>Edit Preview</Text>
-                  </Pressable>
+              {/* Custom Banner Upload Section */}
+              <View style={styles.bannerUploadSection}>
+                <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].text }]}>Game Banner</Text>
+                
+                {bannerUrl ? (
+                  // Show custom uploaded banner
+                  <View style={styles.customBannerContainer}>
+                    <Image source={{ uri: bannerUrl }} style={styles.customBannerImage} />
+                    <View style={styles.customBannerActions}>
+                      <Pressable 
+                        style={[styles.bannerActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+                        onPress={showCustomBannerOptions}
+                        disabled={uploadingCustomBanner}
+                      >
+                        <Ionicons name="camera-outline" size={16} color="#fff" />
+                        <Text style={styles.bannerActionText}>
+                          {uploadingCustomBanner ? 'Uploading...' : 'Change'}
+                        </Text>
+                      </Pressable>
+                      <Pressable 
+                        style={[styles.bannerActionButton, { backgroundColor: '#EF4444' }]}
+                        onPress={removeCustomBanner}
+                        disabled={uploadingCustomBanner}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#fff" />
+                        <Text style={styles.bannerActionText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  // Show auto-generated banner with upload option
+                  <View>
+                    <View style={styles.matchupContainer}>
+                      <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 0.9 }} style={{ width: '100%' }}>
+                        {/* Render MatchBanner so appearance and images are visible in the preview */}
+                        <MatchBanner
+                          leftImage={getTeamLogo(getHomeAwayTeams().homeTeam) || undefined}
+                          rightImage={getTeamLogo(getHomeAwayTeams().awayTeam) || undefined}
+                          leftName={getHomeAwayTeams().homeTeam}
+                          rightName={getHomeAwayTeams().awayTeam}
+                          height={120}
+                          variant="compact"
+                          leftColor={(teams.find(t => t.name === getHomeAwayTeams().homeTeam) as any)?.color}
+                          rightColor={(teams.find(t => t.name === getHomeAwayTeams().awayTeam) as any)?.color}
+                          appearance={appearance}
+                        />
+                      </ViewShot>
+                    </View>
+                    
+                    <View style={styles.bannerOptionsRow}>
+                      <Pressable 
+                        style={[styles.bannerOptionButton, { backgroundColor: Colors[colorScheme].tint }]}
+                        onPress={showCustomBannerOptions}
+                        disabled={uploadingCustomBanner}
+                      >
+                        <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+                        <Text style={styles.bannerOptionText}>
+                          {uploadingCustomBanner ? 'Uploading...' : 'Upload Custom'}
+                        </Text>
+                      </Pressable>
+                      
+                      <Pressable 
+                        style={[styles.bannerOptionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors[colorScheme].tint }]}
+                        onPress={() => {
+                          // Open editor with the current captured banner (if already uploaded use that, else capture)
+                          const openEditorWithCurrent = async () => {
+                            if (bannerUrl) {
+                              setEditingImageUri(bannerUrl);
+                              setEditorVisible(true);
+                              return;
+                            }
+                            if (viewShotRef.current) {
+                              try {
+                                const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
+                                setEditingImageUri(uri as any);
+                                setEditorVisible(true);
+                              } catch (e) {
+                                console.warn('Capture failed', e);
+                              }
+                            }
+                          };
+                          void openEditorWithCurrent();
+                        }}
+                      >
+                        <Ionicons name="brush-outline" size={16} color={Colors[colorScheme].tint} />
+                        <Text style={[styles.bannerOptionText, { color: Colors[colorScheme].tint }]}>Edit Generated</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Game Details */}
@@ -494,8 +670,15 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                   </Text>
                 </View>
               </View>
-              {/* Appearance Picker (coach choices) */}
-              <AppearancePicker value={appearance} onChange={setAppearance} />
+              {/* Appearance Picker (coach choices) - only applies to auto-generated banners */}
+              {!bannerUrl && (
+                <View style={{ marginTop: 8 }}>
+                  <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].mutedText, fontSize: 12 }]}>
+                    Auto-Generated Banner Style
+                  </Text>
+                  <AppearancePicker value={appearance} onChange={setAppearance} />
+                </View>
+              )}
             </View>
           )}
 
@@ -968,5 +1151,62 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  bannerUploadSection: {
+    marginBottom: 16,
+  },
+  bannerUploadLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  customBannerContainer: {
+    position: 'relative',
+  },
+  customBannerImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+  },
+  customBannerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+  },
+  bannerActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  bannerActionText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  bannerOptionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+  },
+  bannerOptionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  bannerOptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
