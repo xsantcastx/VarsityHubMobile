@@ -1,3 +1,4 @@
+import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,9 +8,19 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../utils/uploadUtils';
+// Modal state for replacing Alert.alert
+const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
+
+function showModal(title: string, message?: string, options?: any[]) {
+  setModal({
+    title,
+    message,
+    options: options || [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
+  });
+}
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
@@ -454,7 +465,7 @@ export default function TeamChatScreen() {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
-      Alert.alert('Error', 'Failed to send message');
+  showModal('Error', 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -592,7 +603,7 @@ export default function TeamChatScreen() {
         await sendImageMessage(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
+  showModal('Error', 'Failed to pick image');
     }
   }, []);
 
@@ -607,7 +618,7 @@ export default function TeamChatScreen() {
         await sendImageMessage(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to take photo');
+  showModal('Error', 'Failed to take photo');
     }
   }, []);
 
@@ -713,7 +724,7 @@ export default function TeamChatScreen() {
         return updated;
       });
       
-      Alert.alert('Error', 'Failed to upload image to server');
+  showModal('Error', 'Failed to upload image to server');
     }
   }, [replyingTo, animateNewMessage, saveMessages]);
 
@@ -725,14 +736,14 @@ export default function TeamChatScreen() {
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to save images to your gallery');
+  showModal('Permission needed', 'Please grant permission to save images to your gallery');
         return;
       }
       
       await MediaLibrary.saveToLibraryAsync(imageUri);
       showToast('Image saved to gallery!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to save image to gallery');
+  showModal('Error', 'Failed to save image to gallery');
     }
   }, []);
 
@@ -743,7 +754,7 @@ export default function TeamChatScreen() {
 
   // Voice recording functions - TEMPORARILY DISABLED
   const startRecording = useCallback(async () => {
-    Alert.alert('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
+  showModal('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
     return;
   }, []);
 
@@ -769,7 +780,7 @@ export default function TeamChatScreen() {
       setRecording(null);
       setRecordingDuration(0);
     } catch (error) {
-      Alert.alert('Error', 'Failed to stop recording');
+  showModal('Error', 'Failed to stop recording');
       setRecording(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -823,7 +834,7 @@ export default function TeamChatScreen() {
       }, 800);
       
     } catch (error) {
-      Alert.alert('Error', 'Failed to send voice message');
+  showModal('Error', 'Failed to send voice message');
     }
   }, [replyingTo, animateNewMessage, saveMessages]);
 
@@ -880,7 +891,7 @@ export default function TeamChatScreen() {
       await sound.playAsync();
       setPlayingAudio(messageId);
     } catch (error) {
-      Alert.alert('Error', 'Failed to play voice message');
+  showModal('Error', 'Failed to play voice message');
     }
   }, [playingAudio, soundObjects]);
 
@@ -903,7 +914,17 @@ export default function TeamChatScreen() {
         await sendFileMessage(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick document');
+  showModal('Error', 'Failed to pick document');
+  {/* CustomActionModal for all dialogs */}
+  {modal && (
+    <CustomActionModal
+      visible={!!modal}
+      title={modal.title}
+      message={modal.message}
+      options={modal.options}
+      onClose={() => setModal(null)}
+    />
+  )}
     }
   }, []);
 
@@ -1018,7 +1039,8 @@ export default function TeamChatScreen() {
         return updated;
       });
       
-      Alert.alert('Error', 'Failed to upload file to server');
+  showModal('Error', 'Failed to upload file to server');
+  showModal('Error', 'Failed to upload file to server');
     }
   }, [replyingTo, animateNewMessage, saveMessages]);
 
@@ -1159,37 +1181,11 @@ export default function TeamChatScreen() {
         await Linking.openURL(file.uri);
       } else {
         // If can't open directly, show options
-        Alert.alert(
-          'Open File',
-          `Would you like to download "${file.name}"?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-            },
-            {
-              text: 'Download',
-              onPress: async () => {
-                try {
-                  // For web files, we can try to download
-                  if (file.uri.startsWith('http')) {
-                    await Linking.openURL(file.uri);
-                    showToast('Opening file in browser...');
-                  } else {
-                    showToast('Unable to open this file type');
-                  }
-                } catch (error) {
-                  console.error('Error downloading file:', error);
-                  Alert.alert('Error', 'Unable to download file');
-                }
-              },
-            },
-          ]
-        );
+        showModal('File Download', 'File download is not supported on this platform.');
       }
     } catch (error) {
       console.error('Error opening file:', error);
-      Alert.alert('Error', 'Unable to open file');
+    showModal('Error', 'Unable to open file');
     }
   }, [showToast]);
 
@@ -1208,7 +1204,7 @@ export default function TeamChatScreen() {
     const handleLongPress = () => {
       // Copy to clipboard immediately
       Clipboard.setString(item.content);
-      Alert.alert('Copied', 'Message copied to clipboard');
+    showModal('Copied', 'Message copied to clipboard');
     };
 
     const handleQuickReaction = () => {
@@ -1561,7 +1557,7 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerRight: () => (
-            <Pressable onPress={() => Alert.alert('Chat Settings', 'Chat settings coming soon!')}>
+            <Pressable onPress={() => showModal('Chat Settings', 'Chat settings coming soon!')}>
               <Ionicons name="settings-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),
