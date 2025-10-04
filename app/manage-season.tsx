@@ -1,13 +1,14 @@
+import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game as GameAPI } from '@/api/entities';
+import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
 import AddGameModal, { GameFormData } from '@/components/AddGameModal';
 import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -22,6 +23,7 @@ interface Game {
   location: string;
   type: 'home' | 'away' | 'neutral';
   status: 'upcoming' | 'completed' | 'cancelled';
+  banner_url?: string; // Add banner URL support
   score?: {
     team: number;
     opponent: number;
@@ -69,7 +71,24 @@ export default function ManageSeasonScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ teamId?: string }>();
-  
+
+  // Modal state for universal action modal
+  const [actionModal, setActionModal] = useState<{
+    visible: boolean;
+    title?: string;
+    message?: string;
+    options: ActionModalOption[];
+  }>({ visible: false, options: [] });
+
+  // Prompt modal state (for Alert.prompt replacement)
+  const [promptModal, setPromptModal] = useState<{
+    visible: boolean;
+    title?: string;
+    message?: string;
+    defaultValue?: string;
+    onSubmit?: (value: string) => void;
+  }>({ visible: false });
+
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'schedule' | 'standings' | 'playoffs'>('schedule');
@@ -77,33 +96,64 @@ export default function ManageSeasonScreen() {
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
+  const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
+
+  const loadTeam = useCallback(async () => {
+    if (!params.teamId) return;
+    try {
+      const teamData = await TeamAPI.get(params.teamId);
+      setCurrentTeam({ id: teamData.id, name: teamData.name });
+    } catch (error) {
+      console.error('Error loading team:', error);
+    }
+  }, [params.teamId]);
 
   const loadGames = useCallback(async () => {
     try {
       setLoading(true);
       const backendGames = await GameAPI.list('-date');
+      console.log('Loaded games from backend:', backendGames);
       
       // Convert backend games to local Game format
-      const convertedGames: Game[] = backendGames.map((game: any) => ({
-        id: game.id,
-        homeTeam: game.home_team || null,
-        awayTeam: game.away_team || null,
-        opponent: game.away_team || game.home_team || game.title?.replace('vs ', '') || 'TBD', // Keep for backward compatibility
-        date: game.date ? new Date(game.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        time: game.date ? new Date(game.date).toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        }) : '7:00 PM',
-        location: game.location || 'TBD',
-        type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
-        status: 'upcoming', // You could add logic to determine status based on date
-      }));
+      const convertedGames: Game[] = backendGames.map((game: any) => {
+        const converted = {
+          id: game.id,
+          homeTeam: game.home_team || null,
+          awayTeam: game.away_team || null,
+          opponent: game.away_team || game.home_team || game.title?.replace('vs ', '') || 'TBD',
+          date: game.date ? new Date(game.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          time: game.date ? new Date(game.date).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }) : '7:00 PM',
+          location: game.location || 'TBD',
+          type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
+          status: 'upcoming',
+          banner_url: game.banner_url || undefined, // Include banner URL from backend
+        };
+        
+        if (converted.banner_url) {
+          console.log(`Game ${game.id} has banner_url:`, converted.banner_url);
+        }
+        
+        return converted;
+      });
       
+      console.log('Converted games:', convertedGames);
       setGames(convertedGames);
     } catch (error) {
       console.error('Error loading games:', error);
-      Alert.alert('Error', 'Failed to load games from server');
+      const errorMessage = error instanceof Error && error.message.includes('Too many requests') 
+        ? 'Server is busy, please try again in a moment'
+        : 'Failed to load games from server';
+      
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     } finally {
       setLoading(false);
     }
@@ -111,8 +161,9 @@ export default function ManageSeasonScreen() {
 
   // Load games on mount
   useEffect(() => {
+    loadTeam();
     loadGames();
-  }, [loadGames]);
+  }, [loadTeam, loadGames]);
 
   // Mock data - Initialize games with existing mock data
   const seasonStats: SeasonStats = {
@@ -202,7 +253,7 @@ export default function ManageSeasonScreen() {
   ].sort((a, b) => b.winPercentage - a.winPercentage);
 
   // Mock playoff bracket data (using top 4 teams from standings)
-  const playoffTeams = standingsData.slice(0, 4);
+  const playoffTeams = (standingsData ?? []).slice(0, 4);
   const playoffBracket: PlayoffMatchup[] = [
     // Semifinals
     {
@@ -239,14 +290,14 @@ export default function ManageSeasonScreen() {
     }
   ];
 
-  const upcomingGames: Game[] = games.filter(g => {
+  const upcomingGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return gameDate >= today && g.status === 'upcoming';
   });
 
-  const recentGames: Game[] = games.filter(g => {
+  const recentGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -268,50 +319,71 @@ export default function ManageSeasonScreen() {
   }, [loadGames]);
 
   const handleAddGame = () => {
-    Alert.alert('Add Game', 'Choose how to add a new game', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Manual Entry', onPress: () => setShowAddGameModal(true) },
-      { text: 'Quick Add', onPress: () => setShowQuickAddModal(true) },
-    ]);
+    setActionModal({
+      visible: true,
+      title: 'Add Game',
+      message: 'Choose how to add a new game',
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
+        { label: 'Manual Entry', onPress: () => setShowAddGameModal(true) },
+        { label: 'Quick Add', onPress: () => setShowQuickAddModal(true) },
+      ],
+    });
   };
 
   const handleEditGame = (game: Game) => {
-    Alert.alert(
-      'Edit Game',
-      `Edit ${game.opponent} game?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Edit Details', onPress: () => {
-          // Open edit modal with pre-filled data
-          console.log('Edit game:', game);
-          Alert.alert('Edit Game', 'Edit functionality would open here with pre-filled game data.');
-        }},
-        { text: 'Change Status', onPress: () => handleChangeGameStatus(game) },
-      ]
-    );
+    setActionModal({
+      visible: true,
+      title: 'Edit Game',
+      message: `Edit ${game.opponent} game?`,
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
+        { label: 'Edit Details', onPress: () => {
+            // Open edit modal with pre-filled data
+            console.log('Edit game:', game);
+            setActionModal({
+              visible: true,
+              title: 'Edit Game',
+              message: 'Edit functionality would open here with pre-filled game data.',
+              options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+            });
+          }
+        },
+        { label: 'Change Status', onPress: () => handleChangeGameStatus(game) },
+      ],
+    });
   };
 
   const handleDeleteGame = (game: Game) => {
-    Alert.alert(
-      'Delete Game',
-      `Are you sure you want to delete the game vs ${game.opponent}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            // Delete from backend API
-            await GameAPI.delete(game.id);
-            
-            // Remove from local state
-            setGames(prev => prev.filter(g => g.id !== game.id));
-            Alert.alert('Success', 'Game deleted successfully!');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to delete game. Please try again.');
-            console.error('Error deleting game:', error);
+    setActionModal({
+      visible: true,
+      title: 'Delete Game',
+      message: `Are you sure you want to delete the game vs ${game.opponent}?`,
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
+        { label: 'Delete', isDestructive: true, onPress: async () => {
+            try {
+              await GameAPI.delete(game.id);
+              setGames(prev => prev.filter(g => g.id !== game.id));
+              setActionModal({
+                visible: true,
+                title: 'Success',
+                message: 'Game deleted successfully!',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+            } catch (error) {
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: 'Failed to delete game. Please try again.',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+              console.error('Error deleting game:', error);
+            }
           }
-        }},
-      ]
-    );
+        },
+      ],
+    });
   };
 
   const handleChangeGameStatus = (game: Game) => {
@@ -320,23 +392,28 @@ export default function ManageSeasonScreen() {
       { label: 'Completed', value: 'completed' as const },
       { label: 'Cancelled', value: 'cancelled' as const },
     ].filter(option => option.value !== game.status);
-
-    Alert.alert(
-      'Change Status',
-      `Current status: ${game.status}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setActionModal({
+      visible: true,
+      title: 'Change Status',
+      message: `Current status: ${game.status}`,
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
         ...statusOptions.map(option => ({
-          text: option.label,
+          label: option.label,
           onPress: () => {
-            setGames(prev => prev.map(g => 
+            setGames(prev => prev.map(g =>
               g.id === game.id ? { ...g, status: option.value } : g
             ));
-            Alert.alert('Success', `Game status changed to ${option.label.toLowerCase()}!`);
+            setActionModal({
+              visible: true,
+              title: 'Success',
+              message: `Game status changed to ${option.label.toLowerCase()}!`,
+              options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+            });
           }
         }))
-      ]
-    );
+      ],
+    });
   };
 
   const handleGamePress = (game: Game) => {
@@ -347,18 +424,20 @@ export default function ManageSeasonScreen() {
   };
 
   const handleGameLongPress = (game: Game) => {
-    Alert.alert(
-      'Game Options',
-      `${game.opponent} - ${game.date}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Edit', onPress: () => handleEditGame(game) },
-        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteGame(game) },
-      ]
-    );
+    setActionModal({
+      visible: true,
+      title: 'Game Options',
+      message: `${game.opponent} - ${game.date}`,
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
+        { label: 'Edit', onPress: () => handleEditGame(game) },
+        { label: 'Delete', isDestructive: true, onPress: () => handleDeleteGame(game) },
+      ],
+    });
   };
 
-  const handleSaveQuickGame = async (gameData: QuickGameData & { banner_url?: string }) => {
+  const handleSaveQuickGame = async (gameData: QuickGameData) => {
+    console.log('Received game data with banner:', gameData.banner_url); // Debug log
     try {
       // Convert 12-hour time to 24-hour format for ISO string
       const convertTo24Hour = (time12h: string) => {
@@ -397,17 +476,20 @@ export default function ManageSeasonScreen() {
         description: `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
       };
       // Include banner URL if provided by the QuickAdd modal
-      if ((gameData as any).banner_url) {
-        gamePayload.banner_url = (gameData as any).banner_url;
+      if (gameData.banner_url) {
+        gamePayload.banner_url = gameData.banner_url;
+        console.log('Added banner to game payload:', gamePayload.banner_url); // Debug log
       }
       // Include appearance preset if provided
-      if ((gameData as any).appearance) {
+      if (gameData.appearance) {
         // Map to backend field - use `appearance` or `banner_style` depending on API
-        gamePayload.appearance = (gameData as any).appearance;
+        gamePayload.appearance = gameData.appearance;
       }
 
       // Save to backend API
+      console.log('About to save game with payload:', gamePayload);
       const savedGame = await GameAPI.create(gamePayload);
+      console.log('Game saved successfully, response:', savedGame);
       
       // Create local game object for immediate UI update
       const newGame: Game = {
@@ -420,16 +502,28 @@ export default function ManageSeasonScreen() {
         location: gameData.type === 'home' ? 'Home Stadium' : 'Away Venue',
         type: gameData.type,
         status: 'upcoming',
+        // TEMP FIX: Prioritize the banner_url we sent over the null response from backend
+        banner_url: gameData.banner_url || savedGame.banner_url || undefined,
       };
 
       // Add to games state
       setGames(prev => [...prev, newGame]);
       
       // Show success message
-      Alert.alert('Success', `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`);
+      setActionModal({
+        visible: true,
+        title: 'Success',
+        message: `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       
     } catch (error) {
-      Alert.alert('Error', `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       console.error('Error adding quick game:', error);
     }
   };
@@ -462,16 +556,27 @@ export default function ManageSeasonScreen() {
         location: gameData.location,
         type: gameData.type,
         status: 'upcoming',
+        banner_url: gameData.banner_url || undefined, // Include banner URL
       };
 
       // Add to games state
       setGames(prev => [...prev, newGame]);
       
       // Show success message
-      Alert.alert('Success', `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`);
+      setActionModal({
+        visible: true,
+        title: 'Success',
+        message: `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       
     } catch (error) {
-      Alert.alert('Error', 'Failed to add game. Please try again.');
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Failed to add game. Please try again.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       console.error('Error adding game:', error);
     }
   };
@@ -504,13 +609,14 @@ export default function ManageSeasonScreen() {
           throw new Error(`Invalid date/time for game vs ${gameData.opponent}`);
         }
         
+        const teamName = currentTeam?.name || 'Team';
         const gamePayload = {
-          title: `My Team vs ${gameData.opponent}`,
-          home_team: gameData.type === 'home' ? 'My Team' : gameData.opponent,
-          away_team: gameData.type === 'home' ? gameData.opponent : 'My Team',
+          title: `${teamName} vs ${gameData.opponent}`,
+          home_team: gameData.type === 'home' ? teamName : gameData.opponent,
+          away_team: gameData.type === 'home' ? gameData.opponent : teamName,
           date: gameDateTime.toISOString(),
           location: gameData.location,
-          description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: My Team vs ${gameData.opponent}`,
+          description: `${gameData.type === 'home' ? 'Home' : gameData.type === 'away' ? 'Away' : 'Neutral'} game: ${teamName} vs ${gameData.opponent}`,
         };
 
         return GameAPI.create(gamePayload);
@@ -519,26 +625,38 @@ export default function ManageSeasonScreen() {
       const savedGames = await Promise.all(promises);
       
       // Convert to local game format and add to state
+      const teamName = currentTeam?.name || 'Team';
       const newGames: Game[] = savedGames.map((savedGame, index) => {
         const originalData = bulkGames[index];
         return {
           id: savedGame.id || Date.now().toString() + index,
-          homeTeam: originalData.type === 'home' ? 'My Team' : originalData.opponent,
-          awayTeam: originalData.type === 'home' ? originalData.opponent : 'My Team',
+          homeTeam: originalData.type === 'home' ? teamName : originalData.opponent,
+          awayTeam: originalData.type === 'home' ? originalData.opponent : teamName,
           opponent: originalData.opponent,
           date: originalData.date,
           time: originalData.time,
           location: originalData.location,
           type: originalData.type,
           status: 'upcoming',
+          banner_url: savedGame.banner_url || undefined, // Include banner URL from saved game
         };
       });
 
       setGames(prev => [...prev, ...newGames]);
-      Alert.alert('Success!', `Successfully created ${savedGames.length} games!`);
+      setActionModal({
+        visible: true,
+        title: 'Success!',
+        message: `Successfully created ${savedGames.length} games!`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       
     } catch (error) {
-      Alert.alert('Error', `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       console.error('Error creating bulk games:', error);
     }
   };
@@ -550,85 +668,140 @@ export default function ManageSeasonScreen() {
 
   const handlePlayoffMatchupPress = (matchup: PlayoffMatchup) => {
     if (matchup.status === 'completed') {
-      Alert.alert(
-        'Game Result',
-        `${matchup.team1?.name} ${matchup.score1} - ${matchup.score2} ${matchup.team2?.name}`,
-        [
-          { text: 'OK', style: 'cancel' },
-          { text: 'Edit Result', onPress: () => handleEditPlayoffResult(matchup) },
-        ]
-      );
+      setActionModal({
+        visible: true,
+        title: 'Game Result',
+        message: `${matchup.team1?.name} ${matchup.score1} - ${matchup.score2} ${matchup.team2?.name}`,
+        options: [
+          { label: 'OK', onPress: () => {}, color: undefined },
+          { label: 'Edit Result', onPress: () => handleEditPlayoffResult(matchup) },
+        ],
+      });
     } else if (matchup.status === 'upcoming' && matchup.team1 && matchup.team2) {
-      Alert.alert(
-        'Playoff Game',
-        `${matchup.team1.name} vs ${matchup.team2.name}`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Enter Result', onPress: () => handleEditPlayoffResult(matchup) },
-          { text: 'Schedule Game', onPress: () => handleSchedulePlayoffGame(matchup) },
-        ]
-      );
+      setActionModal({
+        visible: true,
+        title: 'Playoff Game',
+        message: `${matchup.team1.name} vs ${matchup.team2.name}`,
+        options: [
+          { label: 'Cancel', onPress: () => {}, color: undefined },
+          { label: 'Enter Result', onPress: () => handleEditPlayoffResult(matchup) },
+          { label: 'Schedule Game', onPress: () => handleSchedulePlayoffGame(matchup) },
+        ],
+      });
     }
   };
 
   const handleEditPlayoffResult = (matchup: PlayoffMatchup) => {
     if (!matchup.team1 || !matchup.team2) return;
     
-    Alert.prompt(
-      'Enter Game Result',
-      `${matchup.team1.name} vs ${matchup.team2.name}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Save', 
-          onPress: (input) => {
-            if (input) {
-              const scores = input.split('-').map(s => parseInt(s.trim()));
-              if (scores.length === 2 && !isNaN(scores[0]) && !isNaN(scores[1])) {
-                updatePlayoffResult(matchup.id, scores[0], scores[1]);
-              } else {
-                Alert.alert('Error', 'Please enter scores in format: 21-14');
-              }
-            }
+    setPromptModal({
+      visible: true,
+      title: 'Enter Game Result',
+      message: `${matchup.team1.name} vs ${matchup.team2.name}`,
+      defaultValue: matchup.status === 'completed' ? `${matchup.score1}-${matchup.score2}` : '',
+      onSubmit: (input) => {
+        if (input) {
+          const scores = input.split('-').map(s => parseInt(s.trim()));
+          if (scores.length === 2 && !isNaN(scores[0]) && !isNaN(scores[1])) {
+            updatePlayoffResult(matchup.id, scores[0], scores[1]);
+          } else {
+            setActionModal({
+              visible: true,
+              title: 'Error',
+              message: 'Please enter scores in format: 21-14',
+              options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+            });
           }
         }
-      ],
-      'plain-text',
-      matchup.status === 'completed' ? `${matchup.score1}-${matchup.score2}` : ''
-    );
+      },
+    });
   };
 
   const handleSchedulePlayoffGame = (matchup: PlayoffMatchup) => {
-    Alert.prompt(
-      'Schedule Game',
-      'Enter game date (YYYY-MM-DD):',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Schedule', 
-          onPress: (dateInput) => {
-            if (dateInput) {
-              // In a real app, you'd validate the date and save to backend
-              Alert.alert('Success', `Game scheduled for ${dateInput}`);
-            }
-          }
+    setPromptModal({
+      visible: true,
+      title: 'Schedule Game',
+      message: 'Enter game date (YYYY-MM-DD):',
+      defaultValue: new Date().toISOString().split('T')[0],
+      onSubmit: (dateInput) => {
+        if (dateInput) {
+          setActionModal({
+            visible: true,
+            title: 'Success',
+            message: `Game scheduled for ${dateInput}`,
+            options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+          });
         }
-      ],
-      'plain-text',
-      new Date().toISOString().split('T')[0]
-    );
+      },
+    });
   };
 
   const updatePlayoffResult = (matchupId: string, score1: number, score2: number) => {
     // In a real app, this would update the backend and refresh data
-    Alert.alert(
-      'Result Updated',
-      `Score updated to ${score1}-${score2}. In a real implementation, this would update the playoff bracket and advance the winner to the next round.`
-    );
+    setActionModal({
+      visible: true,
+      title: 'Result Updated',
+      message: `Score updated to ${score1}-${score2}. In a real implementation, this would update the playoff bracket and advance the winner to the next round.`,
+      options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+    });
   };
 
+  // Prompt input state
+  const [promptValue, setPromptValue] = useState('');
+
+  // When promptModal opens, set default value
+  useEffect(() => {
+    if (promptModal.visible) {
+      setPromptValue(promptModal.defaultValue || '');
+    }
+  }, [promptModal.visible, promptModal.defaultValue]);
+
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}> 
+      {/* Universal Action Modal */}
+      <CustomActionModal
+        visible={actionModal.visible}
+        title={actionModal.title}
+        message={actionModal.message}
+        options={actionModal.options.map(opt => ({
+          ...opt,
+          onPress: () => {
+            setActionModal(a => ({ ...a, visible: false }));
+            setTimeout(opt.onPress, 150);
+          },
+        }))}
+        onClose={() => setActionModal(a => ({ ...a, visible: false }))}
+      />
+
+      {/* Prompt Modal (for Alert.prompt replacement) */}
+      <CustomActionModal
+        visible={promptModal.visible}
+        title={promptModal.title}
+        message={promptModal.message}
+        options={[
+          { label: 'Cancel', onPress: () => setPromptModal(p => ({ ...p, visible: false })), color: undefined },
+          { label: 'OK', onPress: () => {
+              setPromptModal(p => ({ ...p, visible: false }));
+              promptModal.onSubmit?.(promptValue);
+            }
+          },
+        ]}
+        onClose={() => setPromptModal(p => ({ ...p, visible: false }))}
+      >
+        {/* Input field for prompt */}
+        <View style={{ marginVertical: 12 }}>
+          <Text style={{ fontSize: 16, marginBottom: 6 }}>Input:</Text>
+          <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 }}>
+            <Text
+              style={{ fontSize: 16 }}
+              selectable={false}
+              onPress={() => {}}
+            >
+              {promptValue}
+            </Text>
+          </View>
+        </View>
+      </CustomActionModal>
       <Stack.Screen 
         options={{ 
           title: 'Manage Season',
@@ -905,24 +1078,24 @@ export default function ManageSeasonScreen() {
               ))}
 
               {/* League Stats Summary */}
-              <View style={[styles.leagueStats, { borderTopColor: Colors[colorScheme].border }]}>
+              <View style={[styles.leagueStats, { borderTopColor: Colors[colorScheme].border }]}> 
                 <Text style={[styles.leagueStatsTitle, { color: Colors[colorScheme].text }]}>League Averages</Text>
                 <View style={styles.leagueStatsGrid}>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
-                      {Math.round(standingsData.reduce((sum, team) => sum + team.pointsFor, 0) / standingsData.length)}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
+                      {standingsData && standingsData.length > 0 ? Math.round(standingsData.reduce((sum, team) => sum + team.pointsFor, 0) / standingsData.length) : 0}
                     </Text>
                     <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>PPG</Text>
                   </View>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
-                      {(standingsData.reduce((sum, team) => sum + team.winPercentage, 0) / standingsData.length).toFixed(3)}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
+                      {standingsData && standingsData.length > 0 ? (standingsData.reduce((sum, team) => sum + team.winPercentage, 0) / standingsData.length).toFixed(3) : '0.000'}
                     </Text>
                     <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>Avg Win %</Text>
                   </View>
                   <View style={styles.leagueStatItem}>
-                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}>
-                      {standingsData.reduce((sum, team) => sum + team.wins + team.losses + team.ties, 0) / standingsData.length}
+                    <Text style={[styles.leagueStatValue, { color: Colors[colorScheme].text }]}> 
+                      {standingsData && standingsData.length > 0 ? (standingsData.reduce((sum, team) => sum + team.wins + team.losses + team.ties, 0) / standingsData.length) : 0}
                     </Text>
                     <Text style={[styles.leagueStatLabel, { color: Colors[colorScheme].mutedText }]}>Games</Text>
                   </View>
@@ -1130,6 +1303,7 @@ export default function ManageSeasonScreen() {
         visible={showAddGameModal}
         onClose={() => setShowAddGameModal(false)}
         onSave={handleSaveGame}
+        currentTeamName={currentTeam?.name || 'My Team'}
       />
 
       {/* Quick Add Game Modal */}
@@ -1137,7 +1311,7 @@ export default function ManageSeasonScreen() {
         visible={showQuickAddModal}
         onClose={() => setShowQuickAddModal(false)}
         onSave={handleSaveQuickGame}
-        currentTeamName="My Team" // You can replace this with actual team context
+        currentTeamName={currentTeam?.name || 'My Team'}
       />
 
       {/* Bulk Schedule Modal */}
@@ -1145,7 +1319,7 @@ export default function ManageSeasonScreen() {
         visible={showBulkScheduleModal}
         onClose={() => setShowBulkScheduleModal(false)}
         onSave={handleSaveBulkGames}
-        currentTeamName="My Team"
+        currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={params.teamId || ''}
       />
     </View>

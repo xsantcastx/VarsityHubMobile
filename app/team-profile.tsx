@@ -1,3 +1,4 @@
+import CustomActionModal, { ActionModalOption } from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi, User } from '@/api/entities';
@@ -72,6 +73,21 @@ export default function TeamProfileScreen() {
   const [inviteRole, setInviteRole] = useState('player');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+
+  // Modal state for universal action modal
+  // (Removed duplicate actionModal declaration)
+
+  // Prompt modal state (for Alert.prompt replacement)
+  const [promptModal, setPromptModal] = useState<{
+    visible: boolean;
+    title?: string;
+    message?: string;
+    defaultValue?: string;
+    onSubmit?: (value: string) => void;
+  }>({ visible: false });
+
+  // Prompt input state
+  const [promptValue, setPromptValue] = useState('');
   
   // New user selection states
   const [searchQuery, setSearchQuery] = useState('');
@@ -228,35 +244,29 @@ export default function TeamProfileScreen() {
 
   const showRoleSelector = (member: Member) => {
     const roleOptions = allRoles.map(role => ({
-      text: role.displayName,
+      label: role.displayName,
       onPress: () => updateMemberRole(member.id, role.id),
     }));
-
-    Alert.alert(
-      'Change Role',
-      `Select new role for ${member.user?.display_name || 'this member'}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    setActionModal({
+      visible: true,
+      title: 'Change Role',
+      message: `Select new role for ${member.user?.display_name || 'this member'}`,
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
         ...roleOptions,
-        { text: 'Custom Position...', onPress: () => showCustomPositionEditor(member) },
-      ]
-    );
+        { label: 'Custom Position...', onPress: () => showCustomPositionEditor(member) },
+      ],
+    });
   };
 
   const showCustomPositionEditor = (member: Member) => {
-    Alert.prompt(
-      'Custom Position',
-      `Set a custom position for ${member.user?.display_name || 'this member'}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Save', 
-          onPress: (position) => updateMemberPosition(member.id, position || '') 
-        },
-      ],
-      'plain-text',
-      member.customPosition || ''
-    );
+    setPromptModal({
+      visible: true,
+      title: 'Custom Position',
+      message: `Set a custom position for ${member.user?.display_name || 'this member'}`,
+      defaultValue: member.customPosition || '',
+      onSubmit: (position) => updateMemberPosition(member.id, position || ''),
+    });
   };
 
   const updateMemberPosition = async (memberId: string, position: string) => {
@@ -266,15 +276,27 @@ export default function TeamProfileScreen() {
           ? { ...m, customPosition: position.trim() || undefined }
           : m
       ));
-      
       // TODO: Save to backend
       console.log('Updated position:', { memberId, position });
     } catch (error) {
-      Alert.alert('Error', 'Failed to update member position');
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Failed to update member position',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     }
   };
 
   // User search and suggestion functions
+  // Modal state for universal action modal
+  const [actionModal, setActionModal] = useState<{
+    visible: boolean;
+    title?: string;
+    message?: string;
+    options: ActionModalOption[];
+  }>({ visible: false, options: [] });
+
   const searchUsers = useCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -285,9 +307,10 @@ export default function TeamProfileScreen() {
     try {
       // Use real API for user search
       const results = await User.searchForMentions(query, 10);
-      
+      // Defensive: ensure results is an array
+      const safeResults = Array.isArray(results) ? results : [];
       // Convert to AppUser format
-      const convertedResults: AppUser[] = results.map((user: any) => ({
+      const convertedResults: AppUser[] = safeResults.map((user: any) => ({
         id: user.id,
         display_name: user.display_name || user.username,
         username: user.username,
@@ -296,17 +319,34 @@ export default function TeamProfileScreen() {
         verified: user.verified || false,
         mutual_friends: user.mutual_friends || 0,
       }));
-      
       setSearchResults(convertedResults);
     } catch (error) {
       console.error('User search failed:', error);
-      // Fallback to empty results on error
       setSearchResults([]);
-      Alert.alert('Search Error', 'Failed to search for users. Please try again.');
+      setActionModal({
+        visible: true,
+        title: 'Search Error',
+        message: 'Failed to search for users. Please try again.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     } finally {
       setSearchLoading(false);
     }
   }, []);
+  {/* Universal Action Modal for errors */}
+  <CustomActionModal
+    visible={actionModal.visible}
+    title={actionModal.title}
+    message={actionModal.message}
+    options={actionModal.options.map(opt => ({
+      ...opt,
+      onPress: () => {
+        setActionModal(a => ({ ...a, visible: false }));
+        setTimeout(opt.onPress, 150);
+      },
+    }))}
+    onClose={() => setActionModal(a => ({ ...a, visible: false }))}
+  />
 
   const loadSuggestedUsers = useCallback(async () => {
     try {
@@ -374,21 +414,24 @@ export default function TeamProfileScreen() {
         TeamApi.get(id), 
         TeamApi.members(id)
       ]);
-      
       setTeam(teamData);
-      const formattedMembers = Array.isArray(membersData) ? membersData.map((m: any) => ({
-        id: String(m.id),
-        user: m.user ? {
-          id: String(m.user.id),
-          display_name: m.user.display_name || m.user.name,
-          email: m.user.email,
-          avatar_url: m.user.avatar_url,
-        } : undefined,
-        role: m.role || 'player',
-        status: m.status || 'active',
-        joined_date: m.joined_date || m.created_at,
-        stats: m.stats || { games_played: 0, points: 0 }
-      })) : [];
+      const formattedMembers = Array.isArray(membersData) ? membersData.map((m: any) => {
+        const user = m.user || {};
+        return {
+          id: String(m.id),
+          user: {
+            id: String(user.id || m.id),
+            display_name: user.display_name || user.name || user.username || user.email || 'Unknown',
+            username: user.username || '',
+            email: user.email || '',
+            avatar_url: user.avatar_url || '',
+          },
+          role: m.role || 'player',
+          status: m.status || 'active',
+          joined_date: m.joined_date || m.created_at,
+          stats: m.stats || { games_played: 0, points: 0 }
+        };
+      }) : [];
       setMembers(formattedMembers);
     } catch (e: any) {
       console.error('Failed to load team:', e);
@@ -409,20 +452,45 @@ export default function TeamProfileScreen() {
 
   const sendInvite = async () => {
     if (!selectedUser) {
-      Alert.alert('User required', 'Please select a user to invite');
+      setActionModal({
+        visible: true,
+        title: 'User required',
+        message: 'Please select a user to invite',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       return;
     }
     
     if (!team?.id) {
-      Alert.alert('Error', 'Team information not available');
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Team information not available',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       return;
     }
     
     setSendingInvite(true);
     try {
-      // Use real API to send team invitation
-      await TeamApi.invite(team.id, selectedUser.email || selectedUser.username, 'member');
-      Alert.alert('Invite sent!', `Invitation sent to ${selectedUser.display_name}`);
+      // Only send invite if user has a valid email
+      if (!selectedUser.email) {
+        setActionModal({
+          visible: true,
+          title: 'Email required',
+          message: 'Cannot invite user without a valid email address.',
+          options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+        });
+        setSendingInvite(false);
+        return;
+      }
+      await TeamApi.invite(team.id, selectedUser.email, 'member');
+      setActionModal({
+        visible: true,
+        title: 'Invite sent!',
+        message: `Invitation sent to ${selectedUser?.display_name ?? selectedUser?.email ?? ''}`,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
       setSelectedUser(null);
       setSearchQuery('');
       setSearchResults([]);
@@ -430,7 +498,12 @@ export default function TeamProfileScreen() {
     } catch (error: any) {
       console.error('Failed to send invitation:', error);
       const errorMessage = error?.message || 'Failed to send invitation';
-      Alert.alert('Error', errorMessage);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: errorMessage,
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     } finally {
       setSendingInvite(false);
     }
@@ -440,36 +513,104 @@ export default function TeamProfileScreen() {
     try {
       // Mock API call - replace with actual implementation
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
-      Alert.alert('Updated!', 'Member role updated successfully');
+      setActionModal({
+        visible: true,
+        title: 'Updated!',
+        message: 'Member role updated successfully',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     } catch (error) {
-      Alert.alert('Error', 'Failed to update member role');
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Failed to update member role',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
     }
   };
 
   const removeMember = async (memberId: string) => {
-    Alert.alert(
-      'Remove Member',
-      'Are you sure you want to remove this member from the team?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: async () => {
+    setActionModal({
+      visible: true,
+      title: 'Remove Member',
+      message: 'Are you sure you want to remove this member from the team?',
+      options: [
+        { label: 'Cancel', onPress: () => {}, color: undefined },
+        { label: 'Remove', isDestructive: true, onPress: async () => {
             try {
-              // Mock API call - replace with actual implementation
+              // Use TeamApi.membersRemove or similar if available, fallback to local remove
+              // await TeamApi.removeMember(team.id, memberId); // If this exists
               setMembers(prev => prev.filter(m => m.id !== memberId));
-              Alert.alert('Removed', 'Member removed from team');
+              setActionModal({
+                visible: true,
+                title: 'Removed',
+                message: 'Member removed from team',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
             } catch (error) {
-              Alert.alert('Error', 'Failed to remove member');
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: 'Failed to remove member',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
             }
           }
-        }
-      ]
-    );
+        },
+      ],
+    });
   };
 
   const activePlayers = members.filter(m => m.status === 'active');
+  // When promptModal opens, set default value
+  useEffect(() => {
+    if (promptModal.visible) {
+      setPromptValue(promptModal.defaultValue || '');
+    }
+  }, [promptModal.visible, promptModal.defaultValue]);
+  {/* Universal Action Modal for errors and actions */}
+  <CustomActionModal
+    visible={actionModal.visible}
+    title={actionModal.title}
+    message={actionModal.message}
+    options={actionModal.options.map(opt => ({
+      ...opt,
+      onPress: () => {
+        setActionModal(a => ({ ...a, visible: false }));
+        setTimeout(opt.onPress, 150);
+      },
+    }))}
+    onClose={() => setActionModal(a => ({ ...a, visible: false }))}
+  />
+
+  {/* Prompt Modal (for Alert.prompt replacement) */}
+  <CustomActionModal
+    visible={promptModal.visible}
+    title={promptModal.title}
+    message={promptModal.message}
+    options={[
+      { label: 'Cancel', onPress: () => setPromptModal(p => ({ ...p, visible: false })), color: undefined },
+      { label: 'Save', onPress: () => {
+          setPromptModal(p => ({ ...p, visible: false }));
+          promptModal.onSubmit?.(promptValue);
+        }
+      },
+    ]}
+    onClose={() => setPromptModal(p => ({ ...p, visible: false }))}
+  >
+    {/* Input field for prompt */}
+    <View style={{ marginVertical: 12 }}>
+      <Text style={{ fontSize: 16, marginBottom: 6 }}>Custom Position:</Text>
+      <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 8 }}>
+        <TextInput
+          style={{ fontSize: 16 }}
+          value={promptValue}
+          onChangeText={setPromptValue}
+          placeholder="Enter position"
+        />
+      </View>
+    </View>
+  </CustomActionModal>
   const teamStats = {
     totalGames: activePlayers.reduce((sum, m) => sum + (m.stats?.games_played || 0), 0),
     totalPoints: activePlayers.reduce((sum, m) => sum + (m.stats?.points || 0), 0),
@@ -548,7 +689,7 @@ export default function TeamProfileScreen() {
                 <Image source={{ uri: team.avatar_url }} style={styles.teamAvatar} contentFit="cover" />
               ) : (
                 <LinearGradient colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + 'CC']} style={styles.teamAvatar}>
-                  <Text style={styles.teamInitials}>{team.name.charAt(0).toUpperCase()}</Text>
+                  <Text style={styles.teamInitials}>{team.name ? team.name.charAt(0).toUpperCase() : ''}</Text>
                 </LinearGradient>
               )}
               <View style={[styles.statusIndicator, { backgroundColor: '#10B981' }]} />
@@ -932,7 +1073,7 @@ export default function TeamProfileScreen() {
                 <View style={styles.userInfo}>
                   <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
                     <Text style={styles.userInitials}>
-                      {selectedUser.display_name.charAt(0).toUpperCase()}
+                      {selectedUser.display_name ? selectedUser.display_name.charAt(0).toUpperCase() : ''}
                     </Text>
                   </View>
                   <View style={styles.userDetails}>
@@ -979,7 +1120,7 @@ export default function TeamProfileScreen() {
                           <View style={styles.userInfo}>
                             <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
                               <Text style={styles.userInitials}>
-                                {item.display_name.charAt(0).toUpperCase()}
+                                {item.display_name ? item.display_name.charAt(0).toUpperCase() : ''}
                               </Text>
                             </View>
                             <View style={styles.userDetails}>
@@ -1032,7 +1173,7 @@ export default function TeamProfileScreen() {
                         <View style={styles.userInfo}>
                           <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
                             <Text style={styles.userInitials}>
-                              {item.display_name.charAt(0).toUpperCase()}
+                              {item.display_name ? item.display_name.charAt(0).toUpperCase() : ''}
                             </Text>
                           </View>
                           <View style={styles.userDetails}>

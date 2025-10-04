@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
@@ -18,8 +18,9 @@ export default function Step2Basic() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const insets = useSafeAreaInsets();
   const [username, setUsername] = useState('');
-  const [affiliation, setAffiliation] = useState<Affiliation | null>(null);
+  const [affiliation, setAffiliation] = useState<Affiliation>('none');
   const [dob, setDob] = useState('');
   const [zip, setZip] = useState('');
   const [checking, setChecking] = useState(false);
@@ -28,7 +29,26 @@ export default function Step2Basic() {
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setUsername(me?.display_name || ''); setZip(me?.preferences?.zip_code || ''); } catch {} })(); }, []);
+  useEffect(() => { 
+    (async () => { 
+      try { 
+        const me: any = await User.me(); 
+        const displayName = me?.display_name || '';
+        setUsername(displayName);
+        setZip(me?.preferences?.zip_code || '');
+        
+        // Check username availability immediately if it exists
+        if (displayName && usernameRe.test(displayName)) {
+          try {
+            const r: any = await User.usernameAvailable(displayName);
+            setAvailable(!!r?.available);
+          } catch {
+            setAvailable(null);
+          }
+        }
+      } catch {} 
+    })(); 
+  }, []);
   useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
     try { // eslint-disable-next-line no-console
       console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
@@ -36,7 +56,15 @@ export default function Step2Basic() {
   }, [ob.affiliation, ob.dob]);
 
   useEffect(() => {
-    const check = async () => {
+    // Don't check if username is empty or invalid format
+    if (!username || !usernameRe.test(username)) {
+      setAvailable(null);
+      setChecking(false);
+      return;
+    }
+
+    // Debounce username checks
+    const timeoutId = setTimeout(async () => {
       setChecking(true);
       try {
         const r: any = await User.usernameAvailable(username);
@@ -46,8 +74,9 @@ export default function Step2Basic() {
       } finally {
         setChecking(false);
       }
-    };
-    if (usernameRe.test(username)) check();
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [username]);
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
@@ -60,7 +89,13 @@ export default function Step2Basic() {
       router.replace('/onboarding/step-10-confirmation');
     } else {
       setProgress(0);
-      router.back();
+      // Safe navigation - check if we can go back
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        // Fallback to step 1 or main app
+        router.replace('/onboarding/step-1-role');
+      }
     }
   };
 
@@ -68,7 +103,7 @@ export default function Step2Basic() {
     if (!canContinue) return;
     setSaving(true);
     try {
-      setOB((prev) => ({ ...prev, display_name: username, affiliation: affiliation!, dob, zip_code: zip || null }));
+      setOB((prev) => ({ ...prev, display_name: username, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
       } catch (e) {}
@@ -90,7 +125,7 @@ export default function Step2Basic() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 2/10' }} />
       
       {/* Header with back button */}
@@ -124,21 +159,21 @@ export default function Step2Basic() {
         <Text style={styles.label}>Affiliation</Text>
         <Segmented
           options={[
-            { key: 'none', text: 'None' },
-            { key: 'university', text: 'University' },
-            { key: 'high_school', text: 'High school' },
-            { key: 'club', text: 'Club' },
-            { key: 'youth', text: 'Youth' },
+            { value: 'none', label: 'None' },
+            { value: 'university', label: 'University' },
+            { value: 'high_school', label: 'High school' },
+            { value: 'club', label: 'Club' },
+            { value: 'youth', label: 'Youth' },
           ]}
-          selected={affiliation || 'none'}
-          onSelectionChange={(item) => setAffiliation(item as Affiliation)}
+          value={affiliation}
+          onChange={(item) => setAffiliation(item as Affiliation)}
         />
 
         <Text style={styles.label}>Date of birth</Text>
-        <DateField 
+        <DateField
+          label="Date of birth"
           value={dob} 
-          onChange={setDob} 
-          placeholder="Select your date of birth"
+          onChange={setDob}
         />
         {dobError && (
           <Text style={styles.error}>Please enter a valid date of birth</Text>
@@ -147,14 +182,14 @@ export default function Step2Basic() {
         <Text style={styles.label}>Zip code (optional)</Text>
         <Input value={zip} onChangeText={setZip} autoCapitalize="none" placeholder="12345" keyboardType="numeric" />
 
-        <PrimaryButton
-          onPress={onContinue}
-          disabled={!canContinue}
-          loading={saving}
-          style={{ marginTop: 20 }}
-        >
-          Continue
-        </PrimaryButton>
+        <View style={{ marginTop: 20 }}>
+          <PrimaryButton
+            label="Continue"
+            onPress={onContinue}
+            disabled={!canContinue}
+            loading={saving}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -186,7 +221,7 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   title: {
-    ...Type.title3,
+    ...Type.h2,
     marginBottom: 8,
   },
   subtitle: {
@@ -195,7 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    ...Type.headline,
+    ...Type.h1,
     marginTop: 16,
     marginBottom: 8,
   },

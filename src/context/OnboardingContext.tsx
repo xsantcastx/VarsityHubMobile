@@ -2,7 +2,7 @@ import React, { createContext, PropsWithChildren, useContext, useEffect, useStat
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 
-export type Affiliation = 'school' | 'independent';
+export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 export type UserRole = 'fan' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';

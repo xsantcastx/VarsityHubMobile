@@ -334,7 +334,9 @@ const openMaps = (location: string) => {
 };
 
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
-  return vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
+  const result = vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
+  console.log('pickBannerFromArrays:', { bannerUrl: vm.bannerUrl, coverImageUrl: vm.coverImageUrl, firstMediaUrl: media[0]?.url, result });
+  return result;
 };
 
 const GameDetailsScreen = () => {
@@ -594,7 +596,9 @@ const GameDetailsScreen = () => {
       const summary: any = await Game.summary(gameIdValue).catch(() => null);
       let gameRecord: any = null;
       if (!summary) {
+        console.log('Loading game details for ID:', gameIdValue);
         gameRecord = await Game.get(gameIdValue);
+        console.log('Loaded game record:', gameRecord);
       }
       const [postsData, mediaData] = await Promise.all([
         Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
@@ -639,6 +643,9 @@ const GameDetailsScreen = () => {
         eventIdValue = (gameRecord as any).event_id ?? null;
         location = gameRecord.location || null;
         description = gameRecord.description || null;
+        bannerCandidate = gameRecord.banner_url || null; // Check game banner_url first
+        console.log('Game record banner_url:', gameRecord.banner_url);
+        console.log('Banner candidate set to:', bannerCandidate);
         cover = gameRecord.cover_image_url || null;
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
@@ -651,6 +658,7 @@ const GameDetailsScreen = () => {
       if (!dateIso && gameRecord?.date) dateIso = ensureIso(gameRecord.date);
       if (!isPast) isPast = computeIsPast(dateIso);
       if (!bannerCandidate && summary?.event?.banner_url) bannerCandidate = summary.event.banner_url;
+      if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
 
       let eventDetails: any = null;
       if (eventIdValue) {
@@ -691,6 +699,8 @@ const GameDetailsScreen = () => {
         isPast,
       };
 
+      console.log('Final game view model banner URL:', bannerCandidate);
+      console.log('Final game view model created');
       setVm(vmPayload);
       setActiveSection('overview');
     },
@@ -745,33 +755,86 @@ const GameDetailsScreen = () => {
 
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
-    try {
-      setStoryBusy(true);
-      const pickerOptions: any = {
-        quality: 0.9,
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-      };
-      const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
-      if (!result || result.canceled || !result.assets || !result.assets.length) return;
-      const asset = result.assets[0];
-      const base =
-        (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-        (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-      const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
-      const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
-      const uploaded = await uploadFile(base, asset.uri, name, mime);
-      const mediaUrl = uploaded?.url || uploaded?.path;
-      if (!mediaUrl) {
-        throw new Error('Upload failed');
-      }
-      await Game.addStory(vm.gameId, { media_url: mediaUrl });
-      await loadGameById(vm.gameId);
-      Alert.alert('Added', 'Story added to this game.');
-    } catch (err: any) {
-      Alert.alert('Unable to add story', err?.message || 'Please try again.');
-    } finally {
-      setStoryBusy(false);
-    }
+    
+    // Show action sheet with camera first, then gallery
+    Alert.alert(
+      'Add Story', 
+      'Choose how you want to add your story',
+      [
+        {
+          text: 'Take Photo/Video',
+          onPress: async () => {
+            try {
+              setStoryBusy(true);
+              const pickerOptions: any = {
+                quality: 0.9,
+                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                allowsEditing: true,
+              };
+              const result = await ImagePicker.launchCameraAsync(pickerOptions);
+              if (!result || result.canceled || !result.assets || !result.assets.length) return;
+              
+              const asset = result.assets[0];
+              const base =
+                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
+                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
+              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
+              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
+              const uploaded = await uploadFile(base, asset.uri, name, mime);
+              const mediaUrl = uploaded?.url || uploaded?.path;
+              if (!mediaUrl) {
+                throw new Error('Upload failed');
+              }
+              await Game.addStory(vm.gameId, { media_url: mediaUrl });
+              await loadGameById(vm.gameId);
+              Alert.alert('Added', 'Story added to this game.');
+            } catch (err: any) {
+              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+            } finally {
+              setStoryBusy(false);
+            }
+          }
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: async () => {
+            try {
+              setStoryBusy(true);
+              const pickerOptions: any = {
+                quality: 0.9,
+                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                allowsEditing: true,
+              };
+              const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
+              if (!result || result.canceled || !result.assets || !result.assets.length) return;
+              
+              const asset = result.assets[0];
+              const base =
+                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
+                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
+              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
+              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
+              const uploaded = await uploadFile(base, asset.uri, name, mime);
+              const mediaUrl = uploaded?.url || uploaded?.path;
+              if (!mediaUrl) {
+                throw new Error('Upload failed');
+              }
+              await Game.addStory(vm.gameId, { media_url: mediaUrl });
+              await loadGameById(vm.gameId);
+              Alert.alert('Added', 'Story added to this game.');
+            } catch (err: any) {
+              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+            } finally {
+              setStoryBusy(false);
+            }
+          }
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        }
+      ]
+    );
   }, [loadGameById, storyBusy, vm?.gameId]);
 
   const refreshVotes = useCallback(async () => {
@@ -1195,9 +1258,15 @@ const renderVoteSection = () => {
       />
     ) : (
       bannerUrl ? (
-        <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
+        <>
+          {console.log('Rendering banner image with URL:', bannerUrl)}
+          <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
+        </>
       ) : (
-        <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+        <>
+          {console.log('No banner URL found, showing gradient placeholder')}
+          <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+        </>
       )
     );
 
@@ -1502,8 +1571,6 @@ const renderVoteSection = () => {
 
               <View style={styles.section}>
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
-                <Text style={styles.sectionTitle}>Teams</Text>
-                {renderTeams()}
               </View>
 
               {/* Removed the secondary stories grid section to avoid duplication. */}
@@ -1914,11 +1981,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 8,
   },
   voteLabelCell: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  voteLabelCellLeft: { alignItems: 'center', marginRight: 32 },
-  voteLabelCellRight: { alignItems: 'center', marginLeft: 32 },
+  voteLabelCellLeft: { alignItems: 'center', marginRight: 16 },
+  voteLabelCellRight: { alignItems: 'center', marginLeft: 16 },
   voteLabelCenter: {
     position: 'absolute',
     left: 0,
