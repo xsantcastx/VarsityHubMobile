@@ -38,6 +38,11 @@ export const auth = {
     if (res?.access_token) await saveToken(res.access_token);
     return res;
   },
+  async loginWithGoogle(idToken: string) {
+    const res = await httpPost('/auth/google', { id_token: idToken });
+    if (res?.access_token) await saveToken(res.access_token);
+    return res;
+  },
   async me() {
     await loadToken();
     const options = {

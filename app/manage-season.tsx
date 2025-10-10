@@ -24,6 +24,7 @@ interface Game {
   type: 'home' | 'away' | 'neutral';
   status: 'upcoming' | 'completed' | 'cancelled';
   banner_url?: string; // Add banner URL support
+  cover_image_url?: string; // Add cover image URL support
   score?: {
     team: number;
     opponent: number;
@@ -112,7 +113,6 @@ export default function ManageSeasonScreen() {
     try {
       setLoading(true);
       const backendGames = await GameAPI.list('-date');
-      console.log('Loaded games from backend:', backendGames);
       
       // Convert backend games to local Game format
       const convertedGames: Game[] = backendGames.map((game: any) => {
@@ -131,16 +131,12 @@ export default function ManageSeasonScreen() {
           type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
           status: 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
+          cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };
-        
-        if (converted.banner_url) {
-          console.log(`Game ${game.id} has banner_url:`, converted.banner_url);
-        }
         
         return converted;
       });
       
-      console.log('Converted games:', convertedGames);
       setGames(convertedGames);
     } catch (error) {
       console.error('Error loading games:', error);
@@ -340,7 +336,6 @@ export default function ManageSeasonScreen() {
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit Details', onPress: () => {
             // Open edit modal with pre-filled data
-            console.log('Edit game:', game);
             setActionModal({
               visible: true,
               title: 'Edit Game',
@@ -437,7 +432,6 @@ export default function ManageSeasonScreen() {
   };
 
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
-    console.log('Received game data with banner:', gameData.banner_url); // Debug log
     try {
       // Convert 12-hour time to 24-hour format for ISO string
       const convertTo24Hour = (time12h: string) => {
@@ -478,7 +472,7 @@ export default function ManageSeasonScreen() {
       // Include banner URL if provided by the QuickAdd modal
       if (gameData.banner_url) {
         gamePayload.banner_url = gameData.banner_url;
-        console.log('Added banner to game payload:', gamePayload.banner_url); // Debug log
+        gamePayload.cover_image_url = gameData.banner_url; // Also set cover_image_url to the same value
       }
       // Include appearance preset if provided
       if (gameData.appearance) {
@@ -487,9 +481,7 @@ export default function ManageSeasonScreen() {
       }
 
       // Save to backend API
-      console.log('About to save game with payload:', gamePayload);
       const savedGame = await GameAPI.create(gamePayload);
-      console.log('Game saved successfully, response:', savedGame);
       
       // Create local game object for immediate UI update
       const newGame: Game = {
@@ -504,6 +496,7 @@ export default function ManageSeasonScreen() {
         status: 'upcoming',
         // TEMP FIX: Prioritize the banner_url we sent over the null response from backend
         banner_url: gameData.banner_url || savedGame.banner_url || undefined,
+        cover_image_url: gameData.banner_url || gameData.cover_image_url || savedGame.cover_image_url || undefined,
       };
 
       // Add to games state
