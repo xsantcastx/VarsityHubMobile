@@ -45,9 +45,22 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   const contactEmail = req.query.contact_email ? String(req.query.contact_email) : undefined;
   const all = String(req.query.all || '') === '1';
   const where: any = {};
+  
+  console.log('[ads] GET / query params:', { 
+    mine, 
+    contactEmail, 
+    all, 
+    userId: req.user?.id,
+    queryMine: req.query.mine 
+  });
+  
   if (mine) {
-    if (!req.user?.id) return res.status(401).json({ error: 'Auth required' });
+    if (!req.user?.id) {
+      console.warn('[ads] GET / mine=1 but no user authenticated');
+      return res.status(401).json({ error: 'Auth required' });
+    }
     where.user_id = req.user.id;
+    console.log('[ads] GET / filtering by user_id:', req.user.id);
   } else if (contactEmail) {
     where.contact_email = contactEmail;
   } else if (all) {
@@ -55,12 +68,26 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     // return all ads
     const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' } });
+    console.log('[ads] GET / admin all ads count:', list.length);
     return res.json(list);
   } else {
-    // default: no list without filter
-    return res.json([]);
+    // SECURITY: Default to requiring authentication and returning user's ads only
+    console.log('[ads] GET / no filter provided, defaulting to user ads only');
+    if (!req.user?.id) {
+      console.warn('[ads] GET / no filter and no user authenticated, returning empty');
+      return res.json([]);
+    }
+    // Default to showing only the authenticated user's ads
+    where.user_id = req.user.id;
   }
+  
   const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' } });
+  console.log('[ads] GET / returning ads:', { 
+    count: list.length, 
+    where,
+    adIds: list.map(a => a.id),
+    userIds: list.map(a => a.user_id) 
+  });
   return res.json(list);
 });
 

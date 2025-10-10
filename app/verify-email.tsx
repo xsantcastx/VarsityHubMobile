@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -9,10 +9,21 @@ import { Input } from '@/components/ui/input';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ devCode?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
+
+  // Load dev code from params if available
+  useEffect(() => {
+    if (params.devCode) {
+      setDevCode(params.devCode);
+      setCode(params.devCode);
+      console.log('[verify-email] Dev code loaded from params:', params.devCode);
+    }
+  }, [params.devCode]);
 
   const openEmailApp = async () => {
     try {
@@ -41,12 +52,18 @@ export default function VerifyEmailScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      await User.verifyEmail(code.trim());
+      console.log('[verify-email] Attempting to verify with code:', code.trim());
+      const result = await User.verifyEmail(code.trim());
+      console.log('[verify-email] Verification result:', result);
       setInfo('Email verified!');
-      // After verification, start onboarding process
-      router.replace('/onboarding/step-2-basic');
+      // After verification, start onboarding from step 1 (role selection)
+      setTimeout(() => {
+        router.replace('/onboarding/step-1-role');
+      }, 1000);
     } catch (e: any) {
-      setError(e?.message || 'Verification failed');
+      console.error('[verify-email] Verification failed:', e);
+      const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -55,10 +72,14 @@ export default function VerifyEmailScreen() {
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
     try {
+      console.log('[verify-email] Requesting new verification code...');
       const res: any = await User.requestVerification();
+      console.log('[verify-email] Resend response:', res);
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
-      setError(e?.message || 'Resend failed');
+      console.error('[verify-email] Resend failed:', e);
+      const errorMsg = e?.message || e?.data?.error || 'Resend failed';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -88,6 +109,14 @@ export default function VerifyEmailScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
       
+      {/* Dev Code Display */}
+      {devCode ? (
+        <View style={styles.devCodeContainer}>
+          <Ionicons name="bug-outline" size={16} color="#059669" />
+          <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
+        </View>
+      ) : null}
+      
       <View style={styles.codeSection}>
         <Text style={styles.label}>Verification Code</Text>
         <Input 
@@ -111,7 +140,7 @@ export default function VerifyEmailScreen() {
         </Pressable>
       </View>
       
-      <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-2-basic')}>
+      <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
         <Text style={styles.skipText}>Skip for now</Text>
       </Pressable>
     </View>
@@ -149,4 +178,16 @@ const styles = StyleSheet.create({
   skipText: { color: '#9CA3AF', fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
+  devCodeContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8, 
+    backgroundColor: '#D1FAE5', 
+    paddingVertical: 10, 
+    paddingHorizontal: 16, 
+    borderRadius: 8, 
+    marginBottom: 16 
+  },
+  devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
 });

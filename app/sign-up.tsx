@@ -5,8 +5,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Ionicons } from '@expo/vector-icons';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -23,9 +23,16 @@ export default function SignUpScreen() {
     setLoading(true); setError(null);
     try {
       const res: any = await User.register(email, password, name || undefined);
-      // After successful signup, start onboarding process
-      router.replace('/onboarding/step-2-basic');
+      console.log('[sign-up] Registration response:', res);
+      // After successful signup, redirect to email verification screen
+      // Pass dev code if available for easier testing
+      if (res?.dev_verification_code) {
+        router.replace(`/verify-email?devCode=${res.dev_verification_code}`);
+      } else {
+        router.replace('/verify-email');
+      }
     } catch (e: any) {
+      console.error('[sign-up] Registration failed:', e);
       setError(e?.message || 'Sign up failed');
     } finally { setLoading(false); }
   };
