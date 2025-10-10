@@ -18,6 +18,8 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function SignInScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
 
   const onSubmit = async () => {
     if (!email || !password) {
@@ -44,8 +47,11 @@ export default function SignInScreen() {
           router.replace('/verify-email');
         } else {
           Alert.alert('Signed in', 'Welcome back!');
-          // Use a concrete typed route to satisfy the typed router
-          router.replace('/(tabs)/feed');
+          // Role-aware landing - Fan→Highlights, Coach→Manage Teams
+          const me: any = await User.me();
+          const userRole = me?.preferences?.role || me?.role || 'fan';
+          const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
+          router.replace(landingRoute as any);
         }
       } else {
         setError('Invalid login response');
@@ -55,6 +61,32 @@ export default function SignInScreen() {
       setError(e?.message || 'Login failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (!googleReady) {
+      setError('Google sign in is not configured yet.');
+      return;
+    }
+    setError(null);
+    try {
+      const response: any = await signInWithGoogle();
+      const account = response?.user || (await User.me());
+      const needsOnboarding = response?.needs_onboarding || account?.preferences?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-2-basic');
+        return;
+      }
+      const userRole = account?.preferences?.role || account?.role || 'fan';
+      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
+      router.replace(landingRoute as any);
+    } catch (e: any) {
+      const message = e?.message || 'Google sign in failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        return;
+      }
+      setError(message);
     }
   };
 
@@ -87,6 +119,42 @@ export default function SignInScreen() {
             {error ? (
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
             ) : null}
+
+            {googleReady ? (
+              <Pressable
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                onPress={handleGoogleLogin}
+                disabled={googleLoading}
+                accessibilityRole="button"
+              >
+                <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color="#4285F4" />
+                ) : (
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                )}
+              </Pressable>
+            ) : (
+              <View
+                style={[styles.googleButton, styles.disabledGoogleButton]}
+                accessibilityRole="text"
+                accessibilityLabel="Google sign in not available"
+              >
+                <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+                <View style={{ flex: 1 }}>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
+                    Configure Google OAuth client IDs to enable one-tap login.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+            </View>
 
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
@@ -195,6 +263,52 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
     gap: 18,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  disabledGoogleButton: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  googleIcon: {
+    marginRight: 8,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  googleButtonSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  dividerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   fieldSpacing: {
     gap: 8,

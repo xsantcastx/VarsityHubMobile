@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
-import { format, startOfToday } from 'date-fns';
+import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
@@ -13,6 +13,7 @@ const weekdayRate = 10;
 const weekendRate = 17.5;
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
+const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
 
 function toggleSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
@@ -81,16 +82,55 @@ export default function AdCalendarScreen() {
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
 
   const marked = useMemo(() => {
-    const obj: Record<string, { selected: boolean } | { disabled: boolean } | any> = {};
-    for (const d of selected) obj[d] = { selected: true };
-    for (const d of reserved) obj[d] = { disabled: true, disableTouchEvent: true };
+    const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
+    
+    // Mark selected dates with weekday/weekend colors
+    for (const d of selected) {
+      const dow = getDayOfWeek(d);
+      const isWeekend = dow === 0 || dow === 5 || dow === 6; // Sun, Fri, Sat
+      obj[d] = { 
+        selected: true, 
+        selectedColor: isWeekend ? '#EA580C' : '#2563EB', // Orange for weekend, Blue for weekday
+        selectedTextColor: '#FFFFFF'
+      };
+    }
+    
+    // Mark reserved dates as disabled
+    for (const d of reserved) {
+      obj[d] = { 
+        disabled: true, 
+        disableTouchEvent: true,
+        dotColor: '#9CA3AF',
+        marked: true
+      };
+    }
+    
     return obj;
   }, [selected, reserved]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
-    if (iso < todayISO()) return;
-    if (reserved.has(iso)) return;
+    const today = todayISO();
+    const maxDate = maxDateISO();
+    
+    // Prevent selection before today
+    if (iso < today) {
+      Alert.alert('Invalid Date', 'Please select a date today or in the future.');
+      return;
+    }
+    
+    // Prevent selection beyond 8 weeks
+    if (iso > maxDate) {
+      Alert.alert('Booking Limit', 'Ads can only be booked up to 8 weeks in advance to maintain predictable pricing.');
+      return;
+    }
+    
+    // Prevent selection of reserved dates
+    if (reserved.has(iso)) {
+      Alert.alert('Date Unavailable', 'This date is already reserved.');
+      return;
+    }
+    
     setSelected(prev => toggleSet(prev, iso));
   };
 
@@ -122,6 +162,18 @@ export default function AdCalendarScreen() {
       Alert.alert('Select at least one date');
       return;
     }
+    
+    // Validate 8-week limit on selected dates
+    const maxDate = maxDateISO();
+    const invalidDates = Array.from(selected).filter(date => date > maxDate);
+    if (invalidDates.length > 0) {
+      Alert.alert(
+        'Booking Limit Exceeded', 
+        'Some selected dates are beyond the 8-week booking window. Please remove them and try again.'
+      );
+      return;
+    }
+    
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
@@ -174,12 +226,26 @@ export default function AdCalendarScreen() {
           <Text style={styles.cardTitle}>Select Ad Campaign Dates</Text>
           <Text style={styles.cardDesc}>Choose one or more dates to run your ad.</Text>
 
+          {/* Color Legend */}
+          <View style={styles.legendContainer}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
+              <Text style={styles.legendText}>Weekday (Mon-Thu) - ${weekdayRate}/bundle</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
+              <Text style={styles.legendText}>Weekend (Fri-Sun) - ${weekendRate}/bundle</Text>
+            </View>
+          </View>
+
           <Calendar
             onDayPress={onDayPress}
             markedDates={marked}
             enableSwipeMonths
             minDate={todayISO()}
+            maxDate={maxDateISO()}
           />
+          <Text style={styles.calendarHint}>Booking available up to 8 weeks in advance</Text>
         </View>
 
         <View style={styles.card}>
@@ -307,6 +373,11 @@ const styles = StyleSheet.create({
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999, backgroundColor: '#F3F4F6' },
   badgeText: { fontSize: 12, fontWeight: '600' },
+  legendContainer: { marginVertical: 8, gap: 6 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendDot: { width: 16, height: 16, borderRadius: 8 },
+  legendText: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
+  calendarHint: { fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
   payBtn: {
     marginTop: 12,
     height: 48,
