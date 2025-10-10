@@ -19,12 +19,62 @@ export default function CreateTeamScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
-  const [season, setSeason] = useState('');
+  const [seasonType, setSeasonType] = useState(''); // Fall, Spring, Summer, Winter
+  const [seasonYear, setSeasonYear] = useState(''); // Year editable by user
+  const [teamColor, setTeamColor] = useState(''); // Team primary color
+  const [organizationName, setOrganizationName] = useState(''); // School/organization name
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
-  const seasons = ['Spring 2025', 'Summer 2025', 'Fall 2025', 'Winter 2025/26'];
+  
+  // Predefined team colors
+  const teamColors = [
+    { name: 'Red', value: '#DC2626' },
+    { name: 'Blue', value: '#2563EB' },
+    { name: 'Green', value: '#16A34A' },
+    { name: 'Purple', value: '#9333EA' },
+    { name: 'Orange', value: '#EA580C' },
+    { name: 'Yellow', value: '#EAB308' },
+    { name: 'Navy', value: '#1E3A8A' },
+    { name: 'Maroon', value: '#7F1D1D' },
+    { name: 'Black', value: '#0F172A' },
+    { name: 'Gold', value: '#F59E0B' },
+  ];
+  
+  // Auto-suggest year based on season selection
+  const getSuggestedYear = (seasonName: string) => {
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-11
+    const currentYear = now.getFullYear();
+    
+    switch (seasonName) {
+      case 'Fall':
+        // Fall typically starts Aug-Sept, suggest current year if before Dec, else next year
+        return currentMonth < 11 ? currentYear : currentYear + 1;
+      case 'Winter':
+        // Winter starts Dec-Jan, suggest current year if in Nov-Dec, else current year (for Jan-Mar)
+        return currentMonth >= 10 ? currentYear : currentYear;
+      case 'Spring':
+        // Spring starts Mar-Apr, suggest current year if before Sept, else next year
+        return currentMonth < 8 ? currentYear : currentYear + 1;
+      case 'Summer':
+        // Summer starts Jun-Jul, suggest current year if before Dec, else next year
+        return currentMonth < 11 ? currentYear : currentYear + 1;
+      default:
+        return currentYear;
+    }
+  };
+
+  // Handle season type selection
+  const handleSeasonTypeSelect = (type: string) => {
+    setSeasonType(type);
+    const suggestedYear = getSuggestedYear(type);
+    setSeasonYear(suggestedYear.toString());
+  };
+
+  // Combined season string for API
+  const season = seasonType && seasonYear ? `${seasonType} ${seasonYear}` : '';
 
   const pickImage = async () => {
     const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -84,16 +134,70 @@ export default function CreateTeamScreen() {
       return; 
     }
     
+    if (!teamColor) {
+      Alert.alert('Team color required', 'Please select a team color to continue.');
+      return;
+    }
+    
     setSubmitting(true);
     try {
+      let user;
       try { 
-        await User.me(); 
+        user = await User.me(); 
       } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
         return; 
       }
       
+      // Check plan tier limits
+      const userRole = user?.preferences?.role;
+      const userPlan = user?.preferences?.plan || 'rookie'; // Default to rookie if not set
+      const teamCount = user?._count?.teams || 0;
+      
+      // Only enforce limits for coaches
+      if (userRole === 'coach') {
+        if (userPlan === 'rookie' && teamCount >= 2) {
+          Alert.alert(
+            'Team Limit Reached',
+            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($29.99/year unlimited) to add more teams.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'View Plans', onPress: () => router.push('/billing') }
+            ]
+          );
+          setSubmitting(false);
+          return;
+        }
+        
+        if (userPlan === 'veteran') {
+          // Veteran plan: Show confirmation about per-team charge
+          Alert.alert(
+            'Add Team',
+            `Adding a team will incur a charge of $1.50/month. You currently have ${teamCount} team${teamCount === 1 ? '' : 's'}.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
+              { text: 'Continue', onPress: () => proceedWithTeamCreation(user) }
+            ]
+          );
+          return; // Wait for user confirmation
+        }
+        
+        // Legend plan: unlimited teams, proceed
+      }
+      
+      // For non-coaches or Legend plan, proceed directly
+      await proceedWithTeamCreation(user);
+      
+    } catch (e: any) {
+      console.error('Team creation error:', e);
+      Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      setSubmitting(false);
+    }
+  };
+  
+  const proceedWithTeamCreation = async (user?: any) => {
+    try {
       let logoUrl = null;
       
       // Upload logo if one was selected
@@ -115,6 +219,8 @@ export default function CreateTeamScreen() {
         description: description.trim() || undefined,
         sport: sport || undefined,
         season: season || undefined,
+        primary_color: teamColor || undefined,
+        organization_name: organizationName.trim() || undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -123,7 +229,7 @@ export default function CreateTeamScreen() {
         { text: 'View Team', onPress: () => router.replace(`/team-profile?id=${team.id}`) }
       ]);
     } catch (e: any) {
-      console.error('Team creation error:', e);
+      console.error('Team creation error in proceedWithTeamCreation:', e);
       Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
     } finally { 
       setSubmitting(false); 
@@ -258,48 +364,137 @@ export default function CreateTeamScreen() {
           {/* Season Selection */}
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Season</Text>
+            
+            {/* Season Type Picker */}
             <View style={styles.seasonGrid}>
-              {seasons.map((seasonOption) => (
+              {['Fall', 'Winter', 'Spring', 'Summer'].map((type) => (
                 <Pressable
-                  key={seasonOption}
+                  key={type}
                   style={[
                     styles.seasonButton,
                     { 
-                      backgroundColor: season === seasonOption ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
-                      borderColor: season === seasonOption ? Colors[colorScheme].tint : Colors[colorScheme].border
+                      backgroundColor: seasonType === type ? Colors[colorScheme].tint + '15' : Colors[colorScheme].surface,
+                      borderColor: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].border
                     }
                   ]}
-                  onPress={() => setSeason(season === seasonOption ? '' : seasonOption)}
+                  onPress={() => handleSeasonTypeSelect(type)}
                 >
                   <Ionicons 
                     name="calendar-outline" 
                     size={16} 
-                    color={season === seasonOption ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+                    color={seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
                   />
                   <Text style={[
                     styles.seasonButtonText,
-                    { color: season === seasonOption ? Colors[colorScheme].tint : Colors[colorScheme].text }
+                    { color: seasonType === type ? Colors[colorScheme].tint : Colors[colorScheme].text }
                   ]}>
-                    {seasonOption}
+                    {type}
                   </Text>
                 </Pressable>
               ))}
             </View>
+
+            {/* Year Input (editable) */}
+            {seasonType && (
+              <View style={[styles.yearInputContainer, { marginTop: 12 }]}>
+                <Text style={[styles.fieldLabelSmall, { color: Colors[colorScheme].mutedText }]}>Year</Text>
+                <View style={[styles.yearInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                  <TextInput
+                    value={seasonYear}
+                    onChangeText={setSeasonYear}
+                    placeholder="2025"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    placeholderTextColor={Colors[colorScheme].mutedText}
+                    style={[styles.yearInputText, { color: Colors[colorScheme].text }]}
+                  />
+                </View>
+                {season && (
+                  <Text style={[styles.seasonPreview, { color: Colors[colorScheme].mutedText }]}>
+                    Season: {season}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Team Color Picker */}
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+              Team Color <Text style={{ color: '#EF4444' }}>*</Text>
+            </Text>
+            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 12 }]}>
+              Select your team's primary color for branding
+            </Text>
+            <View style={styles.colorGrid}>
+              {teamColors.map((color) => (
+                <Pressable
+                  key={color.value}
+                  style={[
+                    styles.colorButton,
+                    { 
+                      backgroundColor: color.value,
+                      borderWidth: teamColor === color.value ? 3 : 0,
+                      borderColor: teamColor === color.value ? Colors[colorScheme].text : 'transparent',
+                    }
+                  ]}
+                  onPress={() => setTeamColor(color.value)}
+                >
+                  {teamColor === color.value && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </Pressable>
+              ))}
+            </View>
+            {teamColor && (
+              <Text style={[styles.colorPreview, { color: Colors[colorScheme].mutedText }]}>
+                Selected: {teamColors.find(c => c.value === teamColor)?.name}
+              </Text>
+            )}
+          </View>
+
+          {/* Organization/School Name */}
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
+            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+              Enter your school or organization name (optional)
+            </Text>
+            <TextInput
+              value={organizationName}
+              onChangeText={setOrganizationName}
+              placeholder="e.g., Lincoln High School"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              style={[styles.textInput, { 
+                backgroundColor: Colors[colorScheme].surface, 
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text 
+              }]}
+            />
           </View>
 
           {/* Description */}
           <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-            <View style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+            <View style={styles.fieldLabelRow}>
+              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Description</Text>
+              <Text style={[styles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                {description.length}/500
+              </Text>
+            </View>
+            <View style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border }]}>
               <TextInput
                 value={description}
-                onChangeText={setDescription}
+                onChangeText={(text) => {
+                  if (text.length <= 500) {
+                    setDescription(text);
+                  }
+                }}
                 placeholder="Tell players what this team is about..."
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 style={[styles.textArea, { color: Colors[colorScheme].text }]}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
+                maxLength={500}
               />
             </View>
           </View>
@@ -390,10 +585,19 @@ const styles = StyleSheet.create({
   fieldGroup: {
     marginBottom: 24,
   },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   fieldLabel: {
     fontSize: 16,
     fontWeight: '700',
-    marginBottom: 8,
+  },
+  charCount: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -519,4 +723,53 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 16,
   },
+  // Year input styles
+  yearInputContainer: {
+    gap: 8,
+  },
+  fieldLabelSmall: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  yearInput: {
+    height: 48,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+  },
+  yearInputText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  seasonPreview: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  colorButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  colorPreview: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
 });
+

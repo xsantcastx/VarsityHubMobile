@@ -1121,6 +1121,40 @@ const renderVoteSection = () => {
 
   return (
     <View style={styles.voteWrapper}>
+      {/* Labels above the voting bars */}
+      <View style={styles.voteLabelsAbove}>
+        {!showFloatLabelA ? (
+          <View style={styles.voteLabelAboveLeft}>
+            <Text
+              style={[
+                styles.voteLabelAboveText,
+                selectedTeam === 'A' ? null : styles.voteLabelTextDim,
+              ]}
+              numberOfLines={1}
+            >
+              {leftLabel}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.voteLabelAboveLeft} />
+        )}
+        {!showFloatLabelB ? (
+          <View style={styles.voteLabelAboveRight}>
+            <Text
+              style={[
+                styles.voteLabelAboveText,
+                selectedTeam === 'B' ? null : styles.voteLabelTextDim,
+              ]}
+              numberOfLines={1}
+            >
+              {rightLabel}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.voteLabelAboveRight} />
+        )}
+      </View>
+      
       <View
         style={[
           styles.voteBar,
@@ -1148,43 +1182,11 @@ const renderVoteSection = () => {
           />
         </Animated.View>
 
-        <View pointerEvents="none" style={styles.voteLabelLayer}>
-          {!showFloatLabelA ? (
-            <View style={[styles.voteLabelCell, styles.voteLabelCellLeft]}>
-              <Text
-                style={[
-                  styles.voteLabelText,
-                  selectedTeam === 'A' ? null : styles.voteLabelTextDim,
-                ]}
-                numberOfLines={1}
-              >
-                {leftLabel}
-              </Text>
-        </View>
-          ) : (
-            <View style={[styles.voteLabelCell, styles.voteLabelCellLeft]} />
-          )}
-          {showInlineCaption ? (
-            <View style={styles.voteLabelCenter}>
-              <Text style={styles.voteCaptionInline}>{caption}</Text>
-        </View>
-          ) : null}
-          {!showFloatLabelB ? (
-            <View style={[styles.voteLabelCell, styles.voteLabelCellRight]}>
-              <Text
-                style={[
-                  styles.voteLabelText,
-                  selectedTeam === 'B' ? null : styles.voteLabelTextDim,
-                ]}
-                numberOfLines={1}
-              >
-                {rightLabel}
-              </Text>
-        </View>
-          ) : (
-            <View style={[styles.voteLabelCell, styles.voteLabelCellRight]} />
-          )}
-        </View>
+        {showInlineCaption ? (
+          <View style={styles.voteLabelCenter}>
+            <Text style={styles.voteCaptionInline}>{caption}</Text>
+          </View>
+        ) : null}
         <View
           style={styles.voteTouchLayer}
           pointerEvents={pressDisabled ? 'none' : 'auto'}
@@ -1997,6 +1999,27 @@ const styles = StyleSheet.create({
   },
   voteLabelText: { color: '#FFFFFF', fontWeight: '700', fontSize: 12 },
   voteLabelTextDim: { opacity: 0.7 },
+  voteLabelsAbove: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 8,
+  },
+  voteLabelAboveLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+    marginRight: 16,
+  },
+  voteLabelAboveRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+    marginLeft: 16,
+  },
+  voteLabelAboveText: {
+    color: '#6B7280',
+    fontWeight: '600',
+    fontSize: 12,
+  },
   voteCaptionInline: {
     color: 'rgba(255,255,255,0.85)',
     fontWeight: '700',

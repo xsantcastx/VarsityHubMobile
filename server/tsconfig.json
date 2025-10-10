@@ -32,6 +32,5 @@
     "node_modules",
     "dist",
     "prisma/**/*.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }

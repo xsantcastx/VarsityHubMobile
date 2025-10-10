@@ -6,17 +6,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
@@ -233,7 +234,7 @@ const HighlightCard = ({
 
 const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
   <Pressable style={[styles.tabButton, active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }], !active && { backgroundColor: Colors[colorScheme].surface }]} onPress={onPress}>
-    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].tabIconDefault }]}>{title}</Text>
+    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].text, opacity: 0.7 }]}>{title}</Text>
   </Pressable>
 );
 
@@ -248,6 +249,9 @@ export default function HighlightsScreen() {
   const [ranked, setRanked] = useState<HighlightItem[]>([]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -322,6 +326,32 @@ export default function HighlightsScreen() {
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
     
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const caption = (item.caption || '').toLowerCase();
+        const content = (item.content || '').toLowerCase();
+        const authorName = (item.author?.display_name || '').toLowerCase();
+        return title.includes(query) || caption.includes(query) || content.includes(query) || authorName.includes(query);
+      });
+    }
+    
+    // Apply date filter
+    if (selectedDate) {
+      const targetDate = new Date(selectedDate);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      filtered = filtered.filter(item => {
+        if (!item.created_at) return false;
+        const itemDate = new Date(item.created_at);
+        return itemDate >= targetDate && itemDate < nextDay;
+      });
+    }
+    
     switch (activeTab) {
       case 'trending':
         // Sort by score (if available) or upvotes + recency
@@ -331,19 +361,22 @@ export default function HighlightsScreen() {
           const bScore = (b.upvotes_count || 0) + (new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 10 : 0);
           return bScore - aScore;
         });
-        break;
+        // Pin top 3 to the beginning
+        const top3 = filtered.slice(0, 3);
+        const rest = filtered.slice(3);
+        return [...top3, ...rest];
       case 'recent':
-        // Sort by creation time
+        // Sort by creation time (newest nationwide)
         filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
         break;
       case 'top':
-        // Sort by upvotes only
+        // Sort by upvotes only and limit to top 10
         filtered.sort((a, b) => (b.upvotes_count || 0) - (a.upvotes_count || 0));
-        break;
+        return filtered.slice(0, 10); // Top 10 most engaged posts
     }
     
     return filtered;
-  }, [highlights, activeTab]);
+  }, [highlights, activeTab, searchQuery, selectedDate]);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
@@ -404,6 +437,49 @@ export default function HighlightsScreen() {
             <Ionicons name="trophy" size={16} color="#FFB800" />
             <Text style={styles.headerStatsText}>{filteredHighlights.length} highlights</Text>
           </View>
+        </View>
+        
+        {/* Search Bar */}
+        <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+          <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+          <TextInput
+            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+            placeholder="Search teams, events, users..."
+            placeholderTextColor={Colors[colorScheme].tabIconDefault}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Calendar Date Picker */}
+        <View style={styles.calendarContainer}>
+          <Pressable 
+            style={[styles.dateButton, { backgroundColor: selectedDate ? '#2563EB' : Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
+            onPress={() => {
+              if (selectedDate) {
+                setSelectedDate(null);
+              } else {
+                const today = new Date();
+                setSelectedDate(today);
+              }
+            }}
+          >
+            <Ionicons name="calendar" size={18} color={selectedDate ? '#fff' : Colors[colorScheme].text} />
+            <Text style={[styles.dateButtonText, { color: selectedDate ? '#fff' : Colors[colorScheme].text }]}>
+              {selectedDate ? selectedDate.toLocaleDateString() : 'All Dates'}
+            </Text>
+            {selectedDate && (
+              <Ionicons name="close-circle" size={16} color="#fff" />
+            )}
+          </Pressable>
+          <Text style={[styles.calendarHint, { color: Colors[colorScheme].tabIconDefault }]}>
+            {selectedDate ? 'Showing highlights from selected date' : 'Tap to filter by date'}
+          </Text>
         </View>
         
         {/* Tabs */}
@@ -526,6 +602,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#92400E',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 0,
+  },
+  calendarContainer: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 8,
+  },
+  dateButtonText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  calendarHint: {
+    fontSize: 12,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   tabsContainer: {
     paddingHorizontal: 16,

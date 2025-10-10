@@ -180,7 +180,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
-  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}`;
+  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
 
   const session = await stripe.checkout.sessions.create(({
@@ -519,13 +519,20 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     });
     try {
       const result = await prisma.$transaction([
-        prisma.ad.update({ where: { id: ad_id }, data: { payment_status: 'paid' } }),
+        prisma.ad.update({ 
+          where: { id: ad_id }, 
+          data: { 
+            payment_status: 'paid',
+            status: 'active' // Mark ad as active when payment is completed
+          } 
+        }),
         prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
       console.log('[payments] Ad reservation payment completed successfully', {
         ad_id,
         dates,
-        session_id: session.id
+        session_id: session.id,
+        status: 'active'
       });
     } catch (e) {
       console.error('[payments] Error processing ad reservation payment', {

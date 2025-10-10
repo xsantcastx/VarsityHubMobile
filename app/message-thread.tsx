@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, TextInput, KeyboardAvoidingView, Platform, Pressable, Modal } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
 
@@ -100,10 +100,44 @@ export default function MessageThreadScreen() {
   };
 
   const title = useMemo(() => {
-    if (withParam) return String(withParam);
-    if (conversation_id) return 'Conversation';
-    return 'Messages';
-  }, [withParam, conversation_id]);
+    // Determine the other participant from loaded messages
+    if (!me) {
+      // Before me is loaded, use fallback
+      if (withParam) return String(withParam);
+      return 'Conversation';
+    }
+
+    // Find the other participant (not me)
+    const otherParticipant = (() => {
+      for (const msg of msgs) {
+        const sender = msg.sender || (msg.sender_id ? { id: msg.sender_id } : null);
+        const recipient = msg.recipient || (msg.recipient_id ? { id: msg.recipient_id } : null);
+
+        if (sender && String(sender.id) !== String(me.id)) {
+          return sender;
+        }
+        if (recipient && String(recipient.id) !== String(me.id)) {
+          return recipient;
+        }
+      }
+      return null;
+    })();
+
+    // Use display_name or email from the other participant
+    if (otherParticipant) {
+      return otherParticipant.display_name || otherParticipant.email || 'Conversation';
+    }
+
+    // Fallback: if withParam looks like an email, use it; otherwise use generic label
+    if (withParam) {
+      const w = String(withParam);
+      if (w.includes('@')) return w; // It's an email
+      // It's a user ID - wait for messages to load
+      return 'Conversation';
+    }
+
+    return 'Conversation';
+  }, [me, msgs, withParam, conversation_id]);
 
   const renderItem = ({ item }: { item: Msg }) => {
     const mine = me?.id && (String(item.sender_id || item.sender?.id || '') === String(me.id));
