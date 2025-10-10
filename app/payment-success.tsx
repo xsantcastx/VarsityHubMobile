@@ -9,10 +9,13 @@ import PrimaryButton from '@/ui/PrimaryButton';
 
 export default function PaymentSuccessScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ session_id?: string }>();
+  const params = useLocalSearchParams<{ session_id?: string; type?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionVerified, setSessionVerified] = useState(false);
+  
+  // Check if this is an ad payment (type=ad) or subscription payment
+  const isAdPayment = params.type === 'ad';
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -36,8 +39,12 @@ export default function PaymentSuccessScreen() {
   }, [params.session_id]);
 
   const handleContinue = () => {
-    // Navigate to the appropriate next step based on user state
-    router.replace('/(tabs)/feed');
+    // Navigate to the appropriate next step based on payment type
+    if (isAdPayment) {
+      router.replace('/my-ads'); // Redirect to My Ads screen after ad payment
+    } else {
+      router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
+    }
   };
 
   const handleRetryVerification = async () => {
@@ -98,11 +105,13 @@ export default function PaymentSuccessScreen() {
               <Ionicons name="checkmark-circle" size={64} color="#16A34A" />
               <Text style={styles.successTitle}>Payment Successful!</Text>
               <Text style={styles.successText}>
-                Your subscription has been activated. You can now access all premium features.
+                {isAdPayment 
+                  ? 'Your ad payment has been processed successfully. Your ad is now active!'
+                  : 'Your subscription has been activated. You can now access all premium features.'}
               </Text>
               <View style={styles.buttonContainer}>
                 <PrimaryButton 
-                  label="Continue to App" 
+                  label={isAdPayment ? "View My Ads" : "Continue to App"}
                   onPress={handleContinue}
                 />
               </View>

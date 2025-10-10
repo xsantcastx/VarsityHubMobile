@@ -180,7 +180,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
-  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}`;
+  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
 
   const session = await stripe.checkout.sessions.create(({
