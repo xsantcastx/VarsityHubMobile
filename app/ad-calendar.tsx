@@ -194,8 +194,8 @@ export default function AdCalendarScreen() {
         router.replace('/(tabs)/my-ads');
       } else if (data?.url) {
         await WebBrowser.openBrowserAsync(String(data.url));
-        Alert.alert('Payment', 'If you completed payment, reservations will appear shortly.');
-        router.replace('/(tabs)/my-ads');
+        // Don't redirect here - let the Stripe callback (payment-success) handle the redirect
+        // The user will be redirected to payment-success screen after completing payment
       }
     } catch (err) {
       console.error('Failed to start checkout:', err);
