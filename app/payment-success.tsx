@@ -21,10 +21,15 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         if (params.session_id) {
-          // Verify the payment was successful by checking user status
-          const me = await User.me();
-          if (me?.preferences?.payment_pending === false) {
+          // For ad payments, we don't need to verify - just mark as verified
+          if (isAdPayment) {
             setSessionVerified(true);
+          } else {
+            // For subscriptions, verify the payment was successful by checking user status
+            const me = await User.me();
+            if (me?.preferences?.payment_pending === false) {
+              setSessionVerified(true);
+            }
           }
         }
       } catch (err: any) {
@@ -36,13 +41,16 @@ export default function PaymentSuccessScreen() {
     };
 
     verifyPayment();
-  }, [params.session_id]);
+  }, [params.session_id, isAdPayment]);
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
+    console.log('[payment-success] handleContinue called', { isAdPayment, type: params.type });
     if (isAdPayment) {
+      console.log('[payment-success] Redirecting to /my-ads');
       router.replace('/my-ads'); // Redirect to My Ads screen after ad payment
     } else {
+      console.log('[payment-success] Redirecting to /(tabs)/feed');
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }
   };
