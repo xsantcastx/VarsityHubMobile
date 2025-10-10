@@ -249,7 +249,15 @@ export default function EditProfileScreen() {
       console.log('Saving profile data:', directFields); // Debug log
       await User.updateMe(directFields);
       Alert.alert('Saved', 'Profile updated successfully.');
-      router.back();
+      
+      // Redirect based on role
+      if (userRole === 'coach' || userRole === 'admin') {
+        // Coaches and admins go to team profile
+        router.replace('/team-profile');
+      } else {
+        // Fans go back to previous screen
+        router.back();
+      }
     } catch (e: any) {
       console.error('Save error:', e);
       Alert.alert('Error', e?.message || 'Failed to update profile');
@@ -388,16 +396,26 @@ export default function EditProfileScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Bio</Text>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Bio</Text>
+                  <Text style={[styles.charCount, { color: bio.length > 300 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                    {bio.length}/300
+                  </Text>
+                </View>
                 <Input 
                   value={bio} 
-                  onChangeText={setBio} 
+                  onChangeText={(text) => {
+                    if (text.length <= 300) {
+                      setBio(text);
+                    }
+                  }} 
                   placeholder="Tell everyone about yourself..." 
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   multiline
                   numberOfLines={3}
+                  maxLength={300}
                   style={[styles.textArea, { 
-                    borderColor: Colors[colorScheme].border,
+                    borderColor: bio.length > 300 ? '#DC2626' : Colors[colorScheme].border,
                     backgroundColor: Colors[colorScheme].surface,
                     color: Colors[colorScheme].text,
                   }]} 
@@ -665,6 +683,12 @@ const styles = StyleSheet.create({
   fieldGroup: {
     marginBottom: 16,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   fieldRow: {
     flexDirection: 'row',
     gap: 12,
@@ -672,7 +696,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
+  },
+  charCount: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   input: {
     borderWidth: 1,

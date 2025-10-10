@@ -471,6 +471,19 @@ export default function TeamProfileScreen() {
       return;
     }
     
+    // Check roster limit (1-99 active players)
+    const activePlayers = members.filter(m => m.status === 'active');
+    if (activePlayers.length >= 99) {
+      setActionModal({
+        visible: true,
+        title: 'Roster Full',
+        message: 'Teams can have a maximum of 99 active players. Please remove inactive players before adding new members.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      setSendingInvite(false);
+      return;
+    }
+    
     setSendingInvite(true);
     try {
       // Only send invite if user has a valid email
@@ -811,7 +824,12 @@ export default function TeamProfileScreen() {
 
         {selectedTab === 'members' && (
           <View style={styles.tabContent}>
-            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Members ({activePlayers.length})</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Members</Text>
+              <Text style={[styles.rosterCount, { color: activePlayers.length >= 99 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                {activePlayers.length}/99
+              </Text>
+            </View>
             {activePlayers.map((member) => (
               <View key={member.id} style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
                 <View style={styles.memberInfo}>
@@ -1430,6 +1448,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     marginBottom: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  rosterCount: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   // Activity
   activityCard: {
