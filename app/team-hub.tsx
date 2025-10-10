@@ -68,6 +68,31 @@ export default function TeamHubScreen() {
       .slice(0, 10);
   }, [events]);
 
+  // Calculate countdown to next game
+  const nextGame = useMemo(() => upcomingEvents[0] || null, [upcomingEvents]);
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  
+  useEffect(() => {
+    if (!nextGame?.date) return;
+    
+    const updateCountdown = () => {
+      const now = Date.now();
+      const gameTime = new Date(nextGame.date).getTime();
+      const diff = Math.max(0, gameTime - now);
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setCountdown({ days, hours, minutes, seconds });
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [nextGame]);
+
   const handleEventPress = (evt: any) => {
     if (!evt) return;
     if (evt.game_id || evt.game?.id) {
@@ -130,6 +155,45 @@ export default function TeamHubScreen() {
         <Ionicons name="calendar" size={18} color={Color.primary} />
         <Text style={[Type.h2 as any, { color: Color.text }]}>Next Events</Text>
       </View>
+
+      {/* Countdown to Next Game */}
+      {nextGame && (
+        <View style={S.countdownCard}>
+          <LinearGradient 
+            colors={['#2563EB', '#1E40AF']} 
+            style={S.countdownGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={S.countdownHeader}>
+              <Ionicons name="timer-outline" size={24} color="#fff" />
+              <Text style={S.countdownLabel}>Next Game</Text>
+            </View>
+            <Text style={S.countdownGameTitle} numberOfLines={1}>{nextGame.title || 'Upcoming Game'}</Text>
+            <View style={S.countdownTimer}>
+              <View style={S.countdownUnit}>
+                <Text style={S.countdownNumber}>{countdown.days}</Text>
+                <Text style={S.countdownText}>DAYS</Text>
+              </View>
+              <Text style={S.countdownSeparator}>:</Text>
+              <View style={S.countdownUnit}>
+                <Text style={S.countdownNumber}>{String(countdown.hours).padStart(2, '0')}</Text>
+                <Text style={S.countdownText}>HRS</Text>
+              </View>
+              <Text style={S.countdownSeparator}>:</Text>
+              <View style={S.countdownUnit}>
+                <Text style={S.countdownNumber}>{String(countdown.minutes).padStart(2, '0')}</Text>
+                <Text style={S.countdownText}>MIN</Text>
+              </View>
+              <Text style={S.countdownSeparator}>:</Text>
+              <View style={S.countdownUnit}>
+                <Text style={S.countdownNumber}>{String(countdown.seconds).padStart(2, '0')}</Text>
+                <Text style={S.countdownText}>SEC</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+      )}
 
       <View style={S.eventsWrap}>
         {eventsLoading ? (
@@ -209,6 +273,63 @@ const S = StyleSheet.create({
   dashedBox: {
     borderWidth: 2, borderStyle: 'dashed', borderColor: Color.borderMuted, borderRadius: Radius.md,
     padding: 16, alignItems: 'center', justifyContent: 'center', minHeight: 180, marginTop: 8,
+  },
+  // Countdown
+  countdownCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+  },
+  countdownGradient: {
+    padding: 20,
+  },
+  countdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  countdownLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  countdownGameTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  countdownTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  countdownUnit: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  countdownNumber: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 36,
+  },
+  countdownText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  countdownSeparator: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+    opacity: 0.6,
   },
   eventsWrap: { marginHorizontal: 16, gap: 12, marginBottom: 24 },
   eventsEmpty: { color: Color.placeholder, fontStyle: 'italic' },

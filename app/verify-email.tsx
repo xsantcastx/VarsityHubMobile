@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,29 @@ export default function VerifyEmailScreen() {
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const openEmailApp = async () => {
+    try {
+      // Try to open native email app
+      let url = '';
+      if (Platform.OS === 'ios') {
+        url = 'message://'; // iOS Mail app
+      } else if (Platform.OS === 'android') {
+        url = 'mailto:'; // Android email apps
+      }
+      
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        // Fallback to generic email URL
+        await Linking.openURL('mailto:');
+      }
+    } catch (error) {
+      console.error('Failed to open email app:', error);
+      setInfo('Please check your email app manually');
+    }
+  };
 
   const onVerify = async () => {
     if (!code.trim()) return;
@@ -43,29 +67,86 @@ export default function VerifyEmailScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Verify Email' }} />
-      <Text style={styles.title}>Verify Your Email</Text>
-      <Text style={styles.muted}>Enter the 6-digit code we sent to your email.</Text>
+      
+      {/* Header Icon */}
+      <View style={styles.iconContainer}>
+        <Ionicons name="mail-outline" size={64} color="#2563EB" />
+      </View>
+      
+      <Text style={styles.title}>Check Your Email</Text>
+      <Text style={styles.subtitle}>
+        We sent a 6-digit verification code to your email address. 
+        Enter the code below to complete your registration.
+      </Text>
+      
+      {/* Open Email App Button */}
+      <Pressable style={styles.emailButton} onPress={openEmailApp}>
+        <Ionicons name="mail-open-outline" size={20} color="#2563EB" />
+        <Text style={styles.emailButtonText}>Open Email App</Text>
+      </Pressable>
+      
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
-      <Input placeholder="123456" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginTop: 8 }} />
-      <View style={{ height: 12 }} />
-      <Button onPress={onVerify} disabled={loading || code.trim().length < 4}>
-        {loading ? <ActivityIndicator /> : 'Verify'}
+      
+      <View style={styles.codeSection}>
+        <Text style={styles.label}>Verification Code</Text>
+        <Input 
+          placeholder="123456" 
+          value={code} 
+          onChangeText={setCode} 
+          keyboardType="number-pad" 
+          maxLength={6}
+          style={styles.codeInput}
+        />
+      </View>
+      
+      <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
+        {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
       </Button>
-      <Pressable style={{ marginTop: 12 }} onPress={onResend}>
-        <Text style={{ color: '#2563EB', fontWeight: '700' }}>Resend Code</Text>
-      </Pressable>
-  <Pressable style={{ marginTop: 12 }} onPress={() => router.replace('/onboarding/step-2-basic')}>
-        <Text style={{ color: '#6b7280' }}>Skip for now</Text>
+      
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Didn't receive the code?</Text>
+        <Pressable onPress={onResend} disabled={loading}>
+          <Text style={[styles.linkText, loading && styles.linkTextDisabled]}>Resend Code</Text>
+        </Pressable>
+      </View>
+      
+      <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-2-basic')}>
+        <Text style={styles.skipText}>Skip for now</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  muted: { color: '#6b7280' },
-  error: { color: '#b91c1c', marginTop: 8 },
-  info: { color: '#065F46', marginTop: 8 },
+  container: { flex: 1, padding: 24, backgroundColor: 'white', justifyContent: 'center' },
+  iconContainer: { alignItems: 'center', marginBottom: 24 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center', color: '#111827' },
+  subtitle: { fontSize: 15, color: '#6b7280', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  emailButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8, 
+    backgroundColor: '#EFF6FF', 
+    borderWidth: 1,
+    borderColor: '#2563EB',
+    borderRadius: 12, 
+    paddingVertical: 14, 
+    paddingHorizontal: 20,
+    marginBottom: 24
+  },
+  emailButtonText: { color: '#2563EB', fontSize: 16, fontWeight: '700' },
+  codeSection: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  codeInput: { fontSize: 24, textAlign: 'center', letterSpacing: 8 },
+  verifyButton: { marginBottom: 16 },
+  footer: { alignItems: 'center', marginTop: 8, gap: 8 },
+  footerText: { color: '#6b7280', fontSize: 14 },
+  linkText: { color: '#2563EB', fontWeight: '700', fontSize: 14 },
+  linkTextDisabled: { opacity: 0.5 },
+  skipButton: { marginTop: 20, alignItems: 'center', paddingVertical: 12 },
+  skipText: { color: '#9CA3AF', fontSize: 14 },
+  error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
+  info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
 });

@@ -6,8 +6,7 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Ionicons } from '@expo/vector-icons';
-
-const GOOGLE_OAUTH_ENABLED = false;
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -15,7 +14,7 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,21 +30,29 @@ export default function SignUpScreen() {
     } finally { setLoading(false); }
   };
 
-  const onGoogleSignUp = async () => {
-    if (!GOOGLE_OAUTH_ENABLED) {
-      setError('Google sign up with OAuth is coming soon. Please use email for now.');
+  const handleGoogleSignUp = async () => {
+    if (!googleReady) {
+      setError('Google sign up is not configured yet. Please use email for now.');
       return;
     }
-    setGoogleLoading(true);
     setError(null);
     try {
-      // TODO: Implement Google OAuth flow
-      // For now, show a placeholder message
-      setError('Google OAuth integration coming soon');
+      const response: any = await signInWithGoogle();
+      const account = response?.user || (await User.me());
+      const needsOnboarding = response?.needs_onboarding || account?.preferences?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-2-basic');
+        return;
+      }
+      const userRole = account?.preferences?.role || account?.role || 'fan';
+      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
+      router.replace(landingRoute as any);
     } catch (e: any) {
-      setError(e?.message || 'Google sign up failed');
-    } finally {
-      setGoogleLoading(false);
+      const message = e?.message || 'Google sign up failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        return;
+      }
+      setError(message);
     }
   };
 
@@ -60,10 +67,10 @@ export default function SignUpScreen() {
       {!showEmailForm ? (
         <>
           {/* Google Sign Up Option */}
-          {GOOGLE_OAUTH_ENABLED ? (
+          {googleReady ? (
             <Pressable
               style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
-              onPress={onGoogleSignUp}
+              onPress={handleGoogleSignUp}
               disabled={googleLoading}
               accessibilityRole="button"
             >
@@ -78,12 +85,12 @@ export default function SignUpScreen() {
             <View
               style={[styles.googleButton, styles.disabledGoogleButton]}
               accessibilityRole="text"
-              accessibilityLabel="Google sign up coming soon"
+              accessibilityLabel="Google sign up not available"
             >
               <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.googleButtonText}>Google sign up coming soon</Text>
-                <Text style={styles.googleButtonSubtext}>Use email sign up for now.</Text>
+                <Text style={styles.googleButtonText}>Google sign up unavailable</Text>
+                <Text style={styles.googleButtonSubtext}>Add Google OAuth client IDs to enable this option.</Text>
               </View>
             </View>
           )}
