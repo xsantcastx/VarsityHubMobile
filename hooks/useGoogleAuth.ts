@@ -1,8 +1,8 @@
+import { makeRedirectUri } from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
 
 import { User } from '@/api/entities';
 
@@ -47,15 +47,35 @@ export function useGoogleAuth() {
     [],
   );
 
-  const requestConfig: Google.GoogleAuthRequestConfig = {
-    scopes: ['profile', 'email'],
-    redirectUri,
-  };
-  if (clients.androidClientId) requestConfig.androidClientId = clients.androidClientId;
-  if (clients.iosClientId) requestConfig.iosClientId = clients.iosClientId;
-  if (clients.webClientId) requestConfig.webClientId = clients.webClientId;
-  if (clients.expoClientId) requestConfig.expoClientId = clients.expoClientId;
+  // Create request config - use placeholder values if not configured
+  // The hook must be called unconditionally (React rules of hooks)
+  const requestConfig: Google.GoogleAuthRequestConfig = useMemo(() => {
+    // If configured, use real values
+    if (isConfigured) {
+      return {
+        scopes: ['profile', 'email'],
+        redirectUri,
+        androidClientId: clients.androidClientId || undefined,
+        iosClientId: clients.iosClientId || undefined,
+        webClientId: clients.webClientId || undefined,
+        clientId: clients.expoClientId || undefined,
+      };
+    }
+    
+    // If not configured, provide placeholder values that satisfy the hook
+    // We won't actually use this to sign in (isConfigured check prevents it)
+    return {
+      scopes: ['profile', 'email'],
+      redirectUri,
+      // Use fake but valid-looking client IDs for all platforms
+      androidClientId: '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com',
+      iosClientId: '000000000000-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.apps.googleusercontent.com',
+      webClientId: '000000000000-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.apps.googleusercontent.com',
+      clientId: '000000000000-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww.apps.googleusercontent.com',
+    };
+  }, [isConfigured, redirectUri, clients]);
 
+  // Always call useAuthRequest (React rules of hooks)
   const [request, , promptAsync] = Google.useAuthRequest(requestConfig);
 
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
