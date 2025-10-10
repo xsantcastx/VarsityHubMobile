@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert, Share } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import * as WebBrowser from 'expo-web-browser';
@@ -72,6 +73,36 @@ export default function EventDetailScreen() {
     }
   };
 
+  const openInMaps = async () => {
+    if (!event?.location) {
+      Alert.alert('No Location', 'This event does not have a location set.');
+      return;
+    }
+
+    const address = encodeURIComponent(event.location);
+    let url = '';
+
+    if (Platform.OS === 'ios') {
+      // iOS uses Apple Maps
+      url = `maps://?q=${address}`;
+    } else {
+      // Android uses Google Maps
+      url = `geo:0,0?q=${address}`;
+    }
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        // Fallback to Google Maps web
+        await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Unable to open maps.');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Event Detail' }} />
@@ -85,7 +116,25 @@ export default function EventDetailScreen() {
       {event && !loading && (
         <View style={{ gap: 8 }}>
           <Text style={styles.title}>{event.title || 'Event'}</Text>
-          <Text style={styles.meta}>{event.location || 'TBD'}</Text>
+          
+          {/* Location with Map Pin */}
+          {event.location && (
+            <Pressable 
+              style={styles.locationCard}
+              onPress={openInMaps}
+            >
+              <View style={styles.locationIconContainer}>
+                <Ionicons name="location" size={24} color="#EF4444" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.locationLabel}>Location</Text>
+                <Text style={styles.locationText}>{event.location}</Text>
+                <Text style={styles.locationHint}>Tap to open in Maps</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </Pressable>
+          )}
+          
           <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
           <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
           {event.description ? <Text>{event.description}</Text> : null}
@@ -114,6 +163,42 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '800' },
   meta: { color: '#6b7280' },
   error: { color: '#b91c1c' },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 12,
+    marginVertical: 8,
+  },
+  locationIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  locationText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  locationHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },

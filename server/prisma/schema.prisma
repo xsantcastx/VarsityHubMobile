@@ -15,6 +15,7 @@ model User {
   id                         String    @id @default(cuid())
   email                      String    @unique
   password_hash              String
+  google_id                  String?   @unique
   display_name               String?
   username                   String?   // Will add unique constraint later after data migration
   avatar_url                 String?

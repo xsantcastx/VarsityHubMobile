@@ -49,9 +49,24 @@ export default function RootLayout() {
           router.replace('/onboarding/step-2-basic');
           return;
         }
-        if (isPublic && me && lastRedirectRef.current !== '/(tabs)/feed') {
-          lastRedirectRef.current = '/(tabs)/feed';
-          router.replace('/(tabs)/feed');
+        
+        // Role-aware login landing
+        if (isPublic && me) {
+          const userRole = me?.preferences?.role || me?.role || 'fan';
+          let landingRoute = '/(tabs)/feed'; // Default for fans
+          
+          if (userRole === 'coach') {
+            // Coaches land on manage-teams dashboard
+            landingRoute = '/manage-teams';
+          } else {
+            // Fans land on highlights feed
+            landingRoute = '/highlights';
+          }
+          
+          if (lastRedirectRef.current !== landingRoute) {
+            lastRedirectRef.current = landingRoute;
+            router.replace(landingRoute as any);
+          }
         }
       } catch (err: any) {
         const status = err?.status;

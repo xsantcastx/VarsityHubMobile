@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { signJwt } from '../lib/jwt.js';
@@ -8,23 +9,43 @@ import type { AuthedRequest } from '../middleware/auth.js';
 export const authRouter = Router();
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+const DEFAULT_FAN_BIO = 'Sports enthusiast following local teams and supporting young athletes.';
+const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value.length > 0);
 
 const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
+  role: z.enum(['fan', 'coach']).optional(),
 });
 
 authRouter.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const { email, password, display_name } = parsed.data;
+  const { email, password, display_name, role } = parsed.data;
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return res.status(409).json({ error: 'Email already registered' });
   const password_hash = await bcrypt.hash(password, 10);
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
-  const user = await prisma.user.create({ data: { email, password_hash, display_name, email_verified: false, email_verification_code: code, email_verification_expires: exp } });
+  const userRole = role || 'fan';
+  const bio = userRole === 'fan' ? DEFAULT_FAN_BIO : null;
+  
+  const user = await prisma.user.create({ 
+    data: { 
+      email, 
+      password_hash, 
+      display_name, 
+      bio,
+      email_verified: false, 
+      email_verification_code: code, 
+      email_verification_expires: exp,
+      preferences: userRole ? { role: userRole } : undefined
+    } 
+  });
   const access_token = signJwt({ id: user.id });
   try { 
     console.log('[email] Sending verification email to:', email);
@@ -54,6 +75,116 @@ authRouter.post('/login', async (req, res) => {
   const body: any = { access_token, user: sanitizeUser(user) };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
+});
+
+const googleAuthSchema = z.object({
+  id_token: z.string().min(10),
+});
+
+authRouter.post('/google', async (req, res) => {
+  const parsed = googleAuthSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+  const { id_token } = parsed.data;
+
+  try {
+    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
+    if (!googleResponse.ok) {
+      const detail = await googleResponse.text().catch(() => '');
+      req.log?.warn?.({ detail }, '[auth/google] tokeninfo rejected credential');
+      return res.status(401).json({ error: 'Google authentication failed' });
+    }
+
+    const payload = await googleResponse.json() as any;
+    const googleId = typeof payload?.sub === 'string' ? payload.sub : null;
+    const audience = typeof payload?.aud === 'string' ? payload.aud : null;
+    const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
+    const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
+
+    if (!googleId || !email) {
+      return res.status(400).json({ error: 'Invalid Google credential' });
+    }
+
+    if (!emailVerified) {
+      return res.status(400).json({ error: 'Google account email is not verified' });
+    }
+
+    if (GOOGLE_ALLOWED_AUDIENCES.length && (!audience || !GOOGLE_ALLOWED_AUDIENCES.includes(audience))) {
+      req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
+      return res.status(400).json({ error: 'Google credential not issued for this application' });
+    }
+
+    const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
+      ? payload.name.trim()
+      : email.split('@')[0];
+    const avatarUrl = typeof payload?.picture === 'string' ? payload.picture : null;
+
+    let user = await prisma.user.findUnique({ where: { google_id: googleId } });
+    let created = false;
+
+    if (!user) {
+      const existingByEmail = await prisma.user.findUnique({ where: { email } });
+
+      if (existingByEmail) {
+        const currentPrefs = (existingByEmail as any)?.preferences || {};
+        const prefPatch: Record<string, unknown> = {};
+        if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
+        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
+        const updates: any = {
+          google_id: googleId,
+          email_verified: true,
+          email_verification_code: null,
+          email_verification_expires: null,
+        };
+        if (avatarUrl && !existingByEmail.avatar_url) updates.avatar_url = avatarUrl;
+        if (displayNameSource && !existingByEmail.display_name) updates.display_name = displayNameSource;
+        if (!existingByEmail.bio) updates.bio = DEFAULT_FAN_BIO;
+        if (Object.keys(prefPatch).length) {
+          updates.preferences = mergePreferences(currentPrefs, prefPatch);
+        }
+        user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
+      } else {
+        const randomSecret = crypto.randomBytes(32).toString('hex');
+        const password_hash = await bcrypt.hash(randomSecret, 10);
+        user = await prisma.user.create({
+          data: {
+            email,
+            password_hash,
+            google_id: googleId,
+            display_name: displayNameSource,
+            avatar_url: avatarUrl,
+            bio: DEFAULT_FAN_BIO,
+            email_verified: true,
+            preferences: { role: 'fan', onboarding_completed: false },
+          },
+        });
+        created = true;
+      }
+    } else if (!user.email_verified) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          email_verified: true,
+          email_verification_code: null,
+          email_verification_expires: null,
+        },
+      });
+    }
+
+    const sanitized = sanitizeUser(user);
+    const access_token = signJwt({ id: sanitized.id });
+    const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+
+    return res.json({
+      access_token,
+      user: sanitized,
+      needs_onboarding: needsOnboarding,
+      created,
+    });
+  } catch (err) {
+    console.error('[auth/google] unexpected error', err);
+    return res.status(500).json({ error: 'Failed to authenticate with Google' });
+  }
 });
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
@@ -282,6 +413,10 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
+  const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (data.role === 'fan' && !currentUser?.bio) {
+    updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
+  }
   
   // Prepare preferences update
   const preferencesUpdate: any = {
@@ -498,3 +633,4 @@ authRouter.post('/test-email', async (req, res) => {
 });
 
 export default authRouter;
+

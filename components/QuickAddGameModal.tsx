@@ -6,16 +6,16 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -38,6 +38,7 @@ export interface QuickGameData {
   time: string; // Selected time
   type: 'home' | 'away';
   banner_url?: string; // Add banner URL support
+  cover_image_url?: string; // Add cover image URL support
   appearance?: string; // Add appearance support
 }
 
@@ -179,9 +180,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   };
 
   const handleSave = () => {
-    console.log('=== QUICK ADD SAVE STARTED ===');
-    console.log('Current bannerUrl state:', bannerUrl);
-    
     if (!validateForm()) {
       return;
     }
@@ -198,8 +196,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       type: gameType,
     };
 
-    console.log('Base game data:', baseGameData);
-
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
     const doSave = async () => {
       let finalData: QuickGameData = { 
@@ -210,9 +206,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       // Priority: custom uploaded banner > auto-generated banner
       if (bannerUrl) {
         // User has uploaded a custom banner, use it directly
-        console.log('Using custom banner:', bannerUrl); // Debug log
         finalData.banner_url = bannerUrl;
-        console.log('Final data with custom banner:', finalData);
+        finalData.cover_image_url = bannerUrl; // Also set cover_image_url to the same value
       } else if (getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
         // No custom banner, try to capture the auto-generated preview and upload
         if (viewShotRef.current) {
@@ -224,6 +219,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             const url = uploaded?.url || uploaded?.path || null;
             if (url) {
               finalData.banner_url = url;
+              finalData.cover_image_url = url; // Also set cover_image_url to the same value
             }
           } catch (e) {
             console.warn('Banner capture/upload failed, continuing without banner', e);
@@ -312,30 +308,17 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     try {
       // Use the production Railway API URL directly
       const base = 'https://api-production-8ac3.up.railway.app';
-      console.log('[QuickAddGameModal] Starting upload to:', base);
-      console.log('[QuickAddGameModal] Upload URI:', uri);
       
       const uploaded = await uploadFile(base, uri, 'custom-banner.jpg', 'image/jpeg');
-      console.log('[QuickAddGameModal] Upload completed, result:', uploaded);
       
       const url = uploaded?.url || uploaded?.path;
-      console.log('[QuickAddGameModal] Extracted URL:', url);
       
       if (url) {
         setBannerUrl(url);
-        console.log('[QuickAddGameModal] Banner URL set to:', url);
-        console.log('[QuickAddGameModal] Current bannerUrl state after set:', url);
       } else {
-        console.error('[QuickAddGameModal] No URL in upload response:', uploaded);
         throw new Error('Upload failed - no URL returned');
       }
     } catch (error: any) {
-      console.error('[QuickAddGameModal] Custom banner upload error:', error);
-      console.error('[QuickAddGameModal] Error details:', {
-        message: error?.message,
-        status: error?.status,
-        data: error?.data
-      });
       Alert.alert('Upload Failed', error?.message || 'Failed to upload banner. Please try again.');
     } finally {
       setUploadingCustomBanner(false);

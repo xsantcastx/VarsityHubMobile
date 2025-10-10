@@ -6,6 +6,7 @@ export const User = {
   me: () => auth.me(),
   register: (email: string, password: string, display_name?: string) => auth.register(email, password, display_name),
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
+  loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
   logout: () => auth.logout(),
   updateMe: (data: any) => httpPut('/auth/me', data),
   patchMe: (data: any) => httpPatch('/me', data),

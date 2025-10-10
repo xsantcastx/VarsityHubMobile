@@ -12,8 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { findBestMatch } from '../utils/teamMatch';
-import MatchBanner from './components/MatchBanner';
 
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
@@ -194,6 +192,9 @@ export default function FeedScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
+  const [gamesCursor, setGamesCursor] = useState<string | null>(null);
+  const [hasMoreGames, setHasMoreGames] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
@@ -210,7 +211,6 @@ export default function FeedScreen() {
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; avatarUrl?: string | null }>>([]);
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -259,8 +259,20 @@ export default function FeedScreen() {
         }),
         Advertisement.forFeed(todayISO, undefined, 5).catch(() => null),
       ]);
-      const normalizedGames = Array.isArray(gamesData) ? gamesData : [];
+      
+      // Handle cursor-based response or array
+      let normalizedGames = [];
+      let cursor = null;
+      if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
+        normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
+        cursor = gamesData.nextCursor || null;
+      } else {
+        normalizedGames = Array.isArray(gamesData) ? gamesData : [];
+      }
+      
       setGames(normalizedGames);
+      setGamesCursor(cursor);
+      setHasMoreGames(!!cursor);
       setZipDirectory(buildZipDirectory(normalizedGames));
       if (highlightsData) {
         const merged: any[] = [];
@@ -284,14 +296,6 @@ export default function FeedScreen() {
         setSponsoredAds([]);
         setSponsoredIndex(0);
       }
-      // load teams for logo resolution
-      try {
-        const teamsData: any = await (await import('@/api/entities')).Team.list();
-        const mapped = Array.isArray(teamsData) ? teamsData.map((t: any) => ({ id: String(t.id), name: t.name, avatarUrl: t.logo_url || t.avatar_url || null })) : [];
-        setTeams(mapped);
-      } catch (err) {
-        if (__DEV__) console.warn('Failed to load teams for feed', err);
-      }
     } catch (e: any) {
       console.error('Failed to load feed', e);
       setError('Unable to load games. Sign in may be required.');
@@ -302,6 +306,34 @@ export default function FeedScreen() {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMoreGames || !gamesCursor) return;
+
+    setLoadingMore(true);
+    try {
+      const nextData = await Game.list('-date');
+      
+      // Handle cursor-based response or array
+      let normalizedGames = [];
+      let cursor = null;
+      if (nextData && typeof nextData === 'object' && 'items' in nextData) {
+        normalizedGames = Array.isArray(nextData.items) ? nextData.items : [];
+        cursor = nextData.nextCursor || null;
+      } else {
+        normalizedGames = Array.isArray(nextData) ? nextData : [];
+      }
+
+      setGames(prev => [...prev, ...normalizedGames]);
+      setGamesCursor(cursor);
+      setHasMoreGames(!!cursor);
+      setZipDirectory(prev => [...prev, ...buildZipDirectory(normalizedGames)]);
+    } catch (e: any) {
+      console.error('Failed to load more games', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMoreGames, gamesCursor]);
 
   useEffect(() => {
     (async () => {
@@ -421,17 +453,115 @@ export default function FeedScreen() {
     setActiveVerticalFeedGameId(null);
   }, []);
 
+  const renderEmailReminder = useCallback(() => {
+    if (!me || emailVerified) return null;
+    return (
+      <Pressable
+        onPress={() => router.push('/verify-email')}
+        style={{
+          padding: 10,
+          borderRadius: 10,
+          backgroundColor: '#FEF9C3',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: '#FDE68A',
+          marginBottom: 12,
+        }}
+      >
+        <Text style={{ color: '#92400E', fontWeight: '700' }}>
+          Verify your email to unlock posting and ads. Tap to verify.
+        </Text>
+      </Pressable>
+    );
+  }, [emailVerified, me, router]);
+
+  const renderGameTile = useCallback(
+    ({ item, index }: { item: GameItem; index: number }) => {
+      const raw = item as any;
+      const banner = item.cover_image_url || raw?.banner_url || null;
+      const hasBanner = typeof banner === 'string' && banner.length > 0;
+      const gradient = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
+      const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
+      const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+      const reviewsCount =
+        typeof raw?.reviews_count === 'number'
+          ? raw.reviews_count
+          : typeof raw?._count?.reviews === 'number'
+            ? raw._count.reviews
+            : 0;
+      const mediaCount =
+        typeof raw?.media_count === 'number'
+          ? raw.media_count
+          : Array.isArray(raw?.media)
+            ? raw.media.length
+            : 0;
+      const summary = voteSummaries[String(item.id)] || null;
+      const voteText = summary
+        ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+        : null;
+
+      return (
+        <Pressable
+          style={styles.gridItem}
+          onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+          accessibilityRole="button"
+        >
+          {hasBanner ? (
+            <Image source={{ uri: banner }} style={styles.gridImage} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+          )}
+          <LinearGradient
+            colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+            style={styles.gridShade}
+            pointerEvents="none"
+          />
+          <View style={styles.gridContent}>
+            <View style={styles.gridDateChip}>
+              <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+              <Text style={styles.gridDateText}>{eventDate}</Text>
+            </View>
+            <Text style={styles.gridTitle} numberOfLines={2}>
+              {item.title ? String(item.title) : 'Game'}
+            </Text>
+            <Text style={styles.gridMeta} numberOfLines={1}>
+              {eventTime ? `${eventTime} • ${locationText}` : locationText}
+            </Text>
+            <View style={styles.gridStatsRow}>
+              <View style={styles.gridStat}>
+                <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{reviewsCount}</Text>
+              </View>
+              <View style={styles.gridStat}>
+                <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{mediaCount}</Text>
+              </View>
+            </View>
+            {voteText ? (
+              <Text style={styles.gridVoteText} numberOfLines={1}>
+                {voteText}
+              </Text>
+            ) : null}
+          </View>
+          <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+        </Pressable>
+      );
+    },
+    [onRefresh, router, voteSummaries],
+  );
+
   return (
     <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
       <Stack.Screen options={{ title: 'Feed' }} />
-      {/* Top bar with brand and messages quick link */}
+      {/* Top bar with brand centered and messages/notifications on the right */}
       <View style={styles.headerRow}>
+        <View style={{ flex: 1 }} />
         <View style={styles.brandRow}>
-          <Image source={require('../assets/images/logo.png')} style={{ width: 28, height: 28 }} />
-          <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>VarsityHub</Text>
+          <Image source={require('../assets/images/logo.png')} style={{ width: 40, height: 40 }} />
+          <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
           <Pressable onPress={() => router.push('/messages')} style={{ padding: 8 }}>
             <MessagesTabIcon color={Colors[colorScheme].text} />
           </Pressable>
@@ -497,167 +627,110 @@ export default function FeedScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={() => (me && !emailVerified ? (
-          <Pressable onPress={() => router.push('/verify-email')} style={{ padding: 10, borderRadius: 10, backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A', marginBottom: 10 }}>
-            <Text style={{ color: '#92400E', fontWeight: '700' }}>Verify your email to unlock posting and ads. Tap to verify.</Text>
-          </Pressable>
-        ) : null)}
-        renderItem={({ item, index }) => {
-          const raw = item as any;
-          const reviewsCount = typeof raw?.reviews_count === 'number'
-            ? raw.reviews_count
-            : (typeof raw?._count?.reviews === 'number' ? raw._count.reviews : null);
-          const mediaCount = typeof raw?.media_count === 'number'
-            ? raw.media_count
-            : (Array.isArray(raw?.media) ? raw.media.length : null);
-          const summary = voteSummaries[String(item.id)] || null;
-
-          return (
-            <>
-              <Pressable
-                style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
-              >
-                <View style={styles.hero}>
-                  {(() => {
-                    // Attempt to render compact MatchBanner when both team logos can be resolved
-                    const labels = deriveTeamLabels(item as GameItem);
-                    const findTeamMatch = (teamName: string) => {
-                      const matched = findBestMatch(teamName, teams as any);
-                      return matched || null;
-                    };
-                    const leftMatch = findTeamMatch(labels.teamA);
-                    const rightMatch = findTeamMatch(labels.teamB);
-                    const leftLogo = leftMatch?.avatarUrl || null;
-                    const rightLogo = rightMatch?.avatarUrl || null;
-                    if (leftLogo && rightLogo) {
-                      return (
-                        <View style={{ position: 'relative' }}>
-                          <MatchBanner
-                            leftImage={leftLogo}
-                            rightImage={rightLogo}
-                            leftName={labels.teamA}
-                            rightName={labels.teamB}
-                            height={100}
-                            leftColor={(leftMatch as any)?.color}
-                            rightColor={(rightMatch as any)?.color}
-                            hero={true}
-                            onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
-                          />
-                          {/* RSVP Badge Component */}
-                          <RSVPBadge gameItem={item} />
-                        </View>
-                      );
-                    }
-
-                    const banner = item.cover_image_url || (item as any).banner_url || null;
-                    return banner ? (
-                      <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
-                    ) : (
-                      <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                    );
-                  })()}
-                </View>
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeaderRow}>
-                    <View style={styles.cardInfoColumn}>
-                      {item.date ? (
-                        <Text style={[styles.cardDate, { color: '#60A5FA' }]}>{format(new Date(item.date), 'EEE, MMM d, yyyy')}</Text>
-                      ) : null}
-                      <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{item.title ? String(item.title) : 'Game'}</Text>
-                      <Text style={[styles.cardMeta, { color: Colors[colorScheme].mutedText }]}>{item.location ? String(item.location) : 'TBD'}</Text>
-                      <View style={styles.tagRow}>
-                        <View style={[styles.tag, { backgroundColor: Colors[colorScheme].surface }]}>
-                          <Ionicons name="chatbubble-ellipses-outline" size={14} color={Colors[colorScheme].mutedText} />
-                          <Text style={[styles.tagText, { color: Colors[colorScheme].mutedText }]}>{reviewsCount === null ? 'Reviews' : `${reviewsCount} Reviews`}</Text>
-                        </View>
-                        <View style={[styles.tag, { backgroundColor: Colors[colorScheme].surface }]}>
-                          <Ionicons name="camera-outline" size={14} color={Colors[colorScheme].mutedText} />
-                          <Text style={[styles.tagText, { color: Colors[colorScheme].mutedText }]}>{mediaCount === null ? 'Photos & Videos' : `${mediaCount} Media`}</Text>
-                        </View>
-                      </View>
-                    </View>
-                    {summary ? (
-                      <View style={styles.voteChip}>
-                        <View style={styles.voteChipBar}>
-                          <View style={[styles.voteChipSegmentA, { flex: Math.max(summary.pctA, 1) }]}>
-                            <Text style={styles.voteChipText} numberOfLines={1}>{`${summary.teamALabelShort} ${summary.pctA}%`}</Text>
-                          </View>
-                          <View style={[styles.voteChipSegmentB, { flex: Math.max(summary.pctB, 1) }]}>
-                            <Text style={styles.voteChipText} numberOfLines={1}>{`${summary.teamBLabelShort} ${summary.pctB}%`}</Text>
-                          </View>
-                        </View>
-                        <Text style={styles.voteChipHint}>Tap to vote</Text>
-                      </View>
-                    ) : null}
+        numColumns={3}
+        columnWrapperStyle={styles.gridRow}
+        ListHeaderComponent={renderEmailReminder}
+        renderItem={renderGameTile}
+        ListFooterComponent={() => (
+          <View style={styles.gridFooter}>
+            {sponsoredAds.length > 0 ? (
+              <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
+                {sponsoredAds[sponsoredIndex]?.banner_url ? (
+                  <View style={styles.sponsoredGridImageWrapper}>
+                    <Image
+                      source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }}
+                      style={styles.sponsoredGridImage}
+                      contentFit="cover"
+                    />
                   </View>
+                ) : null}
+                <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                  {sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}
+                </Text>
+                {sponsoredAds[sponsoredIndex]?.description ? (
+                  <Text style={[styles.sponsoredGridDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                    {String(sponsoredAds[sponsoredIndex].description)}
+                  </Text>
+                ) : null}
+                <Pressable
+                  style={styles.sponsoredGridCta}
+                  onPress={() => router.push('/submit-ad')}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
+                  <Text style={styles.sponsoredGridCtaText}>Promote your program</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {sponsoredAds.length === 0 ? (
+              <Pressable
+                style={[styles.adInviteCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                onPress={() => router.push('/submit-ad')}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.adInviteTitle, { color: Colors[colorScheme].text }]}>Your ad here</Text>
+                <Text style={[styles.adInviteSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  Submit a local ad to reach nearby fans and families.
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.verticalFeedSection}>
+              <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+              <Pressable
+                onPress={openVerticalFeed}
+                style={styles.verticalFeedCard}
+                accessibilityRole="button"
+                accessibilityLabel="Open highlights reel"
+              >
+                {verticalFeedPreviewImage ? (
+                  <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
+                ) : (
+                  <LinearGradient
+                    colors={['#1e293b', '#0f172a']}
+                    style={styles.verticalFeedImage}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                )}
+                <LinearGradient
+                  colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
+                  style={styles.verticalFeedShade}
+                />
+                <View style={styles.verticalFeedContent}>
+                  <View style={styles.verticalFeedBadge}>
+                    <Ionicons name="play" size={18} color="#fff" />
+                  </View>
+                  <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
+                  {verticalFeedAuthorText ? (
+                    <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
+                  ) : null}
+                  <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                    {verticalFeedSubtitleText}
+                  </Text>
                 </View>
               </Pressable>
-              {index === 0 && sponsoredAds.length > 0 ? (
-                <View style={styles.sponsored}>
-                  <Text style={[styles.sponsoredBadge, { color: Colors[colorScheme].mutedText }]}>SPONSORED</Text>
-                  {sponsoredAds[sponsoredIndex]?.banner_url ? (
-                    <View style={{ height: 120, borderRadius: 10, overflow: 'hidden', marginTop: 8, marginBottom: 8 }}>
-                      <Image source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                    </View>
-                  ) : null}
-                  <Text style={[styles.cardTitle, { marginTop: 4, color: Colors[colorScheme].text }]}>{sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}</Text>
-                  {sponsoredAds[sponsoredIndex]?.description ? (
-                    <Text style={[styles.cardMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>{String(sponsoredAds[sponsoredIndex].description)}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-              {index === 0 ? (
-                <Pressable style={{ padding: 16, borderRadius: 14, backgroundColor: Colors[colorScheme].card, borderWidth: 2, borderStyle: 'dashed', borderColor: Colors[colorScheme].border, alignItems: 'center', justifyContent: 'center' }} onPress={() => router.push('/submit-ad')}>
-                  <Text style={{ fontWeight: '800', fontSize: 18, marginBottom: 4, color: Colors[colorScheme].text }}>Your Ad Here</Text>
-                  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Click to submit a local ad</Text>
-                </Pressable>
-              ) : null}
-            </>
-          );
-        }}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        ListFooterComponent={() => (
-          <View style={styles.verticalFeedSection}>
-            <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-            <Pressable
-              onPress={openVerticalFeed}
-              style={styles.verticalFeedCard}
-              accessibilityRole="button"
-              accessibilityLabel="Open highlights reel"
-            >
-              {verticalFeedPreviewImage ? (
-                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-              ) : (
-                <LinearGradient
-                  colors={['#1e293b', '#0f172a']}
-                  style={styles.verticalFeedImage}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-              )}
-              <LinearGradient
-                colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
-                style={styles.verticalFeedShade}
-              />
-              <View style={styles.verticalFeedContent}>
-                <View style={styles.verticalFeedBadge}>
-                  <Ionicons name="play" size={18} color="#fff" />
-                </View>
-                <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                {verticalFeedAuthorText ? (
-                  <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
-                ) : null}
-                <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                  {verticalFeedSubtitleText}
-                </Text>
+            </View>
+
+            {loadingMore ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
               </View>
-            </Pressable>
+            ) : null}
           </View>
         )}
-        contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
+        contentContainerStyle={{
+          paddingVertical: 12,
+          paddingBottom: Math.max(28, insets.bottom + 16),
+          paddingHorizontal: 2,
+        }}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        showsVerticalScrollIndicator={false}
       />
 
       <Modal
@@ -687,22 +760,83 @@ const styles = StyleSheet.create({
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { color: '#6b7280' },
   helper: { color: '#6b7280', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brand: { fontSize: 28, fontWeight: '900' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
-  card: { padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth },
-  hero: { height: 140, borderRadius: 12, marginBottom: 12, overflow: 'hidden' },
-  heroImage: { width: '100%', height: '100%' },
-  cardDate: { color: '#2563EB', fontWeight: '700', marginBottom: 4 },
-  cardTitle: { fontWeight: '800', fontSize: 18, marginBottom: 2 },
-  cardMeta: { color: '#6b7280' },
-  tagRow: { flexDirection: 'row', gap: 12, marginTop: 10 },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#F3F4F6' },
-  tagText: { color: '#6b7280', fontWeight: '700', fontSize: 12 },
-  sponsored: { padding: 14, borderRadius: 14, backgroundColor: '#F1F5F9', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0' },
-  sponsoredBadge: { color: '#6b7280', fontWeight: '800', fontSize: 10, letterSpacing: 1 },
+  gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0f172a',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  gridImage: { width: '100%', height: '100%' },
+  gridShade: { ...StyleSheet.absoluteFillObject },
+  gridContent: { position: 'absolute', left: 12, right: 12, bottom: 12, gap: 6 },
+  gridDateChip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.65)',
+  },
+  gridDateText: { color: '#F9FAFB', fontWeight: '700', fontSize: 12 },
+  gridTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 14, lineHeight: 18 },
+  gridMeta: { color: '#E5E7EB', fontSize: 12 },
+  gridStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gridStat: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gridStatText: { color: '#F9FAFB', fontSize: 11, fontWeight: '600' },
+  gridVoteText: { color: '#E0F2FE', fontSize: 11, fontWeight: '600' },
+  gridFooter: { width: '100%', marginTop: 12, gap: 24, paddingHorizontal: 8 },
+  sponsoredGridCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  sponsoredGridLabel: { color: '#6b7280', fontWeight: '800', fontSize: 11, letterSpacing: 1.2 },
+  sponsoredGridImageWrapper: { height: 140, borderRadius: 14, overflow: 'hidden' },
+  sponsoredGridImage: { width: '100%', height: '100%' },
+  sponsoredGridTitle: { fontWeight: '800', fontSize: 16 },
+  sponsoredGridDescription: { fontSize: 13, lineHeight: 18 },
+  sponsoredGridCta: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  sponsoredGridCtaText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  adInviteCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 18,
+    gap: 6,
+  },
+  adInviteTitle: { fontWeight: '800', fontSize: 18, textTransform: 'uppercase', letterSpacing: 0.8 },
+  adInviteSubtitle: { fontSize: 13, lineHeight: 18 },
+  loadingMore: { paddingVertical: 16, alignItems: 'center' },
   sectionTitle: { fontWeight: '800', marginBottom: 8 },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E2E8F0', overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -717,18 +851,6 @@ const styles = StyleSheet.create({
   verticalFeedTitleText: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
   verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
   verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
-  cardContent: { paddingHorizontal: 16, paddingVertical: 14 },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
-  cardInfoColumn: { flex: 1, gap: 6 },
-  voteBarTrack: { flexDirection: 'row', flex: 1, height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: '#E5E7EB' },
-  voteBarSegmentA: { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, minWidth: 40 },
-  voteBarSegmentB: { backgroundColor: '#A5B4FC', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, minWidth: 40 },
-  voteChip: { marginLeft: 12, alignItems: 'flex-end', gap: 4 },
-  voteChipBar: { flexDirection: 'row', width: 160, height: 26, borderRadius: 999, overflow: 'hidden', backgroundColor: '#E5E7EB' },
-  voteChipSegmentA: { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
-  voteChipSegmentB: { backgroundColor: '#A5B4FC', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
-  voteChipText: { color: '#ffffff', fontWeight: '700', fontSize: 11 },
-  voteChipHint: { color: '#6b7280', fontSize: 10 },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
 });

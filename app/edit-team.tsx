@@ -239,15 +239,25 @@ export default function EditTeamScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>Description</Text>
+              <Text style={[styles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+                {description.length}/500
+              </Text>
+            </View>
             <TextInput
-              style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
               value={description}
-              onChangeText={setDescription}
+              onChangeText={(text) => {
+                if (text.length <= 500) {
+                  setDescription(text);
+                }
+              }}
               placeholder="Describe your team (optional)"
               placeholderTextColor={Colors[colorScheme].mutedText}
               multiline
               numberOfLines={3}
+              maxLength={500}
             />
           </View>
 
@@ -429,10 +439,19 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8,
+  },
+  charCount: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   textInput: {
     borderWidth: 1,

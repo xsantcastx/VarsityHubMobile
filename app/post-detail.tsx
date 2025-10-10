@@ -234,8 +234,27 @@ export default function PostDetailScreen() {
 
   const onShare = async () => {
     try {
+      let message = post?.title 
+        ? `Check out: ${post.title}` 
+        : 'Check out this sports post';
+      
+      // Add game context if available
+      if (post?.game) {
+        if (post.game.home_team && post.game.away_team) {
+          message += ` - ${post.game.home_team} vs ${post.game.away_team}`;
+        }
+        message += ` on VarsityHub!`;
+      } else {
+        message += ' on VarsityHub!';
+      }
+      
+      // Add author context
+      if (post?.author?.display_name) {
+        message += `\nPosted by ${post.author.display_name}`;
+      }
+      
       await Share.share({
-        message: `Check out this ${post?.title ? post.title : 'sports post'} on VarsityHub!`,
+        message,
         url: `https://varsityhub.com/post/${id}`,
       });
     } catch (error) {
@@ -424,6 +443,33 @@ export default function PostDetailScreen() {
           {/* Content */}
           {post.content && (
             <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{post.content}</Text>
+          )}
+
+          {/* Game/Event Info */}
+          {post.game && (
+            <Pressable 
+              style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              onPress={() => {
+                if (post.game?.id) {
+                  router.push(`/game-detail?id=${post.game.id}`);
+                }
+              }}
+            >
+              <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
+              <View style={styles.gameDetails}>
+                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                  {post.game.title}
+                </Text>
+                {(post.game.home_team || post.game.away_team) && (
+                  <Text style={[styles.gameTeams, { color: Colors[colorScheme].mutedText }]}>
+                    {post.game.home_team && post.game.away_team 
+                      ? `${post.game.home_team} vs ${post.game.away_team}`
+                      : post.game.home_team || post.game.away_team}
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
           )}
 
           {/* Author Info */}
@@ -858,6 +904,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 20,
+  },
+
+  // Game/Event Info
+  gameInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
+  },
+  gameDetails: {
+    flex: 1,
+  },
+  gameTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  gameTeams: {
+    fontSize: 13,
   },
 
   // Author Section

@@ -235,6 +235,7 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     where: { id }, 
     include: { 
       author: { select: { id: true, display_name: true, avatar_url: true } },
+      game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
       _count: { select: { comments: true, bookmarks: true } } 
     } 
   });
@@ -266,6 +267,13 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     caption: post.content ?? null,
     bookmarks_count: post._count?.bookmarks ?? 0,
     comments_count: post._count?.comments ?? 0,
+    game: post.game ? {
+      id: post.game.id,
+      title: post.game.title,
+      home_team: post.game.home_team,
+      away_team: post.game.away_team,
+      date: post.game.date,
+    } : null,
   };
 
   res.json(response);
