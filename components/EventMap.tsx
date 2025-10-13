@@ -5,21 +5,21 @@
  * Supports location-based filtering and current location
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  Alert,
-  Platform,
-} from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE, Region, Callout } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import { useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import MapView, { Callout, Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 
 export interface EventMapData {
   id: string;

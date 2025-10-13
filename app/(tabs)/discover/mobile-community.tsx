@@ -9,9 +9,9 @@ import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game, Post, Team, User } from '@/api/entities';
+import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
-import EventMap, { EventMapData } from '@/components/EventMap';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
@@ -470,9 +470,49 @@ export default function CommunityDiscoverScreen() {
       <Stack.Screen options={{ title: 'Discover' }} />
       
       {viewMode === 'map' ? (
-        /* Map View */
+        /* Map View - Simplified without ListHeader */
         <View style={{ flex: 1 }}>
-          {ListHeader}
+          {/* Just the search and toggle button */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+              <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
+                <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+                <TextInput
+                  placeholder="Search by Zip Code..."
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  value={query}
+                  onChangeText={(v) => {
+                    setQuery(v);
+                    const digits = v.replace(/[^0-9]/g, '');
+                    setZipSuggestionsOpen(digits.length >= 2);
+                  }}
+                  style={styles.searchInput}
+                  returnKeyType="search"
+                  onBlur={() => setZipSuggestionsOpen(false)}
+                />
+              </View>
+
+              {/* Map/List Toggle */}
+              <Pressable
+                onPress={() => {
+                  const newMode = viewMode === 'list' ? 'map' : 'list';
+                  console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+                  console.log('📍 Filtered games count:', filtered.length);
+                  console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+                  setViewMode(newMode);
+                }}
+                style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              >
+                <Ionicons 
+                  name={viewMode === 'list' ? 'map' : 'list'} 
+                  size={24} 
+                  color={Colors[colorScheme].tint} 
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Full Map View */}
           {(() => {
             const eventsWithCoords = filtered.filter(g => g.latitude && g.longitude);
             console.log('🗺️ MAP VIEW RENDERING');
@@ -483,9 +523,14 @@ export default function CommunityDiscoverScreen() {
               lat: eventsWithCoords[0].latitude,
               lng: eventsWithCoords[0].longitude
             } : 'none');
+            
+            // Show ALL games, not just filtered ones
+            const allGamesWithCoords = games.filter(g => g.latitude && g.longitude);
+            console.log('📍 ALL games with coordinates:', allGamesWithCoords.length);
+            
             return (
               <EventMap
-                events={filtered.map((game): EventMapData => ({
+                events={allGamesWithCoords.map((game): EventMapData => ({
                   id: String(game.id),
                   title: String(game.title || 'Game'),
                   date: String(game.date || new Date().toISOString()),

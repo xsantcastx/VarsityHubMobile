@@ -25,10 +25,10 @@ import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
 
 import rateLimit from 'express-rate-limit';
-import { adsRouter } from './routes/ads.js';
-import { paymentsRouter } from './routes/payments.js';
 import adminRouter from './routes/admin.js';
+import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
+import { paymentsRouter } from './routes/payments.js';
 
 const app = express();
 
