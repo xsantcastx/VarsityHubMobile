@@ -1965,6 +1965,11 @@
   dependencies:
     "@babel/types" "^7.28.2"
 
+"@types/geojson@^7946.0.13":
+  version "7946.0.16"
+  resolved "https://registry.npmjs.org/@types/geojson/-/geojson-7946.0.16.tgz"
+  integrity sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==
+
 "@types/graceful-fs@^4.1.3":
   version "4.1.9"
   resolved "https://registry.npmjs.org/@types/graceful-fs/-/graceful-fs-4.1.9.tgz"
@@ -3281,33 +3286,33 @@ expo-crypto@~15.0.7:
     base64-js "^1.3.0"
 
 expo-dev-client@~6.0.13:
-  version "6.0.13"
-  resolved "https://registry.yarnpkg.com/expo-dev-client/-/expo-dev-client-6.0.13.tgz#a3a7da1909781199b9dce9c3a6bd3fbdf4f24370"
-  integrity sha512-zW3uLx4fBk5jhUafxJcrmbCbhcIMN6Vy7ebUTzLWkHuB0uEh2qwI2bJpeHgXCY+9OzA8HGjT8EUsA5sPKEATfA==
+  version "6.0.15"
+  resolved "https://registry.npmjs.org/expo-dev-client/-/expo-dev-client-6.0.15.tgz"
+  integrity sha512-zdpuK7wPp7q01qE90EDQunL49cumGPEKCGDykB86K0myCPZt1lvkpyy4OHTh3urm3pkikWOb9biuVgLdq7oq/g==
   dependencies:
-    expo-dev-launcher "6.0.13"
-    expo-dev-menu "7.0.13"
+    expo-dev-launcher "6.0.15"
+    expo-dev-menu "7.0.14"
     expo-dev-menu-interface "2.0.0"
     expo-manifests "~1.0.8"
     expo-updates-interface "~2.0.0"
 
-expo-dev-launcher@6.0.13:
-  version "6.0.13"
-  resolved "https://registry.yarnpkg.com/expo-dev-launcher/-/expo-dev-launcher-6.0.13.tgz#76b6271e51493991ffde8e2fe664978e0435eb63"
-  integrity sha512-NmUOXKpSN0HaRneY4jeBgLpEYradw/uNHNGYVlE6bPTUXBw2P6cLChGqeclzq/Dj5eHoSCfSOgyFRfvfH1BcfQ==
+expo-dev-launcher@6.0.15:
+  version "6.0.15"
+  resolved "https://registry.npmjs.org/expo-dev-launcher/-/expo-dev-launcher-6.0.15.tgz"
+  integrity sha512-aFRKg9qcq47Y/1UGTPhtOWrbI5jOFgttOfhdBu9knLKl72jGXpDTdBHsHPkCfIezzDrSoZccl482Hv7RvKfrqA==
   dependencies:
-    expo-dev-menu "7.0.13"
+    expo-dev-menu "7.0.14"
     expo-manifests "~1.0.8"
 
 expo-dev-menu-interface@2.0.0:
   version "2.0.0"
-  resolved "https://registry.yarnpkg.com/expo-dev-menu-interface/-/expo-dev-menu-interface-2.0.0.tgz#c0d6db65eb4abc44a2701bc2303744619ad05ca6"
+  resolved "https://registry.npmjs.org/expo-dev-menu-interface/-/expo-dev-menu-interface-2.0.0.tgz"
   integrity sha512-BvAMPt6x+vyXpThsyjjOYyjwfjREV4OOpQkZ0tNl+nGpsPfcY9mc6DRACoWnH9KpLzyIt3BOgh3cuy/h/OxQjw==
 
-expo-dev-menu@7.0.13:
-  version "7.0.13"
-  resolved "https://registry.yarnpkg.com/expo-dev-menu/-/expo-dev-menu-7.0.13.tgz#c15597289df87fc32e259147039bca559a41acb8"
-  integrity sha512-jxT19gqgCCGhi8AhoVTULwEPZK1PaaevLnLRzCo/1fKVM4YaEV0RgJPPuSe4xVloUWYVkCmfn0t32IPBHp2SSA==
+expo-dev-menu@7.0.14:
+  version "7.0.14"
+  resolved "https://registry.npmjs.org/expo-dev-menu/-/expo-dev-menu-7.0.14.tgz"
+  integrity sha512-nWyzSztFWfnhDOiKJ6DuZLjIbq+tG9e5y4TDmW6wYlSKKPBXbdOn2UdxaknhSqZrw6NwWMcjyhS+QG4MoDGD8w==
   dependencies:
     expo-dev-menu-interface "2.0.0"
 
@@ -5407,6 +5412,13 @@ react-native-is-edge-to-edge@^1.1.6, react-native-is-edge-to-edge@^1.2.1:
   version "1.2.1"
   resolved "https://registry.npmjs.org/react-native-is-edge-to-edge/-/react-native-is-edge-to-edge-1.2.1.tgz"
   integrity sha512-FLbPWl/MyYQWz+KwqOZsSyj2JmLKglHatd3xLZWskXOpRaio4LfEDEz8E/A6uD8QoTHW6Aobw1jbEwK7KMgR7Q==
+
+react-native-maps@1.20.1:
+  version "1.20.1"
+  resolved "https://registry.yarnpkg.com/react-native-maps/-/react-native-maps-1.20.1.tgz#f613364886b2f72db56cafcd2bd7d3a35f470dfb"
+  integrity sha512-NZI3B5Z6kxAb8gzb2Wxzu/+P2SlFIg1waHGIpQmazDSCRkNoHNY4g96g+xS0QPSaG/9xRBbDNnd2f2/OW6t6LQ==
+  dependencies:
+    "@types/geojson" "^7946.0.13"
 
 react-native-reanimated@~4.1.1:
   version "4.1.2"
