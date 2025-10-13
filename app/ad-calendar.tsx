@@ -58,6 +58,8 @@ export default function AdCalendarScreen() {
   const [promoError, setPromoError] = useState<string | null>(null);
   const [taxRate, setTaxRate] = useState(0); // Tax rate as decimal
   const [zipCode, setZipCode] = useState<string>('');
+  const [alternatives, setAlternatives] = useState<Array<{ zip: string; distance: number }>>([]);
+  const [showingAlternatives, setShowingAlternatives] = useState(false);
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   React.useEffect(() => {
@@ -149,7 +151,9 @@ export default function AdCalendarScreen() {
     
     // Prevent selection of reserved dates
     if (reserved.has(iso)) {
-      Alert.alert('Date Unavailable', 'This date is already reserved.');
+      // Fetch alternative zip codes
+      fetchAlternativeZips([iso]);
+      Alert.alert('Date Unavailable', 'This date is already reserved. Check below for nearby available zip codes.');
       return;
     }
     
@@ -177,6 +181,36 @@ export default function AdCalendarScreen() {
       setPreview(null);
       setPromoError(e?.message || 'Failed to apply promo');
     } finally { setPromoBusy(false); }
+  };
+
+  const fetchAlternativeZips = async (dates: string[]) => {
+    if (!zipCode || dates.length === 0) return;
+    
+    try {
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      
+      const dateString = dates.join(',');
+      const r = await fetch(`${base.replace(/\/$/, '')}/ads/alternative-zips?zip=${zipCode}&dates=${dateString}`, {
+        method: 'GET',
+        headers,
+      });
+      
+      if (!r.ok) {
+        console.warn('Failed to fetch alternative zips:', r.status);
+        return;
+      }
+      
+      const data = await r.json();
+      if (data?.alternatives && Array.isArray(data.alternatives)) {
+        setAlternatives(data.alternatives);
+        setShowingAlternatives(true);
+      }
+    } catch (e: any) {
+      console.error('Error fetching alternative zips:', e);
+    }
   };
 
   const handlePayment = async () => {
@@ -244,6 +278,68 @@ export default function AdCalendarScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {zipCode && (
+          <View style={[styles.card, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 20 }}>📍</Text>
+              <Text style={[styles.cardTitle, { color: '#1E40AF' }]}>Coverage Area</Text>
+            </View>
+            <Text style={{ color: '#1E40AF', fontSize: 14 }}>
+              Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
+            </Text>
+          </View>
+        )}
+        
+        {showingAlternatives && alternatives.length > 0 && (
+          <View style={[styles.card, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 20 }}>⚠️</Text>
+              <Text style={[styles.cardTitle, { color: '#92400E' }]}>Date Unavailable - Try Nearby Zips</Text>
+            </View>
+            <Text style={{ color: '#92400E', fontSize: 13, marginBottom: 8 }}>
+              The selected date is booked for zip code {zipCode}. Here are nearby alternatives:
+            </Text>
+            {alternatives.map((alt, idx) => (
+              <Pressable
+                key={idx}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 8,
+                  marginBottom: 6,
+                  borderWidth: 1,
+                  borderColor: '#E5E7EB',
+                }}
+                onPress={() => {
+                  Alert.alert(
+                    'Switch to Zip Code?',
+                    `Would you like to create a new ad for zip code ${alt.zip} (${alt.distance} mi away)?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Switch',
+                        onPress: () => {
+                          router.replace(`/submit-ad?zip=${alt.zip}`);
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <View>
+                  <Text style={{ fontWeight: '600', fontSize: 15 }}>{alt.zip}</Text>
+                  <Text style={{ fontSize: 12, color: '#6B7280' }}>{alt.distance} miles away</Text>
+                </View>
+                <Text style={{ color: '#2563EB', fontSize: 13 }}>View →</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Select Ad Campaign Dates</Text>
           <Text style={styles.cardDesc}>Choose one or more dates to run your ad.</Text>
@@ -300,8 +396,11 @@ export default function AdCalendarScreen() {
           {promoError ? <Text style={{ color: '#b91c1c' }}>Not valid: {promoError}</Text> : null}
           {preview?.valid ? (
             <View style={{ marginTop: 8, gap: 4 }}>
-              <Text>Code: {preview.code}</Text>
+              <Text style={{ fontWeight: '600' }}>✅ Promo Applied: {preview.code}</Text>
               <Text>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                ⚠️ Limited offer: First 8 users only
+              </Text>
             </View>
           ) : null}
         </View>

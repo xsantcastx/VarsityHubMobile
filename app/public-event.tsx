@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
       <Stack.Screen options={{ title: 'Public Event' }} />
       <Text style={styles.title}>Public Event</Text>
       <Text style={styles.subtitle}>Mobile implementation coming soon.</Text>

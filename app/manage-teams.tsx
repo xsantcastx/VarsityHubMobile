@@ -1,11 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -31,6 +32,23 @@ export default function ManageTeamsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // Check if user has seen the welcome modal before
+  useEffect(() => {
+    const checkFirstVisit = async () => {
+      try {
+        const hasSeenWelcome = await AsyncStorage.getItem('hasSeenManageTeamsWelcome');
+        if (!hasSeenWelcome) {
+          setShowWelcomeModal(true);
+          await AsyncStorage.setItem('hasSeenManageTeamsWelcome', 'true');
+        }
+      } catch (error) {
+        console.error('Error checking first visit:', error);
+      }
+    };
+    checkFirstVisit();
+  }, []);
 
   const loadTeams = useCallback(async ({ silent = false, searchQuery = '' }: { silent?: boolean; searchQuery?: string } = {}) => {
     if (!silent) setLoading(true);
@@ -167,6 +185,43 @@ export default function ManageTeamsScreen() {
         </View>
       </View>
 
+      {/* Contact Section */}
+      <View style={[styles.contactSection, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+        <View style={styles.contactHeader}>
+          <Ionicons name="mail-outline" size={24} color={Colors[colorScheme].tint} />
+          <Text style={[styles.contactTitle, { color: Colors[colorScheme].text }]}>Contact</Text>
+        </View>
+        <Pressable 
+          style={styles.contactEmailContainer}
+          onPress={() => {
+            // Open email client
+            const email = 'customerservice@varsityhub.app';
+            const mailto = `mailto:${email}`;
+            import('expo-linking').then(Linking => {
+              Linking.default.openURL(mailto).catch(err => console.error('Error opening email:', err));
+            });
+          }}
+        >
+          <Text style={[styles.contactEmail, { color: Colors[colorScheme].tint }]}>
+            customerservice@varsityhub.app
+          </Text>
+        </Pressable>
+        <View style={styles.contactPurposes}>
+          <View style={styles.contactPurposeItem}>
+            <Ionicons name="megaphone-outline" size={16} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.contactPurposeText, { color: Colors[colorScheme].mutedText }]}>
+              Ad acquisitions
+            </Text>
+          </View>
+          <View style={styles.contactPurposeItem}>
+            <Ionicons name="help-circle-outline" size={16} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.contactPurposeText, { color: Colors[colorScheme].mutedText }]}>
+              Customer service
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
@@ -200,8 +255,125 @@ export default function ManageTeamsScreen() {
           <Text style={[styles.title, { color: Colors[colorScheme].text, fontSize: 20, fontWeight: '800' }]}>Manage Teams</Text>
           
         </View>
-        <View style={{ width: 32 }} />
+        <Pressable 
+          style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].tint + '15' }} 
+          onPress={() => setShowWelcomeModal(true)}
+        >
+          <Ionicons name="help-circle-outline" size={24} color={Colors[colorScheme].tint} />
+        </Pressable>
       </View>
+
+      {/* Welcome/How It Works Modal */}
+      <Modal
+        visible={showWelcomeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowWelcomeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}></Text>
+              <Pressable onPress={() => setShowWelcomeModal(false)}>
+                <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
+              </Pressable>
+            </View>
+
+            <Text style={[styles.modalHeading, { color: Colors[colorScheme].text }]}>Create Your League Page</Text>
+            <Text style={[styles.modalSubheading, { color: Colors[colorScheme].mutedText }]}>
+              This is the hub where all your teams will live
+            </Text>
+
+            <View style={[styles.howItWorksBox, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <View style={styles.howItWorksHeader}>
+                <Ionicons name="book-outline" size={20} color={Colors[colorScheme].tint} />
+                <Text style={[styles.howItWorksTitle, { color: Colors[colorScheme].tint }]}>How it Works</Text>
+              </View>
+
+              <View style={styles.hierarchyList}>
+                <View style={styles.hierarchyItem}>
+                  <Ionicons name="trophy" size={18} color="#F59E0B" />
+                  <Text style={[styles.hierarchyText, { color: Colors[colorScheme].text }]}>
+                    <Text style={{ fontWeight: '700' }}>Your League (League Page)</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.hierarchySubList}>
+                  <View style={styles.hierarchyItem}>
+                    <Ionicons name="football" size={16} color={Colors[colorScheme].tint} />
+                    <Text style={[styles.hierarchyText, { color: Colors[colorScheme].text }]}>
+                      <Text style={{ fontWeight: '700' }}>Varsity Football</Text>{' '}
+                      <Text style={[styles.hierarchyLabel, { color: Colors[colorScheme].tint }]}>(Team Page)</Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.hierarchyItem}>
+                    <Ionicons name="basketball" size={16} color="#F59E0B" />
+                    <Text style={[styles.hierarchyText, { color: Colors[colorScheme].text }]}>
+                      <Text style={{ fontWeight: '700' }}>JV Basketball</Text>{' '}
+                      <Text style={[styles.hierarchyLabel, { color: '#F59E0B' }]}>(Team Page)</Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.hierarchyItem}>
+                    <Ionicons name="football" size={16} color="#10B981" />
+                    <Text style={[styles.hierarchyText, { color: Colors[colorScheme].text }]}>
+                      <Text style={{ fontWeight: '700' }}>Girls Soccer</Text>{' '}
+                      <Text style={[styles.hierarchyLabel, { color: '#10B981' }]}>(Team Page)</Text>
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.explanationBox}>
+                <Text style={[styles.explanationText, { color: Colors[colorScheme].text }]}>
+                  <Text style={{ fontWeight: '700' }}>League Page:</Text> Managed by you, displays all programs
+                </Text>
+                <Text style={[styles.explanationText, { color: Colors[colorScheme].text, marginTop: 4 }]}>
+                  <Text style={{ fontWeight: '700' }}>Team Pages:</Text> Managed by Authorized Users you assign
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.examplePreview}>
+              <View style={[styles.exampleHeader, { backgroundColor: Colors[colorScheme].surface }]}>
+                <Image 
+                  source={require('../assets/images/icon.png')} 
+                  style={styles.exampleLogo}
+                  contentFit="cover"
+                />
+                <Text style={[styles.exampleTeamName, { color: Colors[colorScheme].text }]}>the Raiders</Text>
+              </View>
+              
+              <View style={styles.exampleTabs}>
+                <View style={[styles.exampleTab, { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }]}>
+                  <Ionicons name="grid" size={18} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.exampleTabText, { color: Colors[colorScheme].tint }]}>Feed</Text>
+                </View>
+                <View style={styles.exampleTab}>
+                  <Ionicons name="stats-chart" size={18} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.exampleTabText, { color: Colors[colorScheme].mutedText }]}>Highlights</Text>
+                </View>
+                <View style={styles.exampleTab}>
+                  <Ionicons name="globe" size={18} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.exampleTabText, { color: Colors[colorScheme].mutedText }]}>Discover</Text>
+                </View>
+                <View style={styles.exampleTab}>
+                  <Ionicons name="person" size={18} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.exampleTabText, { color: Colors[colorScheme].mutedText }]}>Profile</Text>
+                </View>
+              </View>
+            </View>
+
+            <Pressable 
+              style={[styles.modalButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => setShowWelcomeModal(false)}
+            >
+              <Text style={styles.modalButtonText}>Got it!</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       
       {activeTeams.length === 0 && !loading && !error ? (
         <View style={[styles.emptyStateContainer, { paddingTop: insets.top + 80 }]}>
@@ -608,4 +780,176 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // Welcome Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 500,
+    borderRadius: 20,
+    padding: 24,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    opacity: 0.6,
+  },
+  modalHeading: {
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  modalSubheading: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  howItWorksBox: {
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  howItWorksHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  howItWorksTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  hierarchyList: {
+    marginBottom: 16,
+  },
+  hierarchyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  hierarchySubList: {
+    marginLeft: 20,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: '#E5E7EB',
+  },
+  hierarchyText: {
+    fontSize: 15,
+    lineHeight: 20,
+    flex: 1,
+  },
+  hierarchyLabel: {
+    fontSize: 14,
+  },
+  explanationBox: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  explanationText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  examplePreview: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  exampleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  exampleLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  exampleTeamName: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  exampleTabs: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  exampleTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 6,
+  },
+  exampleTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalButton: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  // Contact Section Styles
+  contactSection: {
+    marginHorizontal: 16,
+    marginVertical: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  contactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  contactTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  contactEmailContainer: {
+    marginBottom: 12,
+  },
+  contactEmail: {
+    fontSize: 16,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  contactPurposes: {
+    gap: 8,
+  },
+  contactPurposeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  contactPurposeText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
 });
+

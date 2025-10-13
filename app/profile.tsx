@@ -118,6 +118,7 @@ export default function ProfileScreen() {
         aspect: [1, 1],
         selectionLimit: 1,
         quality: 0.9,
+        exif: false,
       } as any);
 
       if (pickerResult.canceled) {
@@ -290,7 +291,7 @@ export default function ProfileScreen() {
         />
         
         {/* Settings Button */}
-        <Pressable onPress={() => router.push('/settings/index' as any)} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
+        <Pressable onPress={() => router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
           <Ionicons name="settings-outline" size={20} color="#ffffff" />
         </Pressable>
         

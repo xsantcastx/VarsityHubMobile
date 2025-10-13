@@ -1,7 +1,6 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
-import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';

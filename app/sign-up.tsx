@@ -51,9 +51,8 @@ export default function SignUpScreen() {
         router.replace('/onboarding/step-2-basic');
         return;
       }
-      const userRole = account?.preferences?.role || account?.role || 'fan';
-      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-      router.replace(landingRoute as any);
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {

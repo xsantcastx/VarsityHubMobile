@@ -149,11 +149,13 @@ model Message {
   recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
 
   content    String?
+  read       Boolean  @default(false)
   created_at DateTime @default(now())
 
   @@index([created_at])
   @@index([sender_id, created_at])
   @@index([recipient_id, created_at])
+  @@index([recipient_id, read])
 }
 
 model Comment {

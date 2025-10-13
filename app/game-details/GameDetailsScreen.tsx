@@ -769,7 +769,8 @@ const GameDetailsScreen = () => {
               const pickerOptions: any = {
                 quality: 0.9,
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
-                allowsEditing: true,
+                allowsEditing: false,
+                exif: false,
               };
               const result = await ImagePicker.launchCameraAsync(pickerOptions);
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
@@ -803,7 +804,8 @@ const GameDetailsScreen = () => {
               const pickerOptions: any = {
                 quality: 0.9,
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
-                allowsEditing: true,
+                allowsEditing: false,
+                exif: false,
               };
               const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
@@ -1277,46 +1279,6 @@ const renderVoteSection = () => {
           {heroBanner}
     {/* Shade the banner less when this is a hero image so logos are visible */}
     <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
-
-        {/* Team Logos Overlay (kept for cases where only one team has a logo) */}
-        {(!leftLogo || !rightLogo) && (vm?.homeTeam || vm?.awayTeam) && (
-          <View style={styles.teamLogosOverlay}>
-            <View style={styles.teamMatchup}>
-              {/* Home Team Logo */}
-              <View style={styles.teamSideInBanner}>
-                <View style={styles.teamLogoInBanner}>
-                  {getTeamLogo(vm?.homeTeam || '') ? (
-                    <Image 
-                      source={{ uri: getTeamLogo(vm?.homeTeam || '') }} 
-                      style={styles.teamLogoImage}
-                    />
-                  ) : (
-                    <Text style={styles.teamLogoEmojiInBanner}>🏠</Text>
-                  )}
-                </View>
-              </View>
-              {/* VS Divider */}
-              <View style={styles.vsDividerInBanner}>
-                <View style={styles.vsCircleInBanner}>
-                  <Text style={styles.vsTextInBanner}>VS</Text>
-                </View>
-              </View>
-              {/* Away Team Logo */}
-              <View style={styles.teamSideInBanner}>
-                <View style={styles.teamLogoInBanner}>
-                  {getTeamLogo(vm?.awayTeam || '') ? (
-                    <Image 
-                      source={{ uri: getTeamLogo(vm?.awayTeam || '') }} 
-                      style={styles.teamLogoImage}
-                    />
-                  ) : (
-                    <Text style={styles.teamLogoEmojiInBanner}>✈️</Text>
-                  )}
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
           <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.circleButton}>
@@ -1482,7 +1444,7 @@ const renderVoteSection = () => {
       <Stack.Screen options={{ headerShown: false }} />
       
       <Animated.View
-        style={[styles.headerWrap, { transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
+        style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;
           if (h && Math.abs(h - headerH) > 1) setHeaderH(h);
@@ -1503,7 +1465,7 @@ const renderVoteSection = () => {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: feedY } } }], { useNativeDriver: true, listener: handleScroll })}
         scrollEventThrottle={16}
       >
-        <View style={{ height: headerH }} />
+        <View style={{ height: headerH + 32 }} />
         <View style={styles.content}>
           {loading && !refreshing ? (
             <View style={styles.loadingBox}>
@@ -2136,7 +2098,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 16 },
+  content: { paddingHorizontal: 16, paddingTop: 24 },
   loadingBox: { paddingVertical: 24, alignItems: 'center' },
   errorBox: {
     padding: 16,

@@ -1,12 +1,13 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     Platform,
@@ -109,7 +110,10 @@ const HighlightCard = ({
   nationalTop = [],
   ranked = [],
   userLocation,
-  onPress, 
+  onPress,
+  onAuthorPress,
+  onTeamPress,
+  onEventPress,
   colorScheme 
 }: { 
   item: HighlightItem; 
@@ -118,7 +122,10 @@ const HighlightCard = ({
   nationalTop?: HighlightItem[];
   ranked?: HighlightItem[];
   userLocation?: { lat: number; lng: number };
-  onPress: (item: HighlightItem) => void; 
+  onPress: (item: HighlightItem) => void;
+  onAuthorPress?: (authorId: string) => void;
+  onTeamPress?: (teamId: string) => void;
+  onEventPress?: (eventId: string) => void;
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
@@ -135,7 +142,7 @@ const HighlightCard = ({
         <View style={styles.mediaSection}>
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <Image source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>
@@ -193,10 +200,18 @@ const HighlightCard = ({
           </Text>
 
           {/* Author & Time */}
-          <View style={styles.authorRow}>
+          <Pressable 
+            style={styles.authorRow}
+            onPress={(e) => {
+              e.stopPropagation();
+              if (item.author_id && onAuthorPress) {
+                onAuthorPress(item.author_id);
+              }
+            }}
+          >
             <View style={styles.authorInfo}>
               {item.author?.avatar_url ? (
-                <Image source={{ uri: item.author.avatar_url }} style={styles.authorAvatar} />
+                <ExpoImage source={{ uri: item.author.avatar_url }} style={styles.authorAvatar} />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={12} color="#fff" />
@@ -205,22 +220,50 @@ const HighlightCard = ({
               <Text style={[styles.authorName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
                 {item.author?.display_name || 'Anonymous'}
               </Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
             </View>
             <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
-          </View>
+          </Pressable>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
-            <View style={styles.stat}>
-              <Ionicons name="arrow-up" size={16} color="#2563EB" />
-              <Text style={styles.statText}>{formatCount(item.upvotes_count || 0)}</Text>
-            </View>
-            <View style={styles.stat}>
-              <Ionicons name="chatbubble-outline" size={16} color="#6B7280" />
-              <Text style={styles.statText}>{formatCount(item._count?.comments || 0)}</Text>
-            </View>
+            <Pressable 
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                // Handle upvote action
+                Alert.alert('Upvote', 'Feature coming soon!');
+              }}
+            >
+              <Ionicons name="arrow-up" size={18} color="#2563EB" />
+              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onPress(item); // Navigate to post detail to see comments
+              }}
+            >
+              <Ionicons name="chatbubble" size={16} color="#6B7280" />
+              <Text style={[styles.statText, { fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+            </Pressable>
+            
+            <Pressable 
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                // Handle share action
+                Alert.alert('Share', 'Share this highlight!');
+              }}
+            >
+              <Ionicons name="share-outline" size={16} color="#10B981" />
+              <Text style={[styles.statText, { fontWeight: '600' }]}>Share</Text>
+            </Pressable>
+            
             {item._score && (
-              <View style={styles.stat}>
+              <View style={[styles.actionButton, { opacity: 0.7 }]}>
                 <Ionicons name="trending-up" size={16} color="#10B981" />
                 <Text style={styles.statText}>{Math.round(item._score)}</Text>
               </View>
@@ -323,6 +366,21 @@ export default function HighlightsScreen() {
     router.push(`/post-detail?id=${item.id}`);
   }, [router]);
 
+  const handleAuthorPress = useCallback((authorId: string) => {
+    // Navigate to user profile
+    router.push(`/user-profile?id=${authorId}`);
+  }, [router]);
+
+  const handleTeamPress = useCallback((teamId: string) => {
+    // Navigate to team page
+    router.push(`/team-profile?id=${teamId}`);
+  }, [router]);
+
+  const handleEventPress = useCallback((eventId: string) => {
+    // Navigate to event page
+    router.push(`/event-detail?id=${eventId}`);
+  }, [router]);
+
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
     
@@ -354,25 +412,51 @@ export default function HighlightsScreen() {
     
     switch (activeTab) {
       case 'trending':
-        // Sort by score (if available) or upvotes + recency
+        // TRENDING: Top 3 posts with highest engagement, then rest sorted by algorithm
         filtered.sort((a, b) => {
-          if (a._score && b._score) return b._score - a._score;
-          const aScore = (a.upvotes_count || 0) + (new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 10 : 0);
-          const bScore = (b.upvotes_count || 0) + (new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 10 : 0);
+          // Calculate engagement score (upvotes + comments * 2)
+          const aEngagement = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 2);
+          const bEngagement = (b.upvotes_count || 0) + ((b._count?.comments || 0) * 2);
+          
+          // If scores exist, use them; otherwise use engagement
+          const aScore = a._score || aEngagement;
+          const bScore = b._score || bEngagement;
+          
           return bScore - aScore;
         });
-        // Pin top 3 to the beginning
+        
+        // Top 3 are pinned, rest follow algorithm
         const top3 = filtered.slice(0, 3);
         const rest = filtered.slice(3);
+        
+        // Sort rest by recency boost + engagement
+        rest.sort((a, b) => {
+          const aRecency = new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
+          const bRecency = new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
+          const aTotal = (a._score || 0) + aRecency;
+          const bTotal = (b._score || 0) + bRecency;
+          return bTotal - aTotal;
+        });
+        
         return [...top3, ...rest];
+        
       case 'recent':
-        // Sort by creation time (newest nationwide)
-        filtered.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+        // RECENT: Most recent posts nationwide, pure chronological
+        filtered.sort((a, b) => {
+          const aTime = new Date(a.created_at || 0).getTime();
+          const bTime = new Date(b.created_at || 0).getTime();
+          return bTime - aTime; // Newest first
+        });
         break;
+        
       case 'top':
-        // Sort by upvotes only and limit to top 10
-        filtered.sort((a, b) => (b.upvotes_count || 0) - (a.upvotes_count || 0));
-        return filtered.slice(0, 10); // Top 10 most engaged posts
+        // TOP: Top 10 posts with most interaction (upvotes + comments)
+        filtered.sort((a, b) => {
+          const aInteraction = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 1.5);
+          const bInteraction = (b.upvotes_count || 0) + ((b._count?.comments || 0) * 1.5);
+          return bInteraction - aInteraction;
+        });
+        return filtered.slice(0, 10); // Top 10 only
     }
     
     return filtered;
@@ -386,7 +470,10 @@ export default function HighlightsScreen() {
       nationalTop={nationalTop}
       ranked={ranked}
       userLocation={userLocation}
-      onPress={handleHighlightPress} 
+      onPress={handleHighlightPress}
+      onAuthorPress={handleAuthorPress}
+      onTeamPress={handleTeamPress}
+      onEventPress={handleEventPress}
       colorScheme={colorScheme} 
     />
   );
@@ -433,10 +520,6 @@ export default function HighlightsScreen() {
       <View style={[styles.header, { paddingTop: statusBarHeight, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
-          <View style={styles.headerStats}>
-            <Ionicons name="trophy" size={16} color="#FFB800" />
-            <Text style={styles.headerStatsText}>{filteredHighlights.length} highlights</Text>
-          </View>
         </View>
         
         {/* Search Bar */}
@@ -823,12 +906,32 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
+    alignItems: 'center',
   },
   stat: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   statText: {
     fontSize: 12,

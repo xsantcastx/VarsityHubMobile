@@ -2,8 +2,8 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
-import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
+import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
