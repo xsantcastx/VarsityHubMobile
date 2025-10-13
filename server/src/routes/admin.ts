@@ -1,11 +1,11 @@
 import express from 'express';
-import { requireVerified } from '../middleware/requireVerified.js';
 import { prisma } from '../lib/prisma.js';
-import { 
-  getAllTransactions, 
-  getTransactionBySession, 
-  getTransactionSummary 
+import {
+    getAllTransactions,
+    getTransactionBySession,
+    getTransactionSummary
 } from '../lib/transactionLogger.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 const adminRouter = express.Router();
 

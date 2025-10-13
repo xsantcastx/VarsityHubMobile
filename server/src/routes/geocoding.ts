@@ -5,18 +5,18 @@
  */
 
 import express from 'express';
+import {
+    clearGeocodeCache,
+    geocodeAllEvents,
+    geocodeAllGames,
+    geocodeEvent,
+    geocodeGame,
+    geocodeLocation,
+    getCacheStats,
+} from '../lib/geocoding.js';
+import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { prisma } from '../lib/prisma.js';
-import {
-  geocodeLocation,
-  geocodeGame,
-  geocodeEvent,
-  geocodeAllGames,
-  geocodeAllEvents,
-  getCacheStats,
-  clearGeocodeCache,
-} from '../lib/geocoding.js';
 
 const router = express.Router();
 

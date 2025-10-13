@@ -2,9 +2,9 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
+import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { logTransaction, updateTransactionStatus, calculateStripeFee } from '../lib/transactionLogger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
