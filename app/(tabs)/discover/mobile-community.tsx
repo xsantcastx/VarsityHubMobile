@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Game, Post, Team, User } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
+import EventMap, { EventMapData } from '@/components/EventMap';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null };
@@ -85,6 +86,7 @@ export default function CommunityDiscoverScreen() {
   const [discoverPosts, setDiscoverPosts] = useState<any[]>([]);
   const [tab, setTab] = useState<'discover' | 'following'>('discover');
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -268,21 +270,35 @@ export default function CommunityDiscoverScreen() {
         </View>
       )}
 
-      <View style={[styles.searchBox, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
-        <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
-        <TextInput
-          placeholder="Search by Zip Code..."
-          placeholderTextColor={Colors[colorScheme].mutedText}
-          value={query}
-          onChangeText={(v) => {
-            setQuery(v);
-            const digits = v.replace(/[^0-9]/g, '');
-            setZipSuggestionsOpen(digits.length >= 2);
-          }}
-          style={styles.searchInput}
-          returnKeyType="search"
-          onBlur={() => setZipSuggestionsOpen(false)}
-        />
+      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+        <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
+          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <TextInput
+            placeholder="Search by Zip Code..."
+            placeholderTextColor={Colors[colorScheme].mutedText}
+            value={query}
+            onChangeText={(v) => {
+              setQuery(v);
+              const digits = v.replace(/[^0-9]/g, '');
+              setZipSuggestionsOpen(digits.length >= 2);
+            }}
+            style={styles.searchInput}
+            returnKeyType="search"
+            onBlur={() => setZipSuggestionsOpen(false)}
+          />
+        </View>
+
+        {/* Map/List Toggle */}
+        <Pressable
+          onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+          style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+        >
+          <Ionicons 
+            name={viewMode === 'list' ? 'map' : 'list'} 
+            size={24} 
+            color={Colors[colorScheme].tint} 
+          />
+        </Pressable>
       </View>
 
       {shouldShowZipSuggestions ? (
@@ -446,48 +462,73 @@ export default function CommunityDiscoverScreen() {
   return (
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>      
       <Stack.Screen options={{ title: 'Discover' }} />
-      <FlatList
-        style={{ flex: 1 }}
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={ListHeader}
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
-          >
-            <View style={styles.hero}>
-              {(() => {
-                const banner = item.cover_image_url || (item as any).banner_url || null;
-                return banner ? (
-                  <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
-                ) : (
-                  <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                );
-              })()}
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
-              <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
-              {(() => {
-                const labels = deriveTeamLabels(item);
-                return (
-                  <View style={styles.teamRow}>
-                    <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
-                    <Text style={styles.vsText}>vs</Text>
-                    <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
-                  </View>
-                );
-              })()}
-            </View>
-          </Pressable>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        keyboardShouldPersistTaps="handled"
-      />
+      
+      {viewMode === 'map' ? (
+        /* Map View */
+        <View style={{ flex: 1 }}>
+          {ListHeader}
+          <EventMap
+            events={filtered.map((game): EventMapData => ({
+              id: String(game.id),
+              title: String(game.title || 'Game'),
+              date: String(game.date || new Date().toISOString()),
+              location: String(game.location || ''),
+              // Note: Games don't have lat/long in schema yet
+              // This will show "No Events with Locations" until geocoding is added
+              type: 'game',
+            }))}
+            onEventPress={(eventId) => {
+              router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: eventId } });
+            }}
+            showUserLocation={true}
+          />
+        </View>
+      ) : (
+        /* List View */
+        <FlatList
+          style={{ flex: 1 }}
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          ListHeaderComponent={ListHeader}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+            >
+              <View style={styles.hero}>
+                {(() => {
+                  const banner = item.cover_image_url || (item as any).banner_url || null;
+                  return banner ? (
+                    <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  );
+                })()}
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
+                <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
+                {(() => {
+                  const labels = deriveTeamLabels(item);
+                  return (
+                    <View style={styles.teamRow}>
+                      <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
+                      <Text style={styles.vsText}>vs</Text>
+                      <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
+                    </View>
+                  );
+                })()}
+              </View>
+            </Pressable>
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
+
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen
           onClose={() => setViewerOpen(false)}
@@ -511,6 +552,7 @@ const styles = StyleSheet.create({
   error: { color: '#b91c1c', marginBottom: 8 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
+  viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },

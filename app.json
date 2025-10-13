@@ -22,9 +22,13 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
         "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
-        "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile."
+        "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
+        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
       },
-      "bundleIdentifier": "com.xsantcastx.varsityhub"
+      "bundleIdentifier": "com.xsantcastx.varsityhub",
+      "config": {
+        "googleMapsApiKey": ""
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -37,9 +41,16 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ],
-      "package": "com.xsantcastx.varsityhub"
+      "package": "com.xsantcastx.varsityhub",
+      "config": {
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
     "web": {
       "bundler": "metro",
