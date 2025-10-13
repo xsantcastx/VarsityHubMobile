@@ -68,6 +68,7 @@ export default function EditTeamScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      exif: false,
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -87,6 +88,7 @@ export default function EditTeamScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      exif: false,
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {

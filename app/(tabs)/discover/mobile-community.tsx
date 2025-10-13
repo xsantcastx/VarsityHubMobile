@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Game, Post, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
+import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
@@ -87,6 +88,7 @@ export default function CommunityDiscoverScreen() {
   const [tab, setTab] = useState<'discover' | 'following'>('discover');
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [selectedDate, setSelectedDate] = useState<string>('');
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -233,6 +235,84 @@ export default function CommunityDiscoverScreen() {
 
   const ListHeader = (
     <View>
+      {/* Search Bar - At the very top */}
+      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+        <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <TextInput
+            placeholder="Search by keyword or Zip Code..."
+            placeholderTextColor={Colors[colorScheme].mutedText}
+            value={query}
+            onChangeText={(v) => {
+              setQuery(v);
+              const digits = v.replace(/[^0-9]/g, '');
+              setZipSuggestionsOpen(digits.length >= 2);
+            }}
+            style={styles.searchInput}
+            returnKeyType="search"
+            onBlur={() => setZipSuggestionsOpen(false)}
+          />
+        </View>
+
+        {/* Map/List Toggle */}
+        <Pressable
+          onPress={() => {
+            const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
+            console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+            console.log('📍 Filtered games count:', filtered.length);
+            console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+            setViewMode(newMode);
+          }}
+          style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+        >
+          <Ionicons 
+            name={viewMode === 'list' ? 'map' : 'list'} 
+            size={24} 
+            color={Colors[colorScheme].tint} 
+          />
+        </Pressable>
+      </View>
+
+      {shouldShowZipSuggestions ? (
+        <View style={[styles.zipSuggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }] }>
+          {zipSuggestions.map((entry) => (
+            <Pressable
+              key={entry.zip}
+              style={styles.zipSuggestionItem}
+              onPress={() => { setQuery(entry.zip); setZipSuggestionsOpen(false); }}
+            >
+              <Text style={[styles.zipSuggestionZip, { color: Colors[colorScheme].text }]}>{entry.zip}</Text>
+              <Text style={[styles.zipSuggestionCount, { color: Colors[colorScheme].mutedText }]}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Calendar - Right below search */}
+      <View style={styles.calendarSection}>
+        <Calendar
+          onDayPress={(day) => setSelectedDate(day.dateString)}
+          markedDates={{
+            [selectedDate]: { selected: true, selectedColor: Colors[colorScheme].tint }
+          }}
+          theme={{
+            backgroundColor: Colors[colorScheme].background,
+            calendarBackground: Colors[colorScheme].background,
+            textSectionTitleColor: Colors[colorScheme].text,
+            selectedDayBackgroundColor: Colors[colorScheme].tint,
+            selectedDayTextColor: Colors[colorScheme].background,
+            todayTextColor: Colors[colorScheme].tint,
+            dayTextColor: Colors[colorScheme].text,
+            textDisabledColor: Colors[colorScheme].mutedText,
+            arrowColor: Colors[colorScheme].tint,
+            monthTextColor: Colors[colorScheme].text,
+            textDayFontWeight: '500',
+            textMonthFontWeight: '800',
+            textDayHeaderFontWeight: '600',
+          }}
+        />
+      </View>
+
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
 
       {/* Coach Dashboard Section */}
@@ -269,58 +349,6 @@ export default function CommunityDiscoverScreen() {
           </ScrollView>
         </View>
       )}
-
-      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
-        <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
-          <TextInput
-            placeholder="Search by Zip Code..."
-            placeholderTextColor={Colors[colorScheme].mutedText}
-            value={query}
-            onChangeText={(v) => {
-              setQuery(v);
-              const digits = v.replace(/[^0-9]/g, '');
-              setZipSuggestionsOpen(digits.length >= 2);
-            }}
-            style={styles.searchInput}
-            returnKeyType="search"
-            onBlur={() => setZipSuggestionsOpen(false)}
-          />
-        </View>
-
-        {/* Map/List Toggle */}
-        <Pressable
-          onPress={() => {
-            const newMode = viewMode === 'list' ? 'map' : 'list';
-            console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
-            console.log('📍 Filtered games count:', filtered.length);
-            console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
-            setViewMode(newMode);
-          }}
-          style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-        >
-          <Ionicons 
-            name={viewMode === 'list' ? 'map' : 'list'} 
-            size={24} 
-            color={Colors[colorScheme].tint} 
-          />
-        </Pressable>
-      </View>
-
-      {shouldShowZipSuggestions ? (
-        <View style={[styles.zipSuggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }] }>
-          {zipSuggestions.map((entry) => (
-            <Pressable
-              key={entry.zip}
-              style={styles.zipSuggestionItem}
-              onPress={() => { setQuery(entry.zip); setZipSuggestionsOpen(false); }}
-            >
-              <Text style={[styles.zipSuggestionZip, { color: Colors[colorScheme].text }]}>{entry.zip}</Text>
-              <Text style={[styles.zipSuggestionCount, { color: Colors[colorScheme].mutedText }]}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
 
       {me && me._count?.following ? (
         <View style={[styles.followingCard, { backgroundColor: '#1e3a8a22', borderColor: '#1e3a8a55' }]}>
@@ -499,7 +527,7 @@ export default function CommunityDiscoverScreen() {
                   console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
                   console.log('📍 Filtered games count:', filtered.length);
                   console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
-                  setViewMode(newMode);
+                  setViewMode(newMode as 'list' | 'map');
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               >
@@ -614,6 +642,11 @@ const styles = StyleSheet.create({
   mutedSmall: { color: '#6b7280', marginBottom: 10, fontSize: 12 },
   sectionTitle: { fontWeight: '800', marginTop: 8 },
   error: { color: '#b91c1c', marginBottom: 8 },
+  calendarSection: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
   viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },

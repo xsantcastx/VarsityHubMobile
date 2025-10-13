@@ -270,6 +270,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
+        exif: false,
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -293,6 +294,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
+        exif: false,
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {

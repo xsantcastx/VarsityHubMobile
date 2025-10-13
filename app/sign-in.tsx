@@ -2,16 +2,15 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme
 } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -43,15 +42,11 @@ export default function SignInScreen() {
       const res: any = await User.loginViaEmailPassword(email, password);
       if (res?.access_token) {
         if (res?.needs_verification) {
-          Alert.alert('Verify Email', 'Please verify your email to continue.');
+          // Navigate directly to email verification (no alert)
           router.replace('/verify-email');
         } else {
-          Alert.alert('Signed in', 'Welcome back!');
-          // Role-aware landing - Fan→Highlights, Coach→Manage Teams
-          const me: any = await User.me();
-          const userRole = me?.preferences?.role || me?.role || 'fan';
-          const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-          router.replace(landingRoute as any);
+          // Successful sign-in - everyone lands on feed
+          router.replace('/(tabs)/feed' as any);
         }
       } else {
         setError('Invalid login response');
@@ -78,9 +73,8 @@ export default function SignInScreen() {
         router.replace('/onboarding/step-2-basic');
         return;
       }
-      const userRole = account?.preferences?.role || account?.role || 'fan';
-      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-      router.replace(landingRoute as any);
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {

@@ -253,13 +253,42 @@ export default function PostDetailScreen() {
         message += `\nPosted by ${post.author.display_name}`;
       }
       
+      // Add URL
+      const shareUrl = `https://varsityhub.com/post/${id}`;
+      message += `\n\n${shareUrl}`;
+      
       await Share.share({
         message,
-        url: `https://varsityhub.com/post/${id}`,
+        url: shareUrl,
+        title: post?.title || 'VarsityHub Post',
       });
     } catch (error) {
       console.log('Error sharing:', error);
     }
+  };
+
+  const onSendToFriend = () => {
+    // Navigate to messages/DM with pre-filled post link
+    Alert.alert(
+      'Send to Friend',
+      'Choose how to send this post',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Via VarsityHub DM',
+          onPress: () => {
+            router.push(`/messages?sharePost=${id}`);
+          }
+        },
+        {
+          text: 'Share Externally',
+          onPress: onShare
+        }
+      ]
+    );
   };
 
   const onFollow = async () => {
@@ -381,9 +410,14 @@ export default function PostDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
-        <Pressable style={styles.shareButton} onPress={onShare}>
-          <Ionicons name="share-outline" size={24} color={Colors[colorScheme].text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
+            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Pressable style={styles.headerActionButton} onPress={onShare}>
+            <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
@@ -465,6 +499,32 @@ export default function PostDetailScreen() {
                     {post.game.home_team && post.game.away_team 
                       ? `${post.game.home_team} vs ${post.game.away_team}`
                       : post.game.home_team || post.game.away_team}
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          )}
+
+          {/* Team Links */}
+          {(post.team_id || post.team) && (
+            <Pressable 
+              style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              onPress={() => {
+                const teamId = post.team_id || post.team?.id;
+                if (teamId) {
+                  router.push(`/team-profile?id=${teamId}`);
+                }
+              }}
+            >
+              <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
+              <View style={styles.teamDetails}>
+                <Text style={[styles.teamTitle, { color: Colors[colorScheme].text }]}>
+                  {post.team?.name || 'Team'}
+                </Text>
+                {post.team?.sport && (
+                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}>
+                    {post.team.sport}
                   </Text>
                 )}
               </View>
@@ -570,6 +630,53 @@ export default function PostDetailScreen() {
               </Pressable>
             </View>
           </View>
+
+          {/* Quick Links */}
+          {(post.game?.id || post.team_id || post.team?.id || post.author_id) && (
+            <View style={[styles.quickLinks, { borderTopColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.quickLinksTitle, { color: Colors[colorScheme].text }]}>
+                Quick Links
+              </Text>
+              <View style={styles.quickLinksRow}>
+                {post.game?.id && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => router.push(`/game-detail?id=${post.game.id}`)}
+                  >
+                    <Ionicons name="basketball" size={18} color="#2563EB" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Event
+                    </Text>
+                  </Pressable>
+                )}
+                {(post.team_id || post.team?.id) && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => {
+                      const teamId = post.team_id || post.team?.id;
+                      if (teamId) router.push(`/team-profile?id=${teamId}`);
+                    }}
+                  >
+                    <Ionicons name="people" size={18} color="#10B981" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Team
+                    </Text>
+                  </Pressable>
+                )}
+                {post.author_id && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => router.push(`/user-profile?id=${post.author_id}`)}
+                  >
+                    <Ionicons name="person" size={18} color="#8B5CF6" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Profile
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Comments Section */}
@@ -780,6 +887,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerActionButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
   shareButton: {
     padding: 8,
     borderRadius: 8,
@@ -928,6 +1043,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  // Team Info
+  teamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
+  },
+  teamDetails: {
+    flex: 1,
+  },
+  teamTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  teamSport: {
+    fontSize: 13,
+  },
+
   // Author Section
   authorSection: {
     flexDirection: 'row',
@@ -1032,6 +1169,47 @@ const styles = StyleSheet.create({
   actionTextActive: {
     color: '#fff',
     fontWeight: '700',
+  },
+
+  // Quick Links
+  quickLinks: {
+    paddingTop: 20,
+    marginTop: 20,
+    borderTopWidth: 1,
+  },
+  quickLinksTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  quickLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  quickLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   // Comments Section

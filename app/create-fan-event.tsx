@@ -1,10 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CreateFanEventScreen() {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
       <Stack.Screen options={{ title: 'Create Fan Event' }} />
       <Text style={styles.title}>Create Fan Event</Text>
       <Text style={styles.subtitle}>Mobile implementation coming soon.</Text>

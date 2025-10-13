@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -218,4 +219,120 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
   const price = (hasWeekday ? 10 : 0) + (hasWeekend ? 17.5 : 0);
 
   return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price });
+});
+
+/**
+ * GET /ads/alternative-zips?zip=12345&dates=2025-01-15,2025-01-16
+ * 
+ * Find alternative zip codes within 50 miles when the requested zip is fully booked.
+ * Returns nearby zips with availability for the requested dates, sorted by distance.
+ */
+adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
+  const { zip, dates } = req.query;
+  
+  if (!zip || !dates) {
+    return res.status(400).json({ error: 'Missing required params: zip, dates' });
+  }
+  
+  const zipCode = String(zip);
+  const dateList = String(dates).split(',').map(d => d.trim());
+  
+  // Get coordinates for the requested zip
+  const originCoords = getZipCoordinates(zipCode);
+  if (!originCoords) {
+    return res.status(400).json({ error: 'Invalid zip code or coordinates not found' });
+  }
+  
+  // Get all ads within approximate range (we'll use all ads for simplicity, 
+  // but in production you'd want to filter by geographic bounds first)
+  const allAds = await prisma.ad.findMany({
+    where: {
+      status: { in: ['draft', 'active'] },
+    },
+    select: {
+      id: true,
+      target_zip_code: true,
+    },
+  });
+  
+  // Calculate distances and group by zip code
+  const zipDistances: Map<string, number> = new Map();
+  
+  for (const ad of allAds) {
+    if (!ad.target_zip_code) continue; // Skip ads without zip codes
+    if (ad.target_zip_code === zipCode) continue; // Skip the original zip
+    if (zipDistances.has(ad.target_zip_code)) continue; // Already calculated
+    
+    const adCoords = getZipCoordinates(ad.target_zip_code);
+    if (!adCoords) continue;
+    
+    const distance = haversineDistance(
+      originCoords.lat,
+      originCoords.lon,
+      adCoords.lat,
+      adCoords.lon
+    );
+    
+    // Only consider zips within 50 miles
+    if (distance <= 50) {
+      zipDistances.set(ad.target_zip_code, distance);
+    }
+  }
+  
+  // Check availability for each nearby zip
+  const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
+  
+  for (const [nearbyZip, distance] of zipDistances.entries()) {
+    // Find ads in this zip code
+    const adsInZip = await prisma.ad.findMany({
+      where: {
+        target_zip_code: nearbyZip,
+        status: { in: ['draft', 'active'] },
+      },
+      include: {
+        reservations: {
+          where: {
+            date: {
+              in: dateList.map(d => new Date(d + 'T00:00:00.000Z')),
+            },
+          },
+        },
+      },
+    });
+    
+    // Check if ALL requested dates are available (no ads fully booked for all dates)
+    let hasAvailability = false;
+    
+    for (const ad of adsInZip) {
+      const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
+      const allDatesBooked = dateList.every(date => bookedDates.has(date));
+      
+      if (!allDatesBooked) {
+        hasAvailability = true;
+        break;
+      }
+    }
+    
+    // If no ads exist in this zip, it's available
+    if (adsInZip.length === 0) {
+      hasAvailability = true;
+    }
+    
+    alternatives.push({
+      zip: nearbyZip,
+      distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+      available: hasAvailability,
+    });
+  }
+  
+  // Sort by distance and filter to available only
+  const availableAlternatives = alternatives
+    .filter(a => a.available)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 5); // Return top 5 closest alternatives
+  
+  return res.json({
+    requested_zip: zipCode,
+    alternatives: availableAlternatives,
+  });
 });

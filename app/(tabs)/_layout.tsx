@@ -72,6 +72,7 @@ export default function TabLayout() {
       />
   {/* Hidden screens within (tabs) that should not appear as tabs */}
   <Tabs.Screen name="notifications/index" options={hiddenTab} />
+  <Tabs.Screen name="messages/index" options={hiddenTab} />
   {/* Hide nested game routes under Feed */}
   <Tabs.Screen name="feed/game/[id]" options={hiddenTab} />
   <Tabs.Screen name="feed/game/index" options={hiddenTab} />

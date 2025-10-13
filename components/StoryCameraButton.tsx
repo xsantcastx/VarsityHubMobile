@@ -77,8 +77,9 @@ export function StoryCameraButton({
       // Launch camera (not gallery)
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: true,
-        quality: 1,
+        allowsEditing: false,
+        quality: 0.9,
+        exif: false,
         videoMaxDuration: 60, // 60 second max for Stories
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.High,
       });

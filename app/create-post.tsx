@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, Image as RNImage, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     runOnJS,
@@ -157,7 +157,9 @@ export default function CreatePostScreen() {
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
       ...(pickerMediaTypeFor(media)),
+      allowsEditing: false,
       quality: media === 'image' ? 0.85 : undefined,
+      exif: false,
       videoMaxDuration: 30,
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
@@ -213,7 +215,9 @@ export default function CreatePostScreen() {
     }
     const r = await ImagePicker.launchCameraAsync({
       ...(pickerMediaTypeFor(media)),
+      allowsEditing: false,
       quality: media === 'image' ? 0.85 : undefined,
+      exif: false,
       videoMaxDuration: 30,
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {

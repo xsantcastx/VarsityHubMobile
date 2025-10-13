@@ -13,6 +13,7 @@ type DraftAd = {
   contact_email: string;
   banner_url?: string;
   banner_fit_mode?: string;
+  target_url?: string;
   zip_code: string;
   description?: string;
   created_at: string;
@@ -31,9 +32,12 @@ export default function SubmitAdScreen() {
   const [busy, setBusy] = useState(false);
 
   const canSubmit = useMemo(() => {
+    // All fields mandatory except target URL
     if (!name.trim() || !email.trim() || !business.trim() || !zip.trim()) return false;
+    if (!bannerUrl) return false; // Banner is mandatory
+    if (!desc.trim()) return false; // Description is mandatory
     return true;
-  }, [name, email, business, zip]);
+  }, [name, email, business, zip, bannerUrl, desc]);
 
   const handleBannerChange = (uri: string, fitMode: 'letterbox' | 'fill' | 'stretch') => {
     setBannerUrl(uri);
@@ -109,14 +113,16 @@ export default function SubmitAdScreen() {
 
           <Text style={styles.label}>Target Zip Code *</Text>
           <TextInput value={zip} onChangeText={setZip} placeholder="12345" style={styles.input} keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} maxLength={10} />
+          {zip.trim() && <Text style={styles.helperText}>📍 Your ad will reach 20 miles around zip code {zip}</Text>}
 
-          <Text style={styles.label}>Ad Banner (Optional)</Text>
+          <Text style={styles.label}>Ad Banner *</Text>
           <BannerUpload 
             value={bannerUrl || ''} 
             onChange={handleBannerChange}
             aspectRatio={16 / 9}
-            required={false}
+            required={true}
           />
+          {!bannerUrl && <Text style={styles.helperText}>Banner image is required for your ad</Text>}
 
           <Text style={styles.label}>Target URL (Optional)</Text>
           <TextInput
@@ -130,7 +136,7 @@ export default function SubmitAdScreen() {
           />
           <Text style={styles.muted}>When users click your ad, they'll be taken to this URL</Text>
 
-          <Text style={styles.label}>Short Description (optional)</Text>
+          <Text style={styles.label}>Description *</Text>
           <TextInput
             value={desc}
             onChangeText={setDesc}
@@ -138,6 +144,7 @@ export default function SubmitAdScreen() {
             style={[styles.input, { height: 84, textAlignVertical: 'top' }]}
             multiline
           />
+          {!desc.trim() && <Text style={styles.helperText}>Description is required</Text>}
         </View>
 
         <Pressable onPress={submit} disabled={!canSubmit || busy} style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}>
@@ -155,6 +162,8 @@ const styles = StyleSheet.create({
   card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', gap: 8 },
   label: { fontWeight: '700' },
   input: { height: 44, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', paddingHorizontal: 10, backgroundColor: 'white' },
+  helperText: { fontSize: 12, color: '#dc2626', marginTop: 4 },
+  muted: { fontSize: 12, color: '#6b7280', marginTop: 4 },
   cta: { marginTop: 12, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827' },
   ctaDisabled: { opacity: 0.5 },
   ctaText: { color: 'white', fontWeight: '800', fontSize: 16 },
