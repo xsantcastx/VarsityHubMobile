@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
+import { calculateSalesTax } from '../lib/taxCalculator.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
@@ -12,17 +13,26 @@ export const paymentsRouter = Router();
 
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
-  let hasWeekday = false;
-  let hasWeekend = false;
+  
+  // Individual day pricing: $1.75 weekday, $2.99 weekend
+  const weekdayPrice = 175; // $1.75 in cents
+  const weekendPrice = 299; // $2.99 in cents
+  let total = 0;
+  
   for (const s of isoDates) {
     const d = new Date(s + 'T00:00:00');
     const day = d.getDay(); // 0 Sun .. 6 Sat
-    if (day >= 1 && day <= 4) hasWeekday = true; else hasWeekend = true;
-    if (hasWeekday && hasWeekend) break;
+    
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
+    // Fri=5, Sat=6, Sun=0 are weekend
+    if (day >= 1 && day <= 4) {
+      total += weekdayPrice;
+    } else {
+      total += weekendPrice;
+    }
   }
-  const weekday = 1000; // $10.00
-  const weekend = 1750; // $17.50
-  return (hasWeekday ? weekday : 0) + (hasWeekend ? weekend : 0);
+  
+  return total;
 }
 
 const membershipPlans = ['veteran', 'legend'] as const;
@@ -193,25 +203,33 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 
   // No global conflicts: allow multiple ads on the same date.
 
-  const amount = calculatePriceCents(isoDates);
-  if (amount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  const subtotal = calculatePriceCents(isoDates);
+  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
-  // Apply promo code if provided
+  // Calculate sales tax based on ad's target zip code
+  const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
+  
+  // Calculate total before discount
+  const subtotalWithTax = subtotal + taxCents;
+
+  // Apply promo code if provided (discount applies to subtotal, not tax)
   let discount = 0;
   let appliedCode: string | null = null;
   if (promo_code && typeof promo_code === 'string') {
-    const preview = await previewPromo({ code: promo_code, subtotalCents: amount, userId: req.user!.id, service: 'booking' });
+    const preview = await previewPromo({ code: promo_code, subtotalCents: subtotal, userId: req.user!.id, service: 'booking' });
     if (!preview.valid) return res.status(400).json({ error: preview.reason });
     discount = preview.discount_cents;
     appliedCode = preview.code;
   }
 
-  const total = Math.max(0, amount - discount);
+  // Total = (subtotal - discount) + tax
+  // Total = (subtotal - discount) + tax
+  const total = Math.max(0, subtotal - discount + taxCents);
   // If free after discount, finalize immediately without Stripe Checkout
   if (total === 0) {
     // Record redemption and create reservations
     if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: amount, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
+      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
     }
     try {
       await prisma.$transaction([
@@ -249,7 +267,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       ad_id: String(ad_id),
       dates: JSON.stringify(isoDates),
       user_id: req.user!.id,
-      subtotal_cents: String(amount),
+      subtotal_cents: String(subtotal),
+      tax_cents: String(taxCents),
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
     },
@@ -267,8 +286,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     userId: req.user!.id,
     userEmail: currentUser?.email || 'unknown',
     orderId: String(ad_id),
-    subtotalCents: amount,
-    taxCents: 0,
+    subtotalCents: subtotal,
+    taxCents: taxCents,
     stripeFeeeCents: calculateStripeFee(total),
     discountCents: discount,
     totalCents: total,
@@ -277,6 +296,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     metadata: {
       dates: isoDates,
       adId: ad_id,
+      zipCode: ad.target_zip_code,
     },
     ipAddress: req.ip,
     userAgent: req.get('user-agent'),

@@ -26,6 +26,7 @@ export default function SubmitAdScreen() {
   const [zip, setZip] = useState('');
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [bannerFitMode, setBannerFitMode] = useState<'letterbox' | 'fill' | 'stretch'>('fill');
+  const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -52,6 +53,7 @@ export default function SubmitAdScreen() {
           business_name: business.trim(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
+          target_url: targetUrl.trim() || undefined,
           target_zip_code: zip.trim(),
           radius: 45,
           description: desc.trim() || undefined,
@@ -69,6 +71,7 @@ export default function SubmitAdScreen() {
           contact_email: email.trim(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
+          target_url: targetUrl.trim() || undefined,
           zip_code: zip.trim(),
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
@@ -114,6 +117,18 @@ export default function SubmitAdScreen() {
             aspectRatio={16 / 9}
             required={false}
           />
+
+          <Text style={styles.label}>Target URL (Optional)</Text>
+          <TextInput
+            value={targetUrl}
+            onChangeText={setTargetUrl}
+            placeholder="https://yourwebsite.com"
+            style={styles.input}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={styles.muted}>When users click your ad, they'll be taken to this URL</Text>
 
           <Text style={styles.label}>Short Description (optional)</Text>
           <TextInput

@@ -9,8 +9,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
-const weekdayRate = 10;
-const weekendRate = 17.5;
+const weekdayRate = 1.75;  // Per single day
+const weekendRate = 2.99;  // Per single day
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
@@ -27,16 +27,20 @@ function getDayOfWeek(dateISO: string): number {
 
 function calculatePrice(selectedISO: Set<string>): number {
   if (selectedISO.size === 0) return 0;
-  let hasWeekday = false; // Mon..Thu
-  let hasWeekend = false; // Fri..Sun
+  let total = 0;
+  
+  // Calculate price per individual day
   for (const d of selectedISO) {
     const dow = getDayOfWeek(d);
-    if (dow >= 1 && dow <= 4) hasWeekday = true; else hasWeekend = true;
-    if (hasWeekday && hasWeekend) break;
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
+    // Fri=5, Sat=6, Sun=0 are weekend
+    if (dow >= 1 && dow <= 4) {
+      total += weekdayRate; // $1.75 per weekday
+    } else {
+      total += weekendRate; // $2.99 per weekend day
+    }
   }
-  let total = 0;
-  if (hasWeekday) total += weekdayRate;
-  if (hasWeekend) total += weekendRate;
+  
   return total;
 }
 
@@ -52,6 +56,9 @@ export default function AdCalendarScreen() {
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [taxRate, setTaxRate] = useState(0); // Tax rate as decimal
+  const [zipCode, setZipCode] = useState<string>('');
+  
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   React.useEffect(() => {
     let mounted = true;
@@ -66,6 +73,12 @@ export default function AdCalendarScreen() {
         if (!mounted) return;
         const dates = Array.isArray(res?.dates) ? res.dates : [];
         setReserved(new Set<string>(dates));
+        
+        // Get tax rate from ad's zip code
+        if (res?.ad?.target_zip_code) {
+          setZipCode(res.ad.target_zip_code);
+          // Fetch tax info from server (optional, for now we'll calculate client-side)
+        }
       } catch {
         if (mounted) setReserved(new Set());
       }
@@ -74,11 +87,20 @@ export default function AdCalendarScreen() {
   }, [adId]);
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
+  const taxCents = useMemo(() => {
+    // Simple client-side tax estimation (server will calculate exact amount)
+    // This is just for display purposes
+    if (!price || price <= 0) return 0;
+    // Rough average US sales tax ~6.5%
+    return Math.round(price * 100 * 0.065);
+  }, [price]);
+  const priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
   const effectiveCents = useMemo(() => {
-    const cents = Math.round(price * 100);
+    const subtotalCents = Math.round(price * 100);
     const discount = preview?.valid ? (preview.discount_cents || 0) : 0;
-    return Math.max(0, cents - discount);
-  }, [price, preview?.valid, preview?.discount_cents]);
+    const afterDiscount = Math.max(0, subtotalCents - discount);
+    return afterDiscount + taxCents;
+  }, [price, taxCents, preview?.valid, preview?.discount_cents]);
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
 
   const marked = useMemo(() => {
@@ -230,11 +252,11 @@ export default function AdCalendarScreen() {
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={styles.legendText}>Weekday (Mon-Thu) - ${weekdayRate}/bundle</Text>
+              <Text style={styles.legendText}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/day</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={styles.legendText}>Weekend (Fri-Sun) - ${weekendRate}/bundle</Text>
+              <Text style={styles.legendText}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/day</Text>
             </View>
           </View>
 
@@ -251,14 +273,14 @@ export default function AdCalendarScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Pricing</Text>
           <View style={styles.rowBetween}>
-            <Text>Mon-Thu Rate:</Text>
-            <Text style={styles.bold}>${weekdayRate.toFixed(2)}</Text>
+            <Text>Weekday Rate (Mon-Thu):</Text>
+            <Text style={styles.bold}>${weekdayRate.toFixed(2)}/day</Text>
           </View>
           <View style={styles.rowBetween}>
-            <Text>Fri-Sun Rate:</Text>
-            <Text style={styles.bold}>${weekendRate.toFixed(2)}</Text>
+            <Text>Weekend Rate (Fri-Sun):</Text>
+            <Text style={styles.bold}>${weekendRate.toFixed(2)}/day</Text>
           </View>
-          <Text style={styles.muted}>Rates are flat. Any weekday(s) cost $10.00. Any weekend day(s) cost $17.50.</Text>
+          <Text style={styles.muted}>Each day is priced individually. Select multiple days to see your total.</Text>
         </View>
 
         <View style={styles.card}>
@@ -307,6 +329,12 @@ export default function AdCalendarScreen() {
             <Text style={[styles.bold, { fontSize: 18 }]}>Subtotal:</Text>
             <Text style={{ fontSize: 18, fontWeight: '700' }}>${price.toFixed(2)}</Text>
           </View>
+          {taxCents > 0 && (
+            <View style={styles.rowBetween}>
+              <Text style={[styles.bold, { fontSize: 16 }]}>Sales Tax (est.):</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700' }}>${(taxCents / 100).toFixed(2)}</Text>
+            </View>
+          )}
           {preview?.valid ? (
             <View style={styles.rowBetween}>
               <Text style={[styles.bold, { fontSize: 16 }]}>Promo Discount:</Text>
