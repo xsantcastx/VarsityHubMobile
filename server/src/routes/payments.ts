@@ -38,7 +38,7 @@ function membershipError(status: number, message: string) {
   return error;
 }
 
-async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown) {
+async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string) {
   if (!process.env.STRIPE_SECRET_KEY) throw membershipError(500, 'Stripe not configured');
   if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
@@ -109,10 +109,11 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
   // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
-  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}`;
+  const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=subscription`;
   const cancel = `${appScheme}://payment-cancel`;
 
-  const session = await stripe.checkout.sessions.create(({
+  // Create checkout session configuration
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',
     success_url: success,
     cancel_url: cancel,
@@ -121,8 +122,25 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       membership: '1',
       plan: chosen,
       user_id: req.user!.id,
+      promo_code: promoCode || '',
     },
-  } as Stripe.Checkout.SessionCreateParams));
+  };
+
+  // Apply promo code if provided (Stripe coupon/promotion code)
+  if (promoCode && typeof promoCode === 'string' && promoCode.trim()) {
+    try {
+      // Stripe accepts promotion codes directly in checkout sessions
+      sessionConfig.discounts = [{
+        promotion_code: promoCode.trim(),
+      }];
+      console.log(`[payments] Applying promo code to subscription: ${promoCode.trim()}`);
+    } catch (promoErr) {
+      console.warn('[payments] Failed to apply promo code:', promoErr);
+      // Continue without promo code rather than failing
+    }
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionConfig);
 
   return { url: session.url ?? null, sessionId: session.id };
 }
@@ -133,7 +151,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const { ad_id, dates, promo_code, plan } = req.body || {};
   if (typeof plan === 'string' && plan.trim()) {
     try {
-      const { url, sessionId } = await createMembershipCheckoutSession(req, plan);
+      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
@@ -249,7 +267,8 @@ paymentsRouter.post('/webhook', async (req, res) => {
 // Create a subscription Checkout Session for recurring membership plans
 paymentsRouter.post('/subscribe', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
   try {
-    const { url, sessionId } = await createMembershipCheckoutSession(req, (req.body || {}).plan);
+    const { plan, promo_code } = req.body || {};
+    const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
     return res.json({ url, session_id: sessionId });
   } catch (err: any) {
     const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
