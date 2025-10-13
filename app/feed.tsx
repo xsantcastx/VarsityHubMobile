@@ -1001,7 +1001,23 @@ export default function FeedScreen() {
                       return (
                         <Pressable 
                           style={[styles.listRow, !item.read_at && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
-                          onPress={() => {
+                          onPress={async () => {
+                            // Mark notification as read
+                            if (!item.read_at) {
+                              try {
+                                await NotificationApi.markRead(item.id);
+                                // Update local state to remove unread indicator immediately
+                                setNotificationsList(prev => 
+                                  prev.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)
+                                );
+                                // Refresh unread count
+                                const page = await NotificationApi.listPage(null, 1, true);
+                                setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+                              } catch (e) {
+                                console.error('Failed to mark notification as read', e);
+                              }
+                            }
+                            
                             setNotificationsMenuOpen(false);
                             if (item.type === 'FOLLOW' && item.actor?.id) {
                               router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
