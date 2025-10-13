@@ -106,6 +106,9 @@ gamesRouter.get('/', async (req, res) => {
       // Fixed: Prioritize game.banner_url over other sources
       banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
       rsvpCount: event ? (rsvpMap.get(event.id) || 0) : 0,
+      // Include coordinates for map display
+      latitude: rest.latitude,
+      longitude: rest.longitude,
     };
   });
   res.json(payload);
