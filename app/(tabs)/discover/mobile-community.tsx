@@ -290,7 +290,13 @@ export default function CommunityDiscoverScreen() {
 
         {/* Map/List Toggle */}
         <Pressable
-          onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+          onPress={() => {
+            const newMode = viewMode === 'list' ? 'map' : 'list';
+            console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+            console.log('📍 Filtered games count:', filtered.length);
+            console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+            setViewMode(newMode);
+          }}
           style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
         >
           <Ionicons 
@@ -467,21 +473,34 @@ export default function CommunityDiscoverScreen() {
         /* Map View */
         <View style={{ flex: 1 }}>
           {ListHeader}
-          <EventMap
-            events={filtered.map((game): EventMapData => ({
-              id: String(game.id),
-              title: String(game.title || 'Game'),
-              date: String(game.date || new Date().toISOString()),
-              location: String(game.location || ''),
-              latitude: game.latitude ?? undefined,
-              longitude: game.longitude ?? undefined,
-              type: 'game',
-            }))}
-            onEventPress={(eventId) => {
-              router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: eventId } });
-            }}
-            showUserLocation={true}
-          />
+          {(() => {
+            const eventsWithCoords = filtered.filter(g => g.latitude && g.longitude);
+            console.log('🗺️ MAP VIEW RENDERING');
+            console.log('📍 Total filtered games:', filtered.length);
+            console.log('📍 Games with coordinates:', eventsWithCoords.length);
+            console.log('📍 First game with coords:', eventsWithCoords[0] ? {
+              title: eventsWithCoords[0].title,
+              lat: eventsWithCoords[0].latitude,
+              lng: eventsWithCoords[0].longitude
+            } : 'none');
+            return (
+              <EventMap
+                events={filtered.map((game): EventMapData => ({
+                  id: String(game.id),
+                  title: String(game.title || 'Game'),
+                  date: String(game.date || new Date().toISOString()),
+                  location: String(game.location || ''),
+                  latitude: game.latitude ?? undefined,
+                  longitude: game.longitude ?? undefined,
+                  type: 'game',
+                }))}
+                onEventPress={(eventId) => {
+                  router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: eventId } });
+                }}
+                showUserLocation={true}
+              />
+            );
+          })()}
         </View>
       ) : (
         /* List View */
