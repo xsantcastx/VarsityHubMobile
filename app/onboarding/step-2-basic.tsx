@@ -81,7 +81,9 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError;
+  const isCoach = ob.role === 'coach';
+  const zipRequired = isCoach; // Zip code is mandatory for coaches
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -157,17 +159,32 @@ export default function Step2Basic() {
         ) : null}
 
         <Text style={styles.label}>Affiliation</Text>
-        <Segmented
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'university', label: 'University' },
-            { value: 'high_school', label: 'High school' },
-            { value: 'club', label: 'Club' },
-            { value: 'youth', label: 'Youth' },
-          ]}
-          value={affiliation}
-          onChange={(item) => setAffiliation(item as Affiliation)}
-        />
+        <View style={styles.affiliationGrid}>
+          {[
+            { value: 'none', label: 'None', icon: '❌' },
+            { value: 'university', label: 'University', icon: '🎓' },
+            { value: 'high_school', label: 'High School', icon: '🏫' },
+            { value: 'club', label: 'Club', icon: '⚽' },
+            { value: 'youth', label: 'Youth', icon: '👶' },
+          ].map((option) => (
+            <Pressable
+              key={option.value}
+              style={[
+                styles.affiliationButton,
+                affiliation === option.value && styles.affiliationButtonSelected
+              ]}
+              onPress={() => setAffiliation(option.value as Affiliation)}
+            >
+              <Text style={styles.affiliationIcon}>{option.icon}</Text>
+              <Text style={[
+                styles.affiliationLabel,
+                affiliation === option.value && styles.affiliationLabelSelected
+              ]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
         <Text style={styles.label}>Date of birth</Text>
         <DateField
@@ -179,8 +196,18 @@ export default function Step2Basic() {
           <Text style={styles.error}>Please enter a valid date of birth</Text>
         )}
 
-        <Text style={styles.label}>Zip code (optional)</Text>
-        <Input value={zip} onChangeText={setZip} autoCapitalize="none" placeholder="12345" keyboardType="numeric" />
+        <Text style={styles.label}>Zip code {zipRequired && <Text style={{color: '#ef4444'}}>*</Text>}</Text>
+        <Input 
+          value={zip} 
+          onChangeText={setZip} 
+          autoCapitalize="none" 
+          placeholder={zipRequired ? "Required for coaches" : "12345"} 
+          keyboardType="numeric" 
+          maxLength={5}
+        />
+        {zipRequired && !zip && (
+          <Text style={styles.error}>Zip code is required for coaches</Text>
+        )}
 
         <View style={{ marginTop: 20 }}>
           <PrimaryButton
@@ -248,5 +275,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginTop: 4,
+  },
+  affiliationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  affiliationButton: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  affiliationButtonSelected: {
+    borderColor: '#111827',
+    backgroundColor: '#FFFFFF',
+  },
+  affiliationIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  affiliationLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  affiliationLabelSelected: {
+    color: '#111827',
+    fontWeight: '700',
   },
 });
