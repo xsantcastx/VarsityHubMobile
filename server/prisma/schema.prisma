@@ -239,6 +239,8 @@ model Ad {
   contact_email   String?
   business_name   String?
   banner_url      String?
+  banner_fit_mode String?  @default("fill") // letterbox | fill | stretch
+  target_url      String?  // URL to open when ad is clicked
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?

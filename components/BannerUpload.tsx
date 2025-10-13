@@ -56,8 +56,7 @@ export function BannerUpload({
       // Launch picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9], // Suggest 16:9 crop
+        allowsEditing: false, // Allow full image without cropping
         quality: 1,
       });
 
