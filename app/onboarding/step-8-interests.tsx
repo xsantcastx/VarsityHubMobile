@@ -8,12 +8,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 
-type Intent = 'find_local_games' | 'add_players' | 'follow';
+type Intent = 'find_local_games' | 'view_moments' | 'post_reviews' | 'support_creators' | 'claim_team' | 'follow';
 
-const OPTIONS: { key: Intent; label: string }[] = [
-  { key: 'find_local_games', label: 'Find Local Games' },
-  { key: 'add_players', label: 'Add Players' },
-  { key: 'follow', label: 'Follow Teams/Players' },
+const OPTIONS: { key: Intent; label: string; route?: string }[] = [
+  { key: 'find_local_games', label: 'Find Local Games', route: '/(tabs)/discover' },
+  { key: 'view_moments', label: 'View Moments', route: '/highlights' },
+  { key: 'post_reviews', label: 'Post Reviews and Highlights', route: '/create-post' },
+  { key: 'support_creators', label: 'Support Local Creators', route: '/(tabs)/discover' },
+  { key: 'claim_team', label: 'Claim My Team', route: '/create-team' },
+  { key: 'follow', label: 'Follow Teams/Players', route: '/(tabs)/discover' },
 ];
 
 export default function Step8Interests() {
@@ -28,10 +31,17 @@ export default function Step8Interests() {
     if (!sel.length) { Alert.alert('Select at least one option'); return; }
     setSaving(true);
     try {
-  await User.updatePreferences({ primary_intents: sel });
-  await User.updatePreferences({ onboarding_completed: true });
-  setProgress(8);
-  router.replace('/onboarding/finish');
+      await User.updatePreferences({ primary_intents: sel });
+      await User.updatePreferences({ onboarding_completed: true });
+      setProgress(8);
+      
+      // Navigate to the route of the first selected option
+      const firstSelected = OPTIONS.find(o => sel.includes(o.key));
+      if (firstSelected?.route) {
+        router.replace(firstSelected.route as any);
+      } else {
+        router.replace('/onboarding/finish');
+      }
     } catch (e: any) {
       Alert.alert('Failed to save', e?.message || 'Try again');
     } finally { setSaving(false); }
