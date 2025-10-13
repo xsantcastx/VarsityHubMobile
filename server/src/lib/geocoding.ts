@@ -219,9 +219,15 @@ export async function geocodeEvent(eventId: string, location?: string) {
  * Batch geocode all games that are missing coordinates
  * 
  * @param limit - Maximum number of games to process (default 100)
- * @returns Number of games geocoded
+ * @returns Detailed results object
  */
-export async function geocodeAllGames(limit: number = 100): Promise<number> {
+export async function geocodeAllGames(limit: number = 100): Promise<{
+  success: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  errors: string[];
+}> {
   try {
     // Find games without coordinates that have a location
     const games = await prisma.game.findMany({
@@ -232,19 +238,33 @@ export async function geocodeAllGames(limit: number = 100): Promise<number> {
           { longitude: null },
         ],
       },
-      select: { id: true, location: true },
+      select: { id: true, location: true, title: true },
       take: limit,
     });
 
     console.log(`📍 Found ${games.length} games to geocode`);
 
     let successCount = 0;
+    let failedCount = 0;
+    const errors: string[] = [];
+
     for (const game of games) {
       if (!game.location) continue;
 
-      const result = await geocodeGame(game.id, game.location);
-      if (result) {
-        successCount++;
+      try {
+        const result = await geocodeGame(game.id, game.location);
+        if (result) {
+          console.log(`✅ "${game.title}" → ${game.location}`);
+          successCount++;
+        } else {
+          console.log(`❌ Failed: "${game.title}" - ${game.location}`);
+          failedCount++;
+          errors.push(`Failed to geocode "${game.title}"`);
+        }
+      } catch (error: any) {
+        console.log(`❌ Error: "${game.title}" - ${error.message}`);
+        failedCount++;
+        errors.push(`Error geocoding "${game.title}": ${error.message}`);
       }
 
       // Rate limiting: 200ms between requests = ~300 requests/minute (under 500/min limit)
@@ -252,10 +272,23 @@ export async function geocodeAllGames(limit: number = 100): Promise<number> {
     }
 
     console.log(`✅ Successfully geocoded ${successCount}/${games.length} games`);
-    return successCount;
+    
+    return {
+      success: successCount,
+      failed: failedCount,
+      skipped: 0,
+      total: games.length,
+      errors,
+    };
   } catch (error) {
     console.error('Error in batch geocoding games:', error);
-    return 0;
+    return {
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      total: 0,
+      errors: [String(error)],
+    };
   }
 }
 
