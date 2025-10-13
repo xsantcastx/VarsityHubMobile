@@ -479,7 +479,7 @@ export default function FeedScreen() {
       const raw = item as any;
       const banner = item.cover_image_url || raw?.banner_url || null;
       const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
       const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
       const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
       const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';

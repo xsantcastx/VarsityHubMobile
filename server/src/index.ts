@@ -27,6 +27,7 @@ import { usersRouter } from './routes/users.js';
 import rateLimit from 'express-rate-limit';
 import { adsRouter } from './routes/ads.js';
 import { paymentsRouter } from './routes/payments.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 
@@ -109,6 +110,7 @@ app.use('/uploads', uploadsRouter);
 
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);
+app.use('/admin', noStore, apiLimiter, adminRouter);
 app.use('/teams', apiLimiter, teamsRouter);
 app.use('/organizations', apiLimiter, organizationsRouter);
 app.use('/users', noStore, apiLimiter, usersRouter);
