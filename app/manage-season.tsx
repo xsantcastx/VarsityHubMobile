@@ -816,7 +816,7 @@ export default function ManageSeasonScreen() {
             </View>
             <Pressable 
               style={styles.settingsButton}
-              onPress={() => router.push('/settings')}
+              onPress={() => router.push('/settings/index' as any)}
             >
               <Ionicons name="settings-outline" size={20} color="#fff" />
             </Pressable>

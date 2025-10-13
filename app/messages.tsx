@@ -152,7 +152,7 @@ export default function MessagesScreen() {
               <Ionicons name="options-outline" size={18} color="#111827" />
               <Text style={styles.sheetText}>DM restrictions</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings'); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings/index' as any); }}>
               <Ionicons name="settings-outline" size={18} color="#111827" />
               <Text style={styles.sheetText}>Privacy & settings</Text>
             </Pressable>
