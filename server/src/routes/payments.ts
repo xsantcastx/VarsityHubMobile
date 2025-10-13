@@ -211,7 +211,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     },
   } as Stripe.Checkout.SessionCreateParams));
 
-  return res.json({ url: session.url });
+  return res.json({ url: session.url, session_id: session.id });
 });
 
 // Stripe webhook to finalize reservations on successful payment.

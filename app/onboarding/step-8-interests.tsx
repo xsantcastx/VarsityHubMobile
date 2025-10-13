@@ -1,10 +1,10 @@
 import { useOnboarding } from '@/context/OnboardingContext';
 import PrimaryButton from '@/ui/PrimaryButton';
-import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -38,10 +38,13 @@ export default function Step8Interests() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 8/10' }} />
+      <OnboardingBackHeader
+        title="Pick Your Interests"
+        subtitle="Select up to three sports you care about"
+      />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>What interests you most?</Text>
         {OPTIONS.map((o) => (
           <Pressable key={o.key} onPress={() => toggle(o.key)} style={[styles.row, sel.includes(o.key) && styles.rowSelected]}>
             <Text style={[styles.rowTitle, sel.includes(o.key) && { color: 'white' }]}>{o.label}</Text>
@@ -55,7 +58,6 @@ export default function Step8Interests() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 12, textAlign: 'center' },
   row: { padding: 16, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', backgroundColor: 'white', marginBottom: 12 },
   rowSelected: { backgroundColor: '#111827', borderColor: '#111827' },
   rowTitle: { fontWeight: '700' },

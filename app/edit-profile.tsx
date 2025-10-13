@@ -45,6 +45,7 @@ export default function EditProfileScreen() {
   
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [hasTeamMembership, setHasTeamMembership] = useState(false);
 
   const loadUserData = useCallback(async () => {
     setLoading(true);
@@ -84,7 +85,32 @@ export default function EditProfileScreen() {
       // Team member fields from preferences
       setPosition(prefs?.position || me?.position || '');
       setJerseyNumber(prefs?.jersey_number ? String(prefs.jersey_number) : (me?.jersey_number ? String(me.jersey_number) : ''));
-      const derivedRole = prefs?.role || me?.user_role || me?.initial_role_selection || null;
+      const membershipArrays = [
+        prefs?.team_roles,
+        prefs?.memberships,
+        prefs?.teams,
+        me?.team_roles,
+        me?.teams,
+        me?.memberships,
+        me?.team_memberships,
+      ];
+      const membershipHints = [
+        prefs?.team_role,
+        prefs?.team_id,
+        prefs?.primary_team_id,
+        me?.team_role,
+        me?.team_id,
+        me?.primary_team_id,
+      ];
+      const detectedMembership =
+        membershipArrays.some((value) => Array.isArray(value) && value.length > 0) ||
+        membershipHints.some((value) => Boolean(value));
+      setHasTeamMembership(detectedMembership);
+
+      let derivedRole = prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
+      if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
+        derivedRole = 'team_member';
+      }
       setUserRole(derivedRole);
     } catch (e: any) {
       console.error('Error loading profile:', e);
@@ -266,7 +292,11 @@ export default function EditProfileScreen() {
     }
   };
 
-  const isTeamMember = userRole === 'team_member' || userRole?.includes('team');
+  const isTeamMember =
+    userRole === 'team_member' ||
+    userRole === 'athlete' ||
+    (typeof userRole === 'string' && userRole.includes('team')) ||
+    hasTeamMembership;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>

@@ -4,6 +4,7 @@ import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,7 +38,6 @@ export default function Step5League() {
         return {
           type: 'team',
           title: 'Create Your Team Page',
-          subtitle: 'Set up your team to start organizing games and connecting with players',
           description: 'Create a team page to manage your players, schedule games, and share updates.'
         };
       case 'veteran':
@@ -45,14 +45,12 @@ export default function Step5League() {
         return {
           type: 'organization',
           title: 'Create Your Organization Page',
-          subtitle: 'Set up your school or organization to manage multiple teams',
           description: 'Create an organization page that can contain multiple team pages. Perfect for schools, clubs, and leagues.'
         };
       default:
         return {
           type: 'team',
           title: 'Create Your Page',
-          subtitle: 'Set up your presence on VarsityHub',
           description: 'Create your page to get started.'
         };
     }
@@ -123,11 +121,15 @@ export default function Step5League() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 5/10' }} />
+      <OnboardingBackHeader
+        title={pageConfig.title}
+        subtitle={pageConfig.subtitle}
+      />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>{pageConfig.title}</Text>
-        <Text style={styles.subtitle}>{pageConfig.subtitle}</Text>
+
+
         
         <View style={styles.infoBox}>
           <Ionicons 
@@ -243,8 +245,6 @@ export default function Step5League() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 16, textAlign: 'center', fontSize: 16 },
   label: { fontWeight: '700', marginBottom: 4 },
   infoBox: { 
     flexDirection: 'row',

@@ -1,6 +1,8 @@
 import * as WebBrowser from 'expo-web-browser';
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
@@ -8,6 +10,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const weekdayRate = 10;
 const weekendRate = 17.5;
@@ -42,6 +46,7 @@ function calculatePrice(selectedISO: Set<string>): number {
 
 export default function AdCalendarScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ adId?: string }>();
   const adId = params.adId ?? '';
 
@@ -52,6 +57,55 @@ export default function AdCalendarScreen() {
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const successReturnUrl = useMemo(
+    () => Linking.createURL('payment-success', { queryParams: { type: 'ad' } }),
+    [],
+  );
+
+  const launchCheckout = useCallback(
+    async (checkoutUrl: string, fallbackSessionId?: string | null) => {
+      if (Platform.OS === 'web') {
+        window.location.href = checkoutUrl;
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(checkoutUrl, successReturnUrl);
+      if (result.type === 'cancel') {
+        return;
+      }
+
+      const url = result.url ?? '';
+      if (url) {
+        try {
+          const parsed = Linking.parse(url);
+          const query = parsed?.queryParams || {};
+          const sessionId = (query.session_id || query.sessionId || fallbackSessionId || '') as string;
+          const typeParam = (query.type || 'ad') as string;
+          router.push({
+            pathname: '/payment-success',
+            params: {
+              session_id: sessionId,
+              type: typeParam || 'ad',
+            },
+          });
+          return;
+        } catch (err) {
+          console.warn('[ad-calendar] Failed to parse Stripe redirect URL', err);
+        }
+      }
+
+      if (fallbackSessionId) {
+        router.push({
+          pathname: '/payment-success',
+          params: { session_id: fallbackSessionId, type: 'ad' },
+        });
+      } else {
+        router.push({ pathname: '/payment-success', params: { type: 'ad' } });
+      }
+    },
+    [router, successReturnUrl],
+  );
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   React.useEffect(() => {
     let mounted = true;
@@ -193,9 +247,10 @@ export default function AdCalendarScreen() {
         Alert.alert('Payment', 'Your reservation was completed with the promo discount.');
         router.replace('/(tabs)/my-ads');
       } else if (data?.url) {
-        await WebBrowser.openBrowserAsync(String(data.url));
-        // Don't redirect here - let the Stripe callback (payment-success) handle the redirect
-        // The user will be redirected to payment-success screen after completing payment
+        if (data?.session_id) {
+          setPendingSessionId(String(data.session_id));
+        }
+        await launchCheckout(String(data.url), data?.session_id ?? pendingSessionId);
       }
     } catch (err) {
       console.error('Failed to start checkout:', err);
@@ -211,8 +266,11 @@ export default function AdCalendarScreen() {
     [selected]
   );
 
+  const topPadding = useMemo(() => Math.max(insets.top + 12, 24), [insets.top]);
+  const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 28), [insets.bottom]);
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F172A0D' }}>
+    <SafeAreaView style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
       <Stack.Screen options={{ title: 'Schedule Your Ad' }} />
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
@@ -221,7 +279,7 @@ export default function AdCalendarScreen() {
         <Text style={styles.headerTitle}>Schedule Your Ad</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(bottomPadding + 40, 120) }]}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Select Ad Campaign Dates</Text>
           <Text style={styles.cardDesc}>Choose one or more dates to run your ad.</Text>
@@ -331,11 +389,16 @@ export default function AdCalendarScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0F172A0D',
+    paddingHorizontal: 16,
+  },
   header: {
     paddingTop: 14,
     paddingBottom: 10,
@@ -391,3 +454,4 @@ const styles = StyleSheet.create({
 });
 
  
+

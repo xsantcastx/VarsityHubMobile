@@ -2,6 +2,7 @@ import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -108,13 +109,13 @@ export default function Step9Features() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 9/10' }} />
+      <OnboardingBackHeader
+        title="Customize Your Experience"
+        subtitle="Configure your privacy and notification preferences"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Enable Features</Text>
-        <Text style={styles.subtitle}>
-          Configure your privacy and notification preferences
-        </Text>
 
         {/* Location Access */}
         <View style={styles.featureCard}>
@@ -229,18 +230,6 @@ const styles = StyleSheet.create({
   scrollContent: { 
     padding: 16, 
     paddingBottom: 28 
-  },
-  title: { 
-    ...(Type.h1 as any), 
-    marginBottom: 8, 
-    textAlign: 'center' 
-  },
-  subtitle: { 
-    color: '#6b7280', 
-    marginBottom: 24, 
-    textAlign: 'center', 
-    fontSize: 16,
-    lineHeight: 24
   },
   
   featureCard: {

@@ -781,7 +781,7 @@ const GameDetailsScreen = () => {
               const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
               const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
               const uploaded = await uploadFile(base, asset.uri, name, mime);
-              const mediaUrl = uploaded?.url || uploaded?.path;
+              const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
               }
@@ -815,7 +815,7 @@ const GameDetailsScreen = () => {
               const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
               const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
               const uploaded = await uploadFile(base, asset.uri, name, mime);
-              const mediaUrl = uploaded?.url || uploaded?.path;
+              const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
               }
@@ -2388,6 +2388,7 @@ const styles = StyleSheet.create({
   vsPctBarWrap: { width: '100%', height: 6, backgroundColor: '#e6eefc', borderRadius: 6, overflow: 'hidden', marginTop: 8 },
   vsPctBarFill: { height: '100%', backgroundColor: '#1e40af', width: '0%' },
 });
+
 
 
 

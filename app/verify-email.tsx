@@ -9,12 +9,21 @@ import { Input } from '@/components/ui/input';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ devCode?: string }>();
+  const params = useLocalSearchParams<{ devCode?: string; returnTo?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
+
+  const returnTo = typeof params.returnTo === 'string' && params.returnTo.trim().length
+    ? params.returnTo
+    : null;
+
+  const navigateAfterVerification = () => {
+    const target = returnTo || '/onboarding/step-1-role';
+    router.replace(target);
+  };
 
   // Load dev code from params if available
   useEffect(() => {
@@ -58,7 +67,7 @@ export default function VerifyEmailScreen() {
       setInfo('Email verified!');
       // After verification, start onboarding from step 1 (role selection)
       setTimeout(() => {
-        router.replace('/onboarding/step-1-role');
+        navigateAfterVerification();
       }, 1000);
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
@@ -140,7 +149,7 @@ export default function VerifyEmailScreen() {
         </Pressable>
       </View>
       
-      <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
+      <Pressable style={styles.skipButton} onPress={navigateAfterVerification}>
         <Text style={styles.skipText}>Skip for now</Text>
       </Pressable>
     </View>

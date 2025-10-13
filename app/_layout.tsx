@@ -44,14 +44,14 @@ export default function RootLayout() {
       try {
         const me: any = await User.me();
         const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
-        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-2-basic') {
-          lastRedirectRef.current = '/onboarding/step-2-basic';
-          router.replace('/onboarding/step-2-basic');
+        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-1-role') {
+          lastRedirectRef.current = '/onboarding/step-1-role';
+          router.replace('/onboarding/step-1-role');
           return;
         }
         
         // Role-aware login landing
-        if (isPublic && me) {
+        if (isPublic && me && !needsOnboarding) {
           const userRole = me?.preferences?.role || me?.role || 'fan';
           let landingRoute = '/(tabs)/feed'; // Default for fans
           

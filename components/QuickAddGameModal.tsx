@@ -216,7 +216,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
             const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
             const uploaded = await uploadFile(base, uri, 'match-banner.png', 'image/png');
-            const url = uploaded?.url || uploaded?.path || null;
+            const url = uploaded?.path || uploaded?.url || null;
             if (url) {
               finalData.banner_url = url;
               finalData.cover_image_url = url; // Also set cover_image_url to the same value
@@ -311,7 +311,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       
       const uploaded = await uploadFile(base, uri, 'custom-banner.jpg', 'image/jpeg');
       
-      const url = uploaded?.url || uploaded?.path;
+      const url = uploaded?.path || uploaded?.url;
       
       if (url) {
         setBannerUrl(url);
@@ -710,7 +710,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       try {
         const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
         const uploaded = await uploadFile(base, uri, 'edited-banner.png', 'image/png');
-        const url = uploaded?.url || uploaded?.path || null;
+        const url = uploaded?.path || uploaded?.url || null;
         if (url) setBannerUrl(url);
       } catch (e) {
         console.warn('Upload edited image failed', e);

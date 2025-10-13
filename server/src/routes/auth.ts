@@ -9,7 +9,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 export const authRouter = Router();
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
-const DEFAULT_FAN_BIO = 'Sports enthusiast following local teams and supporting young athletes.';
+const DEFAULT_FAN_BIO = 'FAN TRYING TO SHOW THE MOST SCHOOL SPIRIT';
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -33,6 +33,7 @@ authRouter.post('/register', async (req, res) => {
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
   const bio = userRole === 'fan' ? DEFAULT_FAN_BIO : null;
+  const initialPreferences = { role: userRole, onboarding_completed: false };
   
   const user = await prisma.user.create({ 
     data: { 
@@ -43,7 +44,7 @@ authRouter.post('/register', async (req, res) => {
       email_verified: false, 
       email_verification_code: code, 
       email_verification_expires: exp,
-      preferences: userRole ? { role: userRole } : undefined
+      preferences: initialPreferences
     } 
   });
   const access_token = signJwt({ id: user.id });
@@ -72,7 +73,9 @@ authRouter.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const access_token = signJwt({ id: user.id });
-  const body: any = { access_token, user: sanitizeUser(user) };
+  const sanitized = sanitizeUser(user);
+  const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 });
@@ -415,7 +418,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   if (data.username) updateData.username = data.username;
   const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (data.role === 'fan' && !currentUser?.bio) {
-    updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
+    updateData.bio = DEFAULT_FAN_BIO;
   }
   
   // Prepare preferences update

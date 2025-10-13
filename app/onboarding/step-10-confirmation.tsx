@@ -2,6 +2,7 @@ import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -164,8 +165,12 @@ export default function Step10Confirmation() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 10/10' }} />
+      <OnboardingBackHeader
+        title="Review & Finish"
+        subtitle="Double-check your setup before going live"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <View style={styles.successIcon}>

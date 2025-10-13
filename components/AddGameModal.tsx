@@ -425,7 +425,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       try {
         const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
         const uploaded = await (await import('@/api/upload')).uploadFile(base, uri, 'edited-banner.png', 'image/png');
-        const url = uploaded?.url || uploaded?.path || null;
+        const url = uploaded?.path || uploaded?.url || null;
         if (url) {
           setFormData(prev => ({ ...prev, banner_url: url }));
         }

@@ -3,8 +3,9 @@ import { BannerUpload } from '@/components/BannerUpload';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Advertisement as AdsApi } from '@/api/entities';
+import { Advertisement as AdsApi, User } from '@/api/entities';
 
 type DraftAd = {
   id: string;
@@ -16,10 +17,13 @@ type DraftAd = {
   zip_code: string;
   description?: string;
   created_at: string;
+  owner_id?: string | null;
+  isLocal?: boolean;
 };
 
 export default function SubmitAdScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [business, setBusiness] = useState('');
@@ -43,6 +47,16 @@ export default function SubmitAdScreen() {
     if (!canSubmit || busy) return;
     setBusy(true);
     try {
+      let currentUserId: string | null = null;
+      let normalizedEmail = email.trim().toLowerCase();
+      try {
+        const me: any = await User.me();
+        currentUserId = me?.id ? String(me.id) : null;
+        if (!normalizedEmail && typeof me?.email === 'string') {
+          normalizedEmail = me.email.trim().toLowerCase();
+        }
+      } catch {}
+
       // Try server-side creation first
       let serverId: string | null = null;
       try {
@@ -57,6 +71,10 @@ export default function SubmitAdScreen() {
           description: desc.trim() || undefined,
         });
         serverId = String(created?.id || '');
+        if (created?.user_id) currentUserId = String(created.user_id);
+        if (typeof created?.contact_email === 'string') {
+          normalizedEmail = created.contact_email.trim().toLowerCase();
+        }
       } catch {}
 
       const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
@@ -66,17 +84,28 @@ export default function SubmitAdScreen() {
           id: adId,
           business_name: business.trim(),
           contact_name: name.trim(),
-          contact_email: email.trim(),
+          contact_email: normalizedEmail || email.trim().toLowerCase(),
           banner_url: bannerUrl || undefined,
           banner_fit_mode: bannerFitMode,
           zip_code: zip.trim(),
           description: desc.trim() || undefined,
           created_at: new Date().toISOString(),
+          owner_id: currentUserId,
+          isLocal: !serverId,
         };
-        const arr = await settings.getJson<DraftAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
+        const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
+        const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;
+        const arr = await settings.getJson<DraftAd[]>(scopedKey, []);
         // de-dup if server returned same id
         const next = arr.filter((a) => a.id !== adId).concat([draft]);
-        await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
+        await settings.setJson(scopedKey, next);
+        if (currentUserId) {
+          const legacy = await settings.getJson<DraftAd[]>(baseKey, []);
+          const legacyFiltered = legacy.filter((a) => a.id !== adId);
+          if (legacyFiltered.length !== legacy.length) {
+            await settings.setJson(baseKey, legacyFiltered);
+          }
+        }
       } catch {}
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
@@ -87,10 +116,18 @@ export default function SubmitAdScreen() {
     }
   };
 
+  const topPadding = useMemo(() => Math.max(insets.top + 12, 20), [insets.top]);
+  const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
       <Stack.Screen options={{ title: 'Submit Ad' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        contentContainerStyle={{
+          paddingBottom: Math.max(bottomPadding + 12, 48),
+        }}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>Submit a Local Ad</Text>
         <Text style={styles.subtitle}>Promote your business to local teams and families. Continue to pick your campaign dates.</Text>
 
@@ -129,12 +166,12 @@ export default function SubmitAdScreen() {
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Continue to Calendar</Text>}
         </Pressable>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, paddingHorizontal: 16, backgroundColor: 'white' },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
   subtitle: { color: '#6b7280', marginBottom: 12 },
   card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', gap: 8 },

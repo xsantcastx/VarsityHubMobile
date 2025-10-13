@@ -8,6 +8,7 @@ import { Advertisement, Event, Game, Highlights, Notification as NotificationApi
 import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { normalizeMediaUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
@@ -188,6 +189,9 @@ const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: str
 export default function FeedScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const topPadding = useMemo(() => Math.max(insets.top + 12, 24), [insets.top]);
+  const bottomPadding = useMemo(() => Math.max(insets.bottom + 20, 32), [insets.bottom]);
+  const iconClusterWidth = 96;
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -551,17 +555,28 @@ export default function FeedScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: topPadding,
+          paddingBottom: bottomPadding,
+          backgroundColor: Colors[colorScheme].background,
+        },
+      ]}
+    >
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
       <Stack.Screen options={{ title: 'Feed' }} />
       {/* Top bar with brand centered and messages/notifications on the right */}
       <View style={styles.headerRow}>
-        <View style={{ flex: 1 }} />
+        <View style={[styles.headerSide, { width: iconClusterWidth }]} />
         <View style={styles.brandRow}>
           <Image source={require('../assets/images/logo.png')} style={{ width: 40, height: 40 }} />
-          <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+          <Text style={[styles.brand, { color: Colors[colorScheme].text }]} numberOfLines={1} ellipsizeMode="tail">
+            Varsity Hub
+          </Text>
         </View>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <View style={[styles.headerIcons, { width: iconClusterWidth }]}>
           <Pressable onPress={() => router.push('/messages')} style={{ padding: 8 }}>
             <MessagesTabIcon color={Colors[colorScheme].text} />
           </Pressable>
@@ -631,96 +646,97 @@ export default function FeedScreen() {
         columnWrapperStyle={styles.gridRow}
         ListHeaderComponent={renderEmailReminder}
         renderItem={renderGameTile}
-        ListFooterComponent={() => (
-          <View style={styles.gridFooter}>
-            {sponsoredAds.length > 0 ? (
-              <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
-                {sponsoredAds[sponsoredIndex]?.banner_url ? (
-                  <View style={styles.sponsoredGridImageWrapper}>
-                    <Image
-                      source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }}
-                      style={styles.sponsoredGridImage}
-                      contentFit="cover"
-                    />
-                  </View>
-                ) : null}
-                <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                  {sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}
-                </Text>
-                {sponsoredAds[sponsoredIndex]?.description ? (
-                  <Text style={[styles.sponsoredGridDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                    {String(sponsoredAds[sponsoredIndex].description)}
+        ListFooterComponent={() => {
+          const sponsor = sponsoredAds[sponsoredIndex];
+          const sponsorBanner = normalizeMediaUrl(sponsor?.banner_url);
+          const verticalPreview = normalizeMediaUrl(verticalFeedPreviewImage);
+          return (
+            <View style={styles.gridFooter}>
+              {sponsoredAds.length > 0 ? (
+                <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                  <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
+                  {sponsorBanner ? (
+                    <View style={styles.sponsoredGridImageWrapper}>
+                      <Image source={{ uri: sponsorBanner }} style={styles.sponsoredGridImage} contentFit="cover" />
+                    </View>
+                  ) : null}
+                  <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                    {sponsor?.business_name || 'Local Sponsor'}
                   </Text>
-                ) : null}
+                  {sponsor?.description ? (
+                    <Text style={[styles.sponsoredGridDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                      {String(sponsor.description)}
+                    </Text>
+                  ) : null}
+                  <Pressable
+                    style={styles.sponsoredGridCta}
+                    onPress={() => router.push('/submit-ad')}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
+                    <Text style={styles.sponsoredGridCtaText}>Promote your program</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {sponsoredAds.length === 0 ? (
                 <Pressable
-                  style={styles.sponsoredGridCta}
+                  style={[styles.adInviteCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
                   onPress={() => router.push('/submit-ad')}
                   accessibilityRole="button"
                 >
-                  <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                  <Text style={styles.sponsoredGridCtaText}>Promote your program</Text>
+                  <Text style={[styles.adInviteTitle, { color: Colors[colorScheme].text }]}>Your ad here</Text>
+                  <Text style={[styles.adInviteSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                    Submit a local ad to reach nearby fans and families.
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              <View style={styles.verticalFeedSection}>
+                <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+                <Pressable
+                  onPress={openVerticalFeed}
+                  style={styles.verticalFeedCard}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open highlights reel"
+                >
+                  {verticalPreview ? (
+                    <Image source={{ uri: verticalPreview }} style={styles.verticalFeedImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient
+                      colors={['#1e293b', '#0f172a']}
+                      style={styles.verticalFeedImage}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    />
+                  )}
+                  <LinearGradient
+                    colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
+                    style={styles.verticalFeedShade}
+                  />
+                  <View style={styles.verticalFeedContent}>
+                    <View style={styles.verticalFeedBadge}>
+                      <Ionicons name="play" size={18} color="#fff" />
+                    </View>
+                    <Text style={styles.verticalFeedTitleText}>{verticalFeedTitle}</Text>
+                    {verticalFeedAuthorText ? (
+                      <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
+                    ) : null}
+                    <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                      {verticalFeedSubtitleText}
+                    </Text>
+                  </View>
                 </Pressable>
               </View>
-            ) : null}
 
-            {sponsoredAds.length === 0 ? (
-              <Pressable
-                style={[styles.adInviteCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                onPress={() => router.push('/submit-ad')}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.adInviteTitle, { color: Colors[colorScheme].text }]}>Your ad here</Text>
-                <Text style={[styles.adInviteSubtitle, { color: Colors[colorScheme].mutedText }]}>
-                  Submit a local ad to reach nearby fans and families.
-                </Text>
-              </Pressable>
-            ) : null}
-
-            <View style={styles.verticalFeedSection}>
-              <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-              <Pressable
-                onPress={openVerticalFeed}
-                style={styles.verticalFeedCard}
-                accessibilityRole="button"
-                accessibilityLabel="Open highlights reel"
-              >
-                {verticalFeedPreviewImage ? (
-                  <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-                ) : (
-                  <LinearGradient
-                    colors={['#1e293b', '#0f172a']}
-                    style={styles.verticalFeedImage}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <LinearGradient
-                  colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
-                  style={styles.verticalFeedShade}
-                />
-                <View style={styles.verticalFeedContent}>
-                  <View style={styles.verticalFeedBadge}>
-                    <Ionicons name="play" size={18} color="#fff" />
-                  </View>
-                  <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                  {verticalFeedAuthorText ? (
-                    <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
-                  ) : null}
-                  <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                    {verticalFeedSubtitleText}
-                  </Text>
+              {loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
                 </View>
-              </Pressable>
+              ) : null}
             </View>
-
-            {loadingMore ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-              </View>
-            ) : null}
-          </View>
-        )}
+          );
+        }}
         contentContainerStyle={{
           paddingVertical: 12,
           paddingBottom: Math.max(28, insets.bottom + 16),
@@ -755,14 +771,16 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, paddingHorizontal: 16 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { color: '#6b7280' },
   helper: { color: '#6b7280', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brand: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 12 },
+  headerSide: { height: 40, justifyContent: 'center' },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 40 },
+  brand: { fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
   gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
@@ -854,5 +872,6 @@ const styles = StyleSheet.create({
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
 });
+
 
 

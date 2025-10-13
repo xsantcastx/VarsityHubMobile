@@ -2,16 +2,16 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme,
 } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -41,21 +41,28 @@ export default function SignInScreen() {
     setError(null);
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
-      if (res?.access_token) {
-        if (res?.needs_verification) {
-          Alert.alert('Verify Email', 'Please verify your email to continue.');
-          router.replace('/verify-email');
-        } else {
-          Alert.alert('Signed in', 'Welcome back!');
-          // Role-aware landing - Fan→Highlights, Coach→Manage Teams
-          const me: any = await User.me();
-          const userRole = me?.preferences?.role || me?.role || 'fan';
-          const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-          router.replace(landingRoute as any);
-        }
-      } else {
+      if (!res?.access_token) {
         setError('Invalid login response');
+        return;
       }
+      if (res?.needs_verification) {
+        Alert.alert('Verify Email', 'Please verify your email to continue.');
+        router.replace('/verify-email');
+        return;
+      }
+
+      const account = res?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = res?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+
+      const userRole = prefs?.role || account?.role || 'fan';
+      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
+      Alert.alert('Signed in', 'Welcome back!');
+      router.replace(landingRoute as any);
     } catch (e: any) {
       console.error('Login failed', e);
       setError(e?.message || 'Login failed');
@@ -73,12 +80,13 @@ export default function SignInScreen() {
     try {
       const response: any = await signInWithGoogle();
       const account = response?.user || (await User.me());
-      const needsOnboarding = response?.needs_onboarding || account?.preferences?.onboarding_completed === false;
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
       if (needsOnboarding) {
-        router.replace('/onboarding/step-2-basic');
+        router.replace('/onboarding/step-1-role');
         return;
       }
-      const userRole = account?.preferences?.role || account?.role || 'fan';
+      const userRole = prefs?.role || account?.role || 'fan';
       const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
       router.replace(landingRoute as any);
     } catch (e: any) {
