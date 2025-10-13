@@ -5,6 +5,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { User } from '@/api/entities';
+// @ts-ignore
+import { httpPost } from '@/api/http';
 import PrimaryButton from '@/ui/PrimaryButton';
 
 export default function PaymentSuccessScreen() {
@@ -21,8 +23,17 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         if (params.session_id) {
-          // For ad payments, we don't need to verify - just mark as verified
+          // For ad payments, manually finalize the session
           if (isAdPayment) {
+            console.log('[payment-success] Finalizing ad payment session:', params.session_id);
+            try {
+              await httpPost('/payments/finalize-session', { session_id: params.session_id });
+              console.log('[payment-success] Session finalized successfully');
+            } catch (finalizeErr) {
+              console.warn('[payment-success] Failed to finalize session:', finalizeErr);
+              // Continue anyway - webhook might have already processed it
+            }
+            
             setSessionVerified(true);
             // Auto-redirect after 2 seconds to show success message
             setTimeout(() => {
