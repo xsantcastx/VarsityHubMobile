@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { logTransaction, updateTransactionStatus, calculateStripeFee } from '../lib/transactionLogger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -142,6 +143,31 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
 
+  // Log subscription transaction
+  const currentUser = await prisma.user.findUnique({ 
+    where: { id: req.user!.id },
+    select: { email: true }
+  });
+  const amount = chosen === 'veteran' ? 7000 : 15000;
+  await logTransaction({
+    transactionType: 'SUBSCRIPTION_PURCHASE',
+    status: 'PENDING',
+    stripeSessionId: session.id,
+    userId: req.user!.id,
+    userEmail: currentUser?.email || 'unknown',
+    subtotalCents: amount,
+    taxCents: 0,
+    stripeFeeeCents: calculateStripeFee(amount),
+    discountCents: 0, // Will be updated in webhook when we know actual discount
+    totalCents: amount, // Will be updated in webhook
+    promoCode: promoCode || undefined,
+    metadata: {
+      plan: chosen,
+    },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent'),
+  });
+
   return { url: session.url ?? null, sessionId: session.id };
 }
 
@@ -228,6 +254,33 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       discount_cents: String(discount || 0),
     },
   } as Stripe.Checkout.SessionCreateParams));
+
+  // Log transaction
+  const currentUser = await prisma.user.findUnique({ 
+    where: { id: req.user!.id },
+    select: { email: true }
+  });
+  await logTransaction({
+    transactionType: 'AD_PURCHASE',
+    status: 'PENDING',
+    stripeSessionId: session.id,
+    userId: req.user!.id,
+    userEmail: currentUser?.email || 'unknown',
+    orderId: String(ad_id),
+    subtotalCents: amount,
+    taxCents: 0,
+    stripeFeeeCents: calculateStripeFee(total),
+    discountCents: discount,
+    totalCents: total,
+    promoCode: appliedCode || undefined,
+    promoDiscountCents: discount,
+    metadata: {
+      dates: isoDates,
+      adId: ad_id,
+    },
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent'),
+  });
 
   return res.json({ url: session.url });
 });
@@ -553,6 +606,11 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         session_id: session.id,
         status: 'active'
       });
+      
+      // Update transaction log to COMPLETED
+      await updateTransactionStatus(session.id, 'COMPLETED', {
+        stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
+      });
     } catch (e) {
       console.error('[payments] Error processing ad reservation payment', {
         ad_id,
@@ -616,6 +674,12 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         }
         await prisma.user.update({ where: { id: userId }, data: { preferences: prefs } });
         console.info('[payments] membership finalize', { userId, plan, subscription_id: prefs.subscription_id, subscription_period_end: prefs.subscription_period_end });
+        
+        // Update transaction log to COMPLETED
+        await updateTransactionStatus(session.id, 'COMPLETED', {
+          stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
+          stripeSubscriptionId: session.subscription ? String(session.subscription) : undefined,
+        });
       } catch (err) {
         console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
       }
