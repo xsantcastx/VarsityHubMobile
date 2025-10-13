@@ -25,7 +25,17 @@ import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
 // Media validation constants
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg', 
+  'image/jpg', 
+  'image/png', 
+  'image/gif', 
+  'image/webp',
+  'image/heic',      // ✅ iPhone format
+  'image/heif',      // ✅ iPhone format
+  'image/heic-sequence',
+  'image/heif-sequence'
+];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
@@ -171,7 +181,7 @@ export default function CreatePostScreen() {
         Alert.alert(
           'Invalid File Type',
           media === 'image' 
-            ? 'Please select a valid image file (JPG, PNG, GIF, or WebP).'
+            ? 'Please select a valid image file (JPG, PNG, GIF, WebP, or HEIC).'
             : 'Please select a valid video file (MP4, MOV, or WebM).'
         );
         return;

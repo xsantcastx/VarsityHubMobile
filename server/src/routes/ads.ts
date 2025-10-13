@@ -165,6 +165,43 @@ adsRouter.put('/:id', async (req: AuthedRequest, res) => {
   return res.json(ad);
 });
 
+// Delete an Ad (owner-only if authenticated)
+adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  console.log('[ads] DELETE /:id request', { id, userId: req.user?.id });
+  
+  const existing = await prisma.ad.findUnique({ where: { id } });
+  if (!existing) {
+    console.warn('[ads] DELETE /:id - Ad not found', { id });
+    return res.status(404).json({ error: 'Not found' });
+  }
+  
+  // Check ownership
+  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
+    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', { 
+      id, 
+      adUserId: existing.user_id, 
+      requestUserId: req.user.id 
+    });
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    // First delete all reservations for this ad
+    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
+    console.log('[ads] DELETE /:id - Deleted reservations', { id });
+    
+    // Then delete the ad itself
+    await prisma.ad.delete({ where: { id } });
+    console.log('[ads] DELETE /:id - Ad deleted successfully', { id });
+    
+    return res.json({ ok: true, message: 'Ad deleted successfully' });
+  } catch (error) {
+    console.error('[ads] DELETE /:id - Error deleting ad', { id, error });
+    return res.status(500).json({ error: 'Failed to delete ad' });
+  }
+});
+
 // List reserved dates. Supports optional range and/or specific ad_id.
 adsRouter.get('/reservations', async (req, res) => {
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;

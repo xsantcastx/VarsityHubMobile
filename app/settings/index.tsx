@@ -304,7 +304,8 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 
                     {/* My Content */}
                     <SectionCard title="My Content">
-                      <NavRow title="View Favorites" subtitle="Posts you’ve saved" onPress={() => router.push('/settings/favorites')} />
+                      <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => router.push('/settings/favorites')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => router.push('/(tabs)/my-ads')} />
                     </SectionCard>
 
                     {/* Billing */}

@@ -1,6 +1,9 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
@@ -48,6 +51,7 @@ export default function AdCalendarScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ adId?: string }>();
   const adId = params.adId ?? '';
+  const colorScheme = useColorScheme() ?? 'light';
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -246,18 +250,51 @@ export default function AdCalendarScreen() {
       const data = txt ? JSON.parse(txt) : null;
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       if (data?.free) {
-        Alert.alert('Payment', 'Your reservation was completed with the promo discount.');
-        router.replace('/(tabs)/my-ads');
+        Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
+          { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
+        ]);
       } else if (data?.url) {
-        await WebBrowser.openBrowserAsync(String(data.url));
-        // Don't redirect here - let the Stripe callback (payment-success) handle the redirect
-        // The user will be redirected to payment-success screen after completing payment
+        // Show info before opening browser
+        Alert.alert(
+          'Complete Payment',
+          'You\'ll be redirected to Stripe to complete your payment. After payment, return to this app to see your active ads.',
+          [
+            {
+              text: 'Continue to Payment',
+              onPress: async () => {
+                try {
+                  const result = await WebBrowser.openBrowserAsync(String(data.url));
+                  
+                  // When browser closes, ALWAYS assume success and redirect
+                  console.log('[ad-calendar] Browser closed:', result.type);
+                  
+                  // Reset submitting state
+                  setSubmitting(false);
+                  
+                  // Always redirect to My Ads after browser closes
+                  // (whether they paid or not, they can check there)
+                  console.log('[ad-calendar] Redirecting to My Ads');
+                  router.replace('/(tabs)/my-ads');
+                  
+                } catch (browserErr) {
+                  console.error('Browser error:', browserErr);
+                  setSubmitting(false);
+                  Alert.alert('Error', 'Could not open payment page. Please try again.');
+                }
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setSubmitting(false)
+            }
+          ]
+        );
       }
     } catch (err) {
       console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);
-    } finally {
       setSubmitting(false);
     }
   };
@@ -268,23 +305,33 @@ export default function AdCalendarScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F172A0D' }}>
-      <Stack.Screen options={{ title: 'Schedule Your Ad' }} />
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
-          <Text style={styles.iconBtnText}>{'<'}</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Schedule Your Ad</Text>
-      </View>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ 
+        title: 'Schedule Your Ad',
+        headerShown: false // Use custom header with SafeAreaView
+      }} />
+      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <View style={[styles.header, { 
+          backgroundColor: Colors[colorScheme].card,
+          borderBottomColor: Colors[colorScheme].border 
+        }]}>
+          <Pressable onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+            <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>
+        </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView 
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
         {zipCode && (
-          <View style={[styles.card, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+          <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 20 }}>📍</Text>
-              <Text style={[styles.cardTitle, { color: '#1E40AF' }]}>Coverage Area</Text>
+              <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>Coverage Area</Text>
             </View>
-            <Text style={{ color: '#1E40AF', fontSize: 14 }}>
+            <Text style={{ color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', fontSize: 14 }}>
               Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
             </Text>
           </View>
@@ -340,19 +387,19 @@ export default function AdCalendarScreen() {
           </View>
         )}
         
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Select Ad Campaign Dates</Text>
-          <Text style={styles.cardDesc}>Choose one or more dates to run your ad.</Text>
+        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Select Ad Campaign Dates</Text>
+          <Text style={[styles.cardDesc, { color: Colors[colorScheme].mutedText }]}>Choose one or more dates to run your ad.</Text>
 
           {/* Color Legend */}
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={styles.legendText}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/day</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={styles.legendText}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/day</Text>
             </View>
           </View>
 
@@ -362,93 +409,115 @@ export default function AdCalendarScreen() {
             enableSwipeMonths
             minDate={todayISO()}
             maxDate={maxDateISO()}
+            theme={{
+              backgroundColor: Colors[colorScheme].card,
+              calendarBackground: Colors[colorScheme].card,
+              textSectionTitleColor: Colors[colorScheme].mutedText,
+              selectedDayBackgroundColor: Colors[colorScheme].tint,
+              selectedDayTextColor: '#FFFFFF',
+              todayTextColor: Colors[colorScheme].tint,
+              dayTextColor: Colors[colorScheme].text,
+              textDisabledColor: Colors[colorScheme].mutedText,
+              monthTextColor: Colors[colorScheme].text,
+              textMonthFontWeight: '700',
+            }}
           />
-          <Text style={styles.calendarHint}>Booking available up to 8 weeks in advance</Text>
+          <Text style={[styles.calendarHint, { color: Colors[colorScheme].mutedText }]}>Booking available up to 8 weeks in advance</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Pricing</Text>
+        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Pricing</Text>
           <View style={styles.rowBetween}>
-            <Text>Weekday Rate (Mon-Thu):</Text>
-            <Text style={styles.bold}>${weekdayRate.toFixed(2)}/day</Text>
+            <Text style={{ color: Colors[colorScheme].text }}>Weekday Rate (Mon-Thu):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayRate.toFixed(2)}/day</Text>
           </View>
           <View style={styles.rowBetween}>
-            <Text>Weekend Rate (Fri-Sun):</Text>
-            <Text style={styles.bold}>${weekendRate.toFixed(2)}/day</Text>
+            <Text style={{ color: Colors[colorScheme].text }}>Weekend Rate (Fri-Sun):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendRate.toFixed(2)}/day</Text>
           </View>
-          <Text style={styles.muted}>Each day is priced individually. Select multiple days to see your total.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each day is priced individually. Select multiple days to see your total.</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Promo Code</Text>
+        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Promo Code</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TextInput
               placeholder="Enter code"
+              placeholderTextColor={Colors[colorScheme].mutedText}
               autoCapitalize="characters"
               value={promo}
               onChangeText={setPromo}
-              style={{ flex: 1, height: 44, borderRadius: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', paddingHorizontal: 12 }}
+              style={{ 
+                flex: 1, 
+                height: 44, 
+                borderRadius: 10, 
+                borderWidth: StyleSheet.hairlineWidth, 
+                borderColor: Colors[colorScheme].border, 
+                paddingHorizontal: 12,
+                backgroundColor: Colors[colorScheme].surface,
+                color: Colors[colorScheme].text
+              }}
             />
-            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: '#2563EB', width: 120, height: 44 }]} disabled={promoBusy}>
+            <Pressable onPress={applyPromo} style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint, width: 120, height: 44 }]} disabled={promoBusy}>
               {promoBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.payBtnText}>Apply</Text>}
             </Pressable>
           </View>
-          {promoError ? <Text style={{ color: '#b91c1c' }}>Not valid: {promoError}</Text> : null}
+          {promoError ? <Text style={{ color: '#EF4444' }}>Not valid: {promoError}</Text> : null}
           {preview?.valid ? (
             <View style={{ marginTop: 8, gap: 4 }}>
-              <Text style={{ fontWeight: '600' }}>✅ Promo Applied: {preview.code}</Text>
-              <Text>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
-              <Text style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+              <Text style={{ fontWeight: '600', color: Colors[colorScheme].text }}>✅ Promo Applied: {preview.code}</Text>
+              <Text style={{ color: Colors[colorScheme].text }}>Discount: ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 }}>
                 ⚠️ Limited offer: First 8 users only
               </Text>
             </View>
           ) : null}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Campaign Summary</Text>
+        <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
+          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Campaign Summary</Text>
           {sortedDates.length > 0 ? (
             <View style={{ gap: 8 }}>
-              <Text style={styles.bold}>Selected Dates:</Text>
+              <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Selected Dates:</Text>
               <View style={styles.badgeWrap}>
                 {sortedDates.map((iso) => (
-                  <View key={iso} style={styles.badge}>
-                    <Text style={styles.badgeText}>{format(new Date(iso + 'T00:00:00'), 'MMM d')}</Text>
+                  <View key={iso} style={[styles.badge, { backgroundColor: Colors[colorScheme].surface }]}>
+                    <Text style={[styles.badgeText, { color: Colors[colorScheme].text }]}>{format(new Date(iso + 'T00:00:00'), 'MMM d')}</Text>
                   </View>
                 ))}
               </View>
             </View>
           ) : (
-            <Text style={styles.muted}>Select dates on the calendar to see your summary.</Text>
+            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Select dates on the calendar to see your summary.</Text>
           )}
 
-          <View style={styles.sep} />
+          <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
 
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18 }]}>Subtotal:</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700' }}>${price.toFixed(2)}</Text>
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Subtotal:</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: Colors[colorScheme].text }}>${price.toFixed(2)}</Text>
           </View>
           {taxCents > 0 && (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16 }]}>Sales Tax (est.):</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700' }}>${(taxCents / 100).toFixed(2)}</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Sales Tax (est.):</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>${(taxCents / 100).toFixed(2)}</Text>
             </View>
           )}
           {preview?.valid ? (
             <View style={styles.rowBetween}>
-              <Text style={[styles.bold, { fontSize: 16 }]}>Promo Discount:</Text>
-              <Text style={{ fontSize: 16, color: '#16a34a', fontWeight: '700' }}>- ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
+              <Text style={[styles.bold, { fontSize: 16, color: Colors[colorScheme].text }]}>Promo Discount:</Text>
+              <Text style={{ fontSize: 16, color: '#10B981', fontWeight: '700' }}>- ${((preview.discount_cents || 0) / 100).toFixed(2)}</Text>
             </View>
           ) : null}
           <View style={styles.rowBetween}>
-            <Text style={[styles.bold, { fontSize: 18 }]}>Total:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800' }}>${effective.toFixed(2)}</Text>
+            <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>${effective.toFixed(2)}</Text>
           </View>
 
           <Pressable
             disabled={submitting || selected.size === 0}
             onPress={handlePayment}
-            style={[styles.payBtn, (submitting || selected.size === 0) && styles.payBtnDisabled]}
+            style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint }, (submitting || selected.size === 0) && styles.payBtnDisabled]}
           >
             {submitting ? (
               <ActivityIndicator />
@@ -458,21 +527,33 @@ export default function AdCalendarScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
   header: {
-    paddingTop: 14,
+    paddingTop: Platform.OS === 'android' ? 14 : 8,
     paddingBottom: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.8)',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    // Add shadow for depth (iOS)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    // Add elevation for depth (Android)
+    elevation: 2,
   },
   iconBtn: {
     width: 40,
@@ -480,38 +561,39 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
   },
   iconBtnText: { fontSize: 20, fontWeight: '600' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, gap: 16 },
+  content: { 
+    padding: 16, 
+    gap: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Extra padding for iOS home indicator
+  },
   card: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     gap: 10,
   },
   cardTitle: { fontSize: 16, fontWeight: '700' },
-  cardDesc: { color: '#6b7280' },
+  cardDesc: {},
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  muted: { color: '#6b7280', fontSize: 12 },
+  muted: { fontSize: 12 },
   bold: { fontWeight: '600' },
-  sep: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 8 },
+  sep: { height: 1, marginVertical: 8 },
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999, backgroundColor: '#F3F4F6' },
+  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999 },
   badgeText: { fontSize: 12, fontWeight: '600' },
   legendContainer: { marginVertical: 8, gap: 6 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 16, height: 16, borderRadius: 8 },
-  legendText: { fontSize: 13, color: '#4B5563', fontWeight: '500' },
-  calendarHint: { fontSize: 12, color: '#6B7280', textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
+  legendText: { fontSize: 13, fontWeight: '500' },
+  calendarHint: { fontSize: 12, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
   payBtn: {
     marginTop: 12,
     height: 48,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111827',
   },
   payBtnDisabled: { opacity: 0.5 },
   payBtnText: { color: 'white', fontSize: 16, fontWeight: '700' },
