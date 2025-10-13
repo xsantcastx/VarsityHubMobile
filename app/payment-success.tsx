@@ -48,7 +48,7 @@ export default function PaymentSuccessScreen() {
     console.log('[payment-success] handleContinue called', { isAdPayment, type: params.type });
     if (isAdPayment) {
       console.log('[payment-success] Redirecting to /(tabs)/my-ads');
-      router.replace('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
+      router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
     } else {
       console.log('[payment-success] Redirecting to /(tabs)/feed');
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment

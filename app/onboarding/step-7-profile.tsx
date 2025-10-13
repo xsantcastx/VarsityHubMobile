@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -109,13 +110,13 @@ export default function Step7Profile() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 7/10' }} />
+      <OnboardingBackHeader
+        title="Create Your Profile"
+        subtitle="Add a photo, bio, and interests to help others connect"
+      />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Create Your Profile</Text>
-        <Text style={styles.subtitle}>
-          Add a profile picture, bio, and interests to help others connect with you
-        </Text>
 
         {/* Profile Picture Section */}
         <View style={styles.avatarSection}>
@@ -214,8 +215,6 @@ export default function Step7Profile() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 24, textAlign: 'center', fontSize: 16, lineHeight: 24 },
   
   // Avatar Section
   avatarSection: {

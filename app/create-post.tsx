@@ -8,7 +8,7 @@ import Animated, {
     useSharedValue,
     withSpring
 } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
@@ -50,6 +50,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
@@ -356,12 +357,14 @@ export default function CreatePostScreen() {
   };
 
   const canPost = useMemo(() => !!content.trim() || !!picked?.uri, [content, picked]);
+  const topPadding = useMemo(() => Math.max(insets.top + 8, 20), [insets.top]);
+  const bottomPadding = useMemo(() => Math.max(insets.bottom + 12, 24), [insets.bottom]);
   const buttonLabel = submitting
     ? (postType === 'highlight' ? 'Posting highlight...' : 'Posting...')
     : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Header */}

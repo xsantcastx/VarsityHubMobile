@@ -4,6 +4,7 @@ import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
@@ -133,11 +134,13 @@ export default function Step4Season() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 4/10' }} />
+      <OnboardingBackHeader
+        title="Set Your Season"
+        subtitle="Choose when your 6-month season begins"
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Set Your Season</Text>
-        <Text style={styles.subtitle}>Choose when your 6-month season begins</Text>
 
         {/* Plan Info */}
         <View style={[styles.planInfo, { borderLeftColor: planInfo.color }]}>
@@ -228,18 +231,6 @@ const styles = StyleSheet.create({
   scrollContent: { 
     padding: 16, 
     paddingBottom: 28 
-  },
-  title: { 
-    ...(Type.h1 as any), 
-    marginBottom: 8, 
-    textAlign: 'center' 
-  },
-  subtitle: { 
-    color: '#6b7280', 
-    marginBottom: 24, 
-    textAlign: 'center',
-    fontSize: 16,
-    lineHeight: 24
   },
   planInfo: {
     backgroundColor: '#F9FAFB',

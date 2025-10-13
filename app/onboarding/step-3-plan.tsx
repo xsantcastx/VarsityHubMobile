@@ -1,6 +1,7 @@
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -239,10 +240,13 @@ export default function Step3Plan() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 3/10' }} />
+      <OnboardingBackHeader
+        title="Choose Your Plan"
+        subtitle="Select the subscription that fits your program"
+      />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Choose Your Plan</Text>
         {PLAN_OPTIONS.map((option) => (
           <PlanCard
             key={option.id}
@@ -339,7 +343,6 @@ export default function Step3Plan() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   content: { padding: 16, paddingBottom: 28 },
-  title: { ...(Type.h1 as any), marginBottom: 12, textAlign: 'center' },
   card: {
     padding: 16,
     borderRadius: 12,

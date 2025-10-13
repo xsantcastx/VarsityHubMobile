@@ -1,7 +1,7 @@
 import { OBProvider, useOnboarding } from '@/context/OnboardingContext';
 import { Slot } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 function OnboardingProgressBar({ total = 10 }: { total?: number }) {
   const { progress } = useOnboarding();
@@ -22,7 +22,9 @@ export default function OnboardingLayout() {
   return (
     <SafeAreaProvider>
       <OBProvider>
-        <OnboardingProgressBar total={10} />
+        <SafeAreaView edges={['top']} style={styles.safeArea}>
+          <OnboardingProgressBar total={10} />
+        </SafeAreaView>
         <Slot />
       </OBProvider>
     </SafeAreaProvider>
@@ -30,6 +32,7 @@ export default function OnboardingLayout() {
 }
 
 const styles = StyleSheet.create({
+  safeArea: { backgroundColor: '#F9FAFB' },
   progressWrap: { padding: 12, backgroundColor: '#F9FAFB', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   progressTextRow: { marginBottom: 6 },
   progressText: { fontWeight: '600', color: '#374151' },

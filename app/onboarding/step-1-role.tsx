@@ -2,12 +2,12 @@ import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import PrimaryButton from '@/ui/PrimaryButton';
-import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 
 type UserRole = 'fan' | 'coach';
 
@@ -71,7 +71,6 @@ export default function Step1Role() {
     if (ob.role) setRole(ob.role);
   }, [ob.role]);
 
-
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const onContinue = async () => {
@@ -106,16 +105,9 @@ export default function Step1Role() {
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Route based on role selection for normal onboarding flow
-        if (role === 'fan') {
-          // Fan gets light setup - skip to profile or interests
-          setProgress(6); // step-7 (0-based)
-          router.push('/onboarding/step-7-profile');
-        } else {
-          // Coach/Organizer gets full onboarding
-          setProgress(1); // step-2
-          router.push('/onboarding/step-2-basic');
-        }
+        // Both roles complete the basic info step next
+        setProgress(1); // step-2
+        router.push('/onboarding/step-2-basic');
       }
     } finally {
       setSaving(false);
@@ -123,13 +115,14 @@ export default function Step1Role() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 1/10' }} />
+      <OnboardingBackHeader
+        title="Choose Your Role"
+        subtitle="Tell us how you'll be using VarsityHub"
+        onBack={() => router.replace('/sign-in')}
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Choose Your Role</Text>
-        <Text style={styles.subtitle}>
-          Tell us how you'll be using VarsityHub to personalize your experience
-        </Text>
 
         <RoleCard
           title="Fan"
@@ -183,18 +176,6 @@ const styles = StyleSheet.create({
   scrollContent: { 
     padding: 16, 
     paddingBottom: 28 
-  },
-  title: { 
-    ...(Type.h1 as any), 
-    marginBottom: 8, 
-    textAlign: 'center' 
-  },
-  subtitle: { 
-    color: '#6b7280', 
-    marginBottom: 32, 
-    textAlign: 'center',
-    fontSize: 16,
-    lineHeight: 24
   },
   card: { 
     padding: 20, 

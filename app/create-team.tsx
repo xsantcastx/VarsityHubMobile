@@ -206,7 +206,7 @@ export default function CreateTeamScreen() {
           const base = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
             (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
           const uploaded = await uploadFile(base, logoUri, 'team-logo.jpg', 'image/jpeg');
-          logoUrl = uploaded?.url || uploaded?.path;
+          logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
         } catch (error) {
           console.error('Logo upload failed:', error);
@@ -772,4 +772,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
+
 

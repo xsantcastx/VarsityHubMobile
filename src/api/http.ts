@@ -5,7 +5,7 @@ export function setAuthToken(token: string | null) { tokenCache = token || null;
 export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
-function getBaseUrl(): string {
+export function getApiBaseUrl(): string {
   // Expo packs env vars under process.env at runtime
   const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL) || '';
   let url = envUrl || 'http://localhost:4000';
@@ -16,7 +16,7 @@ function getBaseUrl(): string {
 }
 
 async function request(path: string, options: RequestInit = {}): Promise<any> {
-  const base = getBaseUrl();
+  const base = getApiBaseUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;

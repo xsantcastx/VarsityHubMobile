@@ -5,6 +5,7 @@ import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -138,11 +139,13 @@ export default function Step6AuthorizedUsers() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Step 6/10' }} />
+      <OnboardingBackHeader
+        title="Add Authorized Users"
+        subtitle={planInfo.description}
+      />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Add Authorized Users</Text>
-        <Text style={styles.subtitle}>{planInfo.description}</Text>
 
         {/* Plan Info */}
         <View style={styles.planInfo}>
@@ -272,8 +275,6 @@ export default function Step6AuthorizedUsers() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 20, textAlign: 'center', fontSize: 16 },
   label: { fontWeight: '700', marginBottom: 4 },
   
   planInfo: {

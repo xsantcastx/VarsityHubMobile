@@ -46,12 +46,13 @@ export default function SignUpScreen() {
     try {
       const response: any = await signInWithGoogle();
       const account = response?.user || (await User.me());
-      const needsOnboarding = response?.needs_onboarding || account?.preferences?.onboarding_completed === false;
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
       if (needsOnboarding) {
-        router.replace('/onboarding/step-2-basic');
+        router.replace('/onboarding/step-1-role');
         return;
       }
-      const userRole = account?.preferences?.role || account?.role || 'fan';
+      const userRole = prefs?.role || account?.role || 'fan';
       const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
       router.replace(landingRoute as any);
     } catch (e: any) {

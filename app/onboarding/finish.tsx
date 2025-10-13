@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
+import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
@@ -43,8 +44,12 @@ export default function OnboardingFinish() {
 
   const verified = !!me?.email_verified;
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Finish' }} />
+      <OnboardingBackHeader
+        title="Email Verification"
+        subtitle="Enter the 6-digit code to finish onboarding"
+      />
       <View style={{ padding: 16, gap: 12 }}>
         <Text style={styles.title}>You’re all set! 🎉</Text>
         {verified ? (

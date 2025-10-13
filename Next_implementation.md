@@ -17,7 +17,7 @@ Default Fan bio
 
 As a Fan, I want a sensible default bio, so that my profile isn’t empty on day one.
 
-AC: Given my role = Fan, When my account is created, Then my bio is prefilled with the client’s requested copy.
+AC: Given my role = Fan, When my account is created, Then my bio is prefilled with the exact copy "FAN TRYING TO SHOW THE MOST SCHOOL SPIRIT"; When that account is later upgraded to a team member/athlete role, Then the edit profile screen exposes a jersey number field so I can add my uniform #.
 
 2) Subscriptions, Pricing & Billing (Stripe)
 
@@ -65,7 +65,7 @@ Zip code required
 
 As a Fan, I want to provide my zip code, so that content and ads can be localized.
 
-AC: Zip code is mandatory; validation enforces format; saves to profile.
+AC: Zip code input is required (no "optional" label); validation enforces a 5-digit US format with inline error messaging; value is persisted to the profile; affiliation segmented control shows "Other" instead of "None" and wraps cleanly on compact screens.
 
 5) Onboarding (Coaches/Organizations)
 
@@ -193,6 +193,12 @@ As a Coach, I want to invite players and have a default group chat auto-created,
 
 AC: Adding players triggers invitation; upon first player added, a team group chat is created and members auto-joined.
 
+Uniform numbers for athletes
+
+As a converted team member, I want to add my jersey number when I’m moved from a fan account to an athlete role, so that rosters show my uniform.
+
+AC: When a fan account gains team membership, the profile edit flow exposes a jersey number field; saved numbers appear for coaches and teammates and persist across future role changes.
+
 Event invitation/merge flow
 
 As a Coach, I want invitations to merge duplicate game events from opponents, so that we keep a single canonical event.
@@ -291,3 +297,5 @@ Event merge heuristic: same date/time ±15 min, same venue geofence (<150m).
 Ads capacity: per-zip inventory model; 20-mile radius coverage map; alternative zips picker.
 
 Content pipeline: 1080p transcode, thumbnail generation, optional story camera path.
+
+Login page layout note: client request to "use floor for login credentials" requires design clarification or asset handoff before implementation.
