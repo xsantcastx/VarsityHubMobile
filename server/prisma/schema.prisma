@@ -62,6 +62,8 @@ model Game {
   title           String
   date            DateTime
   location        String?
+  latitude        Float?
+  longitude       Float?
   home_team       String?
   away_team       String?
   description     String?
@@ -78,6 +80,7 @@ model Game {
   votes   GameVote[]
 
   @@index([date])
+  @@index([latitude, longitude])
 }
 
 model Post {
@@ -119,6 +122,8 @@ model Event {
   title      String
   date       DateTime
   location   String?
+  latitude   Float?
+  longitude  Float?
   banner_url String?
   game_id    String?
   status     String   @default("draft")
@@ -130,6 +135,7 @@ model Event {
 
   @@index([date])
   @@index([game_id])
+  @@index([latitude, longitude])
 }
 
 model Message {

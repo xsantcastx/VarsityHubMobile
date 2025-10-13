@@ -14,7 +14,7 @@ import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVe
 import EventMap, { EventMapData } from '@/components/EventMap';
 
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null };
+type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
@@ -473,8 +473,8 @@ export default function CommunityDiscoverScreen() {
               title: String(game.title || 'Game'),
               date: String(game.date || new Date().toISOString()),
               location: String(game.location || ''),
-              // Note: Games don't have lat/long in schema yet
-              // This will show "No Events with Locations" until geocoding is added
+              latitude: game.latitude ?? undefined,
+              longitude: game.longitude ?? undefined,
               type: 'game',
             }))}
             onEventPress={(eventId) => {
