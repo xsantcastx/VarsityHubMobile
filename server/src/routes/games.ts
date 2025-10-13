@@ -129,6 +129,10 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     banner_url: z.string().url().optional(),
     // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
     appearance: z.string().optional(),
+    // Coordinate options
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
+    autoGeocode: z.boolean().optional(),
   });
   
   const parsed = schema.safeParse(req.body || {});
@@ -140,14 +144,35 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   }
 
   try {
+    // Prepare game data
+    let gameData: any = {
+      ...parsed.data,
+      date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      banner_url: parsed.data.banner_url ?? null,
+      cover_image_url: parsed.data.cover_image_url ?? null,
+      appearance: parsed.data.appearance ?? null,
+      latitude: parsed.data.latitude ?? null,
+      longitude: parsed.data.longitude ?? null,
+    };
+
+    // Handle auto-geocoding if requested and location is provided
+    if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
+      try {
+        const { geocodeLocation } = await import('../lib/geocoding.js');
+        const coords = await geocodeLocation(parsed.data.location);
+        if (coords) {
+          gameData.latitude = coords.latitude;
+          gameData.longitude = coords.longitude;
+          console.log(`✅ Auto-geocoded game location: ${parsed.data.location} → ${coords.latitude}, ${coords.longitude}`);
+        }
+      } catch (geocodeError) {
+        console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
+        // Continue without coordinates - don't fail the game creation
+      }
+    }
+
     const game = await (prisma.game.create as any)({
-      data: ({
-        ...parsed.data,
-        date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-        banner_url: parsed.data.banner_url ?? null,
-        cover_image_url: parsed.data.cover_image_url ?? null,
-        appearance: parsed.data.appearance ?? null,
-      } as any),
+      data: gameData,
       include: { events: { orderBy: { date: 'asc' }, take: 1 } },
     }) as any;
     
@@ -160,7 +185,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         game_id: game.id,
         status: 'approved', // Auto-approve game events
         capacity: null, // No capacity limit by default
-      },
+      } as any,
     });
     
     const response = {

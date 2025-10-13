@@ -35,6 +35,9 @@ export interface GameFormData {
   type: 'home' | 'away' | 'neutral';
   notes?: string;
   banner_url?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  autoGeocode?: boolean;
 }
 
 type TeamOption = {
@@ -61,6 +64,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     location: '',
     type: 'home',
     notes: '',
+    autoGeocode: true, // Auto-geocode by default
   });
   
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -152,6 +156,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       location: '',
       type: 'home',
       notes: '',
+      autoGeocode: true,
     });
     setErrors({});
   };
@@ -346,6 +351,79 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 }}
               />
               {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+              
+              {/* Auto-geocode toggle */}
+              <View style={[styles.geocodeOption, { marginTop: 12 }]}>
+                <Pressable
+                  style={styles.geocodeToggle}
+                  onPress={() => setFormData(prev => ({ ...prev, autoGeocode: !prev.autoGeocode }))}
+                >
+                  <View style={[
+                    styles.checkbox,
+                    { borderColor: Colors[colorScheme].border },
+                    formData.autoGeocode && { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].tint }
+                  ]}>
+                    {formData.autoGeocode && (
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.geocodeLabel, { color: Colors[colorScheme].text }]}>
+                      📍 Auto-find coordinates
+                    </Text>
+                    <Text style={[styles.geocodeHelp, { color: Colors[colorScheme].mutedText }]}>
+                      Automatically add map coordinates using Google Maps
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+              
+              {/* Manual coordinates (only show if auto-geocode is off) */}
+              {!formData.autoGeocode && (
+                <View style={styles.manualCoords}>
+                  <Text style={[styles.geocodeHelp, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+                    Or enter coordinates manually:
+                  </Text>
+                  <View style={styles.formRow}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Latitude</Text>
+                      <TextInput
+                        style={[styles.input, { 
+                          backgroundColor: Colors[colorScheme].surface,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text
+                        }]}
+                        placeholder="40.7505"
+                        placeholderTextColor={Colors[colorScheme].mutedText}
+                        keyboardType="decimal-pad"
+                        value={formData.latitude?.toString() || ''}
+                        onChangeText={(text) => {
+                          const num = parseFloat(text);
+                          setFormData(prev => ({ ...prev, latitude: isNaN(num) ? null : num }));
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Longitude</Text>
+                      <TextInput
+                        style={[styles.input, { 
+                          backgroundColor: Colors[colorScheme].surface,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text
+                        }]}
+                        placeholder="-73.9934"
+                        placeholderTextColor={Colors[colorScheme].mutedText}
+                        keyboardType="decimal-pad"
+                        value={formData.longitude?.toString() || ''}
+                        onChangeText={(text) => {
+                          const num = parseFloat(text);
+                          setFormData(prev => ({ ...prev, longitude: isNaN(num) ? null : num }));
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Notes */}
@@ -705,5 +783,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
+  },
+  geocodeOption: {
+    marginTop: 8,
+  },
+  geocodeToggle: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  geocodeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  geocodeHelp: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  manualCoords: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
   },
 });
