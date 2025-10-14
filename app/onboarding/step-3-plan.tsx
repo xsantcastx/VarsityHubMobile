@@ -3,11 +3,11 @@ import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 type Plan = 'rookie' | 'veteran' | 'legend';
 
@@ -254,27 +254,28 @@ export default function Step3Plan() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 3/10' }} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Choose Your Plan</Text>
-        {PLAN_OPTIONS.map((option) => (
-          <PlanCard
-            key={option.id}
-            option={option}
-            selected={plan === option.id}
-            onPress={() => handleSelectPlan(option.id)}
-          />
-        ))}
-        {plan ? (
-          <PrimaryButton
-            label={saving ? 'Saving...' : 'Continue'}
-            onPress={onContinue}
-            disabled={saving}
-            loading={saving}
-          />
-        ) : null}
-      </ScrollView>
+    <OnboardingLayout
+      step={3}
+      title="Choose Your Plan"
+      subtitle="Select the plan that fits your needs"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      {PLAN_OPTIONS.map((option) => (
+        <PlanCard
+          key={option.id}
+          option={option}
+          selected={plan === option.id}
+          onPress={() => handleSelectPlan(option.id)}
+        />
+      ))}
+      {plan ? (
+        <PrimaryButton
+          label={saving ? 'Saving...' : 'Continue'}
+          onPress={onContinue}
+          disabled={saving}
+          loading={saving}
+        />
+      ) : null}
 
       {/* Email Verification Modal */}
       <Modal
@@ -282,26 +283,26 @@ export default function Step3Plan() {
         transparent
         animationType="slide"
         onRequestClose={() => setShowVerifyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Verify Your Email</Text>
-            <Text style={styles.modalSubtitle}>
-              Please verify your email before purchasing a plan. Enter the 6-digit code we sent to your email.
-            </Text>
-            
-            {verificationError ? (
-              <Text style={styles.errorText}>{verificationError}</Text>
-            ) : null}
-            
-            {verificationInfo ? (
-              <Text style={styles.infoText}>{verificationInfo}</Text>
-            ) : null}
-            
-            <TextInput
-              style={styles.codeInput}
-              placeholder="Enter 6-digit code"
-              value={verificationCode}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Verify Your Email</Text>
+              <Text style={styles.modalSubtitle}>
+                Please verify your email before purchasing a plan. Enter the 6-digit code we sent to your email.
+              </Text>
+              
+              {verificationError ? (
+                <Text style={styles.errorText}>{verificationError}</Text>
+              ) : null}
+              
+              {verificationInfo ? (
+                <Text style={styles.infoText}>{verificationInfo}</Text>
+              ) : null}
+              
+              <TextInput
+                style={styles.codeInput}
+                placeholder="Enter 6-digit code"
+                value={verificationCode}
               onChangeText={setVerificationCode}
               keyboardType="number-pad"
               maxLength={6}
@@ -347,7 +348,7 @@ export default function Step3Plan() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 

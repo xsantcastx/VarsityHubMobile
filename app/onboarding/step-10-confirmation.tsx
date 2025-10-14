@@ -3,12 +3,12 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useEffect } from 'react';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step10Confirmation() {
   const router = useRouter();
@@ -164,21 +164,16 @@ export default function Step10Confirmation() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 10/10' }} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={48} color="#059669" />
-          </View>
-          <Text style={styles.title}>Almost Ready!</Text>
-          <Text style={styles.subtitle}>
-            Review your setup before completing onboarding
-          </Text>
-        </View>
-
-        {/* Progress Overview */}
-        <View style={styles.progressCard}>
+    <OnboardingLayout
+      step={10}
+      title="Almost Ready!"
+      subtitle="Review your setup before completing onboarding"
+      showBackButton={false}
+    >
+      <Stack.Screen options={{ title: 'Step 10/10', headerShown: false }} />
+      
+      {/* Progress Overview */}
+      <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Setup Progress</Text>
           <View style={styles.progressBar}>
             <View 
@@ -316,8 +311,7 @@ export default function Step10Confirmation() {
             You'll be taken to your dashboard after completing setup
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 

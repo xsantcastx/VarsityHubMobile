@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, Refresh
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Message, Notification as NotificationApi, User } from '@/api/entities';
+import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -834,14 +835,20 @@ export default function FeedScreen() {
             <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
               <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
               {sponsoredAds[sponsoredIndex]?.banner_url ? (
+                <BannerAd
+                  bannerUrl={sponsoredAds[sponsoredIndex].banner_url}
+                  targetUrl={sponsoredAds[sponsoredIndex].target_url}
+                  businessName={sponsoredAds[sponsoredIndex].business_name}
+                  description={sponsoredAds[sponsoredIndex].description}
+                  aspectRatio={16/9}
+                />
+              ) : (
                 <View style={styles.sponsoredGridImageWrapper}>
-                  <Image
-                    source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }}
-                    style={styles.sponsoredGridImage}
-                    contentFit="cover"
-                  />
+                  <View style={{ flex: 1, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="megaphone-outline" size={48} color="#9CA3AF" />
+                  </View>
                 </View>
-              ) : null}
+              )}
               <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
                 {sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}
               </Text>

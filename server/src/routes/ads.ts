@@ -14,6 +14,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
     contact_email,
     business_name,
     banner_url,
+    banner_fit_mode,
+    target_url,
     target_zip_code,
     radius,
     description,
@@ -30,6 +32,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
       contact_email: String(contact_email),
       business_name: String(business_name),
       banner_url: banner_url ? String(banner_url) : null,
+      banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
+      target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
       radius: typeof radius === 'number' ? radius : 45,
       description: description ? String(description) : null,
@@ -157,7 +161,7 @@ adsRouter.put('/:id', async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const data: any = {};
-  const allowed = ['contact_name','contact_email','business_name','banner_url','target_zip_code','radius','description','status','payment_status'] as const;
+  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status','payment_status'] as const;
   for (const k of allowed) {
     if (k in (req.body || {})) (data as any)[k] = (req.body as any)[k];
   }

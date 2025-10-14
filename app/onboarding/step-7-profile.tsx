@@ -6,12 +6,12 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 const ALL_INTERESTS = ['Football','Basketball','Baseball','Soccer','Volleyball','Track & Field','Swimming','Hockey','Other'] as const;
 
@@ -109,16 +109,15 @@ export default function Step7Profile() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 7/10' }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Create Your Profile</Text>
-        <Text style={styles.subtitle}>
-          Add a profile picture, bio, and interests to help others connect with you
-        </Text>
+    <OnboardingLayout
+      step={7}
+      title="Create Your Profile"
+      subtitle="Add a profile picture, bio, and interests to help others connect with you"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
 
-        {/* Profile Picture Section */}
-        <View style={styles.avatarSection}>
+      {/* Profile Picture Section */}
+      <View style={styles.avatarSection}>
           <View style={styles.avatarContainer}>
             {avatar ? (
               <Image source={{ uri: avatar }} style={styles.avatar} />
@@ -207,8 +206,7 @@ export default function Step7Profile() {
             loading={saving} 
           />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 

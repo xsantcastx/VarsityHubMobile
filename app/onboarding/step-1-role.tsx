@@ -2,12 +2,11 @@ import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import PrimaryButton from '@/ui/PrimaryButton';
-import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
 
@@ -26,33 +25,59 @@ function RoleCard({
   onPress: () => void; 
   features: string[]; 
 }) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const colors = {
+    cardBg: isDark ? (selected ? '#1F2937' : '#111827') : (selected ? '#FFFFFF' : '#F9FAFB'),
+    cardBorder: isDark ? (selected ? '#60A5FA' : '#374151') : (selected ? '#2563EB' : '#E5E7EB'),
+    iconColor: isDark ? (selected ? '#60A5FA' : '#9CA3AF') : (selected ? '#2563EB' : '#6B7280'),
+    titleColor: isDark ? '#F9FAFB' : '#111827',
+    descColor: isDark ? '#9CA3AF' : '#6B7280',
+    featureText: isDark ? '#D1D5DB' : '#374151',
+  };
+
   return (
     <Pressable 
       onPress={onPress} 
-      style={[styles.card, selected && styles.cardSelected]}
+      style={[
+        styles.card, 
+        { 
+          backgroundColor: colors.cardBg,
+          borderColor: colors.cardBorder,
+        },
+        selected && styles.cardSelected
+      ]}
     >
       <View style={styles.cardHeader}>
         <Ionicons 
           name={icon as any} 
-          size={32} 
-          color={selected ? '#111827' : '#6b7280'} 
+          size={36} 
+          color={colors.iconColor} 
         />
         <View style={styles.cardTitleContainer}>
-          <Text style={styles.cardTitle}>{title}</Text>
-          <Text style={styles.cardDescription}>{description}</Text>
+          <Text style={[styles.cardTitle, { color: colors.titleColor }]}>{title}</Text>
+          <Text style={[styles.cardDescription, { color: colors.descColor }]}>{description}</Text>
         </View>
+        {selected && (
+          <Ionicons 
+            name="checkmark-circle" 
+            size={24} 
+            color={isDark ? '#60A5FA' : '#2563EB'} 
+          />
+        )}
       </View>
       
       <View style={styles.featuresList}>
         {features.map((feature, index) => (
           <View key={index} style={styles.featureItem}>
             <Ionicons 
-              name="checkmark" 
-              size={16} 
+              name="checkmark-circle" 
+              size={18} 
               color="#16A34A" 
               style={styles.checkIcon} 
             />
-            <Text style={styles.featureText}>{feature}</Text>
+            <Text style={[styles.featureText, { color: colors.featureText }]}>{feature}</Text>
           </View>
         ))}
       </View>
@@ -123,132 +148,113 @@ export default function Step1Role() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 1/10' }} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Choose Your Role</Text>
-        <Text style={styles.subtitle}>
-          Tell us how you'll be using VarsityHub to personalize your experience
-        </Text>
+    <OnboardingLayout
+      step={1}
+      title="Choose Your Role"
+      subtitle="Tell us how you'll be using VarsityHub to personalize your experience"
+      showBackButton={false}
+    >
+      <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
+      
+      <RoleCard
+        title="Fan"
+        description="Follow teams and players"
+        icon="heart"
+        selected={role === 'fan'}
+        onPress={() => setRole('fan')}
+        features={[
+          'Follow your favorite teams',
+          'Get game updates and highlights',
+          'Connect with other fans',
+          'Quick setup process'
+        ]}
+      />
 
-        <RoleCard
-          title="Fan"
-          description="Follow teams and players"
-          icon="heart"
-          selected={role === 'fan'}
-          onPress={() => setRole('fan')}
-          features={[
-            'Follow your favorite teams',
-            'Get game updates and highlights',
-            'Connect with other fans',
-            'Quick setup process'
-          ]}
-        />
+      <RoleCard
+        title="Coach / Organizer"
+        description="Manage teams and organize games"
+        icon="trophy"
+        selected={role === 'coach'}
+        onPress={() => setRole('coach')}
+        features={[
+          'Create and manage teams',
+          'Organize games and events',
+          'Invite players and staff',
+          'Full management tools',
+          'Communication features'
+        ]}
+      />
 
-        <RoleCard
-          title="Coach / Organizer"
-          description="Manage teams and organize games"
-          icon="trophy"
-          selected={role === 'coach'}
-          onPress={() => setRole('coach')}
-          features={[
-            'Create and manage teams',
-            'Organize games and events',
-            'Invite players and staff',
-            'Full management tools',
-            'Communication features'
-          ]}
-        />
-
-        {role && (
-          <View style={styles.continueContainer}>
-            <PrimaryButton 
-              label={saving ? 'Setting up...' : 'Continue'} 
-              onPress={onContinue} 
-              disabled={saving} 
-              loading={saving} 
-            />
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      {role && (
+        <View style={styles.continueContainer}>
+          <PrimaryButton 
+            label={saving ? 'Setting up...' : 'Continue'} 
+            onPress={onContinue} 
+            disabled={saving} 
+            loading={saving} 
+          />
+        </View>
+      )}
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: 'white' 
-  },
-  scrollContent: { 
-    padding: 16, 
-    paddingBottom: 28 
-  },
-  title: { 
-    ...(Type.h1 as any), 
-    marginBottom: 8, 
-    textAlign: 'center' 
-  },
-  subtitle: { 
-    color: '#6b7280', 
-    marginBottom: 32, 
-    textAlign: 'center',
-    fontSize: 16,
-    lineHeight: 24
-  },
   card: { 
     padding: 20, 
-    borderRadius: 12, 
+    borderRadius: 16, 
     borderWidth: 2, 
-    borderColor: '#E5E7EB', 
-    backgroundColor: '#F9FAFB', 
-    marginBottom: 16 
-  },
-  cardSelected: { 
-    borderColor: '#111827', 
-    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardSelected: { 
+    borderWidth: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
   cardTitleContainer: {
-    marginLeft: 12,
+    marginLeft: 14,
     flex: 1,
   },
   cardTitle: { 
     fontWeight: '800', 
-    fontSize: 18,
-    color: '#111827',
+    fontSize: 20,
     marginBottom: 4,
+    letterSpacing: -0.3,
   },
   cardDescription: {
-    color: '#6b7280',
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 20,
   },
   featuresList: {
-    gap: 8,
+    gap: 10,
+    paddingTop: 4,
   },
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   checkIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   featureText: {
-    color: '#374151',
-    fontSize: 14,
+    fontSize: 15,
     flex: 1,
+    lineHeight: 22,
   },
   continueContainer: {
-    marginTop: 24,
+    marginTop: 32,
+    marginBottom: 20,
   },
 });
 

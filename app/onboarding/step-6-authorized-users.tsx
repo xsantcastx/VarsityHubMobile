@@ -6,10 +6,10 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { useOnboarding } from '@/context/OnboardingContext';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 type TeamRole = 'Team Manager' | 'Assistant' | 'Coach' | 'Admin';
 
@@ -138,14 +138,15 @@ export default function Step6AuthorizedUsers() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 6/10' }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Add Authorized Users</Text>
-        <Text style={styles.subtitle}>{planInfo.description}</Text>
+    <OnboardingLayout
+      step={6}
+      title="Add Authorized Users"
+      subtitle={planInfo.description}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
 
-        {/* Plan Info */}
-        <View style={styles.planInfo}>
+      {/* Plan Info */}
+      <View style={styles.planInfo}>
           <View style={styles.planHeader}>
             <Text style={styles.planName}>{planInfo.name} Plan</Text>
             <Text style={styles.planLimit}>
@@ -265,8 +266,7 @@ export default function Step6AuthorizedUsers() {
             </View>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 

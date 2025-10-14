@@ -2,7 +2,8 @@ import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 
@@ -95,76 +96,212 @@ export default function SubmitAdScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Submit Ad' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
-        <Text style={styles.title}>Submit a Local Ad</Text>
-        <Text style={styles.subtitle}>Promote your business to local teams and families. Continue to pick your campaign dates.</Text>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <Stack.Screen options={{ title: 'Submit Ad', headerShown: true }} />
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Submit a Local Ad</Text>
+            <Text style={styles.subtitle}>
+              Promote your business to local teams and families. Continue to pick your campaign dates.
+            </Text>
+          </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Your Name *</Text>
-          <TextInput value={name} onChangeText={setName} placeholder="John Smith" style={styles.input} autoCapitalize="words" />
+          <View style={styles.card}>
+            <Text style={styles.label}>Your Name *</Text>
+            <TextInput 
+              value={name} 
+              onChangeText={setName} 
+              placeholder="John Smith" 
+              style={styles.input} 
+              autoCapitalize="words" 
+            />
 
-          <Text style={styles.label}>Email Address *</Text>
-          <TextInput value={email} onChangeText={setEmail} placeholder="you@example.com" style={styles.input} keyboardType="email-address" autoCapitalize="none" />
+            <Text style={styles.label}>Email Address *</Text>
+            <TextInput 
+              value={email} 
+              onChangeText={setEmail} 
+              placeholder="you@example.com" 
+              style={styles.input} 
+              keyboardType="email-address" 
+              autoCapitalize="none" 
+            />
 
-          <Text style={styles.label}>Business Name *</Text>
-          <TextInput value={business} onChangeText={setBusiness} placeholder="Acme Pizza" style={styles.input} />
+            <Text style={styles.label}>Business Name *</Text>
+            <TextInput 
+              value={business} 
+              onChangeText={setBusiness} 
+              placeholder="Acme Pizza" 
+              style={styles.input} 
+            />
 
-          <Text style={styles.label}>Target Zip Code *</Text>
-          <TextInput value={zip} onChangeText={setZip} placeholder="12345" style={styles.input} keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} maxLength={10} />
-          {zip.trim() && <Text style={styles.helperText}>📍 Your ad will reach 20 miles around zip code {zip}</Text>}
+            <Text style={styles.label}>Target Zip Code *</Text>
+            <TextInput 
+              value={zip} 
+              onChangeText={setZip} 
+              placeholder="12345" 
+              style={styles.input} 
+              keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
+              maxLength={10} 
+            />
+            {zip.trim() && (
+              <Text style={styles.helperText}>
+                📍 Your ad will reach 20 miles around zip code {zip}
+              </Text>
+            )}
 
-          <Text style={styles.label}>Ad Banner *</Text>
-          <BannerUpload 
-            value={bannerUrl || ''} 
-            onChange={handleBannerChange}
-            aspectRatio={16 / 9}
-            required={true}
-          />
-          {!bannerUrl && <Text style={styles.helperText}>Banner image is required for your ad</Text>}
+            <Text style={styles.label}>Ad Banner *</Text>
+            <BannerUpload 
+              value={bannerUrl || ''} 
+              onChange={handleBannerChange}
+              aspectRatio={16 / 9}
+              required={true}
+            />
+            {!bannerUrl && (
+              <Text style={styles.muted}>Banner image is required for your ad</Text>
+            )}
 
-          <Text style={styles.label}>Target URL (Optional)</Text>
-          <TextInput
-            value={targetUrl}
-            onChangeText={setTargetUrl}
-            placeholder="https://yourwebsite.com"
-            style={styles.input}
-            keyboardType="url"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Text style={styles.muted}>When users click your ad, they'll be taken to this URL</Text>
+            <Text style={styles.label}>Website Link (Optional)</Text>
+            <TextInput
+              value={targetUrl}
+              onChangeText={setTargetUrl}
+              placeholder="https://yourwebsite.com"
+              style={styles.input}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {targetUrl.trim() && (
+              <Text style={styles.helperText}>
+                🔗 Users can tap your ad to visit this website
+              </Text>
+            )}
 
-          <Text style={styles.label}>Description *</Text>
-          <TextInput
-            value={desc}
-            onChangeText={setDesc}
-            placeholder="Tell us about your business or message..."
-            style={[styles.input, { height: 84, textAlignVertical: 'top' }]}
-            multiline
-          />
-          {!desc.trim() && <Text style={styles.helperText}>Description is required</Text>}
-        </View>
+            <Text style={styles.label}>Description *</Text>
+            <TextInput
+              value={desc}
+              onChangeText={setDesc}
+              placeholder="Tell us about your business or message..."
+              style={[styles.input, styles.textArea]}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            {!desc.trim() && (
+              <Text style={styles.muted}>Description is required</Text>
+            )}
+          </View>
 
-        <Pressable onPress={submit} disabled={!canSubmit || busy} style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>Continue to Calendar</Text>}
-        </Pressable>
-      </ScrollView>
-    </View>
+          <Pressable 
+            onPress={submit} 
+            disabled={!canSubmit || busy} 
+            style={[styles.cta, (!canSubmit || busy) && styles.ctaDisabled]}
+          >
+            {busy ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.ctaText}>📅 Continue to Calendar</Text>
+            )}
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
-  subtitle: { color: '#6b7280', marginBottom: 12 },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', gap: 8 },
-  label: { fontWeight: '700' },
-  input: { height: 44, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', paddingHorizontal: 10, backgroundColor: 'white' },
-  helperText: { fontSize: 12, color: '#dc2626', marginTop: 4 },
-  muted: { fontSize: 12, color: '#6b7280', marginTop: 4 },
-  cta: { marginTop: 12, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111827' },
-  ctaDisabled: { opacity: 0.5 },
-  ctaText: { color: 'white', fontWeight: '800', fontSize: 16 },
+  container: { 
+    flex: 1, 
+    backgroundColor: 'white' 
+  },
+  scrollContent: { 
+    padding: 16, 
+    paddingBottom: 32 
+  },
+  header: {
+    marginBottom: 20,
+  },
+  title: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  subtitle: { 
+    color: '#6b7280', 
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  card: { 
+    padding: 16, 
+    borderRadius: 12, 
+    backgroundColor: '#F9FAFB', 
+    borderWidth: StyleSheet.hairlineWidth, 
+    borderColor: '#E5E7EB', 
+    gap: 12,
+    marginBottom: 20,
+  },
+  label: { 
+    fontWeight: '700',
+    fontSize: 15,
+    color: '#111827',
+    marginBottom: 6,
+  },
+  input: { 
+    height: 48, 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    borderColor: '#D1D5DB', 
+    paddingHorizontal: 14, 
+    backgroundColor: 'white',
+    fontSize: 16,
+    color: '#111827',
+  },
+  textArea: {
+    height: 100,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  helperText: { 
+    fontSize: 13, 
+    color: '#059669', 
+    marginTop: -4,
+    marginBottom: 4,
+  },
+  muted: { 
+    fontSize: 13, 
+    color: '#6b7280', 
+    marginTop: -4,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  cta: { 
+    height: 52, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#111827',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  ctaDisabled: { 
+    opacity: 0.5 
+  },
+  ctaText: { 
+    color: 'white', 
+    fontWeight: '800', 
+    fontSize: 17,
+    letterSpacing: 0.3,
+  },
 });
