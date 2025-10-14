@@ -3,10 +3,10 @@ import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 type Intent = 'find_local_games' | 'view_moments' | 'post_reviews' | 'support_creators' | 'claim_team' | 'follow';
 
@@ -48,18 +48,19 @@ export default function Step8Interests() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 8/10' }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>What interests you most?</Text>
-        {OPTIONS.map((o) => (
-          <Pressable key={o.key} onPress={() => toggle(o.key)} style={[styles.row, sel.includes(o.key) && styles.rowSelected]}>
-            <Text style={[styles.rowTitle, sel.includes(o.key) && { color: 'white' }]}>{o.label}</Text>
-          </Pressable>
-        ))}
-        <PrimaryButton label={saving ? 'Saving…' : 'Finish'} onPress={onFinish} disabled={!sel.length || saving} loading={saving} />
-      </ScrollView>
-    </SafeAreaView>
+    <OnboardingLayout
+      step={8}
+      title="What interests you most?"
+      subtitle=""
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      {OPTIONS.map((o) => (
+        <Pressable key={o.key} onPress={() => toggle(o.key)} style={[styles.row, sel.includes(o.key) && styles.rowSelected]}>
+          <Text style={[styles.rowTitle, sel.includes(o.key) && { color: 'white' }]}>{o.label}</Text>
+        </Pressable>
+      ))}
+      <PrimaryButton label={saving ? 'Saving…' : 'Finish'} onPress={onFinish} disabled={!sel.length || saving} loading={saving} />
+    </OnboardingLayout>
   );
 }
 

@@ -39,23 +39,39 @@ export function BannerAd({
       return;
     }
 
-    // Otherwise, open target URL
+    // If no target URL, show message
     if (!targetUrl) {
       Alert.alert('No Link', 'This ad does not have a website link.');
       return;
     }
 
-    try {
-      const canOpen = await Linking.canOpenURL(targetUrl);
-      if (canOpen) {
-        await Linking.openURL(targetUrl);
-      } else {
-        Alert.alert('Invalid Link', 'Unable to open this link.');
-      }
-    } catch (error) {
-      console.error('Error opening ad link:', error);
-      Alert.alert('Error', 'Failed to open link. Please try again.');
-    }
+    // Show confirmation dialog before opening external link
+    Alert.alert(
+      'Open Website',
+      `Do you want to visit ${businessName || 'this website'}?\n\n${targetUrl}`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Open',
+          onPress: async () => {
+            try {
+              const canOpen = await Linking.canOpenURL(targetUrl);
+              if (canOpen) {
+                await Linking.openURL(targetUrl);
+              } else {
+                Alert.alert('Invalid Link', 'Unable to open this link.');
+              }
+            } catch (error) {
+              console.error('Error opening ad link:', error);
+              Alert.alert('Error', 'Failed to open link. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
@@ -113,12 +129,13 @@ export function BannerAd({
 
   return (
     <Pressable
-      style={[
+      style={({ pressed }) => [
         styles.container,
         {
           aspectRatio,
           backgroundColor: Colors[colorScheme].surface,
           borderColor: Colors[colorScheme].border,
+          opacity: pressed ? 0.8 : 1,
         },
       ]}
       onPress={handlePress}
@@ -135,10 +152,11 @@ export function BannerAd({
         <Text style={styles.adBadgeText}>Ad</Text>
       </View>
 
-      {/* External Link Indicator */}
+      {/* External Link Indicator - Only show if there's a target URL */}
       {targetUrl && (
         <View style={styles.linkIndicator}>
-          <Ionicons name="open-outline" size={14} color="#FFFFFF" />
+          <Ionicons name="open-outline" size={16} color="#FFFFFF" />
+          <Text style={styles.linkIndicatorText}>Tap to visit</Text>
         </View>
       )}
     </Pressable>
@@ -190,13 +208,19 @@ const styles = StyleSheet.create({
   },
   linkIndicator: {
     position: 'absolute',
-    top: 8,
+    bottom: 8,
     right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+  },
+  linkIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

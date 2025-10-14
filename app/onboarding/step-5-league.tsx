@@ -5,11 +5,11 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step5League() {
   const router = useRouter();
@@ -123,13 +123,14 @@ export default function Step5League() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 5/10' }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>{pageConfig.title}</Text>
-        <Text style={styles.subtitle}>{pageConfig.subtitle}</Text>
-        
-        <View style={styles.infoBox}>
+    <OnboardingLayout
+      step={5}
+      title={pageConfig.title}
+      subtitle={pageConfig.subtitle}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      <View style={styles.infoBox}>
           <Ionicons 
             name={pageConfig.type === 'team' ? 'people' : 'business'} 
             size={24} 
@@ -234,14 +235,11 @@ export default function Step5League() {
           label={saving ? 'Creating...' : 'Continue'} 
           onPress={onContinue} 
           disabled={!canContinue} 
-          loading={saving} 
-        />
-      </ScrollView>
-    </SafeAreaView>
+        loading={saving}
+      />
+    </OnboardingLayout>
   );
-}
-
-const styles = StyleSheet.create({
+}const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
   subtitle: { color: '#6b7280', marginBottom: 16, textAlign: 'center', fontSize: 16 },

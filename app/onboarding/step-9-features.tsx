@@ -3,12 +3,12 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 import * as Location from 'expo-location';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
@@ -108,16 +108,15 @@ export default function Step9Features() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 9/10' }} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Enable Features</Text>
-        <Text style={styles.subtitle}>
-          Configure your privacy and notification preferences
-        </Text>
+    <OnboardingLayout
+      step={9}
+      title="Enable Features"
+      subtitle="Configure your privacy and notification preferences"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
 
-        {/* Location Access */}
-        <View style={styles.featureCard}>
+      {/* Location Access */}
+      <View style={styles.featureCard}>
           <View style={styles.featureHeader}>
             <View style={styles.featureIconContainer}>
               <Ionicons name="location" size={24} color="#2563EB" />
@@ -216,8 +215,7 @@ export default function Step9Features() {
             </Text>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 

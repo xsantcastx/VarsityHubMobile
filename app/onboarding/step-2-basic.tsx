@@ -2,14 +2,13 @@ import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
 
@@ -17,7 +16,6 @@ export default function Step2Basic() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const insets = useSafeAreaInsets();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
   const [dob, setDob] = useState('');
@@ -126,98 +124,89 @@ export default function Step2Basic() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Step 2/10' }} />
+    <OnboardingLayout
+      step={2}
+      title="Basic Information"
+      subtitle="We'll set up your account with a username and preferences"
+      onBack={onBack}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#374151" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Basic Information</Text>
-        <View style={styles.backButton} />
+      <Text style={styles.label}>Username</Text>
+      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
+        if (!usernameRe.test(username)) { setAvailable(null); return; }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
+      }} />
+      {usernameError ? (
+        <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
+      ) : checking ? (
+        <Text style={styles.muted}>Checking availability…</Text>
+      ) : available === false ? (
+        <Text style={styles.error}>That username is taken</Text>
+      ) : available === true && username.length > 0 ? (
+        <Text style={styles.success}>Available!</Text>
+      ) : null}
+
+      <Text style={styles.label}>Affiliation</Text>
+      <View style={styles.affiliationGrid}>
+        {[
+          { value: 'none', label: 'None', icon: '❌' },
+          { value: 'university', label: 'University', icon: '🎓' },
+          { value: 'high_school', label: 'High School', icon: '🏫' },
+          { value: 'club', label: 'Club', icon: '⚽' },
+          { value: 'youth', label: 'Youth', icon: '👶' },
+        ].map((option) => (
+          <Pressable
+            key={option.value}
+            style={[
+              styles.affiliationButton,
+              affiliation === option.value && styles.affiliationButtonSelected
+            ]}
+            onPress={() => setAffiliation(option.value as Affiliation)}
+          >
+            <Text style={styles.affiliationIcon}>{option.icon}</Text>
+            <Text style={[
+              styles.affiliationLabel,
+              affiliation === option.value && styles.affiliationLabelSelected
+            ]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Basic Information</Text>
-        <Text style={styles.subtitle}>We'll set up your account with a username and preferences.</Text>
+      <Text style={styles.label}>Date of birth</Text>
+      <DateField
+        label="Date of birth"
+        value={dob} 
+        onChange={setDob}
+      />
+      {dobError && (
+        <Text style={styles.error}>Please enter a valid date of birth</Text>
+      )}
 
-        <Text style={styles.label}>Username</Text>
-        <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
-          if (!usernameRe.test(username)) { setAvailable(null); return; }
-          try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
-        }} />
-        {usernameError ? (
-          <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
-        ) : checking ? (
-          <Text style={styles.muted}>Checking availability…</Text>
-        ) : available === false ? (
-          <Text style={styles.error}>That username is taken</Text>
-        ) : available === true && username.length > 0 ? (
-          <Text style={styles.success}>Available!</Text>
-        ) : null}
+      <Text style={styles.label}>Zip code {zipRequired && <Text style={{color: '#ef4444'}}>*</Text>}</Text>
+      <Input 
+        value={zip} 
+        onChangeText={setZip} 
+        autoCapitalize="none" 
+        placeholder={zipRequired ? "Required for coaches" : "12345"} 
+        keyboardType="numeric" 
+        maxLength={5}
+      />
+      {zipRequired && !zip && (
+        <Text style={styles.error}>Zip code is required for coaches</Text>
+      )}
 
-        <Text style={styles.label}>Affiliation</Text>
-        <View style={styles.affiliationGrid}>
-          {[
-            { value: 'none', label: 'None', icon: '❌' },
-            { value: 'university', label: 'University', icon: '🎓' },
-            { value: 'high_school', label: 'High School', icon: '🏫' },
-            { value: 'club', label: 'Club', icon: '⚽' },
-            { value: 'youth', label: 'Youth', icon: '👶' },
-          ].map((option) => (
-            <Pressable
-              key={option.value}
-              style={[
-                styles.affiliationButton,
-                affiliation === option.value && styles.affiliationButtonSelected
-              ]}
-              onPress={() => setAffiliation(option.value as Affiliation)}
-            >
-              <Text style={styles.affiliationIcon}>{option.icon}</Text>
-              <Text style={[
-                styles.affiliationLabel,
-                affiliation === option.value && styles.affiliationLabelSelected
-              ]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={styles.label}>Date of birth</Text>
-        <DateField
-          label="Date of birth"
-          value={dob} 
-          onChange={setDob}
+      <View style={{ marginTop: 20 }}>
+        <PrimaryButton
+          label="Continue"
+          onPress={onContinue}
+          disabled={!canContinue}
+          loading={saving}
         />
-        {dobError && (
-          <Text style={styles.error}>Please enter a valid date of birth</Text>
-        )}
-
-        <Text style={styles.label}>Zip code {zipRequired && <Text style={{color: '#ef4444'}}>*</Text>}</Text>
-        <Input 
-          value={zip} 
-          onChangeText={setZip} 
-          autoCapitalize="none" 
-          placeholder={zipRequired ? "Required for coaches" : "12345"} 
-          keyboardType="numeric" 
-          maxLength={5}
-        />
-        {zipRequired && !zip && (
-          <Text style={styles.error}>Zip code is required for coaches</Text>
-        )}
-
-        <View style={{ marginTop: 20 }}>
-          <PrimaryButton
-            label="Continue"
-            onPress={onContinue}
-            disabled={!canContinue}
-            loading={saving}
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </OnboardingLayout>
   );
 }
 
@@ -256,8 +245,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   label: {
-    ...Type.h1,
-    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginTop: 20,
     marginBottom: 8,
   },
   error: {
@@ -278,14 +269,13 @@ const styles = StyleSheet.create({
   affiliationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 20,
   },
   affiliationButton: {
-    flex: 1,
-    minWidth: '45%',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    width: '30%',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#E5E7EB',
@@ -294,21 +284,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   affiliationButtonSelected: {
-    borderColor: '#111827',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 2,
   },
   affiliationIcon: {
-    fontSize: 24,
+    fontSize: 20,
     marginBottom: 4,
   },
   affiliationLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
   },
   affiliationLabelSelected: {
-    color: '#111827',
+    color: '#2563EB',
     fontWeight: '700',
   },
 });
