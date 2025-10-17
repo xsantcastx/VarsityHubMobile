@@ -329,6 +329,7 @@ export default function CreatePostScreen() {
             value={content}
             onChangeText={setContent}
             placeholder={PromptPresets.posting[rotatingPromptIndex].text}
+            placeholderTextColor={Colors[colorScheme].mutedText}
             multiline
             style={[
               styles.textarea, 

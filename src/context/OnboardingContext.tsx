@@ -53,6 +53,8 @@ type Ctx = {
   setProgress: (step: number) => void;
   // reset but save current snapshot into history first
   resetWithHistorySave: () => void;
+  // flag to indicate if AsyncStorage has been loaded
+  isLoaded: boolean;
 };
 
 const OBContext = createContext<Ctx | null>(null);
@@ -195,7 +197,7 @@ export function OBProvider({ children }: PropsWithChildren) {
   };
   
   return (
-    <OBContext.Provider value={{ state, setState, clearOnboarding, history, pushHistory, restoreHistory, progress, setProgress, resetWithHistorySave }}>
+    <OBContext.Provider value={{ state, setState, clearOnboarding, history, pushHistory, restoreHistory, progress, setProgress, resetWithHistorySave, isLoaded }}>
       {children}
     </OBContext.Provider>
   );
