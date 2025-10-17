@@ -152,7 +152,7 @@ export default function Step10Confirmation() {
         console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);
       }
       
-      // Send complete onboarding state - all 25 fields
+      // Send complete onboarding state - all fields
       const completionPayload = {
         // Core identity fields
         role: ob.role,
@@ -196,6 +196,9 @@ export default function Step10Confirmation() {
         notifications_enabled: ob.notifications_enabled,
         messaging_policy_accepted: ob.messaging_policy_accepted,
       };
+      
+      // Log the payload before sending
+      console.log('[Onboarding][Step10] Sending completion payload:', JSON.stringify(completionPayload, null, 2));
       
       // Final submission to backend - mark onboarding as complete
       await User.completeOnboarding(completionPayload);
