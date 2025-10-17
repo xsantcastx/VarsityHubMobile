@@ -312,6 +312,7 @@ export const Team = {
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
 };
 
 export const Support = {

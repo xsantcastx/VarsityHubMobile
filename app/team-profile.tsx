@@ -778,7 +778,7 @@ export default function TeamProfileScreen() {
         </View>
 
         {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+        <View style={[styles.tabContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
           {(['overview', 'members', 'settings'] as const).map((tab) => (
             <Pressable
               key={tab}
@@ -939,12 +939,13 @@ export default function TeamProfileScreen() {
                         style: 'destructive', 
                         onPress: async () => {
                           try {
-                            // TODO: Implement team deletion API call
-                            console.log('Delete team:', team.id);
-                            Alert.alert('Success', 'Team deleted successfully');
-                            router.back();
-                          } catch (error) {
-                            Alert.alert('Error', 'Failed to delete team');
+                            await TeamApi.delete(team.id);
+                            Alert.alert('Success', 'Team deleted successfully', [
+                              { text: 'OK', onPress: () => router.replace('/manage-teams') }
+                            ]);
+                          } catch (error: any) {
+                            console.error('Failed to delete team:', error);
+                            Alert.alert('Error', error?.message || 'Failed to delete team');
                           }
                         }
                       }
@@ -1336,9 +1337,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#E5E7EB',
     borderRadius: 12,
     padding: 4,
+    borderWidth: 1,
   },
   tab: {
     flex: 1,

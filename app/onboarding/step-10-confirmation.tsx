@@ -13,15 +13,19 @@ import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step10Confirmation() {
   const router = useRouter();
-  const { state: ob, clearOnboarding, setProgress, setState: setOB } = useOnboarding();
+  const { state: ob, clearOnboarding, setProgress, setState: setOB, progress } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {
-    setProgress(9);
-  }, [setProgress]);
+    // Only set progress if not already at step 10
+    if (progress !== 9) {
+      console.log('[Step10] Setting progress to 9 (was:', progress, ')');
+      setProgress(9);
+    }
+  }, [setProgress, progress]);
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
