@@ -328,24 +328,6 @@ export default function CommunityDiscoverScreen() {
               <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
               <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
             </Pressable>
-            
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: '#10B981' + '10', borderColor: '#10B981' + '30' }]}
-              onPress={() => router.push('/create-fan-event')}
-            >
-              <Ionicons name="add-circle" size={24} color="#10B981" />
-              <Text style={[styles.coachActionTitle, { color: '#10B981' }]}>Create Event</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Organize watch parties & more</Text>
-            </Pressable>
-
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: '#F59E0B' + '10', borderColor: '#F59E0B' + '30' }]}
-              onPress={() => router.push('/admin-teams')}
-            >
-              <Ionicons name="checkmark-circle" size={24} color="#F59E0B" />
-              <Text style={[styles.coachActionTitle, { color: '#F59E0B' }]}>Approvals</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review community events</Text>
-            </Pressable>
           </ScrollView>
         </View>
       )}

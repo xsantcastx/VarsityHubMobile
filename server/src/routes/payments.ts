@@ -14,9 +14,9 @@ export const paymentsRouter = Router();
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
   
-  // Individual day pricing: $1.75 weekday, $2.99 weekend
-  const weekdayPrice = 175; // $1.75 in cents
-  const weekendPrice = 299; // $2.99 in cents
+  // Individual day pricing: $10 weekday (Mon-Thu), $17.50 weekend (Fri-Sun)
+  const weekdayPrice = 1000; // $10.00 in cents
+  const weekendPrice = 1750; // $17.50 in cents
   let total = 0;
   
   for (const s of isoDates) {

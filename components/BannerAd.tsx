@@ -45,10 +45,16 @@ export function BannerAd({
       return;
     }
 
+    // Normalize the URL - add https:// if no protocol is present
+    let normalizedUrl = targetUrl.trim();
+    if (!normalizedUrl.match(/^https?:\/\//i)) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    }
+
     // Show confirmation dialog before opening external link
     Alert.alert(
       'Open Website',
-      `Do you want to visit ${businessName || 'this website'}?\n\n${targetUrl}`,
+      `Do you want to visit ${businessName || 'this website'}?\n\n${normalizedUrl}`,
       [
         {
           text: 'Cancel',
@@ -58,11 +64,11 @@ export function BannerAd({
           text: 'Open',
           onPress: async () => {
             try {
-              const canOpen = await Linking.canOpenURL(targetUrl);
+              const canOpen = await Linking.canOpenURL(normalizedUrl);
               if (canOpen) {
-                await Linking.openURL(targetUrl);
+                await Linking.openURL(normalizedUrl);
               } else {
-                Alert.alert('Invalid Link', 'Unable to open this link.');
+                Alert.alert('Invalid Link', 'Unable to open this link. Please check the URL format.');
               }
             } catch (error) {
               console.error('Error opening ad link:', error);

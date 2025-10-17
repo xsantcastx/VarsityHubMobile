@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
-import { Event, Game, Team } from '@/api/entities';
+import { Event, Game, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
@@ -31,6 +31,7 @@ type MediaItem = {
   kind: 'photo' | 'video';
   created_at?: string;
   caption?: string | null;
+  user_id?: string | null;
 };
 
 type StoriesViewerProps = {
@@ -39,9 +40,11 @@ type StoriesViewerProps = {
   index: number;
   onClose: () => void;
   onSeen: (id: string) => void;
+  onDelete?: (id: string) => void;
+  gameId?: string | null;
 };
 
-function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewerProps) {
+function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameId }: StoriesViewerProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const [current, setCurrent] = useState(index);
@@ -50,6 +53,17 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
   const [paused, setPaused] = useState(false);
   const [playing, setPlaying] = useState(false);
   const progressFracRef = useRef(0);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Get current user ID
+  useEffect(() => {
+    if (visible) {
+      User.me().then((user: any) => {
+        setCurrentUserId(user?.id || null);
+      }).catch(() => setCurrentUserId(null));
+    }
+  }, [visible]);
 
   // Sync starting index when viewer opens or caller changes it
   useEffect(() => {
@@ -60,7 +74,8 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
     setCurrent((prev) => {
       const next = prev + 1;
       if (next >= items.length) {
-        onClose();
+        // Defer onClose to avoid setState during render
+        setTimeout(() => onClose(), 0);
         return prev;
       }
       return next;
@@ -82,12 +97,68 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
   }, []);
   const onNavLeft = useCallback(() => {
     if (Date.now() < skipTapUntil.current) return;
+    console.log('⬅️ Left navigation triggered');
     goPrev();
   }, [goPrev]);
   const onNavRight = useCallback(() => {
     if (Date.now() < skipTapUntil.current) return;
+    console.log('➡️ Right navigation triggered');
     goNext();
   }, [goNext]);
+
+  // Handle delete story
+  const handleDelete = useCallback(async () => {
+    console.log('🗑️ DELETE BUTTON PRESSED!');
+    const item = items[current];
+    if (!item || !gameId || deleting) {
+      console.log('Delete aborted:', { hasItem: !!item, hasGameId: !!gameId, deleting });
+      return;
+    }
+
+    Alert.alert(
+      'Delete Story',
+      'Are you sure you want to delete this story? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            console.log('Delete confirmed, deleting story:', item.id);
+            setDeleting(true);
+            try {
+              await Game.deleteMedia(gameId, item.id);
+              console.log('Story deleted successfully');
+              // Call parent's onDelete callback if provided
+              if (onDelete) {
+                onDelete(item.id);
+              }
+              // If this was the last item, close the viewer
+              if (items.length === 1) {
+                console.log('Last story deleted, closing viewer');
+                // Defer onClose to avoid setState during render
+                setTimeout(() => onClose(), 0);
+              } else {
+                // Move to next item or previous if at the end
+                if (current >= items.length - 1) {
+                  console.log('Moving to previous story');
+                  goPrev();
+                } else {
+                  console.log('Moving to next story');
+                  goNext();
+                }
+              }
+            } catch (err) {
+              console.error('Failed to delete story', err);
+              Alert.alert('Error', 'Unable to delete story. Please try again.');
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [items, current, gameId, deleting, onDelete, onClose, goPrev, goNext]);
 
   // Reset progress when current changes
   useEffect(() => {
@@ -130,6 +201,25 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
   if (!visible) return null;
   const item = items[current];
   const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
+  
+  // Check if user can delete this story
+  const canDelete = currentUserId && item?.user_id && currentUserId === item.user_id;
+  
+  // Debug logging
+  if (__DEV__) {
+    console.log('StoriesViewer - Delete button check:', {
+      currentUserId,
+      itemUserId: item?.user_id,
+      canDelete,
+      hasGameId: !!gameId,
+      itemId: item?.id,
+      allItemKeys: item ? Object.keys(item) : [],
+    });
+  }
+  
+  // TEMP: Show delete button for all stories during testing
+  const showDeleteButton = __DEV__ || canDelete;
+  
   return (
     <Modal
       visible={visible}
@@ -164,10 +254,39 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
               );
             })}
           </View>
-          <Text style={styles.storyTopLabel}>{current + 1} / {items.length}</Text>
-          <Pressable onPress={onClose} style={styles.storyCloseBtn} accessibilityLabel="Close stories">
-            <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
+          <View style={styles.storyTopRight}>
+            <Text style={styles.storyTopLabel}>{current + 1} / {items.length}</Text>
+            {showDeleteButton && (
+              <Pressable 
+                onPress={(e) => {
+                  console.log('🗑️ Delete button onPress triggered');
+                  e?.stopPropagation?.();
+                  handleDelete();
+                }}
+                style={({ pressed }) => [
+                  styles.storyDeleteBtn, 
+                  { 
+                    zIndex: 9999,
+                    opacity: pressed ? 0.7 : 1,
+                    transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }]
+                  }
+                ]} 
+                accessibilityLabel="Delete story"
+                disabled={deleting}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="trash-outline" size={22} color={deleting ? '#9CA3AF' : '#EF4444'} />
+              </Pressable>
+            )}
+            <Pressable 
+              onPress={onClose} 
+              style={styles.storyCloseBtn} 
+              accessibilityLabel="Close stories"
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
+            </Pressable>
+          </View>
         </View>
 
         <View
@@ -219,7 +338,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen }: StoriesViewer
           );
         })()}
 
-        <View style={styles.storyTouchLayer}>
+        <View style={styles.storyTouchLayer} pointerEvents="box-none">
           <Pressable
             style={styles.storyTouchHalf}
             onPress={onNavLeft}
@@ -1055,7 +1174,14 @@ const GameDetailsScreen = () => {
   }, [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router]);
 
   const renderStoriesCarousel = () => {
-    const mediaItems = (vm?.media ?? []).map((m) => ({ id: m.id, url: m.url, kind: m.kind }));
+    const mediaItems = (vm?.media ?? []).map((m) => ({ 
+      id: m.id, 
+      url: m.url, 
+      kind: m.kind, 
+      user_id: m.user_id,
+      created_at: m.created_at,
+      caption: m.caption,
+    }));
     if (!mediaItems.length) return null;
     return (
       <View style={styles.storiesWrap}>
@@ -1553,35 +1679,74 @@ const renderVoteSection = () => {
                   <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
                 )}
 
-
-                <Pressable
-                  style={styles.verticalFeedPreview}
-                  onPress={() => setVerticalFeedOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open vertical highlights"
-                >
-                  {previewImage ? (
-                    <Image source={{ uri: previewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-                  ) : (
-                    <LinearGradient
-                      colors={['#1e293b', '#0f172a']}
-                      style={styles.verticalFeedImage}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    />
-                  )}
-                  <LinearGradient
-                    colors={['rgba(15,23,42,0.15)', 'rgba(15,23,42,0.85)']}
-                    style={styles.verticalFeedShade}
-                  />
-                  <View style={styles.verticalFeedContent}>
-                    <View style={styles.verticalFeedBadge}>
-                      <Ionicons name="play" size={18} color="#fff" />
+                {/* Posts Grid View */}
+                {postsCount > 0 && (
+                  <View style={styles.postsGridContainer}>
+                    <View style={styles.postsGrid}>
+                      {(vm?.posts || []).slice(0, 6).map((post: any, index: number) => {
+                        const thumb = post.media_url;
+                        const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                        const likes = post.upvotes_count ?? 0;
+                        const comments = post.comments_count ?? post._count?.comments ?? 0;
+                        return (
+                          <Pressable
+                            key={post.id || index}
+                            style={styles.gridItem}
+                            onPress={() => {
+                              router.push(`/post-detail?id=${post.id}`);
+                            }}
+                          >
+                            {thumb ? (
+                              <View style={styles.gridImageContainer}>
+                                <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                <View style={styles.gridImageOverlay} />
+                              </View>
+                            ) : (
+                              <View style={[styles.gridImage, styles.gridImageFallback]}>
+                                <LinearGradient 
+                                  colors={["#667eea", "#764ba2", "#f093fb"]} 
+                                  style={StyleSheet.absoluteFillObject as any} 
+                                  start={{ x: 0, y: 0 }} 
+                                  end={{ x: 1, y: 1 }}
+                                />
+                                <View style={styles.textPostOverlay}>
+                                  <Text numberOfLines={4} style={styles.gridTextOnly}>
+                                    {String(post.caption || post.content || '').trim() || 'Post'}
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
+                            {/* Counts overlay */}
+                            <View style={styles.gridCounts}>
+                              <View style={styles.gridCountItem}>
+                                <Ionicons name="arrow-up" size={12} color="#fff" />
+                                <Text style={styles.gridCountText}>{likes}</Text>
+                              </View>
+                              <View style={styles.gridCountItem}>
+                                <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                                <Text style={styles.gridCountText}>{comments}</Text>
+                              </View>
+                            </View>
+                            {/* Media type badge */}
+                            <View style={styles.gridIconBadge}>
+                              <Ionicons name={thumb ? (isVideo ? 'videocam' : 'camera-outline') : 'text'} size={14} color="#fff" />
+                            </View>
+                          </Pressable>
+                        );
+                      })}
                     </View>
-                    <Text style={styles.verticalFeedTitle}>Open vertical highlights</Text>
-                    <Text style={styles.verticalFeedSubtitle}>{postsCount ? `${postsCount} fan highlight${postsCount === 1 ? '' : 's'} ready to watch` : 'Swipe through game-day clips'}</Text>
+                    {postsCount > 6 && (
+                      <Pressable
+                        style={styles.viewAllPostsBtn}
+                        onPress={() => setVerticalFeedOpen(true)}
+                      >
+                        <Text style={styles.viewAllPostsText}>View All {postsCount} Posts</Text>
+                        <Ionicons name="chevron-forward" size={20} color="#2563EB" />
+                      </Pressable>
+                    )}
                   </View>
-                </Pressable>
+                )}
+
                 <View style={styles.verticalFeedActions}>
                   <Pressable
                     style={[styles.postCtaBtn, !vm?.gameId ? styles.postCtaBtnDisabled : null]}
@@ -1751,6 +1916,21 @@ const renderVoteSection = () => {
           index={storiesViewer.index}
           onClose={() => setStoriesViewer(null)}
           onSeen={(id) => setSeenStories((prev) => (prev[id] ? prev : { ...prev, [id]: true }))}
+          onDelete={(id) => {
+            // Remove deleted item from the viewer's items array
+            setStoriesViewer((prev) => {
+              if (!prev) return null;
+              const updatedItems = prev.items.filter((item) => item.id !== id);
+              if (updatedItems.length === 0) return null;
+              return { ...prev, items: updatedItems };
+            });
+            // Also update the main vm.media array
+            setVm((prev) => {
+              if (!prev) return prev;
+              return { ...prev, media: prev.media.filter((item) => item.id !== id) };
+            });
+          }}
+          gameId={vm?.gameId}
         />
       ) : null}
       {/* RSVP Bottom Sheet */}
@@ -2229,8 +2409,24 @@ const styles = StyleSheet.create({
   viewerMedia: { width: '100%', height: '100%', borderRadius: 16 },
   // Story viewer styles
   storyViewerRoot: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  storyViewerTopBar: { position: 'absolute', left: 12, right: 12, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  storyViewerTopBar: { position: 'absolute', left: 12, right: 12, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, zIndex: 1000 },
+  storyTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 1001 },
   storyTopLabel: { color: '#fff', fontWeight: '800' },
+  storyDeleteBtn: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20, 
+    backgroundColor: 'rgba(239,68,68,0.25)', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(239,68,68,0.5)',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
   storyCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   storyStage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   storyTouchLayer: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
@@ -2349,6 +2545,108 @@ const styles = StyleSheet.create({
   vsDivider: { width: 12 },
   vsPctBarWrap: { width: '100%', height: 6, backgroundColor: '#e6eefc', borderRadius: 6, overflow: 'hidden', marginTop: 8 },
   vsPctBarFill: { height: '100%', backgroundColor: '#1e40af', width: '0%' },
+  // Posts Grid Styles
+  postsGridContainer: {
+    marginTop: 12,
+  },
+  postsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -1.5,
+  },
+  gridItem: { 
+    width: '32%',
+    aspectRatio: 1, 
+    margin: '0.5%', 
+    borderRadius: 12, 
+    overflow: 'hidden', 
+    backgroundColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
+  gridImage: { width: '100%', height: '100%' },
+  gridImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
+  textPostOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8,
+    margin: 8,
+  },
+  gridTextOnly: { 
+    textAlign: 'center', 
+    color: '#ffffff', 
+    fontWeight: '700', 
+    fontSize: 12, 
+    lineHeight: 16,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2
+  },
+  gridIconBadge: { 
+    position: 'absolute', 
+    bottom: 8, 
+    right: 8, 
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    borderRadius: 14, 
+    width: 28, 
+    height: 28, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
+  },
+  gridCounts: { 
+    position: 'absolute', 
+    left: 8, 
+    bottom: 8, 
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    borderRadius: 14, 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2
+  },
+  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  viewAllPostsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  viewAllPostsText: {
+    color: '#2563EB',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
 
 

@@ -1,19 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring
-} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { PromptPresets, RotatingPrompts } from '@/components/RotatingPrompts';
-import { StoryCameraButton } from '@/components/StoryCameraButton';
+import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
 import PrimaryButton from '@/ui/PrimaryButton';
@@ -72,36 +64,18 @@ export default function CreatePostScreen() {
   const [selectedGameId, setSelectedGameId] = useState<string | undefined>(gameId);
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
-  const [gestureMode, setGestureMode] = useState<'camera' | 'review'>('camera');
-  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
+  const [eventSelectorVisible, setEventSelectorVisible] = useState(false);
+  const [hasAutoSuggested, setHasAutoSuggested] = useState(!!gameId); // If gameId from params, don't auto-suggest
 
-  // Animation values for swipe gesture
-  const translateY = useSharedValue(0);
-  const swipeOpacity = useSharedValue(1);
-  const cameraScale = useSharedValue(1);
-  const reviewScale = useSharedValue(1);
-
-  const handleCloseReviewModal = () => setReviewModalVisible(false);
-
-  const handleReviewMode = () => {
-    const hasMedia = Boolean(picked?.uri);
-    const hasText = Boolean(content.trim());
-    if (!hasMedia && !hasText) {
-      Alert.alert('Nothing to review yet', 'Capture media or add a caption before reviewing.');
-      setGestureMode('camera');
-      return;
-    }
-    setReviewModalVisible(true);
-  };
-
-  const activateCameraMode = () => {
-    setGestureMode('camera');
-  };
-
-  const triggerReviewMode = () => {
-    setGestureMode('review');
-    handleReviewMode();
-  };
+  // Rotate placeholder prompts
+  useEffect(() => {
+    const prompts = PromptPresets.posting;
+    const timer = setInterval(() => {
+      setRotatingPromptIndex((prev) => (prev + 1) % prompts.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -121,7 +95,8 @@ export default function CreatePostScreen() {
 
   // Auto-suggest nearest event based on time and location
   useEffect(() => {
-    if (selectedGameId) return; // Don't override if already selected via params
+    // Only auto-suggest once, and don't override if already selected via params
+    if (hasAutoSuggested || selectedGameId) return;
     
     (async () => {
       try {
@@ -154,15 +129,16 @@ export default function CreatePostScreen() {
         
         setNearbyGames(upcomingGames.slice(0, 5)); // Keep top 5 for selection
         
-        // Auto-select the nearest game
+        // Auto-select the nearest game only on first load
         const nearest = upcomingGames[0];
         setSuggestedGame(nearest);
         setSelectedGameId(String(nearest.id));
+        setHasAutoSuggested(true); // Mark that we've done the auto-suggestion
       } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
       }
     })();
-  }, [selectedGameId]);
+  }, []); // Empty dependency - only run once on mount
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
@@ -213,7 +189,6 @@ export default function CreatePostScreen() {
         } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
-      setGestureMode('review');
     }
   };
 
@@ -270,53 +245,8 @@ export default function CreatePostScreen() {
         } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
-      setGestureMode('camera');
-      setReviewModalVisible(false);
     }
   };
-
-  // Gesture handler for camera/review toggle
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      swipeOpacity.value = withSpring(0.7);
-    })
-    .onUpdate((event) => {
-      translateY.value = event.translationY;
-    })
-    .onEnd((event) => {
-      if (event.translationY < -50 && event.velocityY < -500) {
-        // Trigger camera with scale animation
-        cameraScale.value = withSpring(1.1, {}, () => {
-          cameraScale.value = withSpring(1);
-        });
-        runOnJS(captureWithCamera)('image');
-        runOnJS(activateCameraMode)();
-      } else if (event.translationY > 50 && event.velocityY > 500) {
-        reviewScale.value = withSpring(1.1, {}, () => {
-          reviewScale.value = withSpring(1);
-        });
-        runOnJS(triggerReviewMode)();
-      }
-      translateY.value = withSpring(0);
-      swipeOpacity.value = withSpring(1);
-    });
-
-  const animatedSwipeStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: Math.max(Math.min(translateY.value, 60), -60),
-      },
-    ],
-    opacity: swipeOpacity.value,
-  }));
-
-  const animatedCameraStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cameraScale.value }],
-  }));
-
-  const animatedReviewStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: reviewScale.value }],
-  }));
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -390,98 +320,18 @@ export default function CreatePostScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
-        {/* Rotating Prompts */}
-        <View style={styles.promptsSection}>
-          <RotatingPrompts 
-            prompts={PromptPresets.posting} 
-            interval={6000}
-            showIcon={true}
-          />
-        </View>
-
-        {/* Composer Section */}
+        {/* Composer Section with Rotating Tips */}
         <View style={styles.composerSection}>
           <MentionInput
             value={content}
             onChangeText={setContent}
-            placeholder="Respect for every player on the field."
+            placeholder={PromptPresets.posting[rotatingPromptIndex].text}
             multiline
             style={styles.textarea}
             maxLength={500}
           />
           <Text style={styles.helper}>Use # to tag teams and @ to mention players</Text>
         </View>
-
-        {/* Interactive Swipe Camera */}
-        <GestureDetector gesture={panGesture}>
-          <Animated.View
-            style={[
-              styles.swipeSection,
-              animatedSwipeStyle,
-              gestureMode === 'review' ? styles.swipeSectionReview : styles.swipeSectionCamera,
-            ]}
-          >
-            <View style={styles.swipeIndicatorRow}>
-              <Animated.View style={animatedCameraStyle}>
-                <View
-                  style={[
-                    styles.swipeOption,
-                    gestureMode === 'camera' ? styles.swipeOptionActiveCamera : styles.swipeOptionInactive,
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-up"
-                    size={18}
-                    color={gestureMode === 'camera' ? '#FFFFFF' : '#1D4ED8'}
-                  />
-                  <Text
-                    style={[
-                      styles.swipeOptionLabel,
-                      gestureMode === 'camera' ? styles.swipeOptionLabelActiveCamera : null,
-                    ]}
-                  >
-                    Camera
-                  </Text>
-                </View>
-              </Animated.View>
-
-              <View style={styles.swipeDivider} />
-
-              <Animated.View style={animatedReviewStyle}>
-                <View
-                  style={[
-                    styles.swipeOption,
-                    gestureMode === 'review' ? styles.swipeOptionActiveReview : styles.swipeOptionInactive,
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={gestureMode === 'review' ? '#FFFFFF' : '#DC2626'}
-                  />
-                  <Text
-                    style={[
-                      styles.swipeOptionLabel,
-                      gestureMode === 'review' ? styles.swipeOptionLabelActiveReview : null,
-                    ]}
-                  >
-                    Review
-                  </Text>
-                </View>
-              </Animated.View>
-            </View>
-            <Text
-              style={[
-                styles.swipeHint,
-                gestureMode === 'review' ? styles.swipeHintReview : styles.swipeHintCamera,
-              ]}
-            >
-              {gestureMode === 'review'
-                ? 'Swipe down to review your capture'
-                : 'Swipe up to open the camera'}
-            </Text>
-          </Animated.View>
-        </GestureDetector>
 
         {/* Media Actions */}
         <View style={styles.mediaSection}>
@@ -491,30 +341,14 @@ export default function CreatePostScreen() {
               <Ionicons name="image-outline" size={24} color="#6B7280" />
               <Text style={styles.tileLabel}>Gallery</Text>
             </Pressable>
-            <Animated.View style={animatedCameraStyle}>
-              <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
-                <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
-                <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
-              </Pressable>
-            </Animated.View>
+            <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
+              <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
+              <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
+            </Pressable>
             <Pressable style={styles.tile} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
               <Ionicons name="videocam-outline" size={24} color="#6B7280" />
               <Text style={styles.tileLabel}>Video</Text>
             </Pressable>
-          </View>
-          
-          {/* Add to Story Button */}
-          <View style={styles.storyButtonContainer}>
-            <StoryCameraButton
-              onCapture={(uri, type) => {
-                const mediaType = type === 'photo' ? 'image' : 'video';
-                setPicked({ uri, type: mediaType, mime: type === 'video' ? 'video/mp4' : 'image/jpeg' });
-                setGestureMode('camera');
-                setReviewModalVisible(false);
-              }}
-              variant="button"
-            />
-            <Text style={styles.storyHint}>Quick 24-hour Stories open camera directly</Text>
           </View>
         </View>
 
@@ -536,42 +370,57 @@ export default function CreatePostScreen() {
         ) : null}
 
         {/* Suggested Game/Event */}
-        {suggestedGame && (
+        {(suggestedGame || nearbyGames.length > 0) && (
           <View style={styles.gameSection}>
-            <Text style={styles.sectionTitle}>Attach to Event</Text>
-            <Pressable 
-              style={styles.gameSuggestionCard}
-              onPress={() => {
-                // Could show a modal to select different game
-                Alert.alert(
-                  'Event Selected',
-                  `Post will be attached to: ${suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}`,
-                  [
-                    { text: 'Remove Event', style: 'destructive', onPress: () => { setSuggestedGame(null); setSelectedGameId(undefined); } },
-                    { text: 'Keep Event', style: 'cancel' }
-                  ]
-                );
-              }}
-            >
-              <View style={styles.gameIconContainer}>
-                <Ionicons name="trophy" size={20} color="#059669" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gameLabel}>Suggested Event (nearest)</Text>
-                <Text style={styles.gameTitle}>
-                  {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
-                </Text>
-                {suggestedGame.date && (
-                  <Text style={styles.gameDate}>
-                    {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionTitle}>Attach to Event</Text>
+              {nearbyGames.length > 1 && (
+                <Pressable onPress={() => setEventSelectorVisible(true)}>
+                  <Text style={styles.changeEventButton}>Change</Text>
+                </Pressable>
+              )}
+            </View>
+            
+            {suggestedGame ? (
+              <Pressable 
+                style={styles.gameSuggestionCard}
+                onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
+              >
+                <View style={styles.gameIconContainer}>
+                  <Ionicons name="trophy" size={20} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.gameLabel}>
+                    {suggestedGame.id === nearbyGames[0]?.id ? 'Suggested Event (nearest)' : 'Selected Event'}
                   </Text>
-                )}
-              </View>
-              <Ionicons name="checkmark-circle" size={24} color="#059669" />
-            </Pressable>
-            <Text style={styles.gameHint}>
-              Tap to change or remove event attachment
-            </Text>
+                  <Text style={styles.gameTitle}>
+                    {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
+                  </Text>
+                  {suggestedGame.date && (
+                    <Text style={styles.gameDate}>
+                      {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="checkmark-circle" size={24} color="#059669" />
+              </Pressable>
+            ) : (
+              <Pressable 
+                style={styles.noEventCard}
+                onPress={() => setEventSelectorVisible(true)}
+              >
+                <Ionicons name="add-circle-outline" size={24} color="#6B7280" />
+                <Text style={styles.noEventText}>Select an event to attach</Text>
+              </Pressable>
+            )}
+            
+            <View style={styles.eventActions}>
+              {suggestedGame && (
+                <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
+                  <Text style={styles.removeEventButton}>Remove Event</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
 
@@ -599,50 +448,77 @@ export default function CreatePostScreen() {
         </View>
       </ScrollView>
 
+      {/* Event Selector Modal */}
       <Modal
-        visible={reviewModalVisible}
+        visible={eventSelectorVisible}
         animationType="slide"
-        onRequestClose={handleCloseReviewModal}
+        onRequestClose={() => setEventSelectorVisible(false)}
         presentationStyle="pageSheet"
       >
-        <SafeAreaView style={styles.reviewModalContainer}>
-          <View style={styles.reviewModalHeader}>
-            <Text style={styles.reviewModalTitle}>Review Content</Text>
-            <Pressable onPress={handleCloseReviewModal} accessibilityLabel="Close review preview">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Event</Text>
+            <Pressable onPress={() => setEventSelectorVisible(false)}>
               <Ionicons name="close" size={24} color="#111827" />
             </Pressable>
           </View>
-
-          <ScrollView contentContainerStyle={styles.reviewModalBody}>
-            {picked?.uri ? (
-              <View style={styles.reviewMediaCard}>
-                {picked.type === 'image' ? (
-                  <RNImage source={{ uri: picked.uri }} style={styles.reviewMedia} resizeMode="cover" />
-                ) : (
-                  <VideoPlayer uri={picked.uri} style={styles.reviewMedia} />
-                )}
-                <Text style={styles.reviewMediaLabel}>
-                  {picked.type === 'image' ? 'Attached photo' : 'Attached video'}
+          
+          <ScrollView contentContainerStyle={styles.modalBody}>
+            {nearbyGames.length > 0 ? (
+              <>
+                {nearbyGames.map((game, index) => (
+                  <Pressable
+                    key={game.id}
+                    style={[
+                      styles.eventOptionCard,
+                      selectedGameId === String(game.id) && styles.eventOptionCardSelected
+                    ]}
+                    onPress={() => {
+                      setSuggestedGame(game);
+                      setSelectedGameId(String(game.id));
+                      setEventSelectorVisible(false);
+                    }}
+                  >
+                    <View style={styles.eventOptionIcon}>
+                      <Ionicons 
+                        name={index === 0 ? "star" : "trophy"} 
+                        size={20} 
+                        color={index === 0 ? "#F59E0B" : "#059669"} 
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      {index === 0 && (
+                        <Text style={styles.eventOptionBadge}>Nearest Event</Text>
+                      )}
+                      <Text style={styles.eventOptionTitle}>
+                        {game.title || `${game.home_team} vs ${game.away_team}`}
+                      </Text>
+                      {game.date && (
+                        <Text style={styles.eventOptionDate}>
+                          {new Date(game.date).toLocaleDateString()} at {new Date(game.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      )}
+                      {game.location && (
+                        <Text style={styles.eventOptionLocation}>
+                          📍 {game.location}
+                        </Text>
+                      )}
+                    </View>
+                    {selectedGameId === String(game.id) && (
+                      <Ionicons name="checkmark-circle" size={24} color="#059669" />
+                    )}
+                  </Pressable>
+                ))}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+                <Text style={styles.emptyStateTitle}>No Events Found</Text>
+                <Text style={styles.emptyStateText}>
+                  There are no upcoming events in the next 7 days.
                 </Text>
               </View>
-            ) : null}
-
-            {content.trim().length ? (
-              <View style={styles.reviewTextCard}>
-                <Text style={styles.reviewTextLabel}>Caption</Text>
-                <Text style={styles.reviewText}>{content.trim()}</Text>
-              </View>
-            ) : null}
-
-            {!picked?.uri && !content.trim().length ? (
-              <View style={styles.reviewEmpty}>
-                <Ionicons name="albums-outline" size={32} color="#9CA3AF" />
-                <Text style={styles.reviewEmptyTitle}>Nothing to review yet</Text>
-                <Text style={styles.reviewEmptySubtitle}>
-                  Capture new media or add a caption, then swipe down again.
-                </Text>
-              </View>
-            ) : null}
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -1052,6 +928,131 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   reviewEmptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Event selection styles
+  sectionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  changeEventButton: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noEventCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
+  },
+  noEventText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  eventActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  removeEventButton: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  
+  // Event selector modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalBody: {
+    padding: 16,
+    gap: 12,
+  },
+  eventOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  eventOptionCardSelected: {
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  eventOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventOptionBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  eventOptionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  eventOptionDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  eventOptionLocation: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  emptyStateText: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',

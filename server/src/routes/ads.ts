@@ -248,18 +248,21 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     skipDuplicates: true,
   });
 
-  // Price logic matches mobile UI: flat weekday + weekend
-  const hasWeekday = isoDates.some((s) => {
+  // Price logic: charge per individual day
+  // Mon-Thu = $10/day, Fri-Sun = $17.50/day
+  let totalPrice = 0;
+  isoDates.forEach((s) => {
     const d = new Date(s + 'T00:00:00.000Z').getUTCDay();
-    return d >= 1 && d <= 4; // Mon..Thu
+    if (d >= 1 && d <= 4) {
+      // Mon-Thu: weekday rate
+      totalPrice += 10.00;
+    } else {
+      // Fri-Sun: weekend rate (Sun=0, Fri=5, Sat=6)
+      totalPrice += 17.50;
+    }
   });
-  const hasWeekend = isoDates.some((s) => {
-    const d = new Date(s + 'T00:00:00.000Z').getUTCDay();
-    return d === 0 || d === 5 || d === 6; // Fri..Sun (Sun=0)
-  });
-  const price = (hasWeekday ? 10 : 0) + (hasWeekend ? 17.5 : 0);
 
-  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price });
+  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
 });
 
 /**
