@@ -76,6 +76,8 @@ export function OBProvider({ children }: PropsWithChildren) {
           AsyncStorage.getItem(PROGRESS_KEY)
         ]);
         
+        console.log('[OBProvider] Loaded from AsyncStorage - Progress:', savedProgress, 'State:', savedState?.substring(0, 100));
+        
         if (!mounted) return;
         
         if (savedState) {
@@ -84,7 +86,9 @@ export function OBProvider({ children }: PropsWithChildren) {
         }
         
         if (savedProgress) {
-          setProgress(parseInt(savedProgress, 10));
+          const progressNum = parseInt(savedProgress, 10);
+          console.log('[OBProvider] Setting progress to:', progressNum);
+          setProgress(progressNum);
         }
         
         setIsLoaded(true);
@@ -159,6 +163,7 @@ export function OBProvider({ children }: PropsWithChildren) {
     
     (async () => {
       try {
+        console.log('[OBProvider] Saving progress to AsyncStorage:', progress);
         await AsyncStorage.setItem(PROGRESS_KEY, progress.toString());
       } catch (e) {
         console.warn('Failed to save onboarding progress to storage', e);
