@@ -1,17 +1,18 @@
-import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
-} from 'react-native';
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -47,7 +48,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Forgot Password' }} />
       <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
         <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
@@ -89,7 +90,7 @@ export default function ForgotPasswordScreen() {
       <Pressable style={styles.secondary} onPress={() => router.replace('/sign-in')}>
         <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 

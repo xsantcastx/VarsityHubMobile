@@ -1,9 +1,10 @@
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { OnboardingLayout } from './components/OnboardingLayout';
@@ -21,9 +22,19 @@ const OPTIONS: { key: Intent; label: string; route?: string }[] = [
 
 export default function Step8Interests() {
   const router = useRouter();
-  const { setProgress } = useOnboarding();
+  const { setProgress, setState: setOB, state: ob } = useOnboarding();
+  const colorScheme = useColorScheme();
   const [sel, setSel] = useState<Intent[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+
+  // Load existing selections from context
+  useEffect(() => {
+    if (ob.primary_intents && Array.isArray(ob.primary_intents)) {
+      setSel(ob.primary_intents as Intent[]);
+    }
+  }, []);
 
   const toggle = (k: Intent) => setSel((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
@@ -31,17 +42,15 @@ export default function Step8Interests() {
     if (!sel.length) { Alert.alert('Select at least one option'); return; }
     setSaving(true);
     try {
+      // Save to onboarding context
+      setOB((prev) => ({ ...prev, primary_intents: sel as any }));
+      
+      // Save to backend
       await User.updatePreferences({ primary_intents: sel });
-      await User.updatePreferences({ onboarding_completed: true });
       setProgress(8);
       
-      // Navigate to the route of the first selected option
-      const firstSelected = OPTIONS.find(o => sel.includes(o.key));
-      if (firstSelected?.route) {
-        router.replace(firstSelected.route as any);
-      } else {
-        router.replace('/onboarding/finish');
-      }
+      // Continue to step 9 (features)
+      router.push('/onboarding/step-9-features');
     } catch (e: any) {
       Alert.alert('Failed to save', e?.message || 'Try again');
     } finally { setSaving(false); }
@@ -56,18 +65,39 @@ export default function Step8Interests() {
       <Stack.Screen options={{ headerShown: false }} />
       {OPTIONS.map((o) => (
         <Pressable key={o.key} onPress={() => toggle(o.key)} style={[styles.row, sel.includes(o.key) && styles.rowSelected]}>
-          <Text style={[styles.rowTitle, sel.includes(o.key) && { color: 'white' }]}>{o.label}</Text>
+          <Text style={[styles.rowTitle, sel.includes(o.key) && { color: Colors[colorScheme].background }]}>{o.label}</Text>
         </Pressable>
       ))}
-      <PrimaryButton label={saving ? 'Saving…' : 'Finish'} onPress={onFinish} disabled={!sel.length || saving} loading={saving} />
+      <PrimaryButton label={saving ? 'Saving…' : 'Continue'} onPress={onFinish} disabled={!sel.length || saving} loading={saving} />
     </OnboardingLayout>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 12, textAlign: 'center' },
-  row: { padding: 16, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', backgroundColor: 'white', marginBottom: 12 },
-  rowSelected: { backgroundColor: '#111827', borderColor: '#111827' },
-  rowTitle: { fontWeight: '700' },
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
+  container: { 
+    flex: 1, 
+    backgroundColor: Colors[colorScheme].background 
+  },
+  title: { 
+    ...(Type.h1 as any), 
+    color: Colors[colorScheme].text,
+    marginBottom: 12, 
+    textAlign: 'center' 
+  },
+  row: { 
+    padding: 16, 
+    borderRadius: 12, 
+    borderWidth: StyleSheet.hairlineWidth, 
+    borderColor: Colors[colorScheme].border, 
+    backgroundColor: Colors[colorScheme].surface, 
+    marginBottom: 12 
+  },
+  rowSelected: { 
+    backgroundColor: Colors[colorScheme].text, 
+    borderColor: Colors[colorScheme].text 
+  },
+  rowTitle: { 
+    fontWeight: '700',
+    color: Colors[colorScheme].text
+  },
 });

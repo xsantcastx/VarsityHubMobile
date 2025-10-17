@@ -79,11 +79,19 @@ export default function Step4Season() {
         console.warn('Failed to persist season to backend:', err);
       }
 
-  setProgress(4); // step-5
-  router.push('/onboarding/step-5-league');
+      setProgress(4);
+      if (returnToConfirmation) {
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        router.push('/onboarding/step-5-league');
+      }
     } catch (e: any) {
       console.error('Failed to save season:', e);
-      router.push('/onboarding/step-5-league');
+      if (returnToConfirmation) {
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        router.push('/onboarding/step-5-league');
+      }
     } finally {
       setSaving(false);
     }

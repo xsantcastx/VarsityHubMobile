@@ -315,22 +315,28 @@ export default function CommunityDiscoverScreen() {
 
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
 
-      {/* Coach Dashboard Section */}
-      {me?.preferences?.role === 'coach' && (
-        <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Coach Dashboard</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-              onPress={() => router.push('/manage-teams')}
-            >
-              <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-              <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
-            </Pressable>
-          </ScrollView>
-        </View>
-      )}
+      {/* Quick Actions Dashboard */}
+      <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+            onPress={() => router.push('/manage-teams-simple')}
+          >
+            <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+            onPress={() => router.push('/manage-season')}
+          >
+            <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
 
       {me && me._count?.following ? (
         <View style={[styles.followingCard, { backgroundColor: '#1e3a8a22', borderColor: '#1e3a8a55' }]}>

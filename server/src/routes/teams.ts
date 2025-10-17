@@ -38,6 +38,14 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
       memberships: {
         where: { user_id: userId, status: 'active' },
         select: { role: true }
+      },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true
+        }
       }
     },
   });
@@ -52,7 +60,13 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
     members: (t as any)._count.memberships,
     logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
-    my_role: (t as any).memberships?.[0]?.role || null
+    my_role: (t as any).memberships?.[0]?.role || null,
+    organization: (t as any).organization ? {
+      id: (t as any).organization.id,
+      name: (t as any).organization.name,
+      description: (t as any).organization.description,
+      sport: (t as any).organization.sport
+    } : null
   }));
   
   return res.json(list);

@@ -11,7 +11,7 @@ import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -47,6 +47,7 @@ type StoriesViewerProps = {
 function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameId }: StoriesViewerProps) {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
   const [current, setCurrent] = useState(index);
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
@@ -383,7 +384,7 @@ type GameVM = {
   isPast: boolean;
 };
 
-type SectionKey = 'overview' | 'media' | 'posts';
+type SectionKey = 'overview';
 
 type VoteSummary = {
   teamA: number;
@@ -518,6 +519,9 @@ const GameDetailsScreen = () => {
     outputRange: [1, 0],
     extrapolate: 'clamp',
   }), [feedY, headerH]);
+
+  // Dynamic styles based on color scheme
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {
     showTopFabRef.current = false;
@@ -1104,15 +1108,7 @@ const GameDetailsScreen = () => {
   const scrollToSection = useCallback(
     (key: SectionKey) => {
       setActiveSection(key);
-      requestAnimationFrame(() => {
-        const offset = sectionOffsets.current[key === 'media' ? 'media' : 'posts'];
-        const node = scrollRef.current as any;
-        if (node?.scrollTo) {
-          node.scrollTo({ y: Math.max(0, offset - 64), animated: true });
-        } else if (node?.getNode) {
-          node.getNode().scrollTo({ y: Math.max(0, offset - 64), animated: true });
-        }
-      });
+      // Tabs removed - keeping Overview only, no scrolling needed
     },
     [],
   );
@@ -1198,7 +1194,7 @@ const GameDetailsScreen = () => {
                 <View style={styles.storyTile}>
                   {isVideo ? (
                     <View style={[styles.storyThumb, styles.storyThumbVideo]}>
-                      <Ionicons name="play" size={18} color="#fff" />
+                      <Ionicons name="play" size={18} color={Colors[colorScheme].background} />
                     </View>
                   ) : (
                     <Image source={{ uri: it.url }} style={styles.storyThumb} contentFit="cover" transition={0} cachePolicy="memory-disk" recyclingKey={it.url}
@@ -1425,7 +1421,7 @@ const renderVoteSection = () => {
                 <Ionicons
                   name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}
                   size={18}
-                  color={gamePhase === 'upcoming' ? (vm?.userRsvped ? '#0f172a' : '#2563EB') : '#6B7280'}
+                  color={gamePhase === 'upcoming' ? (vm?.userRsvped ? Colors[colorScheme].text : Colors[colorScheme].tint) : Colors[colorScheme].mutedText}
                 />
               </Pressable>
             ) : null}
@@ -1497,7 +1493,7 @@ const renderVoteSection = () => {
       return (
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
           {[0, 1].map((i) => (
-            <View key={i} style={{ flex: 1, alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 18, padding: 18, minHeight: 120, opacity: 0.7 }}>
+            <View key={i} style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, opacity: 0.7 }}>
               <Ionicons name="people" size={32} color={Colors[colorScheme].mutedText} style={{ marginBottom: 8 }} />
               <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>Team {i === 0 ? 'A' : 'B'}</Text>
               <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>No team linked</Text>
@@ -1511,7 +1507,7 @@ const renderVoteSection = () => {
         {vm.teams.slice(0, 2).map((team) => (
           <Pressable
             key={team.id}
-            style={{ flex: 1, alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
+            style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
             onPress={() => router.push({ pathname: '/team-viewer', params: { id: team.id } })}
             accessibilityRole="button"
             accessibilityLabel={`View team ${team.name}`}
@@ -1566,7 +1562,7 @@ const renderVoteSection = () => {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       
       <Animated.View
@@ -1595,7 +1591,7 @@ const renderVoteSection = () => {
         <View style={styles.content}>
           {loading && !refreshing ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color="#2563EB" />
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
             </View>
           ) : null}
           {error && !loading ? (
@@ -1608,33 +1604,12 @@ const renderVoteSection = () => {
           ) : null}
           {vm && !loading ? (
             <>
-              <View style={styles.tabRowWrap}>
-                <View style={styles.tabRowCapsule}>
-                  {(['overview', 'media', 'posts'] as SectionKey[]).map((key) => (
-                    <Pressable
-                      key={key}
-                      style={({ pressed }) => [
-                        styles.tabBtnCapsule,
-                        activeSection === key ? styles.tabBtnCapsuleOn : null,
-                        pressed ? { opacity: 0.85 } : null,
-                      ]}
-                      onPress={() => {
-                        if (key === 'overview') setActiveSection('overview');
-                        else scrollToSection(key);
-                      }}
-                    >
-                      <Text style={[styles.tabText, activeSection === key ? styles.tabTextOn : null]}>
-                        {key === 'overview' ? 'Overview' : key === 'media' ? 'Stories' : 'Posts'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
+              {/* Tabs removed - keeping Overview only as default view */}
               <Text style={styles.title}>{vm.title}</Text>
               {renderVoteSection()}
               {vm.location ? (
                 <Pressable style={styles.locationRow} onPress={onPressLocation}>
-                  <Ionicons name="location" size={16} color="#2563EB" />
+                  <Ionicons name="location" size={16} color={Colors[colorScheme].tint} />
                   <Text style={styles.locationText}>{vm.location}</Text>
                 </Pressable>
               ) : null}
@@ -1646,7 +1621,7 @@ const renderVoteSection = () => {
                   onPress={handleAddStory}
                   disabled={!vm?.gameId}
                 >
-                  <Ionicons name="add-circle-outline" size={16} color="#2563EB" />
+                  <Ionicons name="add-circle-outline" size={16} color={Colors[colorScheme].tint} />
                   <Text style={styles.actionText}>Add Story</Text>
                 </Pressable>
               </View>
@@ -1741,7 +1716,7 @@ const renderVoteSection = () => {
                         onPress={() => setVerticalFeedOpen(true)}
                       >
                         <Text style={styles.viewAllPostsText}>View All {postsCount} Posts</Text>
-                        <Ionicons name="chevron-forward" size={20} color="#2563EB" />
+                        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tint} />
                       </Pressable>
                     )}
                   </View>
@@ -1838,9 +1813,9 @@ const renderVoteSection = () => {
                         }}
                         disabled={disabled}
                       >
-                        <Text style={[styles.vsTeamName, { color: selected === 'A' ? '#fff' : textColor }]}>{teamALabel}</Text>
-                        <Text style={[styles.vsTeamPct, { color: selected === 'A' ? '#fff' : textColor }]}>{displayPctA}%</Text>
-                        <Text style={[styles.vsTeamVotes, { color: selected === 'A' ? 'rgba(255,255,255,0.9)' : '#64748b' }]}>{String(summary.teamA)} votes</Text>
+                        <Text style={[styles.vsTeamName, { color: selected === 'A' ? (colorScheme === 'dark' ? Colors.dark.text : '#fff') : textColor }]}>{teamALabel}</Text>
+                        <Text style={[styles.vsTeamPct, { color: selected === 'A' ? (colorScheme === 'dark' ? Colors.dark.text : '#fff') : textColor }]}>{displayPctA}%</Text>
+                        <Text style={[styles.vsTeamVotes, { color: selected === 'A' ? (colorScheme === 'dark' ? 'rgba(241,245,249,0.9)' : 'rgba(255,255,255,0.9)') : Colors[colorScheme].mutedText }]}>{String(summary.teamA)} votes</Text>
 
                         <View style={styles.vsPctBarWrap} accessibilityElementsHidden>
                           <Animated.View
@@ -1878,9 +1853,9 @@ const renderVoteSection = () => {
                         }}
                         disabled={disabled}
                       >
-                        <Text style={[styles.vsTeamName, { color: selected === 'B' ? '#fff' : textColor }]}>{teamBLabel}</Text>
-                        <Text style={[styles.vsTeamPct, { color: selected === 'B' ? '#fff' : textColor }]}>{displayPctB}%</Text>
-                        <Text style={[styles.vsTeamVotes, { color: selected === 'B' ? 'rgba(255,255,255,0.9)' : '#64748b' }]}>{String(summary.teamB)} votes</Text>
+                        <Text style={[styles.vsTeamName, { color: selected === 'B' ? (colorScheme === 'dark' ? Colors.dark.text : '#fff') : textColor }]}>{teamBLabel}</Text>
+                        <Text style={[styles.vsTeamPct, { color: selected === 'B' ? (colorScheme === 'dark' ? Colors.dark.text : '#fff') : textColor }]}>{displayPctB}%</Text>
+                        <Text style={[styles.vsTeamVotes, { color: selected === 'B' ? (colorScheme === 'dark' ? 'rgba(241,245,249,0.9)' : 'rgba(255,255,255,0.9)') : Colors[colorScheme].mutedText }]}>{String(summary.teamB)} votes</Text>
 
                         <View style={styles.vsPctBarWrap} accessibilityElementsHidden>
                           <Animated.View
@@ -1946,7 +1921,7 @@ const renderVoteSection = () => {
         <View style={styles.sheetContainer}>
           <View style={styles.sheetHandleBar} />
           <View style={styles.sheetHeaderRow}>
-            <Ionicons name="people" size={18} color="#2563EB" />
+            <Ionicons name="people" size={18} color={Colors[colorScheme].tint} />
             <Text style={styles.sheetTitle}>{rsvpChipLabel || 'Event RSVP'}</Text>
           </View>
 
@@ -1999,15 +1974,15 @@ const renderVoteSection = () => {
           <Text style={styles.fabText}>Top</Text>
         </Pressable>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default GameDetailsScreen;
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  bannerWrapper: { position: 'relative', height: 260, backgroundColor: '#eff6ff' },
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors[colorScheme].background },
+  bannerWrapper: { position: 'relative', height: 260, backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#eff6ff' },
   bannerImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   bannerShade: { position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 },
   headerWrap: {
@@ -2016,9 +1991,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30,
-  backgroundColor: '#000',
-  paddingBottom: 8,
-  marginBottom: 12,
+    backgroundColor: colorScheme === 'dark' ? '#000' : '#000',
+    paddingBottom: 8,
+    marginBottom: 12,
   },
   fab: {
     position: 'absolute',
@@ -2047,7 +2022,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors[colorScheme].border,
     overflow: 'hidden',
     flexDirection: 'row',
     shadowColor: '#000',
@@ -2064,7 +2039,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#fff',
+    backgroundColor: Colors[colorScheme].card,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: 16,
@@ -2076,14 +2051,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: Colors[colorScheme].border,
     marginBottom: 10,
   },
   sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text },
   sheetPrimaryBtn: {
     marginTop: 4,
-    backgroundColor: '#2563EB',
+    backgroundColor: Colors[colorScheme].tint,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
@@ -2094,20 +2069,20 @@ const styles = StyleSheet.create({
   },
   sheetBtnOn: { backgroundColor: '#ef4444' },
   sheetPrimaryBtnText: { color: '#fff', fontWeight: '700' },
-  sheetNote: { marginTop: 10, color: '#6B7280' },
+  sheetNote: { marginTop: 10, color: Colors[colorScheme].mutedText },
   sheetStatsRow: { marginTop: 16, flexDirection: 'row', gap: 10 },
   sheetStatCard: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
-  sheetStatValue: { fontSize: 18, fontWeight: '800', color: '#111827' },
-  sheetStatLabel: { marginTop: 2, fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  sheetStatValue: { fontSize: 18, fontWeight: '800', color: Colors[colorScheme].text },
+  sheetStatLabel: { marginTop: 2, fontSize: 12, color: Colors[colorScheme].mutedText, fontWeight: '600' },
   voteFill: { height: '100%', overflow: 'hidden' },
   voteFillA: {
     backgroundColor: '#2563EB',
@@ -2220,13 +2195,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  dateChipText: { fontWeight: '700', color: '#111827', fontSize: 13 },
-  dateChipTime: { fontWeight: '600', color: '#2563EB', fontSize: 13 },
+  dateChipText: { fontWeight: '700', color: Colors[colorScheme].text, fontSize: 13 },
+  dateChipTime: { fontWeight: '600', color: Colors[colorScheme].tint, fontSize: 13 },
   statusChip: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -2235,12 +2210,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.92)',
   },
-  statusUpcoming: { backgroundColor: 'rgba(219,234,254,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#bfdbfe' },
-  statusLive: { backgroundColor: 'rgba(254,226,226,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#fecaca' },
-  statusFinal: { backgroundColor: 'rgba(229,231,235,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db' },
-  statusText: { fontWeight: '800', color: '#0f172a' },
+  statusUpcoming: { backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.3)' : 'rgba(219,234,254,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.5)' : '#bfdbfe' },
+  statusLive: { backgroundColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.3)' : 'rgba(254,226,226,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.5)' : '#fecaca' },
+  statusFinal: { backgroundColor: colorScheme === 'dark' ? 'rgba(107,114,128,0.3)' : 'rgba(229,231,235,0.95)', borderWidth: StyleSheet.hairlineWidth, borderColor: colorScheme === 'dark' ? 'rgba(107,114,128,0.5)' : '#d1d5db' },
+  statusText: { fontWeight: '800', color: Colors[colorScheme].text },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
   rsvpChip: {
     flexDirection: 'row',
@@ -2273,7 +2248,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2283,12 +2258,12 @@ const styles = StyleSheet.create({
   errorBox: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#fee2e2',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.2)' : '#fee2e2',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#fecaca',
+    borderColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.4)' : '#fecaca',
     marginBottom: 16,
   },
-  errorText: { color: '#991b1b', fontWeight: '600', marginBottom: 8 },
+  errorText: { color: colorScheme === 'dark' ? '#fca5a5' : '#991b1b', fontWeight: '600', marginBottom: 8 },
   retryBtn: {
     alignSelf: 'flex-start',
     backgroundColor: '#DC2626',
@@ -2297,9 +2272,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: 'white', fontWeight: '700' },
-  title: { fontSize: 28, fontWeight: '900', color: '#0f172a', marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginBottom: 6 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  locationText: { color: '#1f2937', fontWeight: '600', textDecorationLine: 'underline' },
+  locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   secondaryActionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   actionBtn: {
@@ -2309,48 +2284,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors[colorScheme].surface,
     paddingVertical: 12,
     marginHorizontal: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
+    borderColor: Colors[colorScheme].border,
   },
   actionBtnDisabled: { opacity: 0.6 },
-  actionText: { fontWeight: '700', color: '#0f172a' },
+  actionText: { fontWeight: '700', color: Colors[colorScheme].text },
   tabRow: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 16,
-    backgroundColor: '#eef2ff',
+    backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#eef2ff',
     borderRadius: 999,
     padding: 4,
   },
   tabRowWrap: { marginBottom: 12, paddingHorizontal: 8 },
-  tabRowCapsule: { flexDirection: 'row', backgroundColor: '#eef2ff', borderRadius: 999, padding: 6, alignItems: 'center', justifyContent: 'center' },
+  tabRowCapsule: { flexDirection: 'row', backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#eef2ff', borderRadius: 999, padding: 6, alignItems: 'center', justifyContent: 'center' },
   tabBtnCapsule: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, marginHorizontal: 4 },
-  tabBtnCapsuleOn: { backgroundColor: '#fff', borderWidth: StyleSheet.hairlineWidth, borderColor: '#c7d2fe' },
+  tabBtnCapsuleOn: { backgroundColor: Colors[colorScheme].card, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].tint },
   tabBtn: { flex: 1, borderRadius: 999, alignItems: 'center', paddingVertical: 8 },
-  tabBtnOn: { backgroundColor: 'white', borderWidth: StyleSheet.hairlineWidth, borderColor: '#c7d2fe' },
-  tabText: { fontWeight: '600', color: '#475569' },
-  tabTextOn: { color: '#1e3a8a' },
+  tabBtnOn: { backgroundColor: Colors[colorScheme].card, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].tint },
+  tabText: { fontWeight: '600', color: Colors[colorScheme].mutedText },
+  tabTextOn: { color: Colors[colorScheme].tint },
   section: { marginBottom: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 8 },
-  sectionSubtitle: { color: '#64748b', fontWeight: '600' },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, marginBottom: 8 },
+  sectionSubtitle: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
   sectionHelper: { marginBottom: 12 },
-  bodyText: { color: '#334155', fontSize: 16, lineHeight: 24 },
-  muted: { color: '#94a3b8', fontStyle: 'italic' },
+  bodyText: { color: Colors[colorScheme].text, fontSize: 16, lineHeight: 24 },
+  muted: { color: Colors[colorScheme].mutedText, fontStyle: 'italic' },
   statRow: { flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 20 },
   statCard: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
     gap: 6,
   },
-  statValue: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  statLabel: { color: '#64748b', fontWeight: '600' },
+  statValue: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text },
+  statLabel: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
   teamList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   teamPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#e0f2fe', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   teamPillText: { fontWeight: '700', color: '#0c4a6e' },
@@ -2514,7 +2489,7 @@ const styles = StyleSheet.create({
   vsModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
   vsModalCard: {
     width: '86%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors[colorScheme].card,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -2524,9 +2499,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  vsModalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 8, textAlign: 'center' },
-  vsModalBody: { color: '#6B7280', textAlign: 'center', marginBottom: 12 },
-  vsModalClose: { backgroundColor: '#2563EB', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  vsModalTitle: { fontSize: 18, fontWeight: '800', color: Colors[colorScheme].text, marginBottom: 8, textAlign: 'center' },
+  vsModalBody: { color: Colors[colorScheme].mutedText, textAlign: 'center', marginBottom: 12 },
+  vsModalClose: { backgroundColor: Colors[colorScheme].tint, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
   vsPollRow: { flexDirection: 'row', width: '100%', gap: 8, marginVertical: 8 },
   vsTeamCard: {
     flex: 1,
@@ -2534,14 +2509,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderRadius: 10,
-    backgroundColor: '#f8fafc',
+    backgroundColor: Colors[colorScheme].surface,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5e7eb',
+    borderColor: Colors[colorScheme].border,
   },
-  vsTeamCardOn: { backgroundColor: '#2563EB', borderColor: '#1e40af' },
-  vsTeamName: { fontWeight: '800', color: '#0f172a', marginBottom: 4, textAlign: 'center' },
-  vsTeamPct: { fontSize: 18, fontWeight: '900', color: '#0f172a' },
-  vsTeamVotes: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  vsTeamCardOn: { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].tint },
+  vsTeamName: { fontWeight: '800', color: Colors[colorScheme].text, marginBottom: 4, textAlign: 'center' },
+  vsTeamPct: { fontSize: 18, fontWeight: '900', color: Colors[colorScheme].text },
+  vsTeamVotes: { fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 },
   vsDivider: { width: 12 },
   vsPctBarWrap: { width: '100%', height: 6, backgroundColor: '#e6eefc', borderRadius: 6, overflow: 'hidden', marginTop: 8 },
   vsPctBarFill: { height: '100%', backgroundColor: '#1e40af', width: '0%' },
@@ -2560,7 +2535,7 @@ const styles = StyleSheet.create({
     margin: '0.5%', 
     borderRadius: 12, 
     overflow: 'hidden', 
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -2634,16 +2609,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
     paddingVertical: 16,
     marginTop: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
   viewAllPostsText: {
-    color: '#2563EB',
+    color: Colors[colorScheme].tint,
     fontSize: 15,
     fontWeight: '700',
   },

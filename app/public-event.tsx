@@ -1,26 +1,28 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme() ?? 'light';
   
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Public Event' }} />
-      <Text style={styles.title}>Public Event</Text>
-      <Text style={styles.subtitle}>Mobile implementation coming soon.</Text>
-      {params?.id ? <Text>Event ID: {params.id}</Text> : null}
-      <Text style={styles.params}>{JSON.stringify(params, null, 2)}</Text>
-    </View>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Public Event</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Mobile implementation coming soon.</Text>
+      {params?.id ? <Text style={{ color: Colors[colorScheme].text }}>Event ID: {params.id}</Text> : null}
+      <Text style={[styles.params, { color: Colors[colorScheme].text }]}>{JSON.stringify(params, null, 2)}</Text>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { color: '#6b7280', marginBottom: 12 },
-  params: { fontFamily: 'monospace', color: '#111827' },
+  subtitle: { marginBottom: 12 },
+  params: { fontFamily: 'monospace' },
 });
 

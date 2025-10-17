@@ -2,10 +2,11 @@ import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useEffect } from 'react';
 import { OnboardingLayout } from './components/OnboardingLayout';
@@ -13,11 +14,14 @@ import { OnboardingLayout } from './components/OnboardingLayout';
 export default function Step10Confirmation() {
   const router = useRouter();
   const { state: ob, clearOnboarding, setProgress, setState: setOB } = useOnboarding();
+  const colorScheme = useColorScheme() ?? 'light';
+  const [completing, setCompleting] = useState(false);
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {
     setProgress(9);
   }, [setProgress]);
-  const [completing, setCompleting] = useState(false);
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
@@ -59,7 +63,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Profile Setup',
-        completed: !!(ob.bio && ob.sports_interests?.length),
+        completed: !!(ob.sports_interests && ob.sports_interests.length > 0),
         required: false,
         route: '/onboarding/step-7-profile',
         description: 'Complete your profile and sports interests'
@@ -73,7 +77,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Interests Set',
-        completed: !!(ob.personalization_goals?.length),
+        completed: !!(ob.primary_intents && ob.primary_intents.length > 0),
         required: false,
         route: '/onboarding/step-8-interests',
         description: 'Set your personalization preferences'
@@ -147,8 +151,54 @@ export default function Step10Confirmation() {
         // eslint-disable-next-line no-console
         console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);
       }
+      
+      // Send complete onboarding state - all 25 fields
+      const completionPayload = {
+        // Core identity fields
+        role: ob.role,
+        username: ob.username,
+        display_name: ob.display_name,
+        affiliation: ob.affiliation,
+        dob: ob.dob,
+        zip: ob.zip,
+        zip_code: ob.zip_code,
+        
+        // Plan and subscription
+        plan: ob.plan,
+        payment_pending: ob.payment_pending,
+        
+        // Team/Organization
+        team_id: ob.team_id,
+        team_name: ob.team_name,
+        organization_id: ob.organization_id,
+        organization_name: ob.organization_name,
+        sport: ob.sport,
+        
+        // Season
+        season_start: ob.season_start,
+        season_end: ob.season_end,
+        
+        // Authorized users
+        authorized: ob.authorized,
+        authorized_users: ob.authorized_users,
+        
+        // Profile
+        avatar_url: ob.avatar_url,
+        bio: ob.bio,
+        sports_interests: ob.sports_interests,
+        
+        // Interests/Goals
+        primary_intents: ob.primary_intents,
+        personalization_goals: ob.personalization_goals,
+        
+        // Features/Permissions
+        location_enabled: ob.location_enabled,
+        notifications_enabled: ob.notifications_enabled,
+        messaging_policy_accepted: ob.messaging_policy_accepted,
+      };
+      
       // Final submission to backend - mark onboarding as complete
-      await User.completeOnboarding(ob);
+      await User.completeOnboarding(completionPayload);
       
       // Clear onboarding state
       clearOnboarding();
@@ -216,7 +266,7 @@ export default function Step10Confirmation() {
                 <Ionicons 
                   name={check.completed ? "checkmark" : "close"} 
                   size={16} 
-                  color={check.completed ? "#059669" : "#DC2626"} 
+                  color={check.completed ? (colorScheme === 'dark' ? '#10b981' : '#059669') : (colorScheme === 'dark' ? '#ef4444' : '#DC2626')} 
                 />
               </View>
               <View style={styles.checklistContent}>
@@ -236,7 +286,7 @@ export default function Step10Confirmation() {
                     <Ionicons 
                       name="chevron-forward" 
                       size={16} 
-                      color="#6B7280" 
+                      color={Colors[colorScheme].mutedText} 
                       style={styles.chevronIcon}
                     />
                   )}
@@ -292,7 +342,7 @@ export default function Step10Confirmation() {
         {/* Warning for Incomplete Setup */}
         {!completion.allRequiredComplete && (
           <View style={styles.warningCard}>
-            <Ionicons name="warning" size={20} color="#DC2626" />
+            <Ionicons name="warning" size={20} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
             <Text style={styles.warningText}>
               Some required setup steps are incomplete. Please finish these before completing onboarding.
             </Text>
@@ -315,10 +365,10 @@ export default function Step10Confirmation() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: 'white' 
+    backgroundColor: Colors[colorScheme].background 
   },
   scrollContent: { 
     padding: 16, 
@@ -335,64 +385,65 @@ const styles = StyleSheet.create({
   title: { 
     ...(Type.h1 as any), 
     marginBottom: 8, 
-    textAlign: 'center' 
+    textAlign: 'center',
+    color: Colors[colorScheme].text
   },
   subtitle: { 
-    color: '#6b7280', 
+    color: Colors[colorScheme].mutedText, 
     textAlign: 'center', 
     fontSize: 16,
     lineHeight: 24
   },
   
   progressCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors[colorScheme].border,
   },
   progressTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: Colors[colorScheme].text,
     marginBottom: 8,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#059669',
+    backgroundColor: colorScheme === 'dark' ? '#10b981' : '#059669',
     borderRadius: 4,
   },
   progressText: {
-    color: '#475569',
+    color: Colors[colorScheme].text,
     fontSize: 14,
     fontWeight: '500',
   },
   optionalText: {
-    color: '#64748B',
+    color: Colors[colorScheme].mutedText,
     fontSize: 12,
     marginTop: 2,
   },
   
   checklistCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
   checklistTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: Colors[colorScheme].text,
     marginBottom: 12,
   },
   checklistItem: {
@@ -413,44 +464,44 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   checklistIconCompleted: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(16, 185, 129, 0.2)' : '#D1FAE5',
   },
   checklistIconIncomplete: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2',
   },
   checklistLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#374151',
+    color: Colors[colorScheme].text,
   },
   checklistLabelCompleted: {
-    color: '#059669',
+    color: colorScheme === 'dark' ? '#10b981' : '#059669',
     fontWeight: '500',
   },
   requiredBadge: {
-    backgroundColor: '#FCA5A5',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.2)' : '#FCA5A5',
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   requiredBadgeText: {
-    color: '#DC2626',
+    color: colorScheme === 'dark' ? '#ef4444' : '#DC2626',
     fontSize: 10,
     fontWeight: '600',
   },
   
   summaryCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#F8FAFC',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Colors[colorScheme].border,
   },
   summaryTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: Colors[colorScheme].text,
     marginBottom: 12,
   },
   summaryItem: {
@@ -458,13 +509,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   summaryLabel: {
-    color: '#64748B',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
     width: 100,
   },
   summaryValue: {
     flex: 1,
-    color: '#1E293B',
+    color: Colors[colorScheme].text,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -472,17 +523,17 @@ const styles = StyleSheet.create({
   warningCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2',
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.3)' : '#FCA5A5',
   },
   warningText: {
     flex: 1,
     marginLeft: 8,
-    color: '#DC2626',
+    color: colorScheme === 'dark' ? '#ef4444' : '#DC2626',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -491,7 +542,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   completeHelpText: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
@@ -499,15 +550,15 @@ const styles = StyleSheet.create({
 
   // New styles for interactive checklist
   checklistSubtitle: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 13,
     marginBottom: 12,
     fontStyle: 'italic',
   },
   checklistItemClickable: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : '#F8FAFC',
     borderLeftWidth: 3,
-    borderLeftColor: '#DC2626',
+    borderLeftColor: colorScheme === 'dark' ? '#ef4444' : '#DC2626',
   },
   checklistContent: {
     flex: 1,
@@ -522,7 +573,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   checklistDescription: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 13,
     marginTop: 4,
     lineHeight: 18,

@@ -6,8 +6,9 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { OnboardingLayout } from './components/OnboardingLayout';
 
@@ -18,11 +19,14 @@ export default function Step6AuthorizedUsers() {
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const colorScheme = useColorScheme() ?? 'light';
   const [email, setEmail] = useState('');
   const [assignTeam, setAssignTeam] = useState('');
   const [role, setRole] = useState<TeamRole>('Team Manager');
   const [list, setList] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {
     if (Array.isArray(ob.authorized) && ob.authorized.length) {
@@ -163,7 +167,7 @@ export default function Step6AuthorizedUsers() {
         {/* Organization Status */}
         {(ob.team_id || ob.organization_id) && (
           <View style={styles.createdChip}>
-            <Ionicons name="checkmark-circle" size={16} color="#166534" />
+            <Ionicons name="checkmark-circle" size={16} color={colorScheme === 'dark' ? '#4ade80' : '#166534'} />
             <Text style={styles.createdChipText}>
               {ob.plan === 'rookie' ? 'Team created' : 'Organization created'}
             </Text>
@@ -209,7 +213,7 @@ export default function Step6AuthorizedUsers() {
               onPress={addUser} 
               disabled={adding || !email.trim()}
             >
-              <Text>{adding ? 'Adding…' : 'Add User'}</Text>
+              <Text style={{ color: Colors[colorScheme].text }}>{adding ? 'Adding…' : 'Add User'}</Text>
             </Button>
           </View>
         )}
@@ -236,7 +240,7 @@ export default function Step6AuthorizedUsers() {
                   onPress={() => setList(arr => arr.filter((_, i) => i !== idx))}
                   style={styles.removeButton}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                  <Ionicons name="trash-outline" size={16} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
                 </Pressable>
               </View>
             ))}
@@ -257,7 +261,7 @@ export default function Step6AuthorizedUsers() {
                 onPress={skipStep}
                 style={styles.skipButton}
               >
-                <Text>Skip for Now</Text>
+                <Text style={{ color: Colors[colorScheme].text }}>Skip for Now</Text>
               </Button>
               <PrimaryButton 
                 label="Continue" 
@@ -270,17 +274,19 @@ export default function Step6AuthorizedUsers() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 20, textAlign: 'center', fontSize: 16 },
-  label: { fontWeight: '700', marginBottom: 4 },
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors[colorScheme].background },
+  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center', color: Colors[colorScheme].text },
+  subtitle: { color: Colors[colorScheme].mutedText, marginBottom: 20, textAlign: 'center', fontSize: 16 },
+  label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
   
   planInfo: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors[colorScheme].border,
   },
   planHeader: {
     flexDirection: 'row',
@@ -290,14 +296,14 @@ const styles = StyleSheet.create({
   },
   planName: {
     fontWeight: '700',
-    color: '#374151',
+    color: Colors[colorScheme].text,
   },
   planLimit: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
   },
   limitWarning: {
-    color: '#DC2626',
+    color: colorScheme === 'dark' ? '#ef4444' : '#DC2626',
     fontSize: 12,
     marginTop: 4,
   },
@@ -306,33 +312,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'center', 
-    backgroundColor: '#DCFCE7', 
+    backgroundColor: colorScheme === 'dark' ? 'rgba(74, 222, 128, 0.15)' : '#DCFCE7', 
     borderRadius: 999, 
     paddingHorizontal: 10, 
     paddingVertical: 6, 
     marginBottom: 16, 
     borderWidth: StyleSheet.hairlineWidth, 
-    borderColor: '#BBF7D0',
+    borderColor: colorScheme === 'dark' ? 'rgba(74, 222, 128, 0.3)' : '#BBF7D0',
     gap: 4,
   },
   createdChipText: { 
-    color: '#166534', 
+    color: colorScheme === 'dark' ? '#4ade80' : '#166534', 
     fontWeight: '700',
     fontSize: 14,
   },
   
   addUserForm: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 8,
     padding: 16,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
   formTitle: {
     fontWeight: '700',
     fontSize: 16,
     marginBottom: 12,
+    color: Colors[colorScheme].text,
   },
   
   usersList: {
@@ -342,18 +349,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
     marginBottom: 12,
-    color: '#374151',
+    color: Colors[colorScheme].text,
   },
   userCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#F9FAFB',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
   userInfo: {
     flex: 1,
@@ -362,29 +369,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
     marginBottom: 4,
-    color: '#111827',
+    color: Colors[colorScheme].text,
   },
   userMeta: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   userRole: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 12,
   },
   metaSeparator: {
-    color: '#D1D5DB',
+    color: Colors[colorScheme].border,
     marginHorizontal: 6,
     fontSize: 12,
   },
   userTeam: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 12,
   },
   removeButton: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
   },
   
   actionButtons: {
@@ -398,7 +405,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   noUsersMessage: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     textAlign: 'center',
     fontSize: 14,
     fontStyle: 'italic',
@@ -409,12 +416,12 @@ const styles = StyleSheet.create({
     padding: 12, 
     borderRadius: 12, 
     borderWidth: StyleSheet.hairlineWidth, 
-    borderColor: '#E5E7EB', 
-    backgroundColor: '#F9FAFB', 
+    borderColor: Colors[colorScheme].border, 
+    backgroundColor: Colors[colorScheme].surface, 
     marginBottom: 8 
   },
-  rowTitle: { fontWeight: '700' },
-  mutedSmall: { color: '#9CA3AF', fontSize: 12 },
+  rowTitle: { fontWeight: '700', color: Colors[colorScheme].text },
+  mutedSmall: { color: Colors[colorScheme].mutedText, fontSize: 12 },
 });
 
 

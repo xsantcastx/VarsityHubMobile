@@ -1,7 +1,9 @@
 import { Request, Router } from 'express';
 import multer from 'multer';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import fs from 'node:fs';
 import path from 'node:path';
+import { cloudinary, getCloudinaryFolder, isCloudinaryConfigured } from '../lib/cloudinary.js';
 
 // Extend Request type to include multer file
 interface MulterRequest extends Request {
@@ -12,7 +14,17 @@ interface MulterRequest extends Request {
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const storage = multer.diskStorage({
+// Check if Cloudinary is configured
+const useCloudinary = isCloudinaryConfigured();
+
+if (useCloudinary) {
+  console.log('✅ Cloudinary configured - using cloud storage');
+} else {
+  console.log('⚠️  Cloudinary not configured - using local disk storage (ephemeral on Railway!)');
+}
+
+// Local disk storage (fallback)
+const diskStorage = multer.diskStorage({
   destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => cb(null, UPLOAD_DIR),
   filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname) || '';
@@ -20,6 +32,28 @@ const storage = multer.diskStorage({
     cb(null, name);
   },
 });
+
+// Cloudinary storage (preferred for production)
+const cloudinaryStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (_req, file) => {
+    const folder = getCloudinaryFolder();
+    const resourceType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+    
+    return {
+      folder: folder,
+      resource_type: resourceType as 'image' | 'video' | 'raw' | 'auto',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'webm'],
+      transformation: resourceType === 'image' ? [
+        { quality: 'auto:good' },
+        { fetch_format: 'auto' }
+      ] : undefined,
+    };
+  },
+});
+
+// Choose storage based on configuration
+const storage = useCloudinary ? cloudinaryStorage : diskStorage;
 
 const upload = multer({
   storage,
@@ -42,50 +76,90 @@ export const uploadsRouter = Router();
 // Original media upload endpoint (images/videos only)
 uploadsRouter.post('/', upload.single('file'), (req: MulterRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const rel = `/uploads/${req.file.filename}`;
-  const base = `${req.protocol}://${req.get('host')}`;
-  const url = `${base}${rel}`;
-  const type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
-  // Dev: print detailed upload info to assist debugging when running locally
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      console.log('[uploads] saved file:', {
+  
+  // Cloudinary response has different structure
+  let url: string;
+  let type: string;
+  
+  if (useCloudinary && 'path' in req.file) {
+    // Cloudinary file
+    url = (req.file as any).path; // Cloudinary URL
+    type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+    
+    console.log('[uploads] Cloudinary upload:', {
+      originalname: req.file.originalname,
+      cloudinary_url: url,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
+  } else {
+    // Local disk file
+    const rel = `/uploads/${req.file.filename}`;
+    const base = `${req.protocol}://${req.get('host')}`;
+    url = `${base}${rel}`;
+    type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[uploads] Local disk upload:', {
         originalname: req.file.originalname,
         filename: req.file.filename,
         mimetype: req.file.mimetype,
         size: req.file.size,
-        path: rel,
         url,
       });
-    } catch (e) {
-      // ignore logging errors
     }
   }
-  res.status(201).json({ url, path: rel, type, mime: req.file.mimetype, size: req.file.size });
+  
+  res.status(201).json({ 
+    url, 
+    type, 
+    mime: req.file.mimetype, 
+    size: req.file.size,
+    storage: useCloudinary ? 'cloudinary' : 'local'
+  });
 });
 
 // General file upload endpoint (all file types)
 uploadsRouter.post('/files', fileUpload.single('file'), (req: MulterRequest, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const rel = `/uploads/${req.file.filename}`;
-  const base = `${req.protocol}://${req.get('host')}`;
-  const url = `${base}${rel}`;
   
-  // Determine file type based on MIME type
-  let type = 'document';
-  if (req.file.mimetype.startsWith('image/')) type = 'image';
-  else if (req.file.mimetype.startsWith('video/')) type = 'video';
-  else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
-  else if (req.file.mimetype.includes('pdf')) type = 'pdf';
-  else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+  // Cloudinary response has different structure
+  let url: string;
+  let type: string;
+  
+  if (useCloudinary && 'path' in req.file) {
+    // Cloudinary file
+    url = (req.file as any).path;
+    
+    // Determine file type based on MIME type
+    if (req.file.mimetype.startsWith('image/')) type = 'image';
+    else if (req.file.mimetype.startsWith('video/')) type = 'video';
+    else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
+    else if (req.file.mimetype.includes('pdf')) type = 'pdf';
+    else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+    else type = 'document';
+  } else {
+    // Local disk file
+    const rel = `/uploads/${req.file.filename}`;
+    const base = `${req.protocol}://${req.get('host')}`;
+    url = `${base}${rel}`;
+    
+    // Determine file type based on MIME type
+    if (req.file.mimetype.startsWith('image/')) type = 'image';
+    else if (req.file.mimetype.startsWith('video/')) type = 'video';
+    else if (req.file.mimetype.startsWith('audio/')) type = 'audio';
+    else if (req.file.mimetype.includes('pdf')) type = 'pdf';
+    else if (req.file.mimetype.includes('zip') || req.file.mimetype.includes('rar')) type = 'archive';
+    else type = 'document';
+  }
   
   res.status(201).json({ 
     url, 
-    path: rel, 
     type, 
     mime: req.file.mimetype, 
     size: req.file.size,
-    originalName: req.file.originalname
+    originalName: req.file.originalname,
+    storage: useCloudinary ? 'cloudinary' : 'local'
   });
 });
 

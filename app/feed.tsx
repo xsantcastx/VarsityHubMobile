@@ -23,6 +23,7 @@ const ZIP_REGEX = /\b\d{5}\b/g;
 
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
+  const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,11 +74,11 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
         position: 'absolute',
         right: 14,
         bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : 'rgba(0,0,0,0.75)',
+        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 20,
-        shadowColor: '#000',
+        shadowColor: colorScheme === 'dark' ? '#000' : '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -515,14 +516,18 @@ export default function FeedScreen() {
     const adInterval = 8; // Show ad every 8 events (reduced frequency)
     const hasAds = sponsoredAds && sponsoredAds.length > 0;
     
+    // If no events exist, show promotional ad card alone
+    if (upcomingEvents.length === 0) {
+      result.push({ type: 'ad', ad: null });
+      return result;
+    }
+    
     // Always add a promotional card at the start if we have events
-    if (upcomingEvents.length > 0) {
-      if (hasAds) {
-        const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-        result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-      } else {
-        result.push({ type: 'ad', ad: null });
-      }
+    if (hasAds) {
+      const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+      result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+    } else {
+      result.push({ type: 'ad', ad: null });
     }
     
     upcomingEvents.forEach((event, index) => {
@@ -654,7 +659,7 @@ export default function FeedScreen() {
             <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
           )}
           <LinearGradient
-            colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+            colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
             style={styles.gridShade}
             pointerEvents="none"
           />
@@ -765,7 +770,7 @@ export default function FeedScreen() {
         </View>
       ) : null}
 
-  <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
+      <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
 
       {loading && (
         <View style={styles.center}>
@@ -804,34 +809,54 @@ export default function FeedScreen() {
                 // If no ad data, show promotional card
                 if (!adData) {
                   return (
-                    <View key={`promo-${index}`} style={styles.sponsoredFeedCard}>
+                    <View key={`promo-${index}`} style={[
+                      styles.sponsoredFeedCard,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      }
+                    ]}>
                       <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
-                        PROMOTE YOUR PROGRAM
+                        AD SPACE AVAILABLE
                       </Text>
-                      <View style={styles.promoPlaceholder}>
-                        <Ionicons name="megaphone" size={40} color="#2563EB" />
+                      <Pressable 
+                        style={[
+                          styles.promoPlaceholder,
+                          {
+                            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#EFF6FF',
+                            borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
+                          }
+                        ]}
+                        onPress={() => router.push('/submit-ad')}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="megaphone" size={48} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.promoTitle}>Reach More Athletes & Fans</Text>
-                          <Text style={styles.promoSubtitle}>
-                            Advertise your program, camp, or business
+                          <Text style={[styles.promoTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
+                            Reserve Your Ad Space Now
+                          </Text>
+                          <Text style={[styles.promoSubtitle, { color: colorScheme === 'dark' ? '#94A3B8' : '#475569' }]}>
+                            Get your business in front of thousands of athletes, coaches & fans
                           </Text>
                         </View>
-                        <Pressable
-                          style={styles.promoteCtaBanner}
-                          onPress={() => router.push('/submit-ad')}
-                          accessibilityRole="button"
-                        >
-                          <Ionicons name="add-circle-outline" size={18} color="#ffffff" />
-                          <Text style={styles.promoteCtaText}>Create Ad</Text>
-                        </Pressable>
-                      </View>
+                        <View style={styles.promoteCtaBanner}>
+                          <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+                          <Text style={styles.promoteCtaText}>Click Here</Text>
+                        </View>
+                      </Pressable>
                     </View>
                   );
                 }
                 
                 // Otherwise show actual ad
                 return (
-                  <View key={`ad-${index}`} style={styles.sponsoredFeedCard}>
+                  <View key={`ad-${index}`} style={[
+                    styles.sponsoredFeedCard,
+                    {
+                      backgroundColor: Colors[colorScheme].card,
+                      borderColor: Colors[colorScheme].border,
+                    }
+                  ]}>
                     <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                       SPONSORED
                     </Text>
@@ -844,8 +869,8 @@ export default function FeedScreen() {
                         aspectRatio={3.5}
                       />
                     ) : (
-                      <View style={styles.adPlaceholder}>
-                        <Ionicons name="megaphone-outline" size={48} color="#9CA3AF" />
+                      <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
+                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
                       </View>
                     )}
                     <View style={styles.adInfo}>
@@ -912,7 +937,7 @@ export default function FeedScreen() {
                     <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   )}
                   <LinearGradient
-                    colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
                     style={styles.gridShade}
                     pointerEvents="none"
                   />
@@ -997,7 +1022,7 @@ export default function FeedScreen() {
                       <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                     )}
                     <LinearGradient
-                      colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                      colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
                       style={styles.gridShade}
                       pointerEvents="none"
                     />
@@ -1052,14 +1077,14 @@ export default function FeedScreen() {
                 <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
               ) : (
                 <LinearGradient
-                  colors={['#1e293b', '#0f172a']}
+                  colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
                   style={styles.verticalFeedImage}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
               )}
               <LinearGradient
-                colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
+                colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
                 style={styles.verticalFeedShade}
               />
               <View style={styles.verticalFeedContent}>
@@ -1392,9 +1417,7 @@ const styles = StyleSheet.create({
   sponsoredFeedCard: {
     width: '100%',
     borderRadius: 18,
-    backgroundColor: '#ffffff',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
     overflow: 'hidden',
     shadowColor: '#0f172a',
     shadowOpacity: 0.08,
@@ -1414,31 +1437,30 @@ const styles = StyleSheet.create({
   adPlaceholder: {
     width: '100%',
     aspectRatio: 3.5,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   promoPlaceholder: {
     width: '100%',
     aspectRatio: 3.5,
-    backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 16,
     paddingHorizontal: 24,
     paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
   },
   promoTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1E40AF',
-    marginBottom: 2,
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
   },
   promoSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
   },
   promoteCtaBanner: {
     flexDirection: 'row',

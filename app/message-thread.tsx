@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -204,13 +204,14 @@ export default function MessageThreadScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
-      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen
-          options={{
-            headerShown: false,
-          }}
-        />
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors[colorScheme].background }} edges={['bottom']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={88}>
+        <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+          <Stack.Screen
+            options={{
+              headerShown: false,
+            }}
+          />
         
         {/* Custom WhatsApp-style header with safe area */}
         <View style={[styles.customHeader, { 
@@ -312,7 +313,8 @@ export default function MessageThreadScreen() {
           </Pressable>
         </Modal>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
