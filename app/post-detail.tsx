@@ -354,6 +354,31 @@ export default function PostDetailScreen() {
     );
   };
 
+  const handleDeletePost = async () => {
+    if (!id) return;
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await PostApi.delete(id);
+              Alert.alert('Success', 'Post deleted successfully', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleEditComment = async () => {
     if (!id || !editCommentId || !editCommentText.trim()) return;
     setUpdatingComment(true);
@@ -411,6 +436,12 @@ export default function PostDetailScreen() {
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
         <View style={styles.headerActions}>
+          {/* Show delete button only if current user is the post author */}
+          {currentUser && post.author_id === currentUser.id && (
+            <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
+              <Ionicons name="trash-outline" size={22} color="#DC2626" />
+            </Pressable>
+          )}
           <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
             <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>

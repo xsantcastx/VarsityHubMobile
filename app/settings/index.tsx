@@ -305,7 +305,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     {/* My Content */}
                     <SectionCard title="My Content">
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => router.push('/settings/favorites')} />
-                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => router.push('/(tabs)/my-ads')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => router.push('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing */}
@@ -323,7 +323,6 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     {/* Support & Feedback */}
                     <SectionCard title="Support & Feedback">
                       <NavRow title="Contact Varsity Hub Team" onPress={() => router.push('/settings/contact')} />
-                      <NavRow title="App Walkthrough / Help Guide" onPress={() => router.push('/help')} />
                       <NavRow title="Leave Feedback" onPress={() => router.push('/settings/feedback')} />
                     </SectionCard>
 

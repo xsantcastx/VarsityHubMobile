@@ -1,11 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, FlatList } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image } from 'expo-image';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 
 export default function AdminAdsScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +62,7 @@ export default function AdminAdsScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · All Ads' }} />
       {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -71,13 +75,13 @@ export default function AdminAdsScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  container: { flex: 1 },
+  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '800', fontSize: 16 },
   meta: { color: '#6b7280' },
   badgeSmall: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },

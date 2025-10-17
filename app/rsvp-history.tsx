@@ -1,13 +1,17 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event as EventApi } from '@/api/entities';
 
 type Item = { id: string; created_at?: string; event?: { id: string; title?: string; date?: string; location?: string } };
 
 export default function RsvpHistoryScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,37 +77,37 @@ export default function RsvpHistoryScreen() {
   }, [filteredItems]);
 
   const renderItem = ({ item }: { item: Item }) => (
-    <Pressable style={styles.card} onPress={() => item.event?.id && router.push(`/event-detail?id=${item.event.id}`)}>
-      <Text style={styles.title}>{item.event?.title || 'Event'}</Text>
-      <Text style={styles.muted}>{item.event?.location || 'TBD'}</Text>
-      <Text style={styles.muted}>{item.event?.date ? new Date(String(item.event.date)).toLocaleString() : ''}</Text>
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => item.event?.id && router.push(`/event-detail?id=${item.event.id}`)}>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.event?.title || 'Event'}</Text>
+      <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.location || 'TBD'}</Text>
+      <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>{item.event?.date ? new Date(String(item.event.date)).toLocaleString() : ''}</Text>
     </Pressable>
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'RSVP History' }} />
       
       {/* Search and Filter Controls */}
       <View style={styles.filterSection}>
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#9CA3AF" />
+        <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
             placeholder="Search events by title or location..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={Colors[colorScheme].mutedText}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
             </Pressable>
           )}
         </View>
         
         <Pressable 
-          style={styles.dateButton}
+          style={[styles.dateButton, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
           onPress={() => {
             if (selectedDate) {
               setSelectedDate(null); // Clear filter
@@ -112,32 +116,32 @@ export default function RsvpHistoryScreen() {
             }
           }}
         >
-          <Ionicons name="calendar-outline" size={20} color={selectedDate ? '#2563EB' : '#6B7280'} />
-          <Text style={[styles.dateButtonText, selectedDate && styles.dateButtonTextActive]}>
+          <Ionicons name="calendar-outline" size={20} color={selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} />
+          <Text style={[styles.dateButtonText, { color: selectedDate ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }, selectedDate && styles.dateButtonTextActive]}>
             {selectedDate ? selectedDate.toLocaleDateString() : 'Filter by date'}
           </Text>
-          {selectedDate && <Ionicons name="close-circle" size={16} color="#2563EB" />}
+          {selectedDate && <Ionicons name="close-circle" size={16} color={Colors[colorScheme].tint} />}
         </Pressable>
       </View>
 
-      <Text style={styles.header}>Upcoming</Text>
+      <Text style={[styles.header, { color: Colors[colorScheme].text }]}>Upcoming</Text>
       {loading && <View style={{ paddingVertical: 10 }}><ActivityIndicator /></View>}
       {error && !loading && <Text style={styles.error}>{error}</Text>}
-      {!loading && upcoming.length === 0 && <Text style={styles.muted}>No upcoming RSVPs.</Text>}
+      {!loading && upcoming.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No upcoming RSVPs.</Text>}
       {!loading && upcoming.length > 0 && (
         <FlatList data={upcoming} keyExtractor={(i) => i.id} renderItem={renderItem} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} />
       )}
-      <Text style={[styles.header, { marginTop: 12 }]}>Past</Text>
-      {!loading && past.length === 0 && <Text style={styles.muted}>No past RSVPs.</Text>}
+      <Text style={[styles.header, { marginTop: 12, color: Colors[colorScheme].text }]}>Past</Text>
+      {!loading && past.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No past RSVPs.</Text>}
       {!loading && past.length > 0 && (
         <FlatList data={past} keyExtractor={(i) => 'p-' + i.id} renderItem={renderItem} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, padding: 16 },
   filterSection: { marginBottom: 16, gap: 10 },
   searchContainer: { 
     flexDirection: 'row', 
@@ -146,11 +150,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, 
     paddingVertical: 10, 
     borderRadius: 10, 
-    backgroundColor: '#F3F4F6', 
     borderWidth: StyleSheet.hairlineWidth, 
-    borderColor: '#E5E7EB' 
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#111827' },
+  searchInput: { flex: 1, fontSize: 15 },
   dateButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -158,16 +160,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, 
     paddingVertical: 10, 
     borderRadius: 10, 
-    backgroundColor: '#F9FAFB', 
     borderWidth: StyleSheet.hairlineWidth, 
-    borderColor: '#E5E7EB' 
   },
-  dateButtonText: { flex: 1, fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  dateButtonText: { flex: 1, fontSize: 14, fontWeight: '600' },
   dateButtonTextActive: { color: '#2563EB' },
   header: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
   error: { color: '#b91c1c' },
-  muted: { color: '#6b7280' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  muted: {},
+  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '700' },
 });
 

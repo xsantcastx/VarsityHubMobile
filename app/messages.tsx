@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -296,7 +296,7 @@ export default function MessagesScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Enhanced header with gradient and safe area */}
@@ -467,7 +467,7 @@ export default function MessagesScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

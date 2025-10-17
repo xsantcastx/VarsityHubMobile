@@ -5,10 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { OnboardingLayout } from './components/OnboardingLayout';
@@ -20,11 +21,14 @@ export default function Step7Profile() {
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const colorScheme = useColorScheme() ?? 'light';
   const [avatar, setAvatar] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);
@@ -99,8 +103,12 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-  setProgress(7);
-  router.push('/onboarding/step-8-interests');
+      setProgress(7);
+      if (returnToConfirmation) {
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        router.push('/onboarding/step-8-interests');
+      }
     } catch (e: any) { 
       Alert.alert('Failed to save profile', e?.message || 'Please try again'); 
     } finally { 
@@ -123,7 +131,7 @@ export default function Step7Profile() {
               <Image source={{ uri: avatar }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={32} color="#9CA3AF" />
+                <Ionicons name="person" size={32} color={Colors[colorScheme].mutedText} />
               </View>
             )}
             {uploading && (
@@ -142,7 +150,7 @@ export default function Step7Profile() {
             <Ionicons 
               name="camera" 
               size={16} 
-              color="#374151" 
+              color={Colors[colorScheme].text} 
               style={{ marginRight: 8 }} 
             />
             <Text style={styles.photoButtonText}>
@@ -210,10 +218,10 @@ export default function Step7Profile() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center' },
-  subtitle: { color: '#6b7280', marginBottom: 24, textAlign: 'center', fontSize: 16, lineHeight: 24 },
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors[colorScheme].background },
+  title: { ...(Type.h1 as any), marginBottom: 8, textAlign: 'center', color: Colors[colorScheme].text },
+  subtitle: { color: Colors[colorScheme].mutedText, marginBottom: 24, textAlign: 'center', fontSize: 16, lineHeight: 24 },
   
   // Avatar Section
   avatarSection: {
@@ -228,17 +236,17 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#F3F4F6',
   },
   avatarPlaceholder: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
     borderStyle: 'dashed',
   },
   uploadingOverlay: {
@@ -264,11 +272,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
+    borderColor: Colors[colorScheme].border,
+    backgroundColor: Colors[colorScheme].surface,
   },
   photoButtonText: {
-    color: '#374151',
+    color: Colors[colorScheme].text,
     fontWeight: '600',
   },
   
@@ -277,10 +285,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 4,
-    color: '#111827',
+    color: Colors[colorScheme].text,
   },
   sectionDescription: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
     marginBottom: 12,
     lineHeight: 20,
@@ -302,26 +310,26 @@ const styles = StyleSheet.create({
   },
   interestChip: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#FFFFFF',
+    borderColor: Colors[colorScheme].border,
+    backgroundColor: Colors[colorScheme].surface,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
   },
   interestChipSelected: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: Colors[colorScheme].tint,
+    borderColor: Colors[colorScheme].tint,
   },
   interestChipDisabled: {
     opacity: 0.5,
   },
   interestChipText: {
-    color: '#374151',
+    color: Colors[colorScheme].text,
     fontSize: 14,
     fontWeight: '500',
   },
   interestChipTextSelected: {
-    color: 'white',
+    color: colorScheme === 'dark' ? '#000000' : '#FFFFFF',
   },
   
   continueSection: {
@@ -329,9 +337,9 @@ const styles = StyleSheet.create({
   },
   
   // Legacy styles (keeping for compatibility)
-  label: { fontWeight: '700', marginBottom: 4 },
-  chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#9CA3AF', color: '#111827', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  chipSelected: { backgroundColor: '#111827', color: 'white', borderColor: '#111827' },
+  label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
+  chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
 });
 
 

@@ -2,16 +2,17 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -85,7 +86,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -204,7 +205,7 @@ export default function SignInScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 

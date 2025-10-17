@@ -316,10 +316,10 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   teamName: {
-    color: '#fff',
+    color: '#fff', // Always white on banner images
     fontWeight: '800',
     fontSize: 18,
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.8)', // Shadow needed for readability on images
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     maxWidth: '48%'

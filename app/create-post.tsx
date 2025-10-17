@@ -8,6 +8,8 @@ import { uploadFile } from '@/api/upload';
 import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +54,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
@@ -305,13 +308,13 @@ export default function CreatePostScreen() {
     : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
-          <Ionicons name="close" size={22} color="#111827" />
+          <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
@@ -327,27 +330,34 @@ export default function CreatePostScreen() {
             onChangeText={setContent}
             placeholder={PromptPresets.posting[rotatingPromptIndex].text}
             multiline
-            style={styles.textarea}
+            style={[
+              styles.textarea, 
+              { 
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text
+              }
+            ]}
             maxLength={500}
           />
-          <Text style={styles.helper}>Use # to tag teams and @ to mention players</Text>
+          <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Use # to tag teams and @ to mention players</Text>
         </View>
 
         {/* Media Actions */}
         <View style={styles.mediaSection}>
-          <Text style={styles.sectionTitle}>Add Media</Text>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Add Media</Text>
           <View style={styles.tilesRow}>
-            <Pressable style={styles.tile} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
-              <Ionicons name="image-outline" size={24} color="#6B7280" />
-              <Text style={styles.tileLabel}>Gallery</Text>
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
+              <Ionicons name="image-outline" size={24} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Gallery</Text>
             </Pressable>
             <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
               <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
             </Pressable>
-            <Pressable style={styles.tile} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
-              <Ionicons name="videocam-outline" size={24} color="#6B7280" />
-              <Text style={styles.tileLabel}>Video</Text>
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
+              <Ionicons name="videocam-outline" size={24} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Video</Text>
             </Pressable>
           </View>
         </View>
@@ -355,10 +365,10 @@ export default function CreatePostScreen() {
         {/* Media Preview */}
         {picked?.uri ? (
           <View style={styles.previewSection}>
-            <Text style={styles.sectionTitle}>Preview</Text>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Preview</Text>
             <View style={styles.previewContainer}>
               {picked.type === 'image' ? (
-                <RNImage source={{ uri: picked.uri }} style={styles.previewMedia} />
+                <RNImage source={{ uri: picked.uri }} style={[styles.previewMedia, { backgroundColor: Colors[colorScheme].surface }]} />
               ) : (
                 <VideoPlayer uri={picked.uri} style={styles.previewMedia} />
               )}
@@ -373,31 +383,31 @@ export default function CreatePostScreen() {
         {(suggestedGame || nearbyGames.length > 0) && (
           <View style={styles.gameSection}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>Attach to Event</Text>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attach to Event</Text>
               {nearbyGames.length > 1 && (
                 <Pressable onPress={() => setEventSelectorVisible(true)}>
-                  <Text style={styles.changeEventButton}>Change</Text>
+                  <Text style={[styles.changeEventButton, { color: Colors[colorScheme].tint }]}>Change</Text>
                 </Pressable>
               )}
             </View>
             
             {suggestedGame ? (
               <Pressable 
-                style={styles.gameSuggestionCard}
+                style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
                 onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
               >
                 <View style={styles.gameIconContainer}>
                   <Ionicons name="trophy" size={20} color="#059669" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.gameLabel}>
+                  <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
                     {suggestedGame.id === nearbyGames[0]?.id ? 'Suggested Event (nearest)' : 'Selected Event'}
                   </Text>
-                  <Text style={styles.gameTitle}>
+                  <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
                     {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
                   </Text>
                   {suggestedGame.date && (
-                    <Text style={styles.gameDate}>
+                    <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
                       {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   )}
@@ -406,18 +416,18 @@ export default function CreatePostScreen() {
               </Pressable>
             ) : (
               <Pressable 
-                style={styles.noEventCard}
+                style={[styles.noEventCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
                 onPress={() => setEventSelectorVisible(true)}
               >
-                <Ionicons name="add-circle-outline" size={24} color="#6B7280" />
-                <Text style={styles.noEventText}>Select an event to attach</Text>
+                <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.noEventText, { color: Colors[colorScheme].mutedText }]}>Select an event to attach</Text>
               </Pressable>
             )}
             
             <View style={styles.eventActions}>
               {suggestedGame && (
                 <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
-                  <Text style={styles.removeEventButton}>Remove Event</Text>
+                  <Text style={[styles.removeEventButton, { color: '#EF4444' }]}>Remove Event</Text>
                 </Pressable>
               )}
             </View>
@@ -426,23 +436,23 @@ export default function CreatePostScreen() {
 
         {/* Settings Section */}
         <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <View style={styles.locRow}>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Settings</Text>
+          <View style={[styles.locRow, { backgroundColor: Colors[colorScheme].surface }]}>
             <View style={styles.settingInfo}>
-              <Text style={styles.locLabel}>Share location</Text>
-              <Text style={styles.settingDescription}>Help others discover local content</Text>
+              <Text style={[styles.locLabel, { color: Colors[colorScheme].text }]}>Share location</Text>
+              <Text style={[styles.settingDescription, { color: Colors[colorScheme].mutedText }]}>Help others discover local content</Text>
             </View>
             <Switch value={shareLocation} onValueChange={setShareLocation} />
           </View>
           {locGranted === false && shareLocation ? (
-            <Text style={styles.muted}>Location permission denied. You can still post; we'll try to infer your country from your profile.</Text>
+            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Location permission denied. You can still post; we'll try to infer your country from your profile.</Text>
           ) : null}
         </View>
 
         {/* Footer */}
         <View style={styles.footerSection}>
           <Pressable onPress={() => {}}>
-            <Text style={styles.footerLink}>Respect all the players on the field.</Text>
+            <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
@@ -455,11 +465,11 @@ export default function CreatePostScreen() {
         onRequestClose={() => setEventSelectorVisible(false)}
         presentationStyle="pageSheet"
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Event</Text>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Event</Text>
             <Pressable onPress={() => setEventSelectorVisible(false)}>
-              <Ionicons name="close" size={24} color="#111827" />
+              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
           
@@ -471,7 +481,8 @@ export default function CreatePostScreen() {
                     key={game.id}
                     style={[
                       styles.eventOptionCard,
-                      selectedGameId === String(game.id) && styles.eventOptionCardSelected
+                      { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                      selectedGameId === String(game.id) && { borderColor: '#059669', borderWidth: 2 }
                     ]}
                     onPress={() => {
                       setSuggestedGame(game);
@@ -488,18 +499,18 @@ export default function CreatePostScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       {index === 0 && (
-                        <Text style={styles.eventOptionBadge}>Nearest Event</Text>
+                        <Text style={[styles.eventOptionBadge, { color: '#F59E0B' }]}>Nearest Event</Text>
                       )}
-                      <Text style={styles.eventOptionTitle}>
+                      <Text style={[styles.eventOptionTitle, { color: Colors[colorScheme].text }]}>
                         {game.title || `${game.home_team} vs ${game.away_team}`}
                       </Text>
                       {game.date && (
-                        <Text style={styles.eventOptionDate}>
+                        <Text style={[styles.eventOptionDate, { color: Colors[colorScheme].mutedText }]}>
                           {new Date(game.date).toLocaleDateString()} at {new Date(game.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                       )}
                       {game.location && (
-                        <Text style={styles.eventOptionLocation}>
+                        <Text style={[styles.eventOptionLocation, { color: Colors[colorScheme].mutedText }]}>
                           📍 {game.location}
                         </Text>
                       )}
@@ -512,9 +523,9 @@ export default function CreatePostScreen() {
               </>
             ) : (
               <View style={styles.emptyState}>
-                <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
-                <Text style={styles.emptyStateTitle}>No Events Found</Text>
-                <Text style={styles.emptyStateText}>
+                <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>No Events Found</Text>
+                <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                   There are no upcoming events in the next 7 days.
                 </Text>
               </View>
@@ -528,8 +539,7 @@ export default function CreatePostScreen() {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: '#FFFFFF' 
+    flex: 1
   },
   header: { 
     flexDirection: 'row', 
@@ -564,17 +574,18 @@ const styles = StyleSheet.create({
     height: 120, 
     borderRadius: 12, 
     borderWidth: 1, 
-    borderColor: '#E5E7EB', 
+    // borderColor: Uses dynamic color in JSX
     padding: 16, 
     textAlignVertical: 'top', 
     marginBottom: 8,
     fontSize: 16,
     lineHeight: 22
+    // backgroundColor & color: Uses dynamic colors in JSX
   },
   helper: { 
-    color: '#6B7280', 
     fontSize: 14,
     fontStyle: 'italic'
+    // color: Uses dynamic color in JSX
   },
   
   // Swipe Section
@@ -669,7 +680,7 @@ const styles = StyleSheet.create({
   sectionTitle: { 
     fontSize: 16, 
     fontWeight: '700', 
-    color: '#111827', 
+    // color: Uses dynamic color in JSX
     marginBottom: 16,
     textAlign: 'center'
   },
@@ -683,9 +694,8 @@ const styles = StyleSheet.create({
     width: 100, 
     height: 100, 
     borderRadius: 20, 
-    backgroundColor: '#FFFFFF', 
+    // backgroundColor & borderColor: Uses dynamic colors in JSX
     borderWidth: 1.5, 
-    borderColor: '#E5E7EB', 
     alignItems: 'center', 
     justifyContent: 'center', 
     shadowColor: '#000', 
@@ -701,7 +711,7 @@ const styles = StyleSheet.create({
   tileLabel: { 
     fontSize: 12, 
     fontWeight: '600', 
-    color: '#6B7280', 
+    // color: Uses dynamic color in JSX
     marginTop: 6 
   },
   primaryTileLabel: { 
@@ -714,7 +724,7 @@ const styles = StyleSheet.create({
   },
   storyHint: {
     fontSize: 12,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     fontStyle: 'italic',
     textAlign: 'center'
   },
@@ -736,7 +746,7 @@ const styles = StyleSheet.create({
   previewMedia: { 
     width: '100%', 
     height: 240, 
-    backgroundColor: '#F9FAFB' 
+    // backgroundColor: Uses dynamic color in JSX
   },
   removeButton: {
     position: 'absolute',
@@ -807,7 +817,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
+    // backgroundColor: Uses dynamic color in JSX
     borderRadius: 12
   },
   settingInfo: {
@@ -816,15 +826,15 @@ const styles = StyleSheet.create({
   locLabel: { 
     fontWeight: '600',
     fontSize: 16,
-    color: '#111827'
+    // color: Uses dynamic color in JSX
   },
   settingDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     marginTop: 2
   },
   muted: { 
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     fontSize: 14,
     marginTop: 12,
     textAlign: 'center',

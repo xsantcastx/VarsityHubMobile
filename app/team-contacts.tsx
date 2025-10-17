@@ -9,7 +9,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../utils/uploadUtils';
 // Modal state for replacing Alert.alert
 const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
@@ -91,7 +91,6 @@ export default function TeamChatScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1529,19 +1528,19 @@ export default function TeamChatScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat' }} />
         <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading team chat...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Chat' }} />
         <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 

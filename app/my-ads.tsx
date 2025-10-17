@@ -1,7 +1,10 @@
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
 import settings from '@/api/settings';
@@ -18,6 +21,7 @@ type DraftAd = {
 };
 
 export default function MyAdsScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<DraftAd[]>([]);
@@ -83,42 +87,42 @@ export default function MyAdsScreen() {
   const renderItem = ({ item }: { item: DraftAd }) => {
     const dates = datesByAd[item.id] || [];
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {item.banner_url ? (
             <Image source={{ uri: item.banner_url }} style={styles.bannerPreview} contentFit="cover" />
           ) : (
-            <View style={[styles.bannerPreview, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' }]}>
-              <Text style={{ color: '#6b7280' }}>No banner</Text>
+            <View style={[styles.bannerPreview, { alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].border }]}>
+              <Text style={{ color: Colors[colorScheme].mutedText }}>No banner</Text>
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{item.business_name}</Text>
-            <Text style={styles.meta}>{item.contact_name} � {item.contact_email}</Text>
-            <Text style={styles.meta}>Zip {item.zip_code}</Text>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
+            <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{item.contact_name} • {item.contact_email}</Text>
+            <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
           </View>
         </View>
         <View style={{ height: 8 }} />
-        <Text style={styles.section}>Scheduled Dates</Text>
+        <Text style={[styles.section, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
         {dates.length > 0 ? (
           <View style={styles.badgeWrap}>
             {dates.map((d) => {
               let label = d;
               try { label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch {}
               return (
-                <View key={d} style={styles.badge}><Text style={styles.badgeText}>{label}</Text></View>
+                <View key={d} style={[styles.badge, { backgroundColor: Colors[colorScheme].border }]}><Text style={[styles.badgeText, { color: Colors[colorScheme].text }]}>{label}</Text></View>
               );
             })}
           </View>
         ) : (
-          <Text style={styles.muted}>None yet</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>None yet</Text>
         )}
         <View style={styles.row}>
-          <Pressable style={styles.btn} onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}>
+          <Pressable style={[styles.btn, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}>
             <Text style={styles.btnText}>Schedule Dates</Text>
           </Pressable>
-          <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => remove(item.id)}>
-            <Text style={[styles.btnText, { color: '#111827' }]}>Remove</Text>
+          <Pressable style={[styles.btn, styles.btnSecondary, { backgroundColor: Colors[colorScheme].border }]} onPress={() => remove(item.id)}>
+            <Text style={[styles.btnText, { color: Colors[colorScheme].text }]}>Remove</Text>
           </Pressable>
         </View>
       </View>
@@ -126,14 +130,14 @@ export default function MyAdsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'My Ads' }} />
       {loading && <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View>}
       {!loading && ads.length === 0 ? (
         <View style={{ padding: 16 }}>
-          <Text style={styles.muted}>No ads yet. Create your first ad.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No ads yet. Create your first ad.</Text>
           <View style={{ height: 8 }} />
-          <Pressable style={styles.btn} onPress={() => router.push('/submit-ad')}>
+          <Pressable style={[styles.btn, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => router.push('/submit-ad')}>
             <Text style={styles.btnText}>Submit Ad</Text>
           </Pressable>
         </View>
@@ -147,15 +151,15 @@ export default function MyAdsScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  container: { flex: 1 },
+  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '800', fontSize: 16 },
-  meta: { color: '#6b7280' },
+  meta: {},
   section: { fontWeight: '700', marginBottom: 6 },
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#F3F4F6' },
