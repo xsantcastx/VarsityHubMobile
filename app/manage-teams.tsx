@@ -136,21 +136,12 @@ export default function ManageTeamsScreen() {
           </Pressable>
           
           <Pressable 
-            style={[styles.actionCard, { backgroundColor: '#10B981' }]}
-            onPress={() => router.push('/team-invites')}
+            style={[styles.actionCard, { backgroundColor: '#10b981' }]}
+            onPress={() => router.push('/manage-season')}
           >
-            <Ionicons name="person-add-outline" size={24} color="#fff" />
-            <Text style={styles.actionCardTitle}>Invitations</Text>
-            <Text style={styles.actionCardDesc}>Manage invites</Text>
-          </Pressable>
-
-          <Pressable 
-            style={[styles.actionCard, { backgroundColor: '#F59E0B' }]}
-            onPress={() => router.push('/archive-seasons')}
-          >
-            <Ionicons name="archive-outline" size={24} color="#fff" />
-            <Text style={styles.actionCardTitle}>Archives</Text>
-            <Text style={styles.actionCardDesc}>Past seasons</Text>
+            <Ionicons name="calendar-outline" size={24} color="#fff" />
+            <Text style={styles.actionCardTitle}>Add Game</Text>
+            <Text style={styles.actionCardDesc}>Schedule a game</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -178,10 +169,6 @@ export default function ManageTeamsScreen() {
             {teams.reduce((sum, t) => sum + t.members, 0)}
           </Text>
           <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>Total Members</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: Colors[colorScheme].surface }]}>
-          <Text style={[styles.statNumber, { color: Colors[colorScheme].text }]}>{archivedTeams.length}</Text>
-          <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>Archived</Text>
         </View>
       </View>
 
@@ -487,23 +474,6 @@ export default function ManageTeamsScreen() {
           onRefresh={onRefresh}
           showsVerticalScrollIndicator={false}
         />
-      )}
-
-      {/* Archived Teams Section - Add if there are archived teams */}
-      {archivedTeams.length > 0 && (
-        <View style={styles.archivedSection}>
-          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-            Archived Teams ({archivedTeams.length})
-          </Text>
-          {archivedTeams.slice(0, 3).map((team) => (
-            <View key={team.id} style={[styles.archivedTeamCard, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Text style={[styles.archivedTeamName, { color: Colors[colorScheme].mutedText }]}>{team.name}</Text>
-              <Pressable onPress={() => router.push(`/team-profile?id=${team.id}`)}>
-                <Text style={[styles.viewLink, { color: Colors[colorScheme].tint }]}>View</Text>
-              </Pressable>
-            </View>
-          ))}
-        </View>
       )}
     </View>
   );

@@ -408,16 +408,6 @@ export default function FeedScreen() {
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
-  // Rotate sponsored ads every ~8s
-  useEffect(() => {
-    if (!sponsoredAds || sponsoredAds.length <= 1) return;
-    // Rotate less frequently to reduce re-renders and image churn
-    const id = setInterval(() => {
-      setSponsoredIndex((i) => (i + 1) % sponsoredAds.length);
-    }, 20000);
-    return () => clearInterval(id);
-  }, [sponsoredAds]);
-
   // Load notifications and messages when modal opens OR when tab changes
   useEffect(() => {
     if (!notificationsMenuOpen) {
@@ -495,6 +485,64 @@ export default function FeedScreen() {
     }
     return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
   }, [games, query]);
+
+  // Separate upcoming and past events
+  const { upcomingEvents, pastEvents } = useMemo(() => {
+    const now = new Date();
+    const upcoming: GameItem[] = [];
+    const past: GameItem[] = [];
+    
+    filtered.forEach((game) => {
+      if (game.date) {
+        const gameDate = new Date(game.date);
+        if (gameDate >= now) {
+          upcoming.push(game);
+        } else {
+          past.push(game);
+        }
+      } else {
+        // Games without dates go to upcoming by default
+        upcoming.push(game);
+      }
+    });
+    
+    return { upcomingEvents: upcoming, pastEvents: past };
+  }, [filtered]);
+
+  // Insert sponsored ads into upcoming events feed (Instagram-style)
+  const upcomingWithAds = useMemo(() => {
+    const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
+    const adInterval = 8; // Show ad every 8 events (reduced frequency)
+    const hasAds = sponsoredAds && sponsoredAds.length > 0;
+    
+    // Always add a promotional card at the start if we have events
+    if (upcomingEvents.length > 0) {
+      if (hasAds) {
+        const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+        result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+      } else {
+        result.push({ type: 'ad', ad: null });
+      }
+    }
+    
+    upcomingEvents.forEach((event, index) => {
+      result.push(event);
+      
+      // Insert ad or promotional card after every adInterval events (starting from the first interval)
+      if ((index + 1) % adInterval === 0) {
+        if (hasAds) {
+          // Pick a random ad from available ads
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+        } else {
+          // No ads available, show promotional card
+          result.push({ type: 'ad', ad: null });
+        }
+      }
+    });
+    
+    return result;
+  }, [upcomingEvents, sponsoredAds]);
 
   const verticalFeedTitle = 'All Highlights';
   const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
@@ -724,7 +772,7 @@ export default function FeedScreen() {
           <ActivityIndicator />
         </View>
       )}
-      {!loading && filtered.length === 0 && !error && (
+      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
   <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
       )}
 
@@ -745,20 +793,93 @@ export default function FeedScreen() {
       >
         {renderEmailReminder()}
         
-        {filtered.length > 0 && (
-          <View style={styles.masonryContainer}>
-            {filtered.map((item, index) => {
-              // Create varied aspect ratios for Pinterest-style dynamic look
-              const aspectRatios = [1, 1.2, 0.85, 1.35, 0.9, 1.15, 0.95, 1.25];
-              const aspectRatio = aspectRatios[index % aspectRatios.length];
-              
-              const raw = item as any;
-              const banner = item.cover_image_url || raw?.banner_url || null;
+        {/* Upcoming Events with Ads */}
+        {upcomingWithAds.length > 0 && (
+          <View style={{ gap: 20 }}>
+            {upcomingWithAds.map((item, index) => {
+              // Check if this is an ad
+              if ('type' in item && item.type === 'ad') {
+                const adData = item.ad;
+                
+                // If no ad data, show promotional card
+                if (!adData) {
+                  return (
+                    <View key={`promo-${index}`} style={styles.sponsoredFeedCard}>
+                      <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
+                        PROMOTE YOUR PROGRAM
+                      </Text>
+                      <View style={styles.promoPlaceholder}>
+                        <Ionicons name="megaphone" size={40} color="#2563EB" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.promoTitle}>Reach More Athletes & Fans</Text>
+                          <Text style={styles.promoSubtitle}>
+                            Advertise your program, camp, or business
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={styles.promoteCtaBanner}
+                          onPress={() => router.push('/submit-ad')}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name="add-circle-outline" size={18} color="#ffffff" />
+                          <Text style={styles.promoteCtaText}>Create Ad</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                }
+                
+                // Otherwise show actual ad
+                return (
+                  <View key={`ad-${index}`} style={styles.sponsoredFeedCard}>
+                    <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
+                      SPONSORED
+                    </Text>
+                    {adData.banner_url ? (
+                      <BannerAd
+                        bannerUrl={adData.banner_url}
+                        targetUrl={adData.target_url}
+                        businessName={adData.business_name}
+                        description={adData.description}
+                        aspectRatio={3.5}
+                      />
+                    ) : (
+                      <View style={styles.adPlaceholder}>
+                        <Ionicons name="megaphone-outline" size={48} color="#9CA3AF" />
+                      </View>
+                    )}
+                    <View style={styles.adInfo}>
+                      <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                        {adData.business_name || 'Local Sponsor'}
+                      </Text>
+                      {adData.description ? (
+                        <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                          {String(adData.description)}
+                        </Text>
+                      ) : null}
+                      {/* Promote your program CTA */}
+                      <Pressable
+                        style={styles.promoteCta}
+                        onPress={() => router.push('/submit-ad')}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
+                        <Text style={styles.promoteCtaText}>Promote your program</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+
+              // Otherwise it's a regular event
+              const gameItem = item as GameItem;
+              const raw = gameItem as any;
+              const banner = gameItem.cover_image_url || raw?.banner_url || null;
               const hasBanner = typeof banner === 'string' && banner.length > 0;
               const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-              const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
-              const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
-              const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+              const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+              const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+              const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
               const reviewsCount =
                 typeof raw?.reviews_count === 'number'
                   ? raw.reviews_count
@@ -773,22 +894,22 @@ export default function FeedScreen() {
                   : Array.isArray(raw?.media)
                     ? raw.media.length
                     : 0;
-              const summary = voteSummaries[String(item.id)] || null;
+              const summary = voteSummaries[String(gameItem.id)] || null;
               const voteText = summary
                 ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
                 : null;
 
               return (
                 <Pressable
-                  key={String(item.id)}
-                  style={[styles.masonryItem, { aspectRatio }]}
-                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                  key={String(gameItem.id)}
+                  style={styles.singleEventCard}
+                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
                 >
                   {hasBanner ? (
-                    <Image source={{ uri: banner }} style={styles.gridImage} contentFit="cover" />
+                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
                   ) : (
-                    <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   )}
                   <LinearGradient
                     colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
@@ -801,7 +922,7 @@ export default function FeedScreen() {
                       <Text style={styles.gridDateText}>{eventDate}</Text>
                     </View>
                     <Text style={styles.gridTitle} numberOfLines={2}>
-                      {item.title ? String(item.title) : 'Game'}
+                      {gameItem.title ? String(gameItem.title) : 'Game'}
                     </Text>
                     <Text style={styles.gridMeta} numberOfLines={1}>
                       {eventTime ? `${eventTime} • ${locationText}` : locationText}
@@ -822,64 +943,102 @@ export default function FeedScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
                 </Pressable>
               );
             })}
           </View>
         )}
+
+        {/* Past Events Section */}
+        {pastEvents.length > 0 && (
+          <View style={{ marginTop: 32 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              Past Events
+            </Text>
+            <View style={{ gap: 20, marginTop: 12 }}>
+              {pastEvents.map((item, index) => {
+                const raw = item as any;
+                const banner = item.cover_image_url || raw?.banner_url || null;
+                const hasBanner = typeof banner === 'string' && banner.length > 0;
+                const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
+                const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
+                const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+                const reviewsCount =
+                  typeof raw?.reviews_count === 'number'
+                    ? raw.reviews_count
+                    : Array.isArray(raw?.reviews)
+                      ? raw.reviews.length
+                      : raw?._count && typeof raw._count.reviews === 'number'
+                        ? raw._count.reviews
+                        : 0;
+                const mediaCount =
+                  typeof raw?.media_count === 'number'
+                    ? raw.media_count
+                    : Array.isArray(raw?.media)
+                      ? raw.media.length
+                      : 0;
+                const summary = voteSummaries[String(item.id)] || null;
+                const voteText = summary
+                  ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+                  : null;
+
+                return (
+                  <Pressable
+                    key={String(item.id)}
+                    style={styles.singleEventCard}
+                    onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                    accessibilityRole="button"
+                  >
+                    {hasBanner ? (
+                      <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
+                    ) : (
+                      <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    )}
+                    <LinearGradient
+                      colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                      style={styles.gridShade}
+                      pointerEvents="none"
+                    />
+                    <View style={styles.gridContent}>
+                      <View style={styles.gridDateChip}>
+                        <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                        <Text style={styles.gridDateText}>{eventDate}</Text>
+                      </View>
+                      <Text style={styles.gridTitle} numberOfLines={2}>
+                        {item.title ? String(item.title) : 'Game'}
+                      </Text>
+                      <Text style={styles.gridMeta} numberOfLines={1}>
+                        {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                      </Text>
+                      <View style={styles.gridStatsRow}>
+                        <View style={styles.gridStat}>
+                          <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                          <Text style={styles.gridStatText}>{reviewsCount}</Text>
+                        </View>
+                        <View style={styles.gridStat}>
+                          <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                          <Text style={styles.gridStatText}>{mediaCount}</Text>
+                        </View>
+                      </View>
+                      {voteText ? (
+                        <Text style={styles.gridVoteText} numberOfLines={1}>
+                          {voteText}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
         
         {/* Footer Content */}
         <View style={styles.gridFooter}>
-          {sponsoredAds.length > 0 ? (
-            <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-              <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
-              {sponsoredAds[sponsoredIndex]?.banner_url ? (
-                <BannerAd
-                  bannerUrl={sponsoredAds[sponsoredIndex].banner_url}
-                  targetUrl={sponsoredAds[sponsoredIndex].target_url}
-                  businessName={sponsoredAds[sponsoredIndex].business_name}
-                  description={sponsoredAds[sponsoredIndex].description}
-                  aspectRatio={16/9}
-                />
-              ) : (
-                <View style={styles.sponsoredGridImageWrapper}>
-                  <View style={{ flex: 1, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="megaphone-outline" size={48} color="#9CA3AF" />
-                  </View>
-                </View>
-              )}
-              <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                {sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}
-              </Text>
-              {sponsoredAds[sponsoredIndex]?.description ? (
-                <Text style={[styles.sponsoredGridDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                  {String(sponsoredAds[sponsoredIndex].description)}
-                </Text>
-              ) : null}
-              <Pressable
-                style={styles.sponsoredGridCta}
-                onPress={() => router.push('/submit-ad')}
-                accessibilityRole="button"
-              >
-                <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                <Text style={styles.sponsoredGridCtaText}>Promote your program</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {sponsoredAds.length === 0 ? (
-            <Pressable
-              style={[styles.adInviteCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-              onPress={() => router.push('/submit-ad')}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.adInviteTitle, { color: Colors[colorScheme].text }]}>Your ad here</Text>
-              <Text style={[styles.adInviteSubtitle, { color: Colors[colorScheme].mutedText }]}>
-                Submit a local ad to reach nearby fans and families.
-              </Text>
-            </Pressable>
-          ) : null}
+          {/* Removed static sponsored card - ads now appear in feed */}
 
           <View style={styles.verticalFeedSection}>
             <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
@@ -1208,6 +1367,117 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  singleEventCard: {
+    width: '100%',
+    aspectRatio: 4/5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0f172a',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  singleEventImage: { width: '100%', height: '100%' },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // Sponsored ad styles for feed
+  sponsoredFeedCard: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: '#ffffff',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  sponsoredLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  adPlaceholder: {
+    width: '100%',
+    aspectRatio: 3.5,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promoPlaceholder: {
+    width: '100%',
+    aspectRatio: 3.5,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  promoTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 2,
+  },
+  promoSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  promoteCtaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  adInfo: {
+    padding: 16,
+    gap: 6,
+  },
+  adBusinessName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  adDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  promoteCta: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  promoteCtaText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   gridItem: {
     flex: 1,

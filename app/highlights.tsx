@@ -293,8 +293,6 @@ export default function HighlightsScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -396,20 +394,6 @@ export default function HighlightsScreen() {
       });
     }
     
-    // Apply date filter
-    if (selectedDate) {
-      const targetDate = new Date(selectedDate);
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDay = new Date(targetDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      filtered = filtered.filter(item => {
-        if (!item.created_at) return false;
-        const itemDate = new Date(item.created_at);
-        return itemDate >= targetDate && itemDate < nextDay;
-      });
-    }
-    
     switch (activeTab) {
       case 'trending':
         // TRENDING: Top 3 posts with highest engagement, then rest sorted by algorithm
@@ -460,7 +444,7 @@ export default function HighlightsScreen() {
     }
     
     return filtered;
-  }, [highlights, activeTab, searchQuery, selectedDate]);
+  }, [highlights, activeTab, searchQuery]);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
@@ -539,32 +523,6 @@ export default function HighlightsScreen() {
           )}
         </View>
 
-        {/* Calendar Date Picker */}
-        <View style={styles.calendarContainer}>
-          <Pressable 
-            style={[styles.dateButton, { backgroundColor: selectedDate ? '#2563EB' : Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-            onPress={() => {
-              if (selectedDate) {
-                setSelectedDate(null);
-              } else {
-                const today = new Date();
-                setSelectedDate(today);
-              }
-            }}
-          >
-            <Ionicons name="calendar" size={18} color={selectedDate ? '#fff' : Colors[colorScheme].text} />
-            <Text style={[styles.dateButtonText, { color: selectedDate ? '#fff' : Colors[colorScheme].text }]}>
-              {selectedDate ? selectedDate.toLocaleDateString() : 'All Dates'}
-            </Text>
-            {selectedDate && (
-              <Ionicons name="close-circle" size={16} color="#fff" />
-            )}
-          </Pressable>
-          <Text style={[styles.calendarHint, { color: Colors[colorScheme].tabIconDefault }]}>
-            {selectedDate ? 'Showing highlights from selected date' : 'Tap to filter by date'}
-          </Text>
-        </View>
-        
         {/* Tabs */}
         <ScrollView 
           horizontal 

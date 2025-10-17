@@ -12,8 +12,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
-const weekdayRate = 1.75;  // Per single day
-const weekendRate = 2.99;  // Per single day
+const weekdayRate = 10.00;  // Per single day (Mon-Thu)
+const weekendRate = 17.50;  // Per single day (Fri-Sun)
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
@@ -35,12 +35,12 @@ function calculatePrice(selectedISO: Set<string>): number {
   // Calculate price per individual day
   for (const d of selectedISO) {
     const dow = getDayOfWeek(d);
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
-    // Fri=5, Sat=6, Sun=0 are weekend
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($10)
+    // Fri=5, Sat=6, Sun=0 are weekend ($17.50)
     if (dow >= 1 && dow <= 4) {
-      total += weekdayRate; // $1.75 per weekday
+      total += weekdayRate; // $10.00 per weekday
     } else {
-      total += weekendRate; // $2.99 per weekend day
+      total += weekendRate; // $17.50 per weekend day
     }
   }
   

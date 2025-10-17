@@ -70,6 +70,7 @@ export const Game = {
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
   },
   media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`),
+  deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
