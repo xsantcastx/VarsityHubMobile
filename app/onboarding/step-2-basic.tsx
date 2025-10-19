@@ -1,23 +1,23 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
-import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
 const zipRe = /^\d{5}$/;
 
 export default function Step2Basic() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [username, setUsername] = useState('');
@@ -37,17 +37,7 @@ export default function Step2Basic() {
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
-  const refreshEmailVerification = useCallback(async () => {
-    try {
-      const me: any = await User.me();
-      setEmailVerified(Boolean(me?.email_verified));
-      setEmail(me?.email || '');
-      return me;
-    } catch (err) {
-      console.warn('[Onboarding][Step2] failed to refresh verification status', err);
-      return null;
-    }
-  }, []);
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => { 
     (async () => { 
@@ -107,11 +97,9 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  const normalizedZipValue = zip.trim();
-  const zipValid = zipRe.test(normalizedZipValue);
-  const baseContinueReady = usernameRe.test(username) && available && affiliation && dob && !dobError && zipValid;
-  const continueDisabled = !baseContinueReady || emailVerified === false || saving;
-  const continueLabel = emailVerified === false ? 'Verify email to continue' : 'Continue';
+  const isCoach = ob.role === 'coach';
+  const zipRequired = isCoach; // Zip code is mandatory for coaches
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -207,139 +195,136 @@ export default function Step2Basic() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <Stack.Screen options={{ title: 'Step 2/10' }} />
+    <OnboardingLayout
+      step={2}
+      title="Basic Information"
+      subtitle="We'll set up your account with a username and preferences"
+      onBack={onBack}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      <Text style={styles.label}>Username</Text>
+      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
+        if (!usernameRe.test(username)) { setAvailable(null); return; }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
+      }} />
+      {usernameError ? (
+        <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
+      ) : checking ? (
+        <Text style={styles.muted}>Checking availability…</Text>
+      ) : available === false ? (
+        <Text style={styles.error}>That username is taken</Text>
+      ) : available === true && username.length > 0 ? (
+        <Text style={styles.success}>Available!</Text>
+      ) : null}
 
-      <OnboardingBackHeader
-        title="Basic Information"
-        subtitle="We'll set up your account with a username and preferences."
-        onBack={onBack}
-      />
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-
-        <Text style={styles.label}>Username</Text>
-        <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
-          if (!usernameRe.test(username)) { setAvailable(null); return; }
-          try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
-        }} />
-        {usernameError ? (
-          <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
-        ) : checking ? (
-          <Text style={styles.muted}>Checking availability…</Text>
-        ) : available === false ? (
-          <Text style={styles.error}>That username is taken</Text>
-        ) : available === true && username.length > 0 ? (
-          <Text style={styles.success}>Available!</Text>
-        ) : null}
-
-        <Text style={styles.label}>Affiliation</Text>
-        <Segmented
-          options={[
-            { value: 'none', label: 'Other' },
-            { value: 'university', label: 'University' },
-            { value: 'high_school', label: 'High school' },
-            { value: 'club', label: 'Club' },
-            { value: 'youth', label: 'Youth' },
-          ]}
-          value={affiliation}
-          onChange={(item) => setAffiliation(item as Affiliation)}
-        />
-
-        <Text style={styles.label}>Date of birth</Text>
-        <DateField
-          label="Date of birth"
-          value={dob} 
-          onChange={setDob}
-        />
-        {dobError && (
-          <Text style={styles.error}>Please enter a valid date of birth</Text>
-        )}
-
-        <Text style={styles.label}>Zip code</Text>
-        <Input
-          value={zip}
-          onChangeText={setZip}
-          onBlur={() => setZipTouched(true)}
-          autoCapitalize="none"
-          placeholder="12345"
-          keyboardType="numeric"
-          maxLength={5}
-        />
-        {zipTouched && !zip && (
-          <Text style={styles.error}>Zip code is required</Text>
-        )}
-        {zipTouched && zip.length > 0 && !zipValid && (
-          <Text style={styles.error}>Enter a valid 5-digit zip code</Text>
-        )}
-
-        {emailVerified === false && (
-          <View style={styles.verifyCard}>
-            <View style={styles.verifyHeader}>
-              <Ionicons name="alert-circle-outline" size={22} color="#B45309" />
-              <Text style={styles.verifyTitle}>Verify your email to continue</Text>
-            </View>
-            <Text style={styles.verifyDescription}>
-              We sent a verification code to {email || 'your email address'}. Verify your email to unlock the rest of onboarding.
+      <Text style={styles.label}>Affiliation</Text>
+      <View style={styles.affiliationGrid}>
+        {[
+          { value: 'none', label: 'None', icon: '❌' },
+          { value: 'university', label: 'University', icon: '🎓' },
+          { value: 'high_school', label: 'High School', icon: '🏫' },
+          { value: 'club', label: 'Club', icon: '⚽' },
+          { value: 'youth', label: 'Youth', icon: '👶' },
+        ].map((option) => (
+          <Pressable
+            key={option.value}
+            style={[
+              styles.affiliationButton,
+              affiliation === option.value && styles.affiliationButtonSelected
+            ]}
+            onPress={() => setAffiliation(option.value as Affiliation)}
+          >
+            <Text style={styles.affiliationIcon}>{option.icon}</Text>
+            <Text style={[
+              styles.affiliationLabel,
+              affiliation === option.value && styles.affiliationLabelSelected
+            ]}>
+              {option.label}
             </Text>
-            {verificationInfo ? (
-              <Text style={styles.verifyInfo}>{verificationInfo}</Text>
-            ) : null}
-            {verificationError ? (
-              <Text style={styles.verifyError}>{verificationError}</Text>
-            ) : null}
-            <View style={styles.verifyActions}>
-              <Pressable style={styles.verifyPrimaryButton} onPress={handleVerifyNow}>
-                <Ionicons name="mail-open-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.verifyPrimaryText}>Verify email now</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.verifySecondaryButton, resendLoading && styles.verifySecondaryDisabled]}
-                onPress={handleResendVerification}
-                disabled={resendLoading}
-              >
-                <Text style={styles.verifySecondaryText}>{resendLoading ? 'Sending…' : 'Resend code'}</Text>
-              </Pressable>
-              <Pressable
-                style={styles.verifyRefreshButton}
-                onPress={handleRefreshVerification}
-                disabled={checkingVerification}
-              >
-                <Ionicons name="refresh" size={16} color="#1D4ED8" />
-                <Text style={styles.verifyRefreshText}>
-                  {checkingVerification ? 'Checking…' : "I've already verified"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+          </Pressable>
+        ))}
+      </View>
 
-        <View style={{ marginTop: 20 }}>
-          <PrimaryButton
-            label={continueLabel}
-            onPress={onContinue}
-            disabled={continueDisabled}
-            loading={saving}
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <DateField
+        label="Date of birth"
+        value={dob} 
+        onChange={setDob}
+      />
+      {dobError && (
+        <Text style={styles.error}>Please enter a valid date of birth</Text>
+      )}
+
+      <Text style={styles.label}>Zip code {zipRequired && <Text style={styles.error}>*</Text>}</Text>
+      <Input 
+        value={zip} 
+        onChangeText={setZip} 
+        autoCapitalize="none" 
+        placeholder={zipRequired ? "Required for coaches" : "12345"} 
+        keyboardType="numeric" 
+        maxLength={5}
+      />
+      {zipRequired && !zip && (
+        <Text style={styles.error}>Zip code is required for coaches</Text>
+      )}
+
+      <View style={{ marginTop: 20 }}>
+        <PrimaryButton
+          label="Continue"
+          onPress={onContinue}
+          disabled={!canContinue}
+          loading={saving}
+        />
+      </View>
+    </OnboardingLayout>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors[colorScheme].background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors[colorScheme].border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+  },
+  title: {
+    ...Type.h2,
+    color: Colors[colorScheme].text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    ...Type.body,
+    color: Colors[colorScheme].mutedText,
+    marginBottom: 24,
   },
   label: {
-    ...Type.h1,
-    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+    marginTop: 20,
     marginBottom: 8,
   },
   error: {
     fontSize: 14,
-    color: '#ef4444',
+    color: colorScheme === 'dark' ? '#f87171' : '#ef4444',
     marginTop: 4,
   },
   verifyCard: {
@@ -421,12 +406,48 @@ const styles = StyleSheet.create({
   },
   success: {
     fontSize: 14,
-    color: '#22c55e',
+    color: colorScheme === 'dark' ? '#4ade80' : '#22c55e',
     marginTop: 4,
   },
   muted: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     marginTop: 4,
+  },
+  affiliationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  affiliationButton: {
+    width: '30%',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors[colorScheme].border,
+    backgroundColor: Colors[colorScheme].surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  affiliationButtonSelected: {
+    borderColor: Colors[colorScheme].tint,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(56,189,248,0.1)' : '#EFF6FF',
+    borderWidth: 2,
+  },
+  affiliationIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  affiliationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors[colorScheme].mutedText,
+    textAlign: 'center',
+  },
+  affiliationLabelSelected: {
+    color: Colors[colorScheme].tint,
+    fontWeight: '700',
   },
 });

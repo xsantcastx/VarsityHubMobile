@@ -2,16 +2,16 @@ import CustomActionModal, { ActionModalOption } from '@/components/CustomActionM
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
 import AddGameModal, { GameFormData } from '@/components/AddGameModal';
 import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
+import { EmptyState, GameCard, SectionHeader } from '@/components/ui';
 
 interface Game {
   id: string;
@@ -70,7 +70,6 @@ interface PlayoffMatchup {
 export default function ManageSeasonScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ teamId?: string }>();
 
   // Modal state for universal action modal
@@ -96,6 +95,7 @@ export default function ManageSeasonScreen() {
   const [showAddGameModal, setShowAddGameModal] = useState(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [showBulkScheduleModal, setShowBulkScheduleModal] = useState(false);
+  const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
 
@@ -315,38 +315,13 @@ export default function ManageSeasonScreen() {
   }, [loadGames]);
 
   const handleAddGame = () => {
-    setActionModal({
-      visible: true,
-      title: 'Add Game',
-      message: 'Choose how to add a new game',
-      options: [
-        { label: 'Cancel', onPress: () => {}, color: undefined },
-        { label: 'Manual Entry', onPress: () => setShowAddGameModal(true) },
-        { label: 'Quick Add', onPress: () => setShowQuickAddModal(true) },
-      ],
-    });
+    // Directly open Quick Add modal (simplified for boomer-friendly UX)
+    setShowQuickAddModal(true);
   };
 
   const handleEditGame = (game: Game) => {
-    setActionModal({
-      visible: true,
-      title: 'Edit Game',
-      message: `Edit ${game.opponent} game?`,
-      options: [
-        { label: 'Cancel', onPress: () => {}, color: undefined },
-        { label: 'Edit Details', onPress: () => {
-            // Open edit modal with pre-filled data
-            setActionModal({
-              visible: true,
-              title: 'Edit Game',
-              message: 'Edit functionality would open here with pre-filled game data.',
-              options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-            });
-          }
-        },
-        { label: 'Change Status', onPress: () => handleChangeGameStatus(game) },
-      ],
-    });
+    setEditingGame(game);
+    setShowQuickAddModal(true);
   };
 
   const handleDeleteGame = (game: Game) => {
@@ -433,6 +408,8 @@ export default function ManageSeasonScreen() {
 
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
     try {
+      const isEditing = !!gameData.id;
+      
       // Convert 12-hour time to 24-hour format for ISO string
       const convertTo24Hour = (time12h: string) => {
         const [time, modifier] = time12h.split(' ');
@@ -480,12 +457,14 @@ export default function ManageSeasonScreen() {
         gamePayload.appearance = gameData.appearance;
       }
 
-      // Save to backend API
-      const savedGame = await GameAPI.create(gamePayload);
+      // Save to backend API (create or update)
+      const savedGame = isEditing 
+        ? await GameAPI.update(gameData.id, gamePayload)
+        : await GameAPI.create(gamePayload);
       
       // Create local game object for immediate UI update
-      const newGame: Game = {
-        id: savedGame.id || Date.now().toString(),
+      const updatedGame: Game = {
+        id: savedGame.id || gameData.id || Date.now().toString(),
         homeTeam: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
         awayTeam: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
         opponent: gameData.opponent, // Keep for backward compatibility
@@ -499,16 +478,26 @@ export default function ManageSeasonScreen() {
         cover_image_url: gameData.banner_url || gameData.cover_image_url || savedGame.cover_image_url || undefined,
       };
 
-      // Add to games state
-      setGames(prev => [...prev, newGame]);
+      // Update games state
+      if (isEditing) {
+        setGames(prev => prev.map(g => g.id === gameData.id ? updatedGame : g));
+      } else {
+        setGames(prev => [...prev, updatedGame]);
+      }
       
       // Show success message
       setActionModal({
         visible: true,
         title: 'Success',
-        message: `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
+        message: isEditing 
+          ? `Game "${gameData.currentTeam} vs ${gameData.opponent}" updated successfully!`
+          : `Game "${gameData.currentTeam} vs ${gameData.opponent}" added successfully!`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
+      
+      // Close modal and clear editing state
+      setShowQuickAddModal(false);
+      setEditingGame(null);
       
     } catch (error) {
       setActionModal({
@@ -750,7 +739,7 @@ export default function ManageSeasonScreen() {
   }, [promptModal.visible, promptModal.defaultValue]);
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}> 
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}> 
       {/* Universal Action Modal */}
       <CustomActionModal
         visible={actionModal.visible}
@@ -798,111 +787,43 @@ export default function ManageSeasonScreen() {
       <Stack.Screen 
         options={{ 
           title: 'Manage Season',
-          headerStyle: { backgroundColor: Colors[colorScheme].background },
+          headerStyle: { 
+            backgroundColor: Colors[colorScheme].background 
+          },
           headerTintColor: Colors[colorScheme].text,
+          headerBackTitle: 'Back',
+          headerShadowVisible: false,
         }} 
       />
 
-      {/* Header with Season Stats */}
-      <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <LinearGradient
-          colors={[Colors[colorScheme].tint, Colors[colorScheme].tint + '80']}
-          style={styles.statsGradient}
-        >
-          <View style={styles.seasonHeader}>
-            <View style={styles.seasonInfo}>
-              <Text style={styles.seasonTitle}>2024-25 Season</Text>
-              <Text style={styles.seasonSubtitle}>Regular Season</Text>
-            </View>
-            <Pressable 
-              style={styles.settingsButton}
-              onPress={() => router.push('/settings')}
-            >
-              <Ionicons name="settings-outline" size={20} color="#fff" />
-            </Pressable>
-          </View>
-
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{seasonStats.wins}-{seasonStats.losses}-{seasonStats.ties}</Text>
-              <Text style={styles.statLabel}>Record</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{getWinPercentage()}%</Text>
-              <Text style={styles.statLabel}>Win Rate</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{seasonStats.gamesPlayed}/{seasonStats.totalGames}</Text>
-              <Text style={styles.statLabel}>Games</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{seasonStats.pointsFor}-{seasonStats.pointsAgainst}</Text>
-              <Text style={styles.statLabel}>Points</Text>
-            </View>
-          </View>
-        </LinearGradient>
+      {/* SIMPLIFIED HEADER - Team Name with Back Button */}
+      <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
+            <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Text style={{ fontSize: 24, fontWeight: '700', textAlign: 'center', color: Colors[colorScheme].text, flex: 1 }}>
+            {currentTeam?.name || 'Team Season'}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
       </View>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - SIMPLIFIED: Add Game Only */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActions}>
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-            onPress={handleAddGame}
-          >
-            <Ionicons name="add-outline" size={20} color="#fff" />
-            <Text style={styles.quickActionText}>Add Game</Text>
-          </Pressable>
-          
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: '#10B981' }]}
-            onPress={() => setShowBulkScheduleModal(true)}
-          >
-            <Ionicons name="calendar-outline" size={20} color="#fff" />
-            <Text style={styles.quickActionText}>Bulk Schedule</Text>
-          </Pressable>
-          
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
-            onPress={() => router.push('/season-stats')}
-          >
-            <Ionicons name="stats-chart-outline" size={20} color="#fff" />
-            <Text style={styles.quickActionText}>View Stats</Text>
-          </Pressable>
-
-          <Pressable 
-            style={[styles.quickActionButton, { backgroundColor: '#8B5CF6' }]}
-            onPress={() => router.push('/archive-seasons')}
-          >
-            <Ionicons name="trophy-outline" size={20} color="#fff" />
-            <Text style={styles.quickActionText}>Playoffs</Text>
-          </Pressable>
-        </ScrollView>
+        <Pressable 
+          style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+          onPress={handleAddGame}
+        >
+          <Ionicons name="add-outline" size={20} color="#fff" />
+          <Text style={styles.quickActionText}>Add Game</Text>
+        </Pressable>
       </View>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        {(['schedule', 'standings', 'playoffs'] as const).map((tab) => (
-          <Pressable
-            key={tab}
-            style={[
-              styles.tab,
-              { backgroundColor: selectedTab === tab ? Colors[colorScheme].tint : 'transparent' }
-            ]}
-            onPress={() => setSelectedTab(tab)}
-          >
-            <Text style={[
-              styles.tabText,
-              { color: selectedTab === tab ? '#fff' : Colors[colorScheme].text }
-            ]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
+      {/* Main Content - No Tabs, Just Schedule */}
       <ScrollView 
         style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -916,85 +837,83 @@ export default function ManageSeasonScreen() {
           <View style={styles.tabContent}>
             {/* Upcoming Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Upcoming Games</Text>
-                <Pressable onPress={handleAddGame}>
-                  <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
-                </Pressable>
-              </View>
+              <SectionHeader 
+                title="Upcoming Games"
+                action={
+                  <Pressable onPress={handleAddGame}>
+                    <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
+                  </Pressable>
+                }
+                style={{ paddingHorizontal: 0 }}
+              />
               
-              {upcomingGames.map((game) => (
-                <Pressable 
-                  key={game.id}
-                  style={[styles.gameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => handleGamePress(game)}
-                  onLongPress={() => handleGameLongPress(game)}
-                >
-                  <View style={styles.gameInfo}>
-                    <View style={styles.gameHeader}>
-                      <Text style={[styles.opponent, { color: Colors[colorScheme].text }]}>
-                        {game.homeTeam && game.awayTeam 
-                          ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : `vs ${game.opponent}`
-                        }
-                      </Text>
-                      <View style={[styles.gameType, { backgroundColor: game.type === 'home' ? '#10B981' : game.type === 'away' ? '#F59E0B' : '#6B7280' }]}>
-                        <Text style={styles.gameTypeText}>
-                          {game.type === 'home' ? 'HOME' : game.type === 'away' ? 'AWAY' : 'NEUTRAL'}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.gameDetails, { color: Colors[colorScheme].mutedText }]}>
-                      {game.date} • {game.time}
-                    </Text>
-                    <Text style={[styles.gameLocation, { color: Colors[colorScheme].mutedText }]}>
-                      {game.location}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              ))}
+              {upcomingGames.length === 0 ? (
+                <EmptyState 
+                  icon="calendar-outline"
+                  title="No Upcoming Games"
+                  subtitle="Add your first game to get started"
+                  style={{ paddingVertical: 40 }}
+                />
+              ) : (
+                upcomingGames.map((game) => (
+                  <GameCard
+                    key={game.id}
+                    game={{
+                      ...game,
+                      opponent_name: game.homeTeam && game.awayTeam 
+                        ? `${game.homeTeam} vs ${game.awayTeam}`
+                        : game.opponent,
+                      scheduled_date: game.date,
+                      scheduled_time: game.time,
+                      game_type: game.type,
+                    }}
+                    onPress={handleGamePress}
+                    onEdit={handleGameLongPress}
+                    onDelete={handleDeleteGame}
+                    showActions={true}
+                    style={{ marginBottom: 12 }}
+                  />
+                ))
+              )}
             </View>
 
             {/* Recent Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Recent Games</Text>
+              <SectionHeader 
+                title="Recent Games"
+                style={{ paddingHorizontal: 0 }}
+              />
               
-              {recentGames.map((game) => (
-                <Pressable 
-                  key={game.id}
-                  style={[styles.gameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => handleGamePress(game)}
-                  onLongPress={() => handleGameLongPress(game)}
-                >
-                  <View style={styles.gameInfo}>
-                    <View style={styles.gameHeader}>
-                      <Text style={[styles.opponent, { color: Colors[colorScheme].text }]}>
-                        {game.homeTeam && game.awayTeam 
-                          ? `${game.homeTeam} vs ${game.awayTeam}`
-                          : `vs ${game.opponent}`
-                        }
-                      </Text>
-                      {game.score && (
-                        <View style={[styles.scoreContainer, { 
-                          backgroundColor: game.score.team > game.score.opponent ? '#10B981' : '#EF4444' 
-                        }]}>
-                          <Text style={styles.scoreText}>
-                            {game.score.team > game.score.opponent ? 'W' : 'L'} {game.score.team}-{game.score.opponent}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={[styles.gameDetails, { color: Colors[colorScheme].mutedText }]}>
-                      {game.date} • {game.time}
-                    </Text>
-                    <Text style={[styles.gameLocation, { color: Colors[colorScheme].mutedText }]}>
-                      {game.location}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </Pressable>
-              ))}
+              {recentGames.length === 0 ? (
+                <EmptyState 
+                  icon="time-outline"
+                  title="No Recent Games"
+                  subtitle="Past games will appear here"
+                  style={{ paddingVertical: 40 }}
+                />
+              ) : (
+                recentGames.map((game) => (
+                  <GameCard
+                    key={game.id}
+                    game={{
+                      ...game,
+                      opponent_name: game.homeTeam && game.awayTeam 
+                        ? `${game.homeTeam} vs ${game.awayTeam}`
+                        : game.opponent,
+                      scheduled_date: game.date,
+                      scheduled_time: game.time,
+                      game_type: game.type,
+                      home_score: game.score?.team,
+                      away_score: game.score?.opponent,
+                    }}
+                    onPress={handleGamePress}
+                    onEdit={handleGameLongPress}
+                    onDelete={handleDeleteGame}
+                    showActions={true}
+                    style={{ marginBottom: 12 }}
+                  />
+                ))
+              )}
             </View>
           </View>
         )}
@@ -1302,9 +1221,20 @@ export default function ManageSeasonScreen() {
       {/* Quick Add Game Modal */}
       <QuickAddGameModal
         visible={showQuickAddModal}
-        onClose={() => setShowQuickAddModal(false)}
+        onClose={() => {
+          setShowQuickAddModal(false);
+          setEditingGame(null);
+        }}
         onSave={handleSaveQuickGame}
         currentTeamName={currentTeam?.name || 'My Team'}
+        initialData={editingGame ? {
+          id: editingGame.id,
+          opponent: editingGame.opponent,
+          date: editingGame.date,
+          time: editingGame.time,
+          type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing
+          banner_url: editingGame.banner_url,
+        } : undefined}
       />
 
       {/* Bulk Schedule Modal */}
@@ -1315,7 +1245,7 @@ export default function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={params.teamId || ''}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

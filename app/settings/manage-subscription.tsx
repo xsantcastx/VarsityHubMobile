@@ -124,15 +124,17 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
 
         <View style={styles.card}>
           <Text style={styles.rowLabel}>Current plan</Text>
-          <Text style={styles.rowValue}>{plan ?? 'Free (rookie)'}</Text>
+          <Text style={styles.rowValue}>{plan || 'rookie'}</Text>
 
-          {plan ? (
+          {plan && plan !== 'rookie' ? (
+            // Paid plans (veteran/legend) - show cancel option
             <View style={{ marginTop: 12 }}>
               <Button onPress={onCancel} disabled={loading} variant="outline">
                 Cancel subscription
               </Button>
             </View>
           ) : (
+            // Free plan (rookie) or no plan - show upgrade options
             <>
               <Text style={{ marginTop: 12 }}>Choose a plan to unlock organization features.</Text>
               <View style={{ height: 12 }} />

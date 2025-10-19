@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -52,17 +53,60 @@ type Ctx = {
   setProgress: (step: number) => void;
   // reset but save current snapshot into history first
   resetWithHistorySave: () => void;
+  // flag to indicate if AsyncStorage has been loaded
+  isLoaded: boolean;
 };
 
 const OBContext = createContext<Ctx | null>(null);
+
+const STORAGE_KEY = '@onboarding_state';
+const PROGRESS_KEY = '@onboarding_progress';
 
 export function OBProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<OnboardingState>({});
   const [history, setHistory] = useState<OnboardingState[]>([]);
   const [progress, setProgress] = useState<number>(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from AsyncStorage on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [savedState, savedProgress] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY),
+          AsyncStorage.getItem(PROGRESS_KEY)
+        ]);
+        
+        console.log('[OBProvider] Loaded from AsyncStorage - Progress:', savedProgress, 'State:', savedState?.substring(0, 100));
+        
+        if (!mounted) return;
+        
+        if (savedState) {
+          const parsed = JSON.parse(savedState);
+          setState(parsed);
+        }
+        
+        if (savedProgress) {
+          const progressNum = parseInt(savedProgress, 10);
+          console.log('[OBProvider] Setting progress to:', progressNum);
+          setProgress(progressNum);
+        }
+        
+        setIsLoaded(true);
+      } catch (e) {
+        console.warn('Failed to load onboarding state from storage', e);
+        setIsLoaded(true);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // On mount, try to preload onboarding state from server-side user prefs
+  // But only if we haven't already loaded from AsyncStorage
   useEffect(() => {
+    if (!isLoaded) return; // Wait for AsyncStorage to load first
+    
     let mounted = true;
     (async () => {
       try {
@@ -100,11 +144,42 @@ export function OBProvider({ children }: PropsWithChildren) {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [isLoaded]);
+
+  // Save state to AsyncStorage whenever it changes
+  useEffect(() => {
+    if (!isLoaded) return; // Don't save until initial load is complete
+    
+    (async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('Failed to save onboarding state to storage', e);
+      }
+    })();
+  }, [state, isLoaded]);
+
+  // Save progress to AsyncStorage whenever it changes
+  useEffect(() => {
+    if (!isLoaded) return; // Don't save until initial load is complete
+    
+    (async () => {
+      try {
+        console.log('[OBProvider] Saving progress to AsyncStorage:', progress);
+        await AsyncStorage.setItem(PROGRESS_KEY, progress.toString());
+      } catch (e) {
+        console.warn('Failed to save onboarding progress to storage', e);
+      }
+    })();
+  }, [progress, isLoaded]);
 
   const clearOnboarding = () => {
     setState({});
     setProgress(0);
+    // Also clear from AsyncStorage
+    AsyncStorage.multiRemove([STORAGE_KEY, PROGRESS_KEY]).catch((e) => {
+      console.warn('Failed to clear onboarding from storage', e);
+    });
   };
 
   const pushHistory = (snapshot: OnboardingState) => {
@@ -122,7 +197,7 @@ export function OBProvider({ children }: PropsWithChildren) {
   };
   
   return (
-    <OBContext.Provider value={{ state, setState, clearOnboarding, history, pushHistory, restoreHistory, progress, setProgress, resetWithHistorySave }}>
+    <OBContext.Provider value={{ state, setState, clearOnboarding, history, pushHistory, restoreHistory, progress, setProgress, resetWithHistorySave, isLoaded }}>
       {children}
     </OBContext.Provider>
   );

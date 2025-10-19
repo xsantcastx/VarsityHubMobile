@@ -56,9 +56,9 @@ export function BannerUpload({
       // Launch picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9], // Suggest 16:9 crop
-        quality: 1,
+        allowsEditing: false, // Allow full image without cropping
+        quality: 0.9,
+        exif: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {

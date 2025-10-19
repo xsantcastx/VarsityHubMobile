@@ -2,17 +2,17 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,15 @@ export default function SignInScreen() {
     setError(null);
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
-      if (!res?.access_token) {
+      if (res?.access_token) {
+        if (res?.needs_verification) {
+          // Navigate directly to email verification (no alert)
+          router.replace('/verify-email');
+        } else {
+          // Successful sign-in - everyone lands on feed
+          router.replace('/(tabs)/feed' as any);
+        }
+      } else {
         setError('Invalid login response');
         return;
       }
@@ -86,9 +94,8 @@ export default function SignInScreen() {
         router.replace('/onboarding/step-1-role');
         return;
       }
-      const userRole = prefs?.role || account?.role || 'fan';
-      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-      router.replace(landingRoute as any);
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -99,7 +106,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -218,7 +225,7 @@ export default function SignInScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 

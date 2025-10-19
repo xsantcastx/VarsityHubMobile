@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
 
@@ -52,7 +52,6 @@ interface Team {
 export default function TeamViewerScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
   
   const [loading, setLoading] = useState(true);
@@ -189,19 +188,19 @@ export default function TeamViewerScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Loading Team...' }} />
         <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
         <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
           Loading team details...
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (error || !team) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <Stack.Screen options={{ title: 'Team Not Found' }} />
         <Ionicons name="alert-circle-outline" size={64} color={Colors[colorScheme].mutedText} />
         <Text style={[styles.errorTitle, { color: Colors[colorScheme].text }]}>
@@ -216,12 +215,12 @@ export default function TeamViewerScreen() {
         >
           <Text style={styles.retryButtonText}>Try Again</Text>
         </Pressable>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen 
         options={{ 
           title: team.name,
@@ -629,7 +628,7 @@ export default function TeamViewerScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

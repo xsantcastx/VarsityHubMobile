@@ -1,7 +1,8 @@
+import { Colors } from '@/constants/Colors';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Color, Radius, Spacing, Type } from './tokens';
+import { Platform, Pressable, Text, View, useColorScheme } from 'react-native';
+import { Radius, Spacing, Type } from './tokens';
 
 type Props = {
   label: string;
@@ -14,6 +15,7 @@ type Props = {
 
 export default function DateField({ label, value, onChange, minDate, maxDate, helpText }: Props) {
   const [open, setOpen] = useState(false);
+  const colorScheme = useColorScheme();
   const date = value ? new Date(value + 'T00:00:00') : new Date();
 
   const onPicked = (_: any, selected?: Date) => {
@@ -45,13 +47,24 @@ export default function DateField({ label, value, onChange, minDate, maxDate, he
 
   return (
     <View style={{ marginVertical: Spacing.sm }}>
-      <Text style={Type.body}>{label}</Text>
-      <Pressable style={S.field} onPress={() => setOpen(true)}>
-        <Text style={{ color: value ? Color.text : Color.subtext }}>
+      <Text style={{ ...Type.body, color: Colors[colorScheme].text }}>{label}</Text>
+      <Pressable 
+        style={{
+          borderWidth: 1,
+          borderColor: Colors[colorScheme].border,
+          borderRadius: Radius.md,
+          paddingVertical: 14,
+          paddingHorizontal: Spacing.lg,
+          marginTop: 6,
+          backgroundColor: Colors[colorScheme].surface,
+        }} 
+        onPress={() => setOpen(true)}
+      >
+        <Text style={{ color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText }}>
           {value ? formatDisplayDate(value) : 'Select date'}
         </Text>
       </Pressable>
-      {helpText ? <Text style={{ ...Type.sub, marginTop: 4 }}>{helpText}</Text> : null}
+      {helpText ? <Text style={{ ...Type.sub, color: Colors[colorScheme].mutedText, marginTop: 4 }}>{helpText}</Text> : null}
       {open && (
         <DateTimePicker
           value={date}
@@ -65,16 +78,4 @@ export default function DateField({ label, value, onChange, minDate, maxDate, he
     </View>
   );
 }
-
-const S = StyleSheet.create({
-  field: {
-    borderWidth: 1,
-    borderColor: Color.line,
-    borderRadius: Radius.md,
-    paddingVertical: 14,
-    paddingHorizontal: Spacing.lg,
-    marginTop: 6,
-    backgroundColor: Color.surface,
-  },
-});
 

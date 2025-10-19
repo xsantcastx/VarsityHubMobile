@@ -84,6 +84,7 @@ export default function PostDetailScreen() {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [fullscreenMedia, setFullscreenMedia] = useState(false);
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -253,13 +254,42 @@ export default function PostDetailScreen() {
         message += `\nPosted by ${post.author.display_name}`;
       }
       
+      // Add URL
+      const shareUrl = `https://varsityhub.com/post/${id}`;
+      message += `\n\n${shareUrl}`;
+      
       await Share.share({
         message,
-        url: `https://varsityhub.com/post/${id}`,
+        url: shareUrl,
+        title: post?.title || 'VarsityHub Post',
       });
     } catch (error) {
       console.log('Error sharing:', error);
     }
+  };
+
+  const onSendToFriend = () => {
+    // Navigate to messages/DM with pre-filled post link
+    Alert.alert(
+      'Send to Friend',
+      'Choose how to send this post',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Via VarsityHub DM',
+          onPress: () => {
+            router.push(`/messages?sharePost=${id}`);
+          }
+        },
+        {
+          text: 'Share Externally',
+          onPress: onShare
+        }
+      ]
+    );
   };
 
   const onFollow = async () => {
@@ -325,6 +355,31 @@ export default function PostDetailScreen() {
     );
   };
 
+  const handleDeletePost = async () => {
+    if (!id) return;
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await PostApi.delete(id);
+              Alert.alert('Success', 'Post deleted successfully', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete post');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleEditComment = async () => {
     if (!id || !editCommentId || !editCommentText.trim()) return;
     setUpdatingComment(true);
@@ -381,16 +436,27 @@ export default function PostDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
-        <Pressable style={styles.shareButton} onPress={onShare}>
-          <Ionicons name="share-outline" size={24} color={Colors[colorScheme].text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          {/* Show delete button only if current user is the post author */}
+          {currentUser && post.author_id === currentUser.id && (
+            <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
+              <Ionicons name="trash-outline" size={22} color="#DC2626" />
+            </Pressable>
+          )}
+          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
+            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Pressable style={styles.headerActionButton} onPress={onShare}>
+            <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
-            <View style={styles.mediaContainer}>
+            <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
                 <ExpoImage source={{ uri: post.media_url }} style={styles.heroImage} contentFit="cover" />
               )}
@@ -415,20 +481,25 @@ export default function PostDetailScreen() {
                 <Text style={styles.countryFlag}>{getCountryFlag(post.country_code)}</Text>
               </View>
               
+              {/* Expand Icon */}
+              <View style={styles.expandIcon}>
+                <Ionicons name="expand-outline" size={24} color="#fff" />
+              </View>
+              
               {/* Live Badge */}
               {post.created_at && new Date(post.created_at).getTime() > Date.now() - 3600000 && (
                 <View style={styles.liveBadge}>
                   <Text style={styles.liveText}>LIVE</Text>
                 </View>
               )}
-            </View>
+            </Pressable>
           ) : (
             <LinearGradient 
               colors={[category.color + '40', category.color + '20']} 
               style={styles.noMediaHero}
             >
               <Text style={styles.noMediaIcon}>{category.icon}</Text>
-              <Text style={styles.noMediaText}>Text Post</Text>
+              <Text style={[styles.noMediaText, { color: Colors[colorScheme].text }]}>Text Post</Text>
             </LinearGradient>
           )}
         </View>
@@ -465,6 +536,32 @@ export default function PostDetailScreen() {
                     {post.game.home_team && post.game.away_team 
                       ? `${post.game.home_team} vs ${post.game.away_team}`
                       : post.game.home_team || post.game.away_team}
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          )}
+
+          {/* Team Links */}
+          {(post.team_id || post.team) && (
+            <Pressable 
+              style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              onPress={() => {
+                const teamId = post.team_id || post.team?.id;
+                if (teamId) {
+                  router.push(`/team-profile?id=${teamId}`);
+                }
+              }}
+            >
+              <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
+              <View style={styles.teamDetails}>
+                <Text style={[styles.teamTitle, { color: Colors[colorScheme].text }]}>
+                  {post.team?.name || 'Team'}
+                </Text>
+                {post.team?.sport && (
+                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}>
+                    {post.team.sport}
                   </Text>
                 )}
               </View>
@@ -570,6 +667,53 @@ export default function PostDetailScreen() {
               </Pressable>
             </View>
           </View>
+
+          {/* Quick Links */}
+          {(post.game?.id || post.team_id || post.team?.id || post.author_id) && (
+            <View style={[styles.quickLinks, { borderTopColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.quickLinksTitle, { color: Colors[colorScheme].text }]}>
+                Quick Links
+              </Text>
+              <View style={styles.quickLinksRow}>
+                {post.game?.id && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => router.push(`/game-detail?id=${post.game.id}`)}
+                  >
+                    <Ionicons name="basketball" size={18} color="#2563EB" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Event
+                    </Text>
+                  </Pressable>
+                )}
+                {(post.team_id || post.team?.id) && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => {
+                      const teamId = post.team_id || post.team?.id;
+                      if (teamId) router.push(`/team-profile?id=${teamId}`);
+                    }}
+                  >
+                    <Ionicons name="people" size={18} color="#10B981" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Team
+                    </Text>
+                  </Pressable>
+                )}
+                {post.author_id && (
+                  <Pressable
+                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
+                    onPress={() => router.push(`/user-profile?id=${post.author_id}`)}
+                  >
+                    <Ionicons name="person" size={18} color="#8B5CF6" />
+                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
+                      View Profile
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Comments Section */}
@@ -719,6 +863,37 @@ export default function PostDetailScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Fullscreen Media Modal */}
+      <Modal
+        visible={fullscreenMedia}
+        animationType="fade"
+        onRequestClose={() => setFullscreenMedia(false)}
+      >
+        <View style={styles.fullscreenContainer}>
+          <Pressable 
+            style={styles.fullscreenCloseButton}
+            onPress={() => setFullscreenMedia(false)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </Pressable>
+          
+          {isImage && post.media_url && (
+            <ExpoImage 
+              source={{ uri: post.media_url }} 
+              style={styles.fullscreenImage} 
+              contentFit="contain"
+            />
+          )}
+          
+          {isVideo && post.media_url && (
+            <VideoPlayer 
+              uri={post.media_url} 
+              style={styles.fullscreenVideo}
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -780,6 +955,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerActionButton: {
+    padding: 8,
+    borderRadius: 8,
+  },
   shareButton: {
     padding: 8,
     borderRadius: 8,
@@ -824,7 +1007,6 @@ const styles = StyleSheet.create({
   noMediaText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   mediaOverlay: {
     position: 'absolute',
@@ -876,6 +1058,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  expandIcon: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 20,
+  },
 
   // Post Content
   postContent: {
@@ -925,6 +1115,28 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   gameTeams: {
+    fontSize: 13,
+  },
+
+  // Team Info
+  teamInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 12,
+  },
+  teamDetails: {
+    flex: 1,
+  },
+  teamTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  teamSport: {
     fontSize: 13,
   },
 
@@ -1032,6 +1244,47 @@ const styles = StyleSheet.create({
   actionTextActive: {
     color: '#fff',
     fontWeight: '700',
+  },
+
+  // Quick Links
+  quickLinks: {
+    paddingTop: 20,
+    marginTop: 20,
+    borderTopWidth: 1,
+  },
+  quickLinksTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  quickLinksRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  quickLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   // Comments Section
@@ -1277,5 +1530,30 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 4,
     marginTop: 8,
+  },
+
+  // Fullscreen Media Styles
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenCloseButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 24,
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
   },
 });

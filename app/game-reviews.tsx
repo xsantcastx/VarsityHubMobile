@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function GameReviewsScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
@@ -30,34 +33,34 @@ export default function GameReviewsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ title: 'Reviews' }} />
       {loading && <ActivityIndicator />}
       <FlatList
         data={items}
         keyExtractor={(i) => String(i.id)}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            {item.title ? <Text style={styles.title}>{String(item.title)}</Text> : null}
-            {item.content ? <Text style={styles.content}>{String(item.content)}</Text> : <Text style={styles.contentMuted}>No content</Text>}
+          <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            {item.title ? <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{String(item.title)}</Text> : null}
+            {item.content ? <Text style={[styles.content, { color: Colors[colorScheme].text }]}>{String(item.content)}</Text> : <Text style={[styles.contentMuted, { color: Colors[colorScheme].mutedText }]}>No content</Text>}
           </View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         contentContainerStyle={{ padding: 12 }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
-        ListEmptyComponent={!loading ? <Text style={styles.muted}>No reviews yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No reviews yet.</Text> : null}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  container: { flex: 1 },
+  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '700', marginBottom: 6 },
-  content: { color: '#111827' },
-  contentMuted: { color: '#6b7280' },
-  muted: { color: '#6b7280', textAlign: 'center', marginTop: 16 },
+  content: {},
+  contentMuted: {},
+  muted: { textAlign: 'center', marginTop: 16 },
 });
 

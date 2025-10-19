@@ -1,9 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Notification } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 type Notif = {
   id: string;
@@ -17,6 +22,8 @@ type Notif = {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<Notif[]>([]);
@@ -94,15 +101,22 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      {/* Header */}
-      <View style={S.topBar}>
-        <Pressable onPress={() => router.back()} style={S.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={S.backBtnText}>Back</Text>
-        </Pressable>
-        <Text style={S.topTitle}>Alerts</Text>
-        <View style={{ width: 60 }} />
-      </View>
+    <View style={[S.container, { backgroundColor: Colors[colorScheme].background }]}>
+      {/* Enhanced header with gradient and safe area */}
+      <LinearGradient
+        colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+        style={[S.headerGradient, { paddingTop: insets.top + 12 }]}
+      >
+        <View style={S.headerRow}>
+          <Pressable onPress={() => router.back()} style={S.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Text style={[S.topTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      </LinearGradient>
+
+      <View style={{ flex: 1 }}>
 
       {loading && !refreshing && items.length === 0 ? (
         <View style={S.center}><ActivityIndicator /></View>
@@ -125,11 +139,37 @@ export default function NotificationsScreen() {
           contentContainerStyle={{ paddingVertical: 8 }}
         />
       )}
+      </View>
     </View>
   );
 }
 
 const S = StyleSheet.create({
+  container: { flex: 1 },
+  headerGradient: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  topTitle: { fontSize: 20, fontWeight: '800', flex: 1, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   rowUnread: { backgroundColor: '#F9FAFB' },
@@ -137,11 +177,6 @@ const S = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20 },
   title: { fontWeight: '700', color: '#111827' },
   subtitle: { color: '#6B7280', marginTop: 2 },
-  headerRow: { paddingHorizontal: 16, paddingBottom: 6, alignItems: 'flex-end' },
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   markAllText: { color: '#111827', fontWeight: '700' },
-  topBar: { height: 50, alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  topTitle: { fontWeight: '800', fontSize: 16, color: '#111827' },
-  backBtn: { width: 60, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F3F4F6' },
-  backBtnText: { color: '#111827', fontWeight: '700' },
 });
