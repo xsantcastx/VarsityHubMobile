@@ -5,9 +5,9 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step4Season() {
   const router = useRouter();
@@ -79,11 +79,19 @@ export default function Step4Season() {
         console.warn('Failed to persist season to backend:', err);
       }
 
-  setProgress(4); // step-5
-  router.push('/onboarding/step-5-league');
+      setProgress(4);
+      if (returnToConfirmation) {
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        router.push('/onboarding/step-5-league');
+      }
     } catch (e: any) {
       console.error('Failed to save season:', e);
-      router.push('/onboarding/step-5-league');
+      if (returnToConfirmation) {
+        router.replace('/onboarding/step-10-confirmation');
+      } else {
+        router.push('/onboarding/step-5-league');
+      }
     } finally {
       setSaving(false);
     }
@@ -133,14 +141,15 @@ export default function Step4Season() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 4/10' }} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Set Your Season</Text>
-        <Text style={styles.subtitle}>Choose when your 6-month season begins</Text>
-
-        {/* Plan Info */}
-        <View style={[styles.planInfo, { borderLeftColor: planInfo.color }]}>
+    <OnboardingLayout
+      step={4}
+      title="Set Your Season"
+      subtitle="Choose when your 6-month season begins"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Plan Info */}
+      <View style={[styles.planInfo, { borderLeftColor: planInfo.color }]}>
           <Text style={[styles.planName, { color: planInfo.color }]}>{planInfo.name}</Text>
           <Text style={styles.planDescription}>{planInfo.description}</Text>
         </View>
@@ -212,15 +221,12 @@ export default function Step4Season() {
             label={saving ? 'Setting up season...' : 'Continue'} 
             onPress={onContinue} 
             disabled={saving} 
-            loading={saving} 
-          />
-        )}
-      </ScrollView>
-    </SafeAreaView>
+          loading={saving} 
+        />
+      )}
+    </OnboardingLayout>
   );
-}
-
-const styles = StyleSheet.create({
+}const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: 'white' 

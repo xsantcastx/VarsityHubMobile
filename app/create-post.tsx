@@ -1,21 +1,15 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, Image as RNImage, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring
-} from 'react-native-reanimated';
+import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { PromptPresets, RotatingPrompts } from '@/components/RotatingPrompts';
-import { StoryCameraButton } from '@/components/StoryCameraButton';
+import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +19,17 @@ import * as Location from 'expo-location';
 import { Platform } from 'react-native';
 
 // Media validation constants
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg', 
+  'image/jpg', 
+  'image/png', 
+  'image/gif', 
+  'image/webp',
+  'image/heic',      // ✅ iPhone format
+  'image/heif',      // ✅ iPhone format
+  'image/heic-sequence',
+  'image/heif-sequence'
+];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
@@ -50,6 +54,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 export default function CreatePostScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
@@ -62,36 +67,18 @@ export default function CreatePostScreen() {
   const [selectedGameId, setSelectedGameId] = useState<string | undefined>(gameId);
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
-  const [gestureMode, setGestureMode] = useState<'camera' | 'review'>('camera');
-  const [reviewModalVisible, setReviewModalVisible] = useState(false);
+  const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
+  const [eventSelectorVisible, setEventSelectorVisible] = useState(false);
+  const [hasAutoSuggested, setHasAutoSuggested] = useState(!!gameId); // If gameId from params, don't auto-suggest
 
-  // Animation values for swipe gesture
-  const translateY = useSharedValue(0);
-  const swipeOpacity = useSharedValue(1);
-  const cameraScale = useSharedValue(1);
-  const reviewScale = useSharedValue(1);
-
-  const handleCloseReviewModal = () => setReviewModalVisible(false);
-
-  const handleReviewMode = () => {
-    const hasMedia = Boolean(picked?.uri);
-    const hasText = Boolean(content.trim());
-    if (!hasMedia && !hasText) {
-      Alert.alert('Nothing to review yet', 'Capture media or add a caption before reviewing.');
-      setGestureMode('camera');
-      return;
-    }
-    setReviewModalVisible(true);
-  };
-
-  const activateCameraMode = () => {
-    setGestureMode('camera');
-  };
-
-  const triggerReviewMode = () => {
-    setGestureMode('review');
-    handleReviewMode();
-  };
+  // Rotate placeholder prompts
+  useEffect(() => {
+    const prompts = PromptPresets.posting;
+    const timer = setInterval(() => {
+      setRotatingPromptIndex((prev) => (prev + 1) % prompts.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -111,7 +98,8 @@ export default function CreatePostScreen() {
 
   // Auto-suggest nearest event based on time and location
   useEffect(() => {
-    if (selectedGameId) return; // Don't override if already selected via params
+    // Only auto-suggest once, and don't override if already selected via params
+    if (hasAutoSuggested || selectedGameId) return;
     
     (async () => {
       try {
@@ -144,20 +132,23 @@ export default function CreatePostScreen() {
         
         setNearbyGames(upcomingGames.slice(0, 5)); // Keep top 5 for selection
         
-        // Auto-select the nearest game
+        // Auto-select the nearest game only on first load
         const nearest = upcomingGames[0];
         setSuggestedGame(nearest);
         setSelectedGameId(String(nearest.id));
+        setHasAutoSuggested(true); // Mark that we've done the auto-suggestion
       } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
       }
     })();
-  }, [selectedGameId]);
+  }, []); // Empty dependency - only run once on mount
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
       ...(pickerMediaTypeFor(media)),
+      allowsEditing: false,
       quality: media === 'image' ? 0.85 : undefined,
+      exif: false,
       videoMaxDuration: 30,
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
@@ -169,7 +160,7 @@ export default function CreatePostScreen() {
         Alert.alert(
           'Invalid File Type',
           media === 'image' 
-            ? 'Please select a valid image file (JPG, PNG, GIF, or WebP).'
+            ? 'Please select a valid image file (JPG, PNG, GIF, WebP, or HEIC).'
             : 'Please select a valid video file (MP4, MOV, or WebM).'
         );
         return;
@@ -201,7 +192,6 @@ export default function CreatePostScreen() {
         } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
-      setGestureMode('review');
     }
   };
 
@@ -213,7 +203,9 @@ export default function CreatePostScreen() {
     }
     const r = await ImagePicker.launchCameraAsync({
       ...(pickerMediaTypeFor(media)),
+      allowsEditing: false,
       quality: media === 'image' ? 0.85 : undefined,
+      exif: false,
       videoMaxDuration: 30,
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
@@ -256,53 +248,8 @@ export default function CreatePostScreen() {
         } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
-      setGestureMode('camera');
-      setReviewModalVisible(false);
     }
   };
-
-  // Gesture handler for camera/review toggle
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      swipeOpacity.value = withSpring(0.7);
-    })
-    .onUpdate((event) => {
-      translateY.value = event.translationY;
-    })
-    .onEnd((event) => {
-      if (event.translationY < -50 && event.velocityY < -500) {
-        // Trigger camera with scale animation
-        cameraScale.value = withSpring(1.1, {}, () => {
-          cameraScale.value = withSpring(1);
-        });
-        runOnJS(captureWithCamera)('image');
-        runOnJS(activateCameraMode)();
-      } else if (event.translationY > 50 && event.velocityY > 500) {
-        reviewScale.value = withSpring(1.1, {}, () => {
-          reviewScale.value = withSpring(1);
-        });
-        runOnJS(triggerReviewMode)();
-      }
-      translateY.value = withSpring(0);
-      swipeOpacity.value = withSpring(1);
-    });
-
-  const animatedSwipeStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: Math.max(Math.min(translateY.value, 60), -60),
-      },
-    ],
-    opacity: swipeOpacity.value,
-  }));
-
-  const animatedCameraStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cameraScale.value }],
-  }));
-
-  const animatedReviewStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: reviewScale.value }],
-  }));
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -361,13 +308,13 @@ export default function CreatePostScreen() {
     : (postType === 'highlight' ? 'Share Highlight' : 'Post');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
         <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
-          <Ionicons name="close" size={22} color="#111827" />
+          <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />
         <View style={styles.postButtonContainer}>
@@ -376,141 +323,53 @@ export default function CreatePostScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
-        {/* Rotating Prompts */}
-        <View style={styles.promptsSection}>
-          <RotatingPrompts 
-            prompts={PromptPresets.posting} 
-            interval={6000}
-            showIcon={true}
-          />
-        </View>
-
-        {/* Composer Section */}
+        {/* Composer Section with Rotating Tips */}
         <View style={styles.composerSection}>
           <MentionInput
             value={content}
             onChangeText={setContent}
-            placeholder="Respect for every player on the field."
+            placeholder={PromptPresets.posting[rotatingPromptIndex].text}
+            placeholderTextColor={Colors[colorScheme].mutedText}
             multiline
-            style={styles.textarea}
+            style={[
+              styles.textarea, 
+              { 
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text
+              }
+            ]}
             maxLength={500}
           />
-          <Text style={styles.helper}>Use # to tag teams and @ to mention players</Text>
+          <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Use # to tag teams and @ to mention players</Text>
         </View>
-
-        {/* Interactive Swipe Camera */}
-        <GestureDetector gesture={panGesture}>
-          <Animated.View
-            style={[
-              styles.swipeSection,
-              animatedSwipeStyle,
-              gestureMode === 'review' ? styles.swipeSectionReview : styles.swipeSectionCamera,
-            ]}
-          >
-            <View style={styles.swipeIndicatorRow}>
-              <Animated.View style={animatedCameraStyle}>
-                <View
-                  style={[
-                    styles.swipeOption,
-                    gestureMode === 'camera' ? styles.swipeOptionActiveCamera : styles.swipeOptionInactive,
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-up"
-                    size={18}
-                    color={gestureMode === 'camera' ? '#FFFFFF' : '#1D4ED8'}
-                  />
-                  <Text
-                    style={[
-                      styles.swipeOptionLabel,
-                      gestureMode === 'camera' ? styles.swipeOptionLabelActiveCamera : null,
-                    ]}
-                  >
-                    Camera
-                  </Text>
-                </View>
-              </Animated.View>
-
-              <View style={styles.swipeDivider} />
-
-              <Animated.View style={animatedReviewStyle}>
-                <View
-                  style={[
-                    styles.swipeOption,
-                    gestureMode === 'review' ? styles.swipeOptionActiveReview : styles.swipeOptionInactive,
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-down"
-                    size={18}
-                    color={gestureMode === 'review' ? '#FFFFFF' : '#DC2626'}
-                  />
-                  <Text
-                    style={[
-                      styles.swipeOptionLabel,
-                      gestureMode === 'review' ? styles.swipeOptionLabelActiveReview : null,
-                    ]}
-                  >
-                    Review
-                  </Text>
-                </View>
-              </Animated.View>
-            </View>
-            <Text
-              style={[
-                styles.swipeHint,
-                gestureMode === 'review' ? styles.swipeHintReview : styles.swipeHintCamera,
-              ]}
-            >
-              {gestureMode === 'review'
-                ? 'Swipe down to review your capture'
-                : 'Swipe up to open the camera'}
-            </Text>
-          </Animated.View>
-        </GestureDetector>
 
         {/* Media Actions */}
         <View style={styles.mediaSection}>
-          <Text style={styles.sectionTitle}>Add Media</Text>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Add Media</Text>
           <View style={styles.tilesRow}>
-            <Pressable style={styles.tile} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
-              <Ionicons name="image-outline" size={24} color="#6B7280" />
-              <Text style={styles.tileLabel}>Gallery</Text>
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
+              <Ionicons name="image-outline" size={24} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Gallery</Text>
             </Pressable>
-            <Animated.View style={animatedCameraStyle}>
-              <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
-                <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
-                <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
-              </Pressable>
-            </Animated.View>
-            <Pressable style={styles.tile} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
-              <Ionicons name="videocam-outline" size={24} color="#6B7280" />
-              <Text style={styles.tileLabel}>Video</Text>
+            <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
+              <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
+              <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
             </Pressable>
-          </View>
-          
-          {/* Add to Story Button */}
-          <View style={styles.storyButtonContainer}>
-            <StoryCameraButton
-              onCapture={(uri, type) => {
-                const mediaType = type === 'photo' ? 'image' : 'video';
-                setPicked({ uri, type: mediaType, mime: type === 'video' ? 'video/mp4' : 'image/jpeg' });
-                setGestureMode('camera');
-                setReviewModalVisible(false);
-              }}
-              variant="button"
-            />
-            <Text style={styles.storyHint}>Quick 24-hour Stories open camera directly</Text>
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
+              <Ionicons name="videocam-outline" size={24} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Video</Text>
+            </Pressable>
           </View>
         </View>
 
         {/* Media Preview */}
         {picked?.uri ? (
           <View style={styles.previewSection}>
-            <Text style={styles.sectionTitle}>Preview</Text>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Preview</Text>
             <View style={styles.previewContainer}>
               {picked.type === 'image' ? (
-                <RNImage source={{ uri: picked.uri }} style={styles.previewMedia} />
+                <RNImage source={{ uri: picked.uri }} style={[styles.previewMedia, { backgroundColor: Colors[colorScheme].surface }]} />
               ) : (
                 <VideoPlayer uri={picked.uri} style={styles.previewMedia} />
               )}
@@ -522,113 +381,156 @@ export default function CreatePostScreen() {
         ) : null}
 
         {/* Suggested Game/Event */}
-        {suggestedGame && (
+        {(suggestedGame || nearbyGames.length > 0) && (
           <View style={styles.gameSection}>
-            <Text style={styles.sectionTitle}>Attach to Event</Text>
-            <Pressable 
-              style={styles.gameSuggestionCard}
-              onPress={() => {
-                // Could show a modal to select different game
-                Alert.alert(
-                  'Event Selected',
-                  `Post will be attached to: ${suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}`,
-                  [
-                    { text: 'Remove Event', style: 'destructive', onPress: () => { setSuggestedGame(null); setSelectedGameId(undefined); } },
-                    { text: 'Keep Event', style: 'cancel' }
-                  ]
-                );
-              }}
-            >
-              <View style={styles.gameIconContainer}>
-                <Ionicons name="trophy" size={20} color="#059669" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gameLabel}>Suggested Event (nearest)</Text>
-                <Text style={styles.gameTitle}>
-                  {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
-                </Text>
-                {suggestedGame.date && (
-                  <Text style={styles.gameDate}>
-                    {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <View style={styles.sectionTitleRow}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attach to Event</Text>
+              {nearbyGames.length > 1 && (
+                <Pressable onPress={() => setEventSelectorVisible(true)}>
+                  <Text style={[styles.changeEventButton, { color: Colors[colorScheme].tint }]}>Change</Text>
+                </Pressable>
+              )}
+            </View>
+            
+            {suggestedGame ? (
+              <Pressable 
+                style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
+              >
+                <View style={styles.gameIconContainer}>
+                  <Ionicons name="trophy" size={20} color="#059669" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
+                    {suggestedGame.id === nearbyGames[0]?.id ? 'Suggested Event (nearest)' : 'Selected Event'}
                   </Text>
-                )}
-              </View>
-              <Ionicons name="checkmark-circle" size={24} color="#059669" />
-            </Pressable>
-            <Text style={styles.gameHint}>
-              Tap to change or remove event attachment
-            </Text>
+                  <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                    {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
+                  </Text>
+                  {suggestedGame.date && (
+                    <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
+                      {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
+                </View>
+                <Ionicons name="checkmark-circle" size={24} color="#059669" />
+              </Pressable>
+            ) : (
+              <Pressable 
+                style={[styles.noEventCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                onPress={() => setEventSelectorVisible(true)}
+              >
+                <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.noEventText, { color: Colors[colorScheme].mutedText }]}>Select an event to attach</Text>
+              </Pressable>
+            )}
+            
+            <View style={styles.eventActions}>
+              {suggestedGame && (
+                <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
+                  <Text style={[styles.removeEventButton, { color: '#EF4444' }]}>Remove Event</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         )}
 
         {/* Settings Section */}
         <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>Settings</Text>
-          <View style={styles.locRow}>
+          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Settings</Text>
+          <View style={[styles.locRow, { backgroundColor: Colors[colorScheme].surface }]}>
             <View style={styles.settingInfo}>
-              <Text style={styles.locLabel}>Share location</Text>
-              <Text style={styles.settingDescription}>Help others discover local content</Text>
+              <Text style={[styles.locLabel, { color: Colors[colorScheme].text }]}>Share location</Text>
+              <Text style={[styles.settingDescription, { color: Colors[colorScheme].mutedText }]}>Help others discover local content</Text>
             </View>
             <Switch value={shareLocation} onValueChange={setShareLocation} />
           </View>
           {locGranted === false && shareLocation ? (
-            <Text style={styles.muted}>Location permission denied. You can still post; we'll try to infer your country from your profile.</Text>
+            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Location permission denied. You can still post; we'll try to infer your country from your profile.</Text>
           ) : null}
         </View>
 
         {/* Footer */}
         <View style={styles.footerSection}>
           <Pressable onPress={() => {}}>
-            <Text style={styles.footerLink}>Respect all the players on the field.</Text>
+            <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </ScrollView>
 
+      {/* Event Selector Modal */}
       <Modal
-        visible={reviewModalVisible}
+        visible={eventSelectorVisible}
         animationType="slide"
-        onRequestClose={handleCloseReviewModal}
+        onRequestClose={() => setEventSelectorVisible(false)}
         presentationStyle="pageSheet"
       >
-        <SafeAreaView style={styles.reviewModalContainer}>
-          <View style={styles.reviewModalHeader}>
-            <Text style={styles.reviewModalTitle}>Review Content</Text>
-            <Pressable onPress={handleCloseReviewModal} accessibilityLabel="Close review preview">
-              <Ionicons name="close" size={24} color="#111827" />
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Event</Text>
+            <Pressable onPress={() => setEventSelectorVisible(false)}>
+              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
-
-          <ScrollView contentContainerStyle={styles.reviewModalBody}>
-            {picked?.uri ? (
-              <View style={styles.reviewMediaCard}>
-                {picked.type === 'image' ? (
-                  <RNImage source={{ uri: picked.uri }} style={styles.reviewMedia} resizeMode="cover" />
-                ) : (
-                  <VideoPlayer uri={picked.uri} style={styles.reviewMedia} />
-                )}
-                <Text style={styles.reviewMediaLabel}>
-                  {picked.type === 'image' ? 'Attached photo' : 'Attached video'}
+          
+          <ScrollView contentContainerStyle={styles.modalBody}>
+            {nearbyGames.length > 0 ? (
+              <>
+                {nearbyGames.map((game, index) => (
+                  <Pressable
+                    key={game.id}
+                    style={[
+                      styles.eventOptionCard,
+                      { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                      selectedGameId === String(game.id) && { borderColor: '#059669', borderWidth: 2 }
+                    ]}
+                    onPress={() => {
+                      setSuggestedGame(game);
+                      setSelectedGameId(String(game.id));
+                      setEventSelectorVisible(false);
+                    }}
+                  >
+                    <View style={styles.eventOptionIcon}>
+                      <Ionicons 
+                        name={index === 0 ? "star" : "trophy"} 
+                        size={20} 
+                        color={index === 0 ? "#F59E0B" : "#059669"} 
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      {index === 0 && (
+                        <Text style={[styles.eventOptionBadge, { color: '#F59E0B' }]}>Nearest Event</Text>
+                      )}
+                      <Text style={[styles.eventOptionTitle, { color: Colors[colorScheme].text }]}>
+                        {game.title || `${game.home_team} vs ${game.away_team}`}
+                      </Text>
+                      {game.date && (
+                        <Text style={[styles.eventOptionDate, { color: Colors[colorScheme].mutedText }]}>
+                          {new Date(game.date).toLocaleDateString()} at {new Date(game.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      )}
+                      {game.location && (
+                        <Text style={[styles.eventOptionLocation, { color: Colors[colorScheme].mutedText }]}>
+                          📍 {game.location}
+                        </Text>
+                      )}
+                    </View>
+                    {selectedGameId === String(game.id) && (
+                      <Ionicons name="checkmark-circle" size={24} color="#059669" />
+                    )}
+                  </Pressable>
+                ))}
+              </>
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>No Events Found</Text>
+                <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
+                  There are no upcoming events in the next 7 days.
                 </Text>
               </View>
-            ) : null}
-
-            {content.trim().length ? (
-              <View style={styles.reviewTextCard}>
-                <Text style={styles.reviewTextLabel}>Caption</Text>
-                <Text style={styles.reviewText}>{content.trim()}</Text>
-              </View>
-            ) : null}
-
-            {!picked?.uri && !content.trim().length ? (
-              <View style={styles.reviewEmpty}>
-                <Ionicons name="albums-outline" size={32} color="#9CA3AF" />
-                <Text style={styles.reviewEmptyTitle}>Nothing to review yet</Text>
-                <Text style={styles.reviewEmptySubtitle}>
-                  Capture new media or add a caption, then swipe down again.
-                </Text>
-              </View>
-            ) : null}
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -638,8 +540,7 @@ export default function CreatePostScreen() {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
-    backgroundColor: '#FFFFFF' 
+    flex: 1
   },
   header: { 
     flexDirection: 'row', 
@@ -674,17 +575,18 @@ const styles = StyleSheet.create({
     height: 120, 
     borderRadius: 12, 
     borderWidth: 1, 
-    borderColor: '#E5E7EB', 
+    // borderColor: Uses dynamic color in JSX
     padding: 16, 
     textAlignVertical: 'top', 
     marginBottom: 8,
     fontSize: 16,
     lineHeight: 22
+    // backgroundColor & color: Uses dynamic colors in JSX
   },
   helper: { 
-    color: '#6B7280', 
     fontSize: 14,
     fontStyle: 'italic'
+    // color: Uses dynamic color in JSX
   },
   
   // Swipe Section
@@ -779,7 +681,7 @@ const styles = StyleSheet.create({
   sectionTitle: { 
     fontSize: 16, 
     fontWeight: '700', 
-    color: '#111827', 
+    // color: Uses dynamic color in JSX
     marginBottom: 16,
     textAlign: 'center'
   },
@@ -793,9 +695,8 @@ const styles = StyleSheet.create({
     width: 100, 
     height: 100, 
     borderRadius: 20, 
-    backgroundColor: '#FFFFFF', 
+    // backgroundColor & borderColor: Uses dynamic colors in JSX
     borderWidth: 1.5, 
-    borderColor: '#E5E7EB', 
     alignItems: 'center', 
     justifyContent: 'center', 
     shadowColor: '#000', 
@@ -811,7 +712,7 @@ const styles = StyleSheet.create({
   tileLabel: { 
     fontSize: 12, 
     fontWeight: '600', 
-    color: '#6B7280', 
+    // color: Uses dynamic color in JSX
     marginTop: 6 
   },
   primaryTileLabel: { 
@@ -824,7 +725,7 @@ const styles = StyleSheet.create({
   },
   storyHint: {
     fontSize: 12,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     fontStyle: 'italic',
     textAlign: 'center'
   },
@@ -846,7 +747,7 @@ const styles = StyleSheet.create({
   previewMedia: { 
     width: '100%', 
     height: 240, 
-    backgroundColor: '#F9FAFB' 
+    // backgroundColor: Uses dynamic color in JSX
   },
   removeButton: {
     position: 'absolute',
@@ -917,7 +818,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
+    // backgroundColor: Uses dynamic color in JSX
     borderRadius: 12
   },
   settingInfo: {
@@ -926,15 +827,15 @@ const styles = StyleSheet.create({
   locLabel: { 
     fontWeight: '600',
     fontSize: 16,
-    color: '#111827'
+    // color: Uses dynamic color in JSX
   },
   settingDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     marginTop: 2
   },
   muted: { 
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     fontSize: 14,
     marginTop: 12,
     textAlign: 'center',
@@ -1038,6 +939,131 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   reviewEmptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Event selection styles
+  sectionTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  changeEventButton: {
+    color: '#2563EB',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  noEventCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    backgroundColor: '#F9FAFB',
+  },
+  noEventText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  eventActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  removeEventButton: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  
+  // Event selector modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalBody: {
+    padding: 16,
+    gap: 12,
+  },
+  eventOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  eventOptionCardSelected: {
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  eventOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventOptionBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  eventOptionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  eventOptionDate: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  eventOptionLocation: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  emptyStateText: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',

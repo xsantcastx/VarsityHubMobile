@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -13,6 +14,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
     contact_email,
     business_name,
     banner_url,
+    banner_fit_mode,
+    target_url,
     target_zip_code,
     radius,
     description,
@@ -29,6 +32,8 @@ adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
       contact_email: String(contact_email),
       business_name: String(business_name),
       banner_url: banner_url ? String(banner_url) : null,
+      banner_fit_mode: banner_fit_mode ? String(banner_fit_mode) : null,
+      target_url: target_url ? String(target_url) : null,
       target_zip_code: String(target_zip_code),
       radius: typeof radius === 'number' ? radius : 45,
       description: description ? String(description) : null,
@@ -156,12 +161,49 @@ adsRouter.put('/:id', async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   const data: any = {};
-  const allowed = ['contact_name','contact_email','business_name','banner_url','target_zip_code','radius','description','status','payment_status'] as const;
+  const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status','payment_status'] as const;
   for (const k of allowed) {
     if (k in (req.body || {})) (data as any)[k] = (req.body as any)[k];
   }
   const ad = await prisma.ad.update({ where: { id }, data });
   return res.json(ad);
+});
+
+// Delete an Ad (owner-only if authenticated)
+adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  console.log('[ads] DELETE /:id request', { id, userId: req.user?.id });
+  
+  const existing = await prisma.ad.findUnique({ where: { id } });
+  if (!existing) {
+    console.warn('[ads] DELETE /:id - Ad not found', { id });
+    return res.status(404).json({ error: 'Not found' });
+  }
+  
+  // Check ownership
+  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
+    console.warn('[ads] DELETE /:id - Forbidden (user does not own ad)', { 
+      id, 
+      adUserId: existing.user_id, 
+      requestUserId: req.user.id 
+    });
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    // First delete all reservations for this ad
+    await prisma.adReservation.deleteMany({ where: { ad_id: id } });
+    console.log('[ads] DELETE /:id - Deleted reservations', { id });
+    
+    // Then delete the ad itself
+    await prisma.ad.delete({ where: { id } });
+    console.log('[ads] DELETE /:id - Ad deleted successfully', { id });
+    
+    return res.json({ ok: true, message: 'Ad deleted successfully' });
+  } catch (error) {
+    console.error('[ads] DELETE /:id - Error deleting ad', { id, error });
+    return res.status(500).json({ error: 'Failed to delete ad' });
+  }
 });
 
 // List reserved dates. Supports optional range and/or specific ad_id.
@@ -206,16 +248,135 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     skipDuplicates: true,
   });
 
-  // Price logic matches mobile UI: flat weekday + weekend
-  const hasWeekday = isoDates.some((s) => {
+  // Price logic: charge per individual day
+  // Mon-Thu = $10/day, Fri-Sun = $17.50/day
+  let totalPrice = 0;
+  isoDates.forEach((s) => {
     const d = new Date(s + 'T00:00:00.000Z').getUTCDay();
-    return d >= 1 && d <= 4; // Mon..Thu
+    if (d >= 1 && d <= 4) {
+      // Mon-Thu: weekday rate
+      totalPrice += 10.00;
+    } else {
+      // Fri-Sun: weekend rate (Sun=0, Fri=5, Sat=6)
+      totalPrice += 17.50;
+    }
   });
-  const hasWeekend = isoDates.some((s) => {
-    const d = new Date(s + 'T00:00:00.000Z').getUTCDay();
-    return d === 0 || d === 5 || d === 6; // Fri..Sun (Sun=0)
-  });
-  const price = (hasWeekday ? 10 : 0) + (hasWeekend ? 17.5 : 0);
 
-  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price });
+  return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
+});
+
+/**
+ * GET /ads/alternative-zips?zip=12345&dates=2025-01-15,2025-01-16
+ * 
+ * Find alternative zip codes within 50 miles when the requested zip is fully booked.
+ * Returns nearby zips with availability for the requested dates, sorted by distance.
+ */
+adsRouter.get('/alternative-zips', async (req: AuthedRequest, res) => {
+  const { zip, dates } = req.query;
+  
+  if (!zip || !dates) {
+    return res.status(400).json({ error: 'Missing required params: zip, dates' });
+  }
+  
+  const zipCode = String(zip);
+  const dateList = String(dates).split(',').map(d => d.trim());
+  
+  // Get coordinates for the requested zip
+  const originCoords = getZipCoordinates(zipCode);
+  if (!originCoords) {
+    return res.status(400).json({ error: 'Invalid zip code or coordinates not found' });
+  }
+  
+  // Get all ads within approximate range (we'll use all ads for simplicity, 
+  // but in production you'd want to filter by geographic bounds first)
+  const allAds = await prisma.ad.findMany({
+    where: {
+      status: { in: ['draft', 'active'] },
+    },
+    select: {
+      id: true,
+      target_zip_code: true,
+    },
+  });
+  
+  // Calculate distances and group by zip code
+  const zipDistances: Map<string, number> = new Map();
+  
+  for (const ad of allAds) {
+    if (!ad.target_zip_code) continue; // Skip ads without zip codes
+    if (ad.target_zip_code === zipCode) continue; // Skip the original zip
+    if (zipDistances.has(ad.target_zip_code)) continue; // Already calculated
+    
+    const adCoords = getZipCoordinates(ad.target_zip_code);
+    if (!adCoords) continue;
+    
+    const distance = haversineDistance(
+      originCoords.lat,
+      originCoords.lon,
+      adCoords.lat,
+      adCoords.lon
+    );
+    
+    // Only consider zips within 50 miles
+    if (distance <= 50) {
+      zipDistances.set(ad.target_zip_code, distance);
+    }
+  }
+  
+  // Check availability for each nearby zip
+  const alternatives: Array<{ zip: string; distance: number; available: boolean }> = [];
+  
+  for (const [nearbyZip, distance] of zipDistances.entries()) {
+    // Find ads in this zip code
+    const adsInZip = await prisma.ad.findMany({
+      where: {
+        target_zip_code: nearbyZip,
+        status: { in: ['draft', 'active'] },
+      },
+      include: {
+        reservations: {
+          where: {
+            date: {
+              in: dateList.map(d => new Date(d + 'T00:00:00.000Z')),
+            },
+          },
+        },
+      },
+    });
+    
+    // Check if ALL requested dates are available (no ads fully booked for all dates)
+    let hasAvailability = false;
+    
+    for (const ad of adsInZip) {
+      const bookedDates = new Set(ad.reservations.map(r => r.date.toISOString().split('T')[0]));
+      const allDatesBooked = dateList.every(date => bookedDates.has(date));
+      
+      if (!allDatesBooked) {
+        hasAvailability = true;
+        break;
+      }
+    }
+    
+    // If no ads exist in this zip, it's available
+    if (adsInZip.length === 0) {
+      hasAvailability = true;
+    }
+    
+    alternatives.push({
+      zip: nearbyZip,
+      distance: Math.round(distance * 10) / 10, // Round to 1 decimal
+      available: hasAvailability,
+    });
+  }
+  
+  // Sort by distance and filter to available only
+  const availableAlternatives = alternatives
+    .filter(a => a.available)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 5); // Return top 5 closest alternatives
+  
+  return res.json({
+    requested_zip: zipCode,
+    alternatives: availableAlternatives,
+  });
 });

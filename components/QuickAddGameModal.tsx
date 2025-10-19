@@ -29,9 +29,19 @@ interface QuickAddGameModalProps {
   onClose: () => void;
   onSave: (gameData: QuickGameData) => void;
   currentTeamName?: string; // Optional current team context
+  initialData?: {
+    id?: string;
+    opponent: string;
+    date: string;
+    time: string;
+    type: 'home' | 'away';
+    banner_url?: string;
+    appearance?: string;
+  };
 }
 
 export interface QuickGameData {
+  id?: string; // Add id for editing
   currentTeam: string;
   opponent: string;
   date: string; // Will be today + some days
@@ -48,7 +58,7 @@ type TeamOption = {
   logo?: string;
 };
 
-export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName }: QuickAddGameModalProps) {
+export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   
@@ -81,6 +91,51 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setCurrentTeam(currentTeamName);
     }
   }, [currentTeamName]);
+
+  // Populate form when editing (initialData provided)
+  useEffect(() => {
+    if (initialData && visible) {
+      setOpponent(initialData.opponent || '');
+      setGameType(initialData.type || 'home');
+      setBannerUrl(initialData.banner_url || null);
+      setAppearance((initialData.appearance as AppearancePreset) || 'classic');
+      
+      // Parse date
+      if (initialData.date) {
+        const dateParts = initialData.date.split('/');
+        if (dateParts.length === 3) {
+          const [month, day, year] = dateParts;
+          setSelectedDate(new Date(parseInt(year), parseInt(month) - 1, parseInt(day)));
+        }
+      }
+      
+      // Parse time
+      if (initialData.time) {
+        const timeMatch = initialData.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          const period = timeMatch[3].toUpperCase();
+          
+          if (period === 'PM' && hours !== 12) hours += 12;
+          if (period === 'AM' && hours === 12) hours = 0;
+          
+          const timeDate = new Date();
+          timeDate.setHours(hours, minutes, 0, 0);
+          setSelectedTime(timeDate);
+        }
+      }
+    } else if (!visible) {
+      // Reset form when modal closes
+      setOpponent('');
+      setGameType('home');
+      setBannerUrl(null);
+      setAppearance('classic');
+      setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      setSelectedTime(new Date(new Date().setHours(19, 0, 0, 0)));
+      setErrors({});
+    }
+  }, [initialData, visible]);
 
   // Load teams when modal opens
   useEffect(() => {
@@ -185,6 +240,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     }
     
     const baseGameData: QuickGameData = {
+      id: initialData?.id, // Include id when editing
       currentTeam: currentTeam.trim(),
       opponent: opponent.trim(),
       date: selectedDate.toISOString().split('T')[0],
@@ -270,6 +326,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
+        exif: false,
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -293,6 +350,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         allowsEditing: true,
         aspect: [16, 9],
         quality: 0.9,
+        exif: false,
       });
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -377,10 +435,14 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             <Text style={[styles.headerButtonText, { color: Colors[colorScheme].text }]}>Cancel</Text>
           </Pressable>
           
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Quick Add Game</Text>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
+            {initialData ? 'Edit Game' : 'Quick Add Game'}
+          </Text>
           
           <Pressable style={styles.headerButton} onPress={handleSave}>
-            <Text style={[styles.headerButtonText, { color: Colors[colorScheme].tint }]}>Add</Text>
+            <Text style={[styles.headerButtonText, { color: Colors[colorScheme].tint }]}>
+              {initialData ? 'Save' : 'Add'}
+            </Text>
           </Pressable>
         </View>
 

@@ -1,6 +1,8 @@
 import { Post } from '@/api/entities';
 import CollageView, { type CollageData, type CollageFrame } from '@/components/CollageView';
 import { Button } from '@/components/ui/button';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
@@ -52,11 +54,12 @@ const templates = {
 } as const;
 
 export default function CreateCollageScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [template, setTemplate] = useState<keyof typeof templates>('organic2');
   const [gutter, setGutter] = useState(8);
   const [radius, setRadius] = useState(8);
-  const [bg, setBg] = useState('#FFFFFF');
+  const [bg, setBg] = useState(colorScheme === 'dark' ? '#1F2937' : '#FFFFFF');
   const [frames, setFrames] = useState<CollageFrame[]>(templates['organic2'].map(f => ({
     ...f, media: { url: '', type: 'image', scale: 1, translateX: 0, translateY: 0, rotation: 0 }
   })));
@@ -106,29 +109,29 @@ export default function CreateCollageScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.h1}>Create Collage</Text>
-      <Text style={styles.subtitle}>Choose from organic layouts for a more natural look</Text>
-      <Text style={styles.sectionLabel}>Organic Templates</Text>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+      <Text style={[styles.h1, { color: Colors[colorScheme].text }]}>Create Collage</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose from organic layouts for a more natural look</Text>
+      <Text style={[styles.sectionLabel, { color: Colors[colorScheme].text }]}>Organic Templates</Text>
       <View style={styles.row}>
         {(['organic2','organic3','organic4'] as const).map((t) => (
-          <Pressable key={t} onPress={() => onTemplateChange(t)} style={[styles.templatePill, template===t && styles.templatePillActive]}>
-            <Text style={[styles.templateText, template===t && styles.templateTextActive]}>{t}</Text>
+          <Pressable key={t} onPress={() => onTemplateChange(t)} style={[styles.templatePill, { backgroundColor: Colors[colorScheme].surface }, template===t && { backgroundColor: Colors[colorScheme].tint }]}>
+            <Text style={[styles.templateText, { color: Colors[colorScheme].text }, template===t && styles.templateTextActive]}>{t}</Text>
           </Pressable>
         ))}
       </View>
       
-      <Text style={styles.sectionLabel}>Classic Templates</Text>
+      <Text style={[styles.sectionLabel, { color: Colors[colorScheme].text }]}>Classic Templates</Text>
       <View style={styles.row}>
         {(['2up','3triptych','4grid','asym3','asym4'] as const).map((t) => (
-          <Pressable key={t} onPress={() => onTemplateChange(t)} style={[styles.templatePill, template===t && styles.templatePillActive]}>
-            <Text style={[styles.templateText, template===t && styles.templateTextActive]}>{t}</Text>
+          <Pressable key={t} onPress={() => onTemplateChange(t)} style={[styles.templatePill, { backgroundColor: Colors[colorScheme].surface }, template===t && { backgroundColor: Colors[colorScheme].tint }]}>
+            <Text style={[styles.templateText, { color: Colors[colorScheme].text }, template===t && styles.templateTextActive]}>{t}</Text>
           </Pressable>
         ))}
       </View>
 
       <Pressable onPress={pickImages} style={{ marginTop: 12 }}>
-        <Text style={styles.link}>Pick images</Text>
+        <Text style={[styles.link, { color: Colors[colorScheme].tint }]}>Pick images</Text>
       </Pressable>
 
       <View ref={ref as any} style={{ width: '100%', aspectRatio: 1, marginTop: 12 }}>
@@ -144,13 +147,12 @@ export default function CreateCollageScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16 },
-  h1: { fontSize: 20, fontWeight: '700' },
-  subtitle: { fontSize: 14, color: '#6B7280', marginTop: 4, marginBottom: 16 },
-  sectionLabel: { fontSize: 16, fontWeight: '600', marginTop: 16, marginBottom: 8, color: '#374151' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
-  templatePill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#F3F4F6' },
-  templatePillActive: { backgroundColor: '#111827' },
-  templateText: { color: '#111827', fontWeight: '600', fontSize: 13 },
+  h1: { fontSize: 24, fontWeight: '700' },
+  subtitle: { fontSize: 14, marginTop: 4, marginBottom: 16 },
+  sectionLabel: { fontSize: 16, fontWeight: '600', marginTop: 16, marginBottom: 8 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  templatePill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+  templateText: { fontWeight: '600', fontSize: 13 },
   templateTextActive: { color: 'white' },
-  link: { color: '#2563EB', fontWeight: '600' },
+  link: { fontWeight: '600' },
 });

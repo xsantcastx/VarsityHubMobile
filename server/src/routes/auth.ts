@@ -385,19 +385,44 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
 
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
+  // Core identity fields
   role: z.enum(['fan', 'coach']).optional(),
-  plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
   username: z.string().min(3).max(20).optional(),
-  affiliation: z.enum(['school', 'independent']).optional(),
+  display_name: z.string().optional(),
+  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
   dob: z.string().optional(),
   zip: z.string().optional(),
+  zip_code: z.string().optional(),
+  
+  // Plan and subscription
+  plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+  payment_pending: z.union([z.boolean(), z.string()]).optional(),
+  
+  // Team/Organization
+  team_id: z.string().optional(),
   team_name: z.string().optional(),
+  organization_id: z.string().optional(),
   organization_name: z.string().optional(),
   sport: z.string().optional(),
+  
+  // Season
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  
+  // Authorized users
+  authorized: z.array(z.any()).optional(),
+  authorized_users: z.array(z.any()).optional(),
+  
+  // Profile
+  avatar_url: z.string().optional(),
+  bio: z.string().optional(),
   sports_interests: z.array(z.string()).optional(),
+  
+  // Interests/Goals
+  primary_intents: z.array(z.string()).optional(),
   personalization_goals: z.array(z.string()).optional(),
+  
+  // Features/Permissions
   location_enabled: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),
   messaging_policy_accepted: z.boolean().optional(),
@@ -406,15 +431,22 @@ const completeOnboardingSchema = z.object({
 authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    console.error('[Onboarding] Validation failed:', parsed.error);
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  }
   
   const data = parsed.data;
   
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
+  if (data.display_name) updateData.display_name = data.display_name;
+  if (data.avatar_url) updateData.avatar_url = data.avatar_url;
+  if (data.bio) updateData.bio = data.bio;
+  
   const currentUser = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (data.role === 'fan' && !currentUser?.bio) {
+  if (data.role === 'fan' && !currentUser?.bio && !data.bio) {
     updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
   }
   
@@ -425,13 +457,22 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     plan: data.plan,
     affiliation: data.affiliation,
     dob: data.dob,
-    zip_code: data.zip,
+    zip_code: data.zip_code || data.zip,
+    team_id: data.team_id,
+    team_name: data.team_name,
+    organization_id: data.organization_id,
+    organization_name: data.organization_name,
+    sport: data.sport,
+    season_start: data.season_start,
+    season_end: data.season_end,
+    authorized_users: data.authorized || data.authorized_users,
     sports_interests: data.sports_interests,
-    personalization_goals: data.personalization_goals,
-    primary_intents: data.personalization_goals, // Alias
+    primary_intents: data.primary_intents || data.personalization_goals,
+    personalization_goals: data.personalization_goals || data.primary_intents,
     location_enabled: data.location_enabled,
     notifications_enabled: data.notifications_enabled,
     messaging_policy_accepted: data.messaging_policy_accepted,
+    payment_pending: data.payment_pending,
   };
   
   // Clean up undefined values

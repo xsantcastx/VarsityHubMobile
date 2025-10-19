@@ -9,11 +9,13 @@ import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game, Post, Team, User } from '@/api/entities';
+import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
+import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null };
+type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
@@ -85,6 +87,8 @@ export default function CommunityDiscoverScreen() {
   const [discoverPosts, setDiscoverPosts] = useState<any[]>([]);
   const [tab, setTab] = useState<'discover' | 'following'>('discover');
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [selectedDate, setSelectedDate] = useState<string>('');
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -231,58 +235,42 @@ export default function CommunityDiscoverScreen() {
 
   const ListHeader = (
     <View>
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
-
-      {/* Coach Dashboard Section */}
-      {me?.preferences?.role === 'coach' && (
-        <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-          <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Coach Dashboard</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-              onPress={() => router.push('/manage-teams')}
-            >
-              <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-              <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
-            </Pressable>
-            
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: '#10B981' + '10', borderColor: '#10B981' + '30' }]}
-              onPress={() => router.push('/create-fan-event')}
-            >
-              <Ionicons name="add-circle" size={24} color="#10B981" />
-              <Text style={[styles.coachActionTitle, { color: '#10B981' }]}>Create Event</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Organize watch parties & more</Text>
-            </Pressable>
-
-            <Pressable 
-              style={[styles.coachActionCard, { backgroundColor: '#F59E0B' + '10', borderColor: '#F59E0B' + '30' }]}
-              onPress={() => router.push('/admin-teams')}
-            >
-              <Ionicons name="checkmark-circle" size={24} color="#F59E0B" />
-              <Text style={[styles.coachActionTitle, { color: '#F59E0B' }]}>Approvals</Text>
-              <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review community events</Text>
-            </Pressable>
-          </ScrollView>
+      {/* Search Bar - At the very top */}
+      <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+        <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+          <TextInput
+            placeholder="Search by keyword or Zip Code..."
+            placeholderTextColor={Colors[colorScheme].mutedText}
+            value={query}
+            onChangeText={(v) => {
+              setQuery(v);
+              const digits = v.replace(/[^0-9]/g, '');
+              setZipSuggestionsOpen(digits.length >= 2);
+            }}
+            style={styles.searchInput}
+            returnKeyType="search"
+            onBlur={() => setZipSuggestionsOpen(false)}
+          />
         </View>
-      )}
 
-      <View style={[styles.searchBox, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
-        <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
-        <TextInput
-          placeholder="Search by Zip Code..."
-          placeholderTextColor={Colors[colorScheme].mutedText}
-          value={query}
-          onChangeText={(v) => {
-            setQuery(v);
-            const digits = v.replace(/[^0-9]/g, '');
-            setZipSuggestionsOpen(digits.length >= 2);
+        {/* Map/List Toggle */}
+        <Pressable
+          onPress={() => {
+            const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
+            console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+            console.log('📍 Filtered games count:', filtered.length);
+            console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+            setViewMode(newMode);
           }}
-          style={styles.searchInput}
-          returnKeyType="search"
-          onBlur={() => setZipSuggestionsOpen(false)}
-        />
+          style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+        >
+          <Ionicons 
+            name={viewMode === 'list' ? 'map' : 'list'} 
+            size={24} 
+            color={Colors[colorScheme].tint} 
+          />
+        </Pressable>
       </View>
 
       {shouldShowZipSuggestions ? (
@@ -299,6 +287,56 @@ export default function CommunityDiscoverScreen() {
           ))}
         </View>
       ) : null}
+
+      {/* Calendar - Right below search */}
+      <View style={styles.calendarSection}>
+        <Calendar
+          onDayPress={(day) => setSelectedDate(day.dateString)}
+          markedDates={{
+            [selectedDate]: { selected: true, selectedColor: Colors[colorScheme].tint }
+          }}
+          theme={{
+            backgroundColor: Colors[colorScheme].background,
+            calendarBackground: Colors[colorScheme].background,
+            textSectionTitleColor: Colors[colorScheme].text,
+            selectedDayBackgroundColor: Colors[colorScheme].tint,
+            selectedDayTextColor: Colors[colorScheme].background,
+            todayTextColor: Colors[colorScheme].tint,
+            dayTextColor: Colors[colorScheme].text,
+            textDisabledColor: Colors[colorScheme].mutedText,
+            arrowColor: Colors[colorScheme].tint,
+            monthTextColor: Colors[colorScheme].text,
+            textDayFontWeight: '500',
+            textMonthFontWeight: '800',
+            textDayHeaderFontWeight: '600',
+          }}
+        />
+      </View>
+
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
+
+      {/* Quick Actions Dashboard */}
+      <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+            onPress={() => router.push('/manage-teams-simple')}
+          >
+            <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+            onPress={() => router.push('/manage-season')}
+          >
+            <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
 
       {me && me._count?.following ? (
         <View style={[styles.followingCard, { backgroundColor: '#1e3a8a22', borderColor: '#1e3a8a55' }]}>
@@ -446,48 +484,131 @@ export default function CommunityDiscoverScreen() {
   return (
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>      
       <Stack.Screen options={{ title: 'Discover' }} />
-      <FlatList
-        style={{ flex: 1 }}
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={ListHeader}
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
-          >
-            <View style={styles.hero}>
-              {(() => {
-                const banner = item.cover_image_url || (item as any).banner_url || null;
-                return banner ? (
-                  <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
-                ) : (
-                  <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                );
-              })()}
+      
+      {viewMode === 'map' ? (
+        /* Map View - Simplified without ListHeader */
+        <View style={{ flex: 1 }}>
+          {/* Just the search and toggle button */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
+              <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }] }>
+                <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+                <TextInput
+                  placeholder="Search by Zip Code..."
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  value={query}
+                  onChangeText={(v) => {
+                    setQuery(v);
+                    const digits = v.replace(/[^0-9]/g, '');
+                    setZipSuggestionsOpen(digits.length >= 2);
+                  }}
+                  style={styles.searchInput}
+                  returnKeyType="search"
+                  onBlur={() => setZipSuggestionsOpen(false)}
+                />
+              </View>
+
+              {/* Map/List Toggle */}
+              <Pressable
+                onPress={() => {
+                  const newMode = viewMode === 'list' ? 'map' : 'list';
+                  console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+                  console.log('📍 Filtered games count:', filtered.length);
+                  console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+                  setViewMode(newMode as 'list' | 'map');
+                }}
+                style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              >
+                <Ionicons 
+                  name={viewMode === 'list' ? 'map' : 'list'} 
+                  size={24} 
+                  color={Colors[colorScheme].tint} 
+                />
+              </Pressable>
             </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
-              <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
-              {(() => {
-                const labels = deriveTeamLabels(item);
-                return (
-                  <View style={styles.teamRow}>
-                    <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
-                    <Text style={styles.vsText}>vs</Text>
-                    <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
-                  </View>
-                );
-              })()}
-            </View>
-          </Pressable>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        keyboardShouldPersistTaps="handled"
-      />
+          </View>
+
+          {/* Full Map View */}
+          {(() => {
+            const eventsWithCoords = filtered.filter(g => g.latitude && g.longitude);
+            console.log('🗺️ MAP VIEW RENDERING');
+            console.log('📍 Total filtered games:', filtered.length);
+            console.log('📍 Games with coordinates:', eventsWithCoords.length);
+            console.log('📍 First game with coords:', eventsWithCoords[0] ? {
+              title: eventsWithCoords[0].title,
+              lat: eventsWithCoords[0].latitude,
+              lng: eventsWithCoords[0].longitude
+            } : 'none');
+            
+            // Show ALL games, not just filtered ones
+            const allGamesWithCoords = games.filter(g => g.latitude && g.longitude);
+            console.log('📍 ALL games with coordinates:', allGamesWithCoords.length);
+            
+            return (
+              <EventMap
+                events={allGamesWithCoords.map((game): EventMapData => ({
+                  id: String(game.id),
+                  title: String(game.title || 'Game'),
+                  date: String(game.date || new Date().toISOString()),
+                  location: String(game.location || ''),
+                  latitude: game.latitude ?? undefined,
+                  longitude: game.longitude ?? undefined,
+                  type: 'game',
+                }))}
+                onEventPress={(eventId) => {
+                  router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: eventId } });
+                }}
+                showUserLocation={true}
+              />
+            );
+          })()}
+        </View>
+      ) : (
+        /* List View */
+        <FlatList
+          style={{ flex: 1 }}
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          ListHeaderComponent={ListHeader}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+            >
+              <View style={styles.hero}>
+                {(() => {
+                  const banner = item.cover_image_url || (item as any).banner_url || null;
+                  return banner ? (
+                    <Image source={{ uri: banner }} style={styles.heroImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.heroImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  );
+                })()}
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
+                <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
+                {(() => {
+                  const labels = deriveTeamLabels(item);
+                  return (
+                    <View style={styles.teamRow}>
+                      <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
+                      <Text style={styles.vsText}>vs</Text>
+                      <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
+                    </View>
+                  );
+                })()}
+              </View>
+            </Pressable>
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
+
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen
           onClose={() => setViewerOpen(false)}
@@ -509,8 +630,14 @@ const styles = StyleSheet.create({
   mutedSmall: { color: '#6b7280', marginBottom: 10, fontSize: 12 },
   sectionTitle: { fontWeight: '800', marginTop: 8 },
   error: { color: '#b91c1c', marginBottom: 8 },
+  calendarSection: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
+  viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },

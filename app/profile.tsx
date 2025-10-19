@@ -118,6 +118,7 @@ export default function ProfileScreen() {
         aspect: [1, 1],
         selectionLimit: 1,
         quality: 0.9,
+        exif: false,
       } as any);
 
       if (pickerResult.canceled) {

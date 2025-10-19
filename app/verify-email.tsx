@@ -2,13 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ devCode?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -86,24 +90,24 @@ export default function VerifyEmailScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Verify Email' }} />
       
       {/* Header Icon */}
       <View style={styles.iconContainer}>
-        <Ionicons name="mail-outline" size={64} color="#2563EB" />
+        <Ionicons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
       </View>
       
-      <Text style={styles.title}>Check Your Email</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
         We sent a 6-digit verification code to your email address. 
         Enter the code below to complete your registration.
       </Text>
       
       {/* Open Email App Button */}
       <Pressable style={styles.emailButton} onPress={openEmailApp}>
-        <Ionicons name="mail-open-outline" size={20} color="#2563EB" />
-        <Text style={styles.emailButtonText}>Open Email App</Text>
+        <Ionicons name="mail-open-outline" size={20} color={Colors[colorScheme].tint} />
+        <Text style={[styles.emailButtonText, { color: Colors[colorScheme].tint }]}>Open Email App</Text>
       </Pressable>
       
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -118,7 +122,7 @@ export default function VerifyEmailScreen() {
       ) : null}
       
       <View style={styles.codeSection}>
-        <Text style={styles.label}>Verification Code</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
         <Input 
           placeholder="123456" 
           value={code} 
@@ -134,24 +138,24 @@ export default function VerifyEmailScreen() {
       </Button>
       
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Didn't receive the code?</Text>
+        <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
         <Pressable onPress={onResend} disabled={loading}>
-          <Text style={[styles.linkText, loading && styles.linkTextDisabled]}>Resend Code</Text>
+          <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
         </Pressable>
       </View>
       
       <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
-        <Text style={styles.skipText}>Skip for now</Text>
+        <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
       </Pressable>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, backgroundColor: 'white', justifyContent: 'center' },
+  container: { flex: 1, padding: 24, justifyContent: 'center' },
   iconContainer: { alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center', color: '#111827' },
-  subtitle: { fontSize: 15, color: '#6b7280', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
+  subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   emailButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -165,17 +169,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 24
   },
-  emailButtonText: { color: '#2563EB', fontSize: 16, fontWeight: '700' },
+  emailButtonText: { fontSize: 16, fontWeight: '700' },
   codeSection: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   codeInput: { fontSize: 24, textAlign: 'center', letterSpacing: 8 },
   verifyButton: { marginBottom: 16 },
   footer: { alignItems: 'center', marginTop: 8, gap: 8 },
-  footerText: { color: '#6b7280', fontSize: 14 },
-  linkText: { color: '#2563EB', fontWeight: '700', fontSize: 14 },
+  footerText: { fontSize: 14 },
+  linkText: { fontWeight: '700', fontSize: 14 },
   linkTextDisabled: { opacity: 0.5 },
   skipButton: { marginTop: 20, alignItems: 'center', paddingVertical: 12 },
-  skipText: { color: '#9CA3AF', fontSize: 14 },
+  skipText: { fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   devCodeContainer: { 

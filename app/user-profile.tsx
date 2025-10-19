@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore api exports
 import { User } from '@/api/entities';
 import { BackHeader } from '@/components/ui/BackHeader';
@@ -110,7 +110,7 @@ export default function UserProfileScreen() {
   const { colA, colB } = makeMasonryColumns(posts);
 
   return (
-    <View style={[S.page, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[S.page, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       <BackHeader 
         title={user?.display_name || user?.username || 'Profile'} 
@@ -353,7 +353,7 @@ export default function UserProfileScreen() {
           </Modal>
         </>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

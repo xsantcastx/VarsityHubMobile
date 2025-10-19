@@ -6,10 +6,11 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi, User } from '@/api/entities';
+import { SectionHeader, SettingItem } from '@/components/ui';
 
 interface AppUser {
   id: string;
@@ -658,7 +659,7 @@ export default function TeamProfileScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Team Management', headerShown: false }} />
       
       {/* Custom Header */}
@@ -763,18 +764,21 @@ export default function TeamProfileScreen() {
               <Text style={styles.quickActionText}>Manage Season</Text>
             </Pressable>
             
-            <Pressable 
-              style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
-              onPress={() => router.push(`/team-contacts?id=${team.id}`)}
-            >
-              <Ionicons name="chatbubble-outline" size={20} color="#fff" />
-              <Text style={styles.quickActionText}>Team Chat</Text>
-            </Pressable>
+            {/* Team Chat button hidden - not needed for simplified coach UX */}
+            {false && (
+              <Pressable 
+                style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
+                onPress={() => router.push(`/team-contacts?id=${team.id}`)}
+              >
+                <Ionicons name="chatbubble-outline" size={20} color="#fff" />
+                <Text style={styles.quickActionText}>Team Chat</Text>
+              </Pressable>
+            )}
           </ScrollView>
         </View>
 
         {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+        <View style={[styles.tabContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
           {(['overview', 'members', 'settings'] as const).map((tab) => (
             <Pressable
               key={tab}
@@ -883,164 +887,72 @@ export default function TeamProfileScreen() {
 
         {selectedTab === 'settings' && (
           <View style={styles.tabContent}>
-            {/* General Settings */}
+            {/* General Settings - SIMPLIFIED FOR COACHES */}
             <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>General</Text>
+              <SectionHeader title="Team Management" style={{ paddingHorizontal: 0, paddingTop: 0 }} />
               
-              <Pressable style={styles.settingItem} onPress={() => router.push(`/edit-team?id=${team.id}`)}>
-                <Ionicons name="create-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Edit Team Info</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
+              <SettingItem
+                icon="create-outline"
+                label="Edit Team Info"
+                onPress={() => router.push(`/edit-team?id=${team.id}`)}
+              />
               
-              <Pressable style={styles.settingItem} onPress={() => router.push(`/manage-season?teamId=${team.id}`)}>
-                <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Manage Season</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem} onPress={() => router.push(`/team-contacts?id=${team.id}`)}>
-                <Ionicons name="chatbubble-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Chat</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="camera-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Photos</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
+              <SettingItem
+                icon="calendar-outline"
+                label="Manage Season & Games"
+                onPress={() => router.push(`/manage-season?teamId=${team.id}`)}
+              />
             </View>
 
-            {/* Privacy & Permissions */}
+            {/* Team Actions */}
             <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Privacy & Permissions</Text>
+              <SectionHeader title="Actions" style={{ paddingHorizontal: 0, paddingTop: 0 }} />
               
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="eye-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Team Visibility</Text>
-                <View style={styles.settingValue}>
-                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Public</Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </View>
-              </Pressable>
+              <SettingItem
+                icon="archive-outline"
+                label="Archive Team"
+                destructive={false}
+                onPress={() => {
+                  Alert.alert(
+                    'Archive Team',
+                    'This will hide the team from your active list. You can restore it later.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Archive', style: 'destructive', onPress: () => console.log('Archive team') }
+                    ]
+                  );
+                }}
+              />
 
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="people-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Who Can Join</Text>
-                <View style={styles.settingValue}>
-                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Invite Only</Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </View>
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="shield-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Member Permissions</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="location-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Location Sharing</Text>
-                <View style={styles.settingValue}>
-                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Team Only</Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </View>
-              </Pressable>
-            </View>
-
-            {/* Notifications */}
-            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Notifications</Text>
-              
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="notifications-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Push Notifications</Text>
-                <View style={[styles.toggleSwitch, { backgroundColor: Colors[colorScheme].tint }]}>
-                  <View style={[styles.toggleThumb, { transform: [{ translateX: 14 }] }]} />
-                </View>
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="mail-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Email Updates</Text>
-                <View style={[styles.toggleSwitch, { backgroundColor: '#E5E7EB' }]}>
-                  <View style={styles.toggleThumb} />
-                </View>
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Game Reminders</Text>
-                <View style={[styles.toggleSwitch, { backgroundColor: Colors[colorScheme].tint }]}>
-                  <View style={[styles.toggleThumb, { transform: [{ translateX: 14 }] }]} />
-                </View>
-              </Pressable>
-            </View>
-
-            {/* Integrations */}
-            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Integrations</Text>
-              
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="calendar-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Calendar Sync</Text>
-                <View style={styles.settingValue}>
-                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Google Calendar</Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </View>
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="stats-chart-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Stats Integration</Text>
-                <View style={styles.settingValue}>
-                  <Text style={[styles.settingValueText, { color: Colors[colorScheme].mutedText }]}>Connect</Text>
-                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-                </View>
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="share-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Social Media</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-            </View>
-
-            {/* Advanced */}
-            <View style={[styles.settingsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Advanced</Text>
-              
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="download-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Export Team Data</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="copy-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Duplicate Team</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="swap-horizontal-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.settingLabel, { color: Colors[colorScheme].text }]}>Transfer Ownership</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="archive-outline" size={20} color="#F59E0B" />
-                <Text style={[styles.settingLabel, { color: '#F59E0B' }]}>Archive Team</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-
-              <Pressable style={styles.settingItem}>
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                <Text style={[styles.settingLabel, { color: '#EF4444' }]}>Delete Team</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
+              <SettingItem
+                icon="trash-outline"
+                label="Delete Team"
+                destructive={true}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete Team',
+                    'This will permanently delete the team and all its data. This action cannot be undone.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { 
+                        text: 'Delete', 
+                        style: 'destructive', 
+                        onPress: async () => {
+                          try {
+                            await TeamApi.delete(team.id);
+                            Alert.alert('Success', 'Team deleted successfully', [
+                              { text: 'OK', onPress: () => router.replace('/manage-teams') }
+                            ]);
+                          } catch (error: any) {
+                            console.error('Failed to delete team:', error);
+                            Alert.alert('Error', error?.message || 'Failed to delete team');
+                          }
+                        }
+                      }
+                    ]
+                  );
+                }}
+              />
             </View>
           </View>
         )}
@@ -1247,7 +1159,7 @@ export default function TeamProfileScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1425,9 +1337,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: '#E5E7EB',
     borderRadius: 12,
     padding: 4,
+    borderWidth: 1,
   },
   tab: {
     flex: 1,

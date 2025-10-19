@@ -72,12 +72,12 @@ export default function BlockedUsersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
-  subtitle: { color: '#6b7280', marginBottom: 8 },
-  muted: { color: '#6b7280' },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
+  subtitle: { marginBottom: 8 },
+  muted: {},
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   email: { fontWeight: '600' },
-  removeBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#111827' },
+  removeBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
   removeText: { color: 'white', fontWeight: '700' },
 });

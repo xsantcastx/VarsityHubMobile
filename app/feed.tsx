@@ -1,11 +1,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
-import MessagesTabIcon from '@/components/ui/MessagesTabIcon';
+import { Advertisement, Event, Game, Highlights, Message, Notification as NotificationApi, User } from '@/api/entities';
+import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ const ZIP_REGEX = /\b\d{5}\b/g;
 
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
+  const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,11 +74,11 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
         position: 'absolute',
         right: 14,
         bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : 'rgba(0,0,0,0.75)',
+        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 20,
-        shadowColor: '#000',
+        shadowColor: colorScheme === 'dark' ? '#000' : '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 4,
@@ -211,6 +212,15 @@ export default function FeedScreen() {
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
+  const [activeMenuTab, setActiveMenuTab] = useState<'notifications' | 'messages'>('notifications');
+  
+  // State for notifications and messages in modal
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [messagesList, setMessagesList] = useState<any[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -356,10 +366,25 @@ export default function FeedScreen() {
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
         } catch {}
       })();
+      // Check for unread messages when feed gains focus
+      (async () => {
+        try {
+          const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
+          if (result && !('_isNotModified' in result)) {
+            const msgs = Array.isArray(result) ? result : [];
+            const user = await User.me();
+            // Count unread messages (messages where I'm the recipient and read is false)
+            const unreadCount = msgs.filter((msg: any) => {
+              return msg.recipient_id === user.id && !msg.read;
+            }).length;
+            setHasUnreadMessages(unreadCount > 0);
+          }
+        } catch {}
+      })();
     }, [load]),
   );
 
-  // Lightweight polling to keep unread dot fresh while on the Feed
+  // Lightweight polling to keep unread dots fresh while on the Feed
   useEffect(() => {
     let mounted = true;
     const tick = async () => {
@@ -367,21 +392,81 @@ export default function FeedScreen() {
         const page = await NotificationApi.listPage(null, 1, true);
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+        
+        // Also check messages
+        const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
+        if (result && !('_isNotModified' in result)) {
+          const msgs = Array.isArray(result) ? result : [];
+          const user = await User.me();
+          const unreadCount = msgs.filter((msg: any) => {
+            return msg.recipient_id === user.id && !msg.read;
+          }).length;
+          setHasUnreadMessages(unreadCount > 0);
+        }
       } catch {}
     };
     const id = setInterval(tick, 30000); // ~30s
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
-  // Rotate sponsored ads every ~8s
+  // Load notifications and messages when modal opens OR when tab changes
   useEffect(() => {
-    if (!sponsoredAds || sponsoredAds.length <= 1) return;
-    // Rotate less frequently to reduce re-renders and image churn
-    const id = setInterval(() => {
-      setSponsoredIndex((i) => (i + 1) % sponsoredAds.length);
-    }, 20000);
-    return () => clearInterval(id);
-  }, [sponsoredAds]);
+    if (!notificationsMenuOpen) {
+      // When modal closes, refresh unread counts
+      (async () => {
+        try {
+          const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
+          if (result && !('_isNotModified' in result)) {
+            const msgs = Array.isArray(result) ? result : [];
+            const user = await User.me();
+            const unreadCount = msgs.filter((msg: any) => {
+              return msg.recipient_id === user.id && !msg.read;
+            }).length;
+            setHasUnreadMessages(unreadCount > 0);
+          }
+        } catch {}
+      })();
+      return;
+    }
+    
+    const loadModalData = async () => {
+      if (activeMenuTab === 'notifications') {
+        setLoadingNotifications(true);
+        try {
+          const page = await NotificationApi.listPage(null, 20, false);
+          setNotificationsList(Array.isArray(page.items) ? page.items : []);
+        } catch (e) {
+          console.error('Failed to load notifications', e);
+        } finally {
+          setLoadingNotifications(false);
+        }
+      } else {
+        setLoadingMessages(true);
+        try {
+          const result = await (Message.list
+            ? Message.list('-created_at', 20)
+            : Message.filter({}, '-created_at'));
+          setMessagesList(Array.isArray(result) && !('_isNotModified' in result) ? result : []);
+          
+          // Also update unread count
+          if (result && !('_isNotModified' in result)) {
+            const msgs = Array.isArray(result) ? result : [];
+            const user = await User.me();
+            const unreadCount = msgs.filter((msg: any) => {
+              return msg.recipient_id === user.id && !msg.read;
+            }).length;
+            setHasUnreadMessages(unreadCount > 0);
+          }
+        } catch (e) {
+          console.error('Failed to load messages', e);
+        } finally {
+          setLoadingMessages(false);
+        }
+      }
+    };
+    
+    loadModalData();
+  }, [notificationsMenuOpen, activeMenuTab]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -401,6 +486,68 @@ export default function FeedScreen() {
     }
     return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
   }, [games, query]);
+
+  // Separate upcoming and past events
+  const { upcomingEvents, pastEvents } = useMemo(() => {
+    const now = new Date();
+    const upcoming: GameItem[] = [];
+    const past: GameItem[] = [];
+    
+    filtered.forEach((game) => {
+      if (game.date) {
+        const gameDate = new Date(game.date);
+        if (gameDate >= now) {
+          upcoming.push(game);
+        } else {
+          past.push(game);
+        }
+      } else {
+        // Games without dates go to upcoming by default
+        upcoming.push(game);
+      }
+    });
+    
+    return { upcomingEvents: upcoming, pastEvents: past };
+  }, [filtered]);
+
+  // Insert sponsored ads into upcoming events feed (Instagram-style)
+  const upcomingWithAds = useMemo(() => {
+    const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
+    const adInterval = 8; // Show ad every 8 events (reduced frequency)
+    const hasAds = sponsoredAds && sponsoredAds.length > 0;
+    
+    // If no events exist, show promotional ad card alone
+    if (upcomingEvents.length === 0) {
+      result.push({ type: 'ad', ad: null });
+      return result;
+    }
+    
+    // Always add a promotional card at the start if we have events
+    if (hasAds) {
+      const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+      result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+    } else {
+      result.push({ type: 'ad', ad: null });
+    }
+    
+    upcomingEvents.forEach((event, index) => {
+      result.push(event);
+      
+      // Insert ad or promotional card after every adInterval events (starting from the first interval)
+      if ((index + 1) % adInterval === 0) {
+        if (hasAds) {
+          // Pick a random ad from available ads
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+        } else {
+          // No ads available, show promotional card
+          result.push({ type: 'ad', ad: null });
+        }
+      }
+    });
+    
+    return result;
+  }, [upcomingEvents, sponsoredAds]);
 
   const verticalFeedTitle = 'All Highlights';
   const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
@@ -479,7 +626,7 @@ export default function FeedScreen() {
       const raw = item as any;
       const banner = item.cover_image_url || raw?.banner_url || null;
       const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
       const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
       const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
       const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
@@ -512,7 +659,7 @@ export default function FeedScreen() {
             <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
           )}
           <LinearGradient
-            colors={['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+            colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
             style={styles.gridShade}
             pointerEvents="none"
           />
@@ -551,30 +698,40 @@ export default function FeedScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>
+    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
       <Stack.Screen options={{ title: 'Feed' }} />
-      {/* Top bar with brand centered and messages/notifications on the right */}
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }} />
-        <View style={styles.brandRow}>
-          <Image source={require('../assets/images/logo.png')} style={{ width: 40, height: 40 }} />
-          <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+      
+      {/* Enhanced header with gradient background and safe area */}
+      <LinearGradient
+        colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+        style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
+      >
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }} />
+          <View style={styles.brandRow}>
+            <Image source={require('../assets/images/logo.png')} style={styles.logoImage} />
+            <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable 
+              onPress={() => setNotificationsMenuOpen(true)} 
+              style={styles.iconButton} 
+              accessibilityRole="button" 
+              accessibilityLabel="Open notifications and messages"
+            >
+              <View>
+                <Ionicons name="apps-outline" size={24} color={Colors[colorScheme].text} />
+                {(hasUnreadAlerts || hasUnreadMessages) ? (
+                  <View style={styles.alertDot} />
+                ) : null}
+              </View>
+            </Pressable>
+          </View>
         </View>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <Pressable onPress={() => router.push('/messages')} style={{ padding: 8 }}>
-            <MessagesTabIcon color={Colors[colorScheme].text} />
-          </Pressable>
-          <Pressable onPress={() => router.push('/notifications')} style={{ padding: 8, marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Open alerts">
-            <View>
-              <Ionicons name="notifications-outline" size={24} color={Colors[colorScheme].text} />
-              {hasUnreadAlerts ? (
-                <View style={styles.alertDot} />
-              ) : null}
-            </View>
-          </Pressable>
-        </View>
-      </View>
+      </LinearGradient>
+
+      <View style={styles.contentContainer}>
 
       {error && (
         <View style={{ marginBottom: 8 }}>
@@ -613,125 +770,561 @@ export default function FeedScreen() {
         </View>
       ) : null}
 
-  <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
+      <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
 
       {loading && (
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
       )}
-      {!loading && filtered.length === 0 && !error && (
+      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
   <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
       )}
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
-        numColumns={3}
-        columnWrapperStyle={styles.gridRow}
-        ListHeaderComponent={renderEmailReminder}
-        renderItem={renderGameTile}
-        ListFooterComponent={() => (
-          <View style={styles.gridFooter}>
-            {sponsoredAds.length > 0 ? (
-              <View style={[styles.sponsoredGridCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-                <Text style={styles.sponsoredGridLabel}>SPONSORED</Text>
-                {sponsoredAds[sponsoredIndex]?.banner_url ? (
-                  <View style={styles.sponsoredGridImageWrapper}>
-                    <Image
-                      source={{ uri: String(sponsoredAds[sponsoredIndex].banner_url) }}
-                      style={styles.sponsoredGridImage}
-                      contentFit="cover"
-                    />
-                  </View>
-                ) : null}
-                <Text style={[styles.sponsoredGridTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                  {sponsoredAds[sponsoredIndex]?.business_name || 'Local Sponsor'}
-                </Text>
-                {sponsoredAds[sponsoredIndex]?.description ? (
-                  <Text style={[styles.sponsoredGridDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                    {String(sponsoredAds[sponsoredIndex].description)}
-                  </Text>
-                ) : null}
-                <Pressable
-                  style={styles.sponsoredGridCta}
-                  onPress={() => router.push('/submit-ad')}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                  <Text style={styles.sponsoredGridCtaText}>Promote your program</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {sponsoredAds.length === 0 ? (
-              <Pressable
-                style={[styles.adInviteCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                onPress={() => router.push('/submit-ad')}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.adInviteTitle, { color: Colors[colorScheme].text }]}>Your ad here</Text>
-                <Text style={[styles.adInviteSubtitle, { color: Colors[colorScheme].mutedText }]}>
-                  Submit a local ad to reach nearby fans and families.
-                </Text>
-              </Pressable>
-            ) : null}
-
-            <View style={styles.verticalFeedSection}>
-              <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-              <Pressable
-                onPress={openVerticalFeed}
-                style={styles.verticalFeedCard}
-                accessibilityRole="button"
-                accessibilityLabel="Open highlights reel"
-              >
-                {verticalFeedPreviewImage ? (
-                  <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-                ) : (
-                  <LinearGradient
-                    colors={['#1e293b', '#0f172a']}
-                    style={styles.verticalFeedImage}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  />
-                )}
-                <LinearGradient
-                  colors={['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
-                  style={styles.verticalFeedShade}
-                />
-                <View style={styles.verticalFeedContent}>
-                  <View style={styles.verticalFeedBadge}>
-                    <Ionicons name="play" size={18} color="#fff" />
-                  </View>
-                  <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                  {verticalFeedAuthorText ? (
-                    <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
-                  ) : null}
-                  <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                    {verticalFeedSubtitleText}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
-
-            {loadingMore ? (
-              <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
-              </View>
-            ) : null}
-          </View>
-        )}
+      <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingVertical: 12,
           paddingBottom: Math.max(28, insets.bottom + 16),
-          paddingHorizontal: 2,
         }}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors[colorScheme].tint}
+          />
+        }
         showsVerticalScrollIndicator={false}
-      />
+      >
+        {renderEmailReminder()}
+        
+        {/* Upcoming Events with Ads */}
+        {upcomingWithAds.length > 0 && (
+          <View style={{ gap: 20 }}>
+            {upcomingWithAds.map((item, index) => {
+              // Check if this is an ad
+              if ('type' in item && item.type === 'ad') {
+                const adData = item.ad;
+                
+                // If no ad data, show promotional card
+                if (!adData) {
+                  return (
+                    <View key={`promo-${index}`} style={[
+                      styles.sponsoredFeedCard,
+                      {
+                        backgroundColor: Colors[colorScheme].card,
+                        borderColor: Colors[colorScheme].border,
+                      }
+                    ]}>
+                      <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
+                        AD SPACE AVAILABLE
+                      </Text>
+                      <Pressable 
+                        style={[
+                          styles.promoPlaceholder,
+                          {
+                            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#EFF6FF',
+                            borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
+                          }
+                        ]}
+                        onPress={() => router.push('/submit-ad')}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="megaphone" size={48} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.promoTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
+                            Reserve Your Ad Space Now
+                          </Text>
+                          <Text style={[styles.promoSubtitle, { color: colorScheme === 'dark' ? '#94A3B8' : '#475569' }]}>
+                            Get your business in front of thousands of athletes, coaches & fans
+                          </Text>
+                        </View>
+                        <View style={styles.promoteCtaBanner}>
+                          <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+                          <Text style={styles.promoteCtaText}>Click Here</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  );
+                }
+                
+                // Otherwise show actual ad
+                return (
+                  <View key={`ad-${index}`} style={[
+                    styles.sponsoredFeedCard,
+                    {
+                      backgroundColor: Colors[colorScheme].card,
+                      borderColor: Colors[colorScheme].border,
+                    }
+                  ]}>
+                    <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
+                      SPONSORED
+                    </Text>
+                    {adData.banner_url ? (
+                      <BannerAd
+                        bannerUrl={adData.banner_url}
+                        targetUrl={adData.target_url}
+                        businessName={adData.business_name}
+                        description={adData.description}
+                        aspectRatio={3.5}
+                      />
+                    ) : (
+                      <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
+                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
+                      </View>
+                    )}
+                    <View style={styles.adInfo}>
+                      <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                        {adData.business_name || 'Local Sponsor'}
+                      </Text>
+                      {adData.description ? (
+                        <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                          {String(adData.description)}
+                        </Text>
+                      ) : null}
+                      {/* Promote your program CTA */}
+                      <Pressable
+                        style={styles.promoteCta}
+                        onPress={() => router.push('/submit-ad')}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
+                        <Text style={styles.promoteCtaText}>Promote your program</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              }
+
+              // Otherwise it's a regular event
+              const gameItem = item as GameItem;
+              const raw = gameItem as any;
+              const banner = gameItem.cover_image_url || raw?.banner_url || null;
+              const hasBanner = typeof banner === 'string' && banner.length > 0;
+              const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+              const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+              const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+              const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
+              const reviewsCount =
+                typeof raw?.reviews_count === 'number'
+                  ? raw.reviews_count
+                  : Array.isArray(raw?.reviews)
+                    ? raw.reviews.length
+                    : raw?._count && typeof raw._count.reviews === 'number'
+                      ? raw._count.reviews
+                      : 0;
+              const mediaCount =
+                typeof raw?.media_count === 'number'
+                  ? raw.media_count
+                  : Array.isArray(raw?.media)
+                    ? raw.media.length
+                    : 0;
+              const summary = voteSummaries[String(gameItem.id)] || null;
+              const voteText = summary
+                ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+                : null;
+
+              return (
+                <Pressable
+                  key={String(gameItem.id)}
+                  style={styles.singleEventCard}
+                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
+                  accessibilityRole="button"
+                >
+                  {hasBanner ? (
+                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  )}
+                  <LinearGradient
+                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                    style={styles.gridShade}
+                    pointerEvents="none"
+                  />
+                  <View style={styles.gridContent}>
+                    <View style={styles.gridDateChip}>
+                      <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                      <Text style={styles.gridDateText}>{eventDate}</Text>
+                    </View>
+                    <Text style={styles.gridTitle} numberOfLines={2}>
+                      {gameItem.title ? String(gameItem.title) : 'Game'}
+                    </Text>
+                    <Text style={styles.gridMeta} numberOfLines={1}>
+                      {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                    </Text>
+                    <View style={styles.gridStatsRow}>
+                      <View style={styles.gridStat}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                        <Text style={styles.gridStatText}>{reviewsCount}</Text>
+                      </View>
+                      <View style={styles.gridStat}>
+                        <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                        <Text style={styles.gridStatText}>{mediaCount}</Text>
+                      </View>
+                    </View>
+                    {voteText ? (
+                      <Text style={styles.gridVoteText} numberOfLines={1}>
+                        {voteText}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Past Events Section */}
+        {pastEvents.length > 0 && (
+          <View style={{ marginTop: 32 }}>
+            <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
+              Past Events
+            </Text>
+            <View style={{ gap: 20, marginTop: 12 }}>
+              {pastEvents.map((item, index) => {
+                const raw = item as any;
+                const banner = item.cover_image_url || raw?.banner_url || null;
+                const hasBanner = typeof banner === 'string' && banner.length > 0;
+                const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
+                const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
+                const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+                const reviewsCount =
+                  typeof raw?.reviews_count === 'number'
+                    ? raw.reviews_count
+                    : Array.isArray(raw?.reviews)
+                      ? raw.reviews.length
+                      : raw?._count && typeof raw._count.reviews === 'number'
+                        ? raw._count.reviews
+                        : 0;
+                const mediaCount =
+                  typeof raw?.media_count === 'number'
+                    ? raw.media_count
+                    : Array.isArray(raw?.media)
+                      ? raw.media.length
+                      : 0;
+                const summary = voteSummaries[String(item.id)] || null;
+                const voteText = summary
+                  ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+                  : null;
+
+                return (
+                  <Pressable
+                    key={String(item.id)}
+                    style={styles.singleEventCard}
+                    onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                    accessibilityRole="button"
+                  >
+                    {hasBanner ? (
+                      <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
+                    ) : (
+                      <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                    )}
+                    <LinearGradient
+                      colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                      style={styles.gridShade}
+                      pointerEvents="none"
+                    />
+                    <View style={styles.gridContent}>
+                      <View style={styles.gridDateChip}>
+                        <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                        <Text style={styles.gridDateText}>{eventDate}</Text>
+                      </View>
+                      <Text style={styles.gridTitle} numberOfLines={2}>
+                        {item.title ? String(item.title) : 'Game'}
+                      </Text>
+                      <Text style={styles.gridMeta} numberOfLines={1}>
+                        {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                      </Text>
+                      <View style={styles.gridStatsRow}>
+                        <View style={styles.gridStat}>
+                          <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                          <Text style={styles.gridStatText}>{reviewsCount}</Text>
+                        </View>
+                        <View style={styles.gridStat}>
+                          <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                          <Text style={styles.gridStatText}>{mediaCount}</Text>
+                        </View>
+                      </View>
+                      {voteText ? (
+                        <Text style={styles.gridVoteText} numberOfLines={1}>
+                          {voteText}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+        
+        {/* Footer Content */}
+        <View style={styles.gridFooter}>
+          {/* Removed static sponsored card - ads now appear in feed */}
+
+          <View style={styles.verticalFeedSection}>
+            <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+            <Pressable
+              onPress={openVerticalFeed}
+              style={styles.verticalFeedCard}
+              accessibilityRole="button"
+              accessibilityLabel="Open highlights reel"
+            >
+              {verticalFeedPreviewImage ? (
+                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
+              ) : (
+                <LinearGradient
+                  colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
+                  style={styles.verticalFeedImage}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+              )}
+              <LinearGradient
+                colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
+                style={styles.verticalFeedShade}
+              />
+              <View style={styles.verticalFeedContent}>
+                <View style={styles.verticalFeedBadge}>
+                  <Ionicons name="play" size={18} color="#fff" />
+                </View>
+                <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
+                {verticalFeedAuthorText ? (
+                  <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
+                ) : null}
+                <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                  {verticalFeedSubtitleText}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+
+          {loadingMore ? (
+            <View style={styles.loadingMore}>
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+      </View>
+
+      {/* Notifications & Messages Menu Modal */}
+      <Modal
+        visible={notificationsMenuOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setNotificationsMenuOpen(false)}
+      >
+        <View style={[styles.menuModal, { backgroundColor: Colors[colorScheme].background, paddingTop: insets.top }]}>
+          {/* Header */}
+          <View style={[styles.menuHeader, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.menuTitle, { color: Colors[colorScheme].text }]}>Updates</Text>
+            <Pressable onPress={() => setNotificationsMenuOpen(false)} style={styles.closeButton}>
+              <Ionicons name="close" size={28} color={Colors[colorScheme].text} />
+            </Pressable>
+          </View>
+
+          {/* Tabs */}
+          <View style={[styles.menuTabs, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Pressable 
+              style={[styles.menuTab, activeMenuTab === 'notifications' && styles.menuTabActive]} 
+              onPress={() => setActiveMenuTab('notifications')}
+            >
+              <Ionicons 
+                name={activeMenuTab === 'notifications' ? 'notifications' : 'notifications-outline'} 
+                size={20} 
+                color={activeMenuTab === 'notifications' ? '#2563EB' : Colors[colorScheme].mutedText} 
+              />
+              <Text style={[
+                styles.menuTabText, 
+                { color: activeMenuTab === 'notifications' ? '#2563EB' : Colors[colorScheme].mutedText }
+              ]}>
+                Notifications
+              </Text>
+              {hasUnreadAlerts && <View style={styles.menuTabBadge} />}
+            </Pressable>
+            <Pressable 
+              style={[styles.menuTab, activeMenuTab === 'messages' && styles.menuTabActive]} 
+              onPress={() => setActiveMenuTab('messages')}
+            >
+              <Ionicons 
+                name={activeMenuTab === 'messages' ? 'chatbubbles' : 'chatbubbles-outline'} 
+                size={20} 
+                color={activeMenuTab === 'messages' ? '#2563EB' : Colors[colorScheme].mutedText} 
+              />
+              <Text style={[
+                styles.menuTabText, 
+                { color: activeMenuTab === 'messages' ? '#2563EB' : Colors[colorScheme].mutedText }
+              ]}>
+                Messages
+              </Text>
+              {hasUnreadMessages && <View style={styles.menuTabBadge} />}
+            </Pressable>
+          </View>
+
+          {/* Content */}
+          <View style={{ flex: 1 }}>
+            {activeMenuTab === 'notifications' ? (
+              <View style={{ flex: 1 }}>
+                {loadingNotifications ? (
+                  <View style={styles.center}><ActivityIndicator /></View>
+                ) : notificationsList.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Ionicons name="notifications-off-outline" size={48} color={Colors[colorScheme].mutedText} />
+                    <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No notifications</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={notificationsList}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => {
+                      const title = item.type === 'FOLLOW'
+                        ? `${item.actor?.display_name || 'Someone'} followed you`
+                        : item.type === 'UPVOTE'
+                        ? `${item.actor?.display_name || 'Someone'} upvoted your post`
+                        : item.type === 'COMMENT'
+                        ? `${item.actor?.display_name || 'Someone'} commented on your post`
+                        : 'Notification';
+                      
+                      return (
+                        <Pressable 
+                          style={[styles.listRow, !item.read_at && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
+                          onPress={async () => {
+                            // Mark notification as read
+                            if (!item.read_at) {
+                              try {
+                                await NotificationApi.markRead(item.id);
+                                // Update local state to remove unread indicator immediately
+                                setNotificationsList(prev => 
+                                  prev.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)
+                                );
+                                // Refresh unread count
+                                const page = await NotificationApi.listPage(null, 1, true);
+                                setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
+                              } catch (e) {
+                                console.error('Failed to mark notification as read', e);
+                              }
+                            }
+                            
+                            setNotificationsMenuOpen(false);
+                            if (item.type === 'FOLLOW' && item.actor?.id) {
+                              router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
+                            } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
+                              router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+                            }
+                          }}
+                        >
+                          <View style={styles.listAvatarWrap}>
+                            {item.actor?.avatar_url ? (
+                              <Image source={{ uri: item.actor.avatar_url }} style={styles.listAvatar} />
+                            ) : (
+                              <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]} />
+                            )}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+                            {item.post?.content && (
+                              <Text numberOfLines={1} style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                                {item.post.content}
+                              </Text>
+                            )}
+                          </View>
+                          {!item.read_at && <View style={styles.unreadDot} />}
+                        </Pressable>
+                      );
+                    }}
+                  />
+                )}
+              </View>
+            ) : (
+              <View style={{ flex: 1 }}>
+                {loadingMessages ? (
+                  <View style={styles.center}><ActivityIndicator /></View>
+                ) : messagesList.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Ionicons name="chatbubbles-outline" size={48} color={Colors[colorScheme].mutedText} />
+                    <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No messages</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={(() => {
+                      // Group messages by conversation
+                      const convMap = new Map<string, any>();
+                      messagesList.forEach(msg => {
+                        const mine = msg.sender_id === me?.id;
+                        const other = mine ? msg.recipient : msg.sender;
+                        if (!other?.id) return;
+                        
+                        const convKey = msg.conversation_id || `user-${other.id}`;
+                        if (!convMap.has(convKey)) {
+                          convMap.set(convKey, {
+                            id: convKey,
+                            other,
+                            lastMessage: msg,
+                            unreadCount: (!mine && !msg.read) ? 1 : 0,
+                          });
+                        } else {
+                          const conv = convMap.get(convKey)!;
+                          if (!mine && !msg.read) conv.unreadCount++;
+                          if (new Date(msg.created_at) > new Date(conv.lastMessage.created_at)) {
+                            conv.lastMessage = msg;
+                          }
+                        }
+                      });
+                      return Array.from(convMap.values()).sort((a, b) => 
+                        new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
+                      );
+                    })()}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item: conv }) => {
+                      const hasUnread = conv.unreadCount > 0;
+                      return (
+                        <Pressable 
+                          style={[styles.listRow, hasUnread && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
+                          onPress={() => {
+                            setNotificationsMenuOpen(false);
+                            if (conv.lastMessage.conversation_id) {
+                              router.push(`/message-thread?conversation_id=${encodeURIComponent(conv.lastMessage.conversation_id)}`);
+                            } else {
+                              router.push(`/message-thread?with=${encodeURIComponent(conv.other.id)}`);
+                            }
+                          }}
+                        >
+                          <View style={styles.listAvatarWrap}>
+                            {conv.other.avatar_url ? (
+                              <Image source={{ uri: conv.other.avatar_url }} style={styles.listAvatar} />
+                            ) : (
+                              <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]}>
+                                <Ionicons name="person" size={20} color={Colors[colorScheme].mutedText} />
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
+                              {conv.other.display_name || conv.other.email || 'User'}
+                            </Text>
+                            <Text numberOfLines={1} style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                              {conv.lastMessage.content || 'Message'}
+                            </Text>
+                          </View>
+                          {hasUnread && (
+                            <View style={styles.unreadBadge}>
+                              <Text style={styles.unreadBadgeText}>{conv.unreadCount}</Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      );
+                    }}
+                  />
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={verticalFeedModalVisible}
@@ -755,17 +1348,159 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1 },
+  headerGradient: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  contentContainer: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  logoImage: { width: 36, height: 36, borderRadius: 8 },
+  headerActions: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  iconButton: { padding: 8, borderRadius: 8 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
   muted: { color: '#6b7280' },
   helper: { color: '#6b7280', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brand: { fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
   gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
+  masonryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 4,
+    paddingBottom: 12,
+  },
+  masonryItem: {
+    width: '49%',
+    margin: '0.5%',
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0f172a',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  singleEventCard: {
+    width: '100%',
+    aspectRatio: 4/5, // More Instagram-like (taller, similar to 4:5 Instagram posts)
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#0f172a',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  singleEventImage: { width: '100%', height: '100%' },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // Sponsored ad styles for feed
+  sponsoredFeedCard: {
+    width: '100%',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  sponsoredLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  adPlaceholder: {
+    width: '100%',
+    aspectRatio: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promoPlaceholder: {
+    width: '100%',
+    aspectRatio: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
+  promoTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  promoSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  promoteCtaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  adInfo: {
+    padding: 16,
+    gap: 6,
+  },
+  adBusinessName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  adDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  promoteCta: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#2563EB',
+  },
+  promoteCtaText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   gridItem: {
     flex: 1,
     aspectRatio: 1,
@@ -853,6 +1588,140 @@ const styles = StyleSheet.create({
   verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  // Menu Modal Styles
+  menuModal: { 
+    flex: 1,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  menuTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  menuTabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  menuTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  menuTabActive: {
+    borderBottomColor: '#2563EB',
+  },
+  menuTabText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  menuTabBadge: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    marginLeft: 4,
+  },
+  menuContent: {
+    flex: 1,
+    padding: 20,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(37, 99, 235, 0.05)',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  menuItemTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  menuItemSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  // List items for notifications and messages
+  emptyText: {
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  listRowUnread: {
+    backgroundColor: 'rgba(37, 99, 235, 0.03)',
+  },
+  listAvatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  listAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  listSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#2563EB',
+  },
+  unreadBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });
 
 
