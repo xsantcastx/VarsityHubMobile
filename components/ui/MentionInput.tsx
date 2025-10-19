@@ -13,6 +13,7 @@ interface MentionInputProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  placeholderTextColor?: string;
   multiline?: boolean;
   style?: any;
   maxLength?: number;
@@ -21,7 +22,8 @@ interface MentionInputProps {
 export function MentionInput({ 
   value, 
   onChangeText, 
-  placeholder, 
+  placeholder,
+  placeholderTextColor,
   multiline, 
   style,
   maxLength
@@ -31,7 +33,7 @@ export function MentionInput({
   const [currentMention, setCurrentMention] = useState('');
   const [mentionStart, setMentionStart] = useState(-1);
   const inputRef = useRef<TextInput>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<any>(null);
 
   const searchUsers = async (query: string) => {
     if (query.length < 1) {
@@ -123,6 +125,7 @@ export function MentionInput({
         value={value}
         onChangeText={handleTextChange}
         placeholder={placeholder}
+        placeholderTextColor={placeholderTextColor}
         multiline={multiline}
         style={[styles.input, style]}
         maxLength={maxLength}

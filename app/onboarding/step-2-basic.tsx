@@ -1,24 +1,24 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
-import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
-import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
 
 export default function Step2Basic() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
-  const insets = useSafeAreaInsets();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
   const [dob, setDob] = useState('');
@@ -28,6 +28,8 @@ export default function Step2Basic() {
   const [saving, setSaving] = useState(false);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   useEffect(() => { 
     (async () => { 
@@ -81,7 +83,9 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError;
+  const isCoach = ob.role === 'coach';
+  const zipRequired = isCoach; // Zip code is mandatory for coaches
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -125,80 +129,95 @@ export default function Step2Basic() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Step 2/10' }} />
+    <OnboardingLayout
+      step={2}
+      title="Basic Information"
+      subtitle="We'll set up your account with a username and preferences"
+      onBack={onBack}
+    >
+      <Stack.Screen options={{ headerShown: false }} />
       
-      {/* Header with back button */}
-      <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#374151" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Basic Information</Text>
-        <View style={styles.backButton} />
+      <Text style={styles.label}>Username</Text>
+      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
+        if (!usernameRe.test(username)) { setAvailable(null); return; }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
+      }} />
+      {usernameError ? (
+        <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
+      ) : checking ? (
+        <Text style={styles.muted}>Checking availability…</Text>
+      ) : available === false ? (
+        <Text style={styles.error}>That username is taken</Text>
+      ) : available === true && username.length > 0 ? (
+        <Text style={styles.success}>Available!</Text>
+      ) : null}
+
+      <Text style={styles.label}>Affiliation</Text>
+      <View style={styles.affiliationGrid}>
+        {[
+          { value: 'none', label: 'None', icon: '❌' },
+          { value: 'university', label: 'University', icon: '🎓' },
+          { value: 'high_school', label: 'High School', icon: '🏫' },
+          { value: 'club', label: 'Club', icon: '⚽' },
+          { value: 'youth', label: 'Youth', icon: '👶' },
+        ].map((option) => (
+          <Pressable
+            key={option.value}
+            style={[
+              styles.affiliationButton,
+              affiliation === option.value && styles.affiliationButtonSelected
+            ]}
+            onPress={() => setAffiliation(option.value as Affiliation)}
+          >
+            <Text style={styles.affiliationIcon}>{option.icon}</Text>
+            <Text style={[
+              styles.affiliationLabel,
+              affiliation === option.value && styles.affiliationLabelSelected
+            ]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-        <Text style={styles.title}>Basic Information</Text>
-        <Text style={styles.subtitle}>We'll set up your account with a username and preferences.</Text>
+      <DateField
+        label="Date of birth"
+        value={dob} 
+        onChange={setDob}
+      />
+      {dobError && (
+        <Text style={styles.error}>Please enter a valid date of birth</Text>
+      )}
 
-        <Text style={styles.label}>Username</Text>
-        <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
-          if (!usernameRe.test(username)) { setAvailable(null); return; }
-          try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
-        }} />
-        {usernameError ? (
-          <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
-        ) : checking ? (
-          <Text style={styles.muted}>Checking availability…</Text>
-        ) : available === false ? (
-          <Text style={styles.error}>That username is taken</Text>
-        ) : available === true && username.length > 0 ? (
-          <Text style={styles.success}>Available!</Text>
-        ) : null}
+      <Text style={styles.label}>Zip code {zipRequired && <Text style={styles.error}>*</Text>}</Text>
+      <Input 
+        value={zip} 
+        onChangeText={setZip} 
+        autoCapitalize="none" 
+        placeholder={zipRequired ? "Required for coaches" : "12345"} 
+        keyboardType="numeric" 
+        maxLength={5}
+      />
+      {zipRequired && !zip && (
+        <Text style={styles.error}>Zip code is required for coaches</Text>
+      )}
 
-        <Text style={styles.label}>Affiliation</Text>
-        <Segmented
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'university', label: 'University' },
-            { value: 'high_school', label: 'High school' },
-            { value: 'club', label: 'Club' },
-            { value: 'youth', label: 'Youth' },
-          ]}
-          value={affiliation}
-          onChange={(item) => setAffiliation(item as Affiliation)}
+      <View style={{ marginTop: 20 }}>
+        <PrimaryButton
+          label="Continue"
+          onPress={onContinue}
+          disabled={!canContinue}
+          loading={saving}
         />
-
-        <Text style={styles.label}>Date of birth</Text>
-        <DateField
-          label="Date of birth"
-          value={dob} 
-          onChange={setDob}
-        />
-        {dobError && (
-          <Text style={styles.error}>Please enter a valid date of birth</Text>
-        )}
-
-        <Text style={styles.label}>Zip code (optional)</Text>
-        <Input value={zip} onChangeText={setZip} autoCapitalize="none" placeholder="12345" keyboardType="numeric" />
-
-        <View style={{ marginTop: 20 }}>
-          <PrimaryButton
-            label="Continue"
-            onPress={onContinue}
-            disabled={!canContinue}
-            loading={saving}
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </OnboardingLayout>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors[colorScheme].background,
   },
   header: {
     flexDirection: 'row',
@@ -207,7 +226,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: Colors[colorScheme].border,
   },
   backButton: {
     width: 40,
@@ -218,35 +237,74 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: Colors[colorScheme].text,
   },
   title: {
     ...Type.h2,
+    color: Colors[colorScheme].text,
     marginBottom: 8,
   },
   subtitle: {
     ...Type.body,
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     marginBottom: 24,
   },
   label: {
-    ...Type.h1,
-    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+    marginTop: 20,
     marginBottom: 8,
   },
   error: {
     fontSize: 14,
-    color: '#ef4444',
+    color: colorScheme === 'dark' ? '#f87171' : '#ef4444',
     marginTop: 4,
   },
   success: {
     fontSize: 14,
-    color: '#22c55e',
+    color: colorScheme === 'dark' ? '#4ade80' : '#22c55e',
     marginTop: 4,
   },
   muted: {
     fontSize: 14,
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     marginTop: 4,
+  },
+  affiliationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  affiliationButton: {
+    width: '30%',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors[colorScheme].border,
+    backgroundColor: Colors[colorScheme].surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  affiliationButtonSelected: {
+    borderColor: Colors[colorScheme].tint,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(56,189,248,0.1)' : '#EFF6FF',
+    borderWidth: 2,
+  },
+  affiliationIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  affiliationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors[colorScheme].mutedText,
+    textAlign: 'center',
+  },
+  affiliationLabelSelected: {
+    color: Colors[colorScheme].tint,
+    fontWeight: '700',
   },
 });

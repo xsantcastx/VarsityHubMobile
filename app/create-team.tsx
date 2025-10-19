@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
@@ -89,6 +89,7 @@ export default function CreateTeamScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      exif: false,
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -109,6 +110,7 @@ export default function CreateTeamScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      exif: false,
     });
 
     if (!pickerResult.canceled && pickerResult.assets[0]) {
@@ -237,7 +239,7 @@ export default function CreateTeamScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
       
       <ScrollView 
@@ -524,7 +526,7 @@ export default function CreateTeamScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { z } from 'zod';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 
 export const messagesRouter = Router();
@@ -117,7 +117,45 @@ include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSele
 return res.status(201).json(created);
 });
 
-messagesRouter.post('/mark-read', async (_req: AuthedRequest, res) => {
-// No read flag in schema yet; return OK to avoid client errors.
-return res.json({ updated: 0 });
+messagesRouter.post('/mark-read', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const { conversation_id, with: withParam } = req.body || {};
+  const meId = req.user.id;
+  
+  try {
+    let updateCount = 0;
+    
+    if (conversation_id) {
+      // Mark all messages in this conversation as read where I'm the recipient
+      const result = await prisma.message.updateMany({
+        where: {
+          conversation_id: String(conversation_id),
+          recipient_id: meId,
+          read: false
+        },
+        data: { read: true }
+      });
+      updateCount = result.count;
+    } else if (withParam) {
+      // Mark all messages from this user as read
+      const otherUserId = await resolveWithToUserId(String(withParam));
+      if (otherUserId) {
+        const result = await prisma.message.updateMany({
+          where: {
+            sender_id: otherUserId,
+            recipient_id: meId,
+            read: false
+          },
+          data: { read: true }
+        });
+        updateCount = result.count;
+      }
+    }
+    
+    return res.json({ updated: updateCount });
+  } catch (e) {
+    console.error('Failed to mark messages as read:', e);
+    return res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
 });

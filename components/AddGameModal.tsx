@@ -35,6 +35,10 @@ export interface GameFormData {
   type: 'home' | 'away' | 'neutral';
   notes?: string;
   banner_url?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  autoGeocode?: boolean;
+  attendance?: number | null;
 }
 
 type TeamOption = {
@@ -52,6 +56,8 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
+  const [opponentSearchQuery, setOpponentSearchQuery] = useState('');
+  const [currentTeamSearchQuery, setCurrentTeamSearchQuery] = useState('');
   
   const [formData, setFormData] = useState<GameFormData>({
     currentTeam: currentTeamName || 'My Team', // Use prop or default
@@ -61,6 +67,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     location: '',
     type: 'home',
     notes: '',
+    autoGeocode: true, // Auto-geocode by default
   });
   
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -110,6 +117,15 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     }
   };
 
+  // Filter teams based on search query
+  const filteredTeams = teams.filter(team => 
+    team.name.toLowerCase().includes(opponentSearchQuery.toLowerCase())
+  );
+
+  const filteredCurrentTeams = teams.filter(team =>
+    team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())
+  );
+
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
     
@@ -152,6 +168,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       location: '',
       type: 'home',
       notes: '',
+      autoGeocode: true,
     });
     setErrors({});
   };
@@ -346,6 +363,79 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 }}
               />
               {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+              
+              {/* Auto-geocode toggle */}
+              <View style={[styles.geocodeOption, { marginTop: 12 }]}>
+                <Pressable
+                  style={styles.geocodeToggle}
+                  onPress={() => setFormData(prev => ({ ...prev, autoGeocode: !prev.autoGeocode }))}
+                >
+                  <View style={[
+                    styles.checkbox,
+                    { borderColor: Colors[colorScheme].border },
+                    formData.autoGeocode && { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].tint }
+                  ]}>
+                    {formData.autoGeocode && (
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    )}
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.geocodeLabel, { color: Colors[colorScheme].text }]}>
+                      📍 Auto-find coordinates
+                    </Text>
+                    <Text style={[styles.geocodeHelp, { color: Colors[colorScheme].mutedText }]}>
+                      Automatically add map coordinates using Google Maps
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+              
+              {/* Manual coordinates (only show if auto-geocode is off) */}
+              {!formData.autoGeocode && (
+                <View style={styles.manualCoords}>
+                  <Text style={[styles.geocodeHelp, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+                    Or enter coordinates manually:
+                  </Text>
+                  <View style={styles.formRow}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Latitude</Text>
+                      <TextInput
+                        style={[styles.input, { 
+                          backgroundColor: Colors[colorScheme].surface,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text
+                        }]}
+                        placeholder="40.7505"
+                        placeholderTextColor={Colors[colorScheme].mutedText}
+                        keyboardType="decimal-pad"
+                        value={formData.latitude?.toString() || ''}
+                        onChangeText={(text) => {
+                          const num = parseFloat(text);
+                          setFormData(prev => ({ ...prev, latitude: isNaN(num) ? null : num }));
+                        }}
+                      />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={[styles.label, { fontSize: 14, color: Colors[colorScheme].text }]}>Longitude</Text>
+                      <TextInput
+                        style={[styles.input, { 
+                          backgroundColor: Colors[colorScheme].surface,
+                          borderColor: Colors[colorScheme].border,
+                          color: Colors[colorScheme].text
+                        }]}
+                        placeholder="-73.9934"
+                        placeholderTextColor={Colors[colorScheme].mutedText}
+                        keyboardType="decimal-pad"
+                        value={formData.longitude?.toString() || ''}
+                        onChangeText={(text) => {
+                          const num = parseFloat(text);
+                          setFormData(prev => ({ ...prev, longitude: isNaN(num) ? null : num }));
+                        }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Notes */}
@@ -364,6 +454,26 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
+              />
+            </View>
+
+            {/* Attendance */}
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Attendance</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text
+                }]}
+                placeholder="Number of attendees (optional)"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                keyboardType="number-pad"
+                value={formData.attendance?.toString() || ''}
+                onChangeText={(text) => {
+                  const num = parseInt(text, 10);
+                  setFormData(prev => ({ ...prev, attendance: text === '' ? null : (isNaN(num) ? null : num) }));
+                }}
               />
             </View>
 
@@ -439,19 +549,44 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       visible={showCurrentTeamPicker}
       transparent
       animationType="slide"
-      onRequestClose={() => setShowCurrentTeamPicker(false)}
+      onRequestClose={() => {
+        setShowCurrentTeamPicker(false);
+        setCurrentTeamSearchQuery('');
+      }}
     >
       <View style={styles.pickerOverlay}>
         <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={styles.pickerHeader}>
-            <Pressable onPress={() => setShowCurrentTeamPicker(false)}>
+            <Pressable onPress={() => {
+              setShowCurrentTeamPicker(false);
+              setCurrentTeamSearchQuery('');
+            }}>
               <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Your Team</Text>
             <View style={{ width: 50 }} />
           </View>
+          
+          {/* Search Input */}
+          <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+              placeholder="Search teams..."
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={currentTeamSearchQuery}
+              onChangeText={setCurrentTeamSearchQuery}
+              autoFocus
+            />
+            {currentTeamSearchQuery.length > 0 && (
+              <Pressable onPress={() => setCurrentTeamSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            )}
+          </View>
+          
           <ScrollView style={styles.pickerList}>
-            {teams.map((team) => (
+            {filteredCurrentTeams.map((team) => (
               <Pressable
                 key={team.id}
                 style={[
@@ -465,6 +600,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                     setErrors(prev => ({ ...prev, currentTeam: '' }));
                   }
                   setShowCurrentTeamPicker(false);
+                  setCurrentTeamSearchQuery('');
                 }}
               >
                 <View style={styles.pickerItemContent}>
@@ -492,19 +628,69 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       visible={showOpponentPicker}
       transparent
       animationType="slide"
-      onRequestClose={() => setShowOpponentPicker(false)}
+      onRequestClose={() => {
+        setShowOpponentPicker(false);
+        setOpponentSearchQuery('');
+      }}
     >
       <View style={styles.pickerOverlay}>
         <View style={[styles.pickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
           <View style={styles.pickerHeader}>
-            <Pressable onPress={() => setShowOpponentPicker(false)}>
+            <Pressable onPress={() => {
+              setShowOpponentPicker(false);
+              setOpponentSearchQuery('');
+            }}>
               <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Opponent</Text>
             <View style={{ width: 50 }} />
           </View>
+          
+          {/* Search Input */}
+          <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+              placeholder="Search or type opponent name..."
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={opponentSearchQuery}
+              onChangeText={setOpponentSearchQuery}
+              autoFocus
+            />
+            {opponentSearchQuery.length > 0 && (
+              <Pressable onPress={() => setOpponentSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            )}
+          </View>
+          
           <ScrollView style={styles.pickerList}>
-            {teams.map((team) => (
+            {/* Allow manual entry if search query doesn't match any team */}
+            {opponentSearchQuery.length > 0 && !filteredTeams.some(t => t.name.toLowerCase() === opponentSearchQuery.toLowerCase()) && (
+              <Pressable
+                style={[
+                  styles.pickerItem,
+                  { borderBottomColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }
+                ]}
+                onPress={() => {
+                  setFormData(prev => ({ ...prev, opponent: opponentSearchQuery }));
+                  if (errors.opponent) {
+                    setErrors(prev => ({ ...prev, opponent: '' }));
+                  }
+                  setShowOpponentPicker(false);
+                  setOpponentSearchQuery('');
+                }}
+              >
+                <View style={styles.pickerItemContent}>
+                  <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                  <Text style={[styles.pickerItemText, { color: Colors[colorScheme].text, marginLeft: 8 }]}>
+                    Use "{opponentSearchQuery}"
+                  </Text>
+                </View>
+              </Pressable>
+            )}
+            
+            {filteredTeams.map((team) => (
               <Pressable
                 key={team.id}
                 style={[
@@ -518,6 +704,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                     setErrors(prev => ({ ...prev, opponent: '' }));
                   }
                   setShowOpponentPicker(false);
+                  setOpponentSearchQuery('');
                 }}
               >
                 <View style={styles.pickerItemContent}>
@@ -535,6 +722,14 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 )}
               </Pressable>
             ))}
+            
+            {filteredTeams.length === 0 && opponentSearchQuery.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
+                  No teams found. Start typing to add a custom opponent.
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -654,6 +849,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 8,
+  },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
   pickerList: {
     maxHeight: 400,
   },
@@ -705,5 +921,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 8,
+  },
+  geocodeOption: {
+    marginTop: 8,
+  },
+  geocodeToggle: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  geocodeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  geocodeHelp: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  manualCoords: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
   },
 });

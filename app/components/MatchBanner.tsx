@@ -1,6 +1,5 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { BlurView } from 'expo-blur';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Dimensions, Easing, Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -158,104 +157,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
   
   const bannerContent = (
     <Animated.View style={[styles.root, { height: compact ? Math.min(140, height) : height, opacity: rootOpacity, backgroundColor: containerBackground } as any]}>
-          {/* Top bar for names: use a lightweight static View when hero to avoid Blur compositing */}
-          {hero ? (
-            <View style={[styles.topBar, { height: topBarHeight, paddingTop: Math.max(0, insets.top), backgroundColor: 'transparent' }, compact ? styles.topBarCompact : null] as any} pointerEvents="none">
-              {/* left large aggressive name above center - hide when hero so small titles next to VS take over */}
-              {!hero && !compact && (
-                <View style={styles.leftNameWrapper as any} pointerEvents="none">
-                  <Text
-                    style={[
-                      styles.aggressiveLeft,
-                      compact ? styles.aggressiveLeftCompact : null,
-                      ({ fontSize: leftMeasured.fontSize, color: leftColor || Colors[colorScheme].text } as any),
-                    ]}
-                    numberOfLines={1}
-                    onLayout={(e) => setLeftMeasured({ width: e.nativeEvent.layout.width, fontSize: leftMeasured.fontSize })}
-                  >
-                    {leftName}
-                  </Text>
-                  {/* hidden measurement text to adjust font if necessary */}
-                  <Text style={[styles.measureHidden, { fontSize: leftMeasured.fontSize } as any]} onLayout={(e) => {
-                    const avail = (SCREEN_WIDTH * 0.45) - 24
-                    if (e.nativeEvent.layout.width > avail && leftMeasured.fontSize > 12) {
-                      setLeftMeasured({ ...leftMeasured, fontSize: leftMeasured.fontSize - 2 })
-                    }
-                  }}>{leftName}</Text>
-                </View>
-              )}
-              {/* right diagonal aggressive name - hide when hero */}
-              {!hero && !compact && (
-                <View style={styles.rightNameWrapper as any} pointerEvents="none">
-                  <Animated.Text
-                    style={[
-                      styles.aggressiveRight,
-                      compact ? styles.aggressiveRightCompact : null,
-                      ({ fontSize: rightMeasured.fontSize, transform: [{ rotate: rightRotate }, { translateY: -6 }], color: rightColor || Colors[colorScheme].text } as any),
-                    ]}
-                    numberOfLines={1}
-                    onLayout={(e) => setRightMeasured({ width: e.nativeEvent.layout.width, fontSize: rightMeasured.fontSize })}
-                  >
-                    {rightName}
-                  </Animated.Text>
-                  <Text style={[styles.measureHidden, { fontSize: rightMeasured.fontSize } as any]} onLayout={(e) => {
-                    const avail = (SCREEN_WIDTH * 0.45) - 24
-                    if (e.nativeEvent.layout.width > avail && rightMeasured.fontSize > 10) {
-                      setRightMeasured({ ...rightMeasured, fontSize: rightMeasured.fontSize - 2 })
-                    }
-                  }}>{rightName}</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <BlurView intensity={40} tint={colorScheme === 'dark' ? 'dark' : 'light'} style={[styles.topBar, { height: topBarHeight, paddingTop: Math.max(0, insets.top) }, compact ? styles.topBarCompact : null] as any} pointerEvents="none">
-              {/* left large aggressive name above center - hide when hero so small titles next to VS take over */}
-              {!hero && !compact && (
-                <View style={styles.leftNameWrapper as any} pointerEvents="none">
-                  <Text
-                    style={[
-                      styles.aggressiveLeft,
-                      compact ? styles.aggressiveLeftCompact : null,
-                      ({ fontSize: leftMeasured.fontSize, color: leftColor || Colors[colorScheme].text } as any),
-                    ]}
-                    numberOfLines={1}
-                    onLayout={(e) => setLeftMeasured({ width: e.nativeEvent.layout.width, fontSize: leftMeasured.fontSize })}
-                  >
-                    {leftName}
-                  </Text>
-                  {/* hidden measurement text to adjust font if necessary */}
-                  <Text style={[styles.measureHidden, { fontSize: leftMeasured.fontSize } as any]} onLayout={(e) => {
-                    const avail = (SCREEN_WIDTH * 0.45) - 24
-                    if (e.nativeEvent.layout.width > avail && leftMeasured.fontSize > 12) {
-                      setLeftMeasured({ ...leftMeasured, fontSize: leftMeasured.fontSize - 2 })
-                    }
-                  }}>{leftName}</Text>
-                </View>
-              )}
-              {/* right diagonal aggressive name - hide when hero */}
-              {!hero && !compact && (
-                <View style={styles.rightNameWrapper as any} pointerEvents="none">
-                  <Animated.Text
-                    style={[
-                      styles.aggressiveRight,
-                      compact ? styles.aggressiveRightCompact : null,
-                      ({ fontSize: rightMeasured.fontSize, transform: [{ rotate: rightRotate }, { translateY: -6 }], color: rightColor || Colors[colorScheme].text } as any),
-                    ]}
-                    numberOfLines={1}
-                    onLayout={(e) => setRightMeasured({ width: e.nativeEvent.layout.width, fontSize: rightMeasured.fontSize })}
-                  >
-                    {rightName}
-                  </Animated.Text>
-                  <Text style={[styles.measureHidden, { fontSize: rightMeasured.fontSize } as any]} onLayout={(e) => {
-                    const avail = (SCREEN_WIDTH * 0.45) - 24
-                    if (e.nativeEvent.layout.width > avail && rightMeasured.fontSize > 10) {
-                      setRightMeasured({ ...rightMeasured, fontSize: rightMeasured.fontSize - 2 })
-                    }
-                  }}>{rightName}</Text>
-                </View>
-              )}
-            </BlurView>
-          )}
+          {/* Top bar removed - team names now shown in VS overlay only */}
 
       {/* Left half */}
       <Pressable onPress={onLeftPress || onPress} accessibilityRole="button" accessibilityLabel={leftName ? `${leftName} team` : 'Left team'} style={({ pressed }) => [{ width: SCREEN_WIDTH / 2, opacity: pressed ? 0.9 : 1 }]} android_ripple={{ color: 'rgba(255,255,255,0.06)' }}>
@@ -414,10 +316,10 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   teamName: {
-    color: '#fff',
+    color: '#fff', // Always white on banner images
     fontWeight: '800',
     fontSize: 18,
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowColor: 'rgba(0,0,0,0.8)', // Shadow needed for readability on images
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     maxWidth: '48%'

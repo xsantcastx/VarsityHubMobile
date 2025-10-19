@@ -5,20 +5,23 @@
  * Allows coaches to select and upgrade their subscription
  */
 
+import { getAuthToken } from '@/api/http';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +30,7 @@ export default function SubscriptionPaywallScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -47,20 +51,41 @@ export default function SubscriptionPaywallScreen() {
 
     setLoading(true);
     try {
-      // TODO: Integrate with Stripe checkout
-      // For now, show coming soon message
-      setModal({
-        visible: true,
-        title: 'Checkout Coming Soon',
-        message: `${selectedTier === 'legend' ? 'Legend' : 'Veteran'} tier checkout will be available soon. You'll be able to upgrade via Stripe.`,
-        options: [{ label: 'OK', onPress: () => setModal(null), color: '#2563EB' }],
+      // Call backend to create Stripe checkout session
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      
+      const response = await fetch(`${base.replace(/\/$/, '')}/payments/subscribe`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 
+          plan: selectedTier,
+          promo_code: promoCode.trim() || undefined 
+        }),
       });
+      
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
+      
+      if (!response.ok) {
+        throw new Error(data?.error || `HTTP ${response.status}`);
+      }
+      
+      if (data?.url) {
+        // Open Stripe checkout in browser
+        await WebBrowser.openBrowserAsync(String(data.url));
+        // Don't redirect here - let the payment-success screen handle the redirect after Stripe callback
+      } else {
+        throw new Error('No checkout URL received');
+      }
     } catch (error) {
       console.error('Subscription error:', error);
       setModal({
         visible: true,
         title: 'Error',
-        message: 'Unable to process subscription. Please try again.',
+        message: (error as any)?.message || 'Unable to process subscription. Please try again.',
         options: [{ label: 'OK', onPress: () => setModal(null), color: '#DC2626' }],
       });
     } finally {
@@ -155,6 +180,37 @@ export default function SubscriptionPaywallScreen() {
             ))}
           </View>
         </View>
+
+        {/* Promo Code Section */}
+        {selectedTier !== 'rookie' && (
+          <View style={styles.promoSection}>
+            <Text style={[styles.promoLabel, { color: Colors[colorScheme].text }]}>
+              Have a promo code?
+            </Text>
+            <View style={styles.promoInputContainer}>
+              <TextInput
+                style={[
+                  styles.promoInput,
+                  {
+                    backgroundColor: Colors[colorScheme].background,
+                    color: Colors[colorScheme].text,
+                    borderColor: '#D1D5DB',
+                  },
+                ]}
+                placeholder="Enter code"
+                placeholderTextColor="#9CA3AF"
+                value={promoCode}
+                onChangeText={setPromoCode}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!loading}
+              />
+            </View>
+            <Text style={styles.promoHint}>
+              Promo codes will be applied at checkout
+            </Text>
+          </View>
+        )}
 
         {/* CTA Button */}
         <View style={styles.ctaSection}>
@@ -348,6 +404,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#374151',
     fontWeight: '600',
+  },
+  promoSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  promoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  promoInputContainer: {
+    marginBottom: 8,
+  },
+  promoInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  promoHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
   },
   ctaSection: {
     alignItems: 'center',

@@ -1,10 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, TextInput } from 'react-native';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 
 export default function AdminUsersScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +36,12 @@ export default function AdminUsersScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · Users' }} />
       <View style={styles.bar}>
-        <TextInput value={q} onChangeText={setQ} placeholder="Search by name or email" style={styles.search} />
-        <Pressable style={[styles.toggle, showBanned && styles.toggleOn]} onPress={() => setShowBanned((x) => !x)}>
-          <Text style={[styles.toggleText, showBanned && styles.toggleTextOn]}>Banned</Text>
+        <TextInput value={q} onChangeText={setQ} placeholder="Search by name or email" placeholderTextColor={Colors[colorScheme].mutedText} style={[styles.search, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]} />
+        <Pressable style={[styles.toggle, { borderColor: Colors[colorScheme].border }, showBanned && { backgroundColor: Colors[colorScheme].tint }]} onPress={() => setShowBanned((x) => !x)}>
+          <Text style={[styles.toggleText, { color: showBanned ? '#fff' : Colors[colorScheme].text }]}>Banned</Text>
         </Pressable>
       </View>
       {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
@@ -68,12 +72,12 @@ export default function AdminUsersScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1 },
   bar: { flexDirection: 'row', gap: 8, padding: 12 },
   search: { flex: 1, height: 44, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', paddingHorizontal: 10, backgroundColor: 'white' },
   toggle: { paddingHorizontal: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },

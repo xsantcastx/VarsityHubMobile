@@ -38,6 +38,14 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
       memberships: {
         where: { user_id: userId, status: 'active' },
         select: { role: true }
+      },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true
+        }
       }
     },
   });
@@ -52,7 +60,13 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
     members: (t as any)._count.memberships,
     logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
-    my_role: (t as any).memberships?.[0]?.role || null
+    my_role: (t as any).memberships?.[0]?.role || null,
+    organization: (t as any).organization ? {
+      id: (t as any).organization.id,
+      name: (t as any).organization.name,
+      description: (t as any).organization.description,
+      sport: (t as any).organization.sport
+    } : null
   }));
   
   return res.json(list);
@@ -201,6 +215,41 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
     console.error('Failed to update team', err?.message || err);
     // Handle common Prisma client runtime errors gracefully
     return res.status(500).json({ error: 'Failed to update team', detail: err?.message || String(err) });
+  }
+});
+
+// Delete team (auth required). Only owners/admins can delete.
+teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const teamId = String(req.params.id);
+  const team = await prisma.team.findUnique({ where: { id: teamId } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  
+  // Check if user is owner or admin
+  const membership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: teamId, user_id: req.user.id } }
+  });
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin && (!membership || membership.role !== 'owner')) {
+    return res.status(403).json({ error: 'Only team owners can delete teams' });
+  }
+  
+  try {
+    // Delete all related data first (cascade delete)
+    await prisma.$transaction([
+      // Delete team memberships
+      prisma.teamMembership.deleteMany({ where: { team_id: teamId } }),
+      // Delete team invites
+      prisma.teamInvite.deleteMany({ where: { team_id: teamId } }),
+      // Delete the team itself
+      prisma.team.delete({ where: { id: teamId } }),
+    ]);
+    
+    return res.json({ ok: true, message: 'Team deleted successfully' });
+  } catch (err: any) {
+    console.error('Failed to delete team', err?.message || err);
+    return res.status(500).json({ error: 'Failed to delete team', detail: err?.message || String(err) });
   }
 });
 

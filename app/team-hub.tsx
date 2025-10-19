@@ -120,18 +120,7 @@ export default function TeamHubScreen() {
         />
       </View>
 
-      {/* Tabs */}
-      <View style={S.tabsWrap}>
-        <Pressable onPress={() => setActiveTab('team')} style={[S.tab, activeTab === 'team' && S.tabOn]}>
-          <Text style={[S.tabLabel, activeTab === 'team' && S.tabLabelOn]}>Team Hub</Text>
-        </Pressable>
-        <Pressable onPress={() => setActiveTab('create')} style={[S.tab, activeTab === 'create' && S.tabOn]}>
-          <Text style={[S.tabLabel, activeTab === 'create' && S.tabLabelOn]}>Create Event</Text>
-        </Pressable>
-        <Pressable onPress={() => setActiveTab('approvals')} style={[S.tab, activeTab === 'approvals' && S.tabOn]}>
-          <Text style={[S.tabLabel, activeTab === 'approvals' && S.tabLabelOn]}>Approvals</Text>
-        </Pressable>
-      </View>
+      {/* Tabs removed - only showing Team Hub content */}
 
       {/* Team Management Card */}
       <View style={S.card}>

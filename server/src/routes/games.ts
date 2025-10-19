@@ -32,6 +32,7 @@ const serializeMedia = (story: any) => ({
   kind: isVideoUrl(story.media_url) ? 'video' : 'photo',
   created_at: story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
   caption: story.caption ?? null,
+  user_id: story.user_id ?? null,
 });
 
 const serializeEvent = (event: any | null) =>
@@ -106,6 +107,9 @@ gamesRouter.get('/', async (req, res) => {
       // Fixed: Prioritize game.banner_url over other sources
       banner_url: rest.banner_url || rest.cover_image_url || event?.banner_url || null,
       rsvpCount: event ? (rsvpMap.get(event.id) || 0) : 0,
+      // Include coordinates for map display
+      latitude: rest.latitude,
+      longitude: rest.longitude,
     };
   });
   res.json(payload);
@@ -126,6 +130,10 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     banner_url: z.string().url().optional(),
     // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
     appearance: z.string().optional(),
+    // Coordinate options
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
+    autoGeocode: z.boolean().optional(),
   });
   
   const parsed = schema.safeParse(req.body || {});
@@ -137,14 +145,35 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   }
 
   try {
+    // Prepare game data
+    let gameData: any = {
+      ...parsed.data,
+      date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      banner_url: parsed.data.banner_url ?? null,
+      cover_image_url: parsed.data.cover_image_url ?? null,
+      appearance: parsed.data.appearance ?? null,
+      latitude: parsed.data.latitude ?? null,
+      longitude: parsed.data.longitude ?? null,
+    };
+
+    // Handle auto-geocoding if requested and location is provided
+    if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
+      try {
+        const { geocodeLocation } = await import('../lib/geocoding.js');
+        const coords = await geocodeLocation(parsed.data.location);
+        if (coords) {
+          gameData.latitude = coords.latitude;
+          gameData.longitude = coords.longitude;
+          console.log(`✅ Auto-geocoded game location: ${parsed.data.location} → ${coords.latitude}, ${coords.longitude}`);
+        }
+      } catch (geocodeError) {
+        console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
+        // Continue without coordinates - don't fail the game creation
+      }
+    }
+
     const game = await (prisma.game.create as any)({
-      data: ({
-        ...parsed.data,
-        date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
-        banner_url: parsed.data.banner_url ?? null,
-        cover_image_url: parsed.data.cover_image_url ?? null,
-        appearance: parsed.data.appearance ?? null,
-      } as any),
+      data: gameData,
       include: { events: { orderBy: { date: 'asc' }, take: 1 } },
     }) as any;
     
@@ -157,7 +186,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         game_id: game.id,
         status: 'approved', // Auto-approve game events
         capacity: null, // No capacity limit by default
-      },
+      } as any,
     });
     
     const response = {
@@ -335,6 +364,45 @@ gamesRouter.get('/:id/media', async (req, res) => {
     orderBy: { created_at: 'desc' },
   });
   res.json(items.map(serializeMedia));
+});
+
+// Delete a specific media/story from a game
+gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const gameId = String(req.params.id);
+  const mediaId = String(req.params.mediaId);
+  
+  try {
+    // Find the story first to check ownership
+    const story = await prisma.story.findUnique({
+      where: { id: mediaId },
+      select: { id: true, user_id: true, game_id: true },
+    });
+    
+    if (!story) {
+      return res.status(404).json({ error: 'Story not found' });
+    }
+    
+    // Verify the story belongs to this game
+    if (story.game_id !== gameId) {
+      return res.status(400).json({ error: 'Story does not belong to this game' });
+    }
+    
+    // Verify the user owns this story
+    if (story.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'You can only delete your own stories' });
+    }
+    
+    // Delete the story
+    await prisma.story.delete({ where: { id: mediaId } });
+    
+    console.log(`✅ User ${req.user.id} deleted story ${mediaId} from game ${gameId}`);
+    res.json({ message: 'Story deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting story:', error);
+    res.status(500).json({ error: 'Failed to delete story' });
+  }
 });
 
 // Legacy stories endpoints (kept for backwards compatibility)

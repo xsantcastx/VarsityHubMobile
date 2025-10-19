@@ -3,11 +3,11 @@ import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 type Plan = 'rookie' | 'veteran' | 'legend';
 
@@ -25,44 +25,76 @@ const PLAN_OPTIONS: PlanOption[] = [
   {
     id: 'rookie',
     title: 'Rookie',
-    priceLabel: 'Free for the first 6-month season',
-    description: 'Perfect for trying VarsityHub with a single team.',
-    extraNote: 'Upgrade any time to unlock organization management tools.',
-    benefits: ['Create a league page', 'Invite team managers', 'Post updates'],
+    priceLabel: 'First two teams free',
+    description: 'Perfect for getting started with your first teams',
+    extraNote: 'Upgrade any time to unlock more teams and organization management tools.',
+    benefits: [
+      'Up to 2 teams',
+      'Invite players',
+      'Assign administrators',
+      'Share team experience',
+    ],
   },
   {
     id: 'veteran',
     title: 'Veteran',
-    priceLabel: '$70 / year or $7.50 / month',
+    priceLabel: '$1.50 / month per extra team',
     description: 'Manage multiple teams with advanced analytics and support.',
     badge: 'Most Popular',
     extraNote: 'Stripe handles secure billing so you can focus on your program.',
-    benefits: ['All Rookie features', 'Priority support', 'Advanced analytics'],
+    benefits: [
+      'All Rookie features',
+      'Priority support',
+      'Add administrator per team added',
+      '🏆 Trophy emblem',
+    ],
   },
   {
     id: 'legend',
     title: 'Legend',
-    priceLabel: '$150 / year',
+    priceLabel: '$29.99 for full unlimited access',
     description: 'Scale to multi-team organizations with custom branding.',
-    benefits: ['All Veteran features', 'Multi-team management', 'Custom branding'],
+    benefits: [
+      'All Veteran features',
+      'Unlimited teams/administrators',
+      '🥇 Gold medal emblem',
+      'Custom branding',
+    ],
   },
 ];
 
 function PlanCard({ option, selected, onPress }: { option: PlanOption; selected: boolean; onPress: () => void }) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  
   return (
-    <Pressable onPress={onPress} style={[styles.card, selected && styles.cardSelected]}>
+    <Pressable onPress={onPress} style={[
+      styles.card, 
+      selected && styles.cardSelected,
+      { borderColor: selected ? (isDark ? '#60A5FA' : '#111827') : (isDark ? '#374151' : '#E5E7EB') },
+      { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
+    ]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{option.title}</Text>
-        {option.badge ? <Text style={styles.badge}>{option.badge}</Text> : null}
+        <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.title}</Text>
+        {option.badge ? (
+          <Text style={[styles.badge, { 
+            color: isDark ? '#F9FAFB' : '#111827',
+            backgroundColor: isDark ? '#374151' : '#E5E7EB'
+          }]}>
+            {option.badge}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.price}>{option.priceLabel}</Text>
-      <Text style={styles.muted}>{option.description}</Text>
+      <Text style={[styles.price, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.priceLabel}</Text>
+      <Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{option.description}</Text>
       <View style={styles.benefitsList}>
         {option.benefits.map((benefit) => (
-          <Text key={benefit} style={styles.benefitItem}>{`- ${benefit}`}</Text>
+          <Text key={benefit} style={[styles.benefitItem, { color: isDark ? '#34D399' : '#16A34A' }]}>{`- ${benefit}`}</Text>
         ))}
       </View>
-      {option.extraNote ? <Text style={styles.extraNote}>{option.extraNote}</Text> : null}
+      {option.extraNote ? (
+        <Text style={[styles.extraNote, { color: isDark ? '#9CA3AF' : '#374151' }]}>{option.extraNote}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -74,6 +106,8 @@ export default function Step3Plan() {
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [plan, setPlan] = useState<Plan | null>(ob.plan ?? null);
   const [saving, setSaving] = useState(false);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   
   // Email verification states
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -85,9 +119,9 @@ export default function Step3Plan() {
 
   const navigateNext = () => {
     if (returnToConfirmation) {
-      router.push({ pathname: '/onboarding/step-5-league', params: { returnToConfirmation: 'true' } });
+      router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-5-league');
+      router.push('/onboarding/step-4-season');
     }
   };
 
@@ -164,7 +198,7 @@ export default function Step3Plan() {
         } catch (err) {
           console.warn('Failed to persist rookie plan to backend:', err);
         }
-        setProgress(4); // next is step-5-league (index 4)
+        setProgress(3);
         navigateNext();
         return;
       }
@@ -182,7 +216,7 @@ export default function Step3Plan() {
           } catch (err) {
             console.warn('Failed to persist free plan to backend:', err);
           }
-          setProgress(4);
+          setProgress(3);
           navigateNext();
           return;
         }
@@ -190,13 +224,13 @@ export default function Step3Plan() {
           // Stripe checkout was successful, user will pay through Stripe
           // The plan will be saved by the payment finalization process
           await WebBrowser.openBrowserAsync(String(res.url));
-          setProgress(4);
+          setProgress(3);
           navigateNext();
           return;
         }
         console.warn('Unexpected subscribe response', res);
         Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
-        setProgress(4);
+        setProgress(3);
         navigateNext();
       } catch (err: any) {
         console.warn('Failed to start subscription checkout for plan:', err);
@@ -239,27 +273,28 @@ export default function Step3Plan() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Step 3/10' }} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Choose Your Plan</Text>
-        {PLAN_OPTIONS.map((option) => (
-          <PlanCard
-            key={option.id}
-            option={option}
-            selected={plan === option.id}
-            onPress={() => handleSelectPlan(option.id)}
-          />
-        ))}
-        {plan ? (
-          <PrimaryButton
-            label={saving ? 'Saving...' : 'Continue'}
-            onPress={onContinue}
-            disabled={saving}
-            loading={saving}
-          />
-        ) : null}
-      </ScrollView>
+    <OnboardingLayout
+      step={3}
+      title="Choose Your Plan"
+      subtitle="Select the plan that fits your needs"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
+      {PLAN_OPTIONS.map((option) => (
+        <PlanCard
+          key={option.id}
+          option={option}
+          selected={plan === option.id}
+          onPress={() => handleSelectPlan(option.id)}
+        />
+      ))}
+      {plan ? (
+        <PrimaryButton
+          label={saving ? 'Saving...' : 'Continue'}
+          onPress={onContinue}
+          disabled={saving}
+          loading={saving}
+        />
+      ) : null}
 
       {/* Email Verification Modal */}
       <Modal
@@ -267,26 +302,34 @@ export default function Step3Plan() {
         transparent
         animationType="slide"
         onRequestClose={() => setShowVerifyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Verify Your Email</Text>
-            <Text style={styles.modalSubtitle}>
-              Please verify your email before purchasing a plan. Enter the 6-digit code we sent to your email.
-            </Text>
-            
-            {verificationError ? (
-              <Text style={styles.errorText}>{verificationError}</Text>
-            ) : null}
-            
-            {verificationInfo ? (
-              <Text style={styles.infoText}>{verificationInfo}</Text>
-            ) : null}
-            
-            <TextInput
-              style={styles.codeInput}
-              placeholder="Enter 6-digit code"
-              value={verificationCode}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : 'white' }]}>
+              <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>Verify Your Email</Text>
+              <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+                Please verify your email before purchasing a plan. Enter the 6-digit code we sent to your email.
+              </Text>
+              
+              {verificationError ? (
+                <Text style={styles.errorText}>{verificationError}</Text>
+              ) : null}
+              
+              {verificationInfo ? (
+                <Text style={styles.infoText}>{verificationInfo}</Text>
+              ) : null}
+              
+              <TextInput
+                style={[
+                  styles.codeInput,
+                  { 
+                    borderColor: isDark ? '#374151' : '#E5E7EB',
+                    backgroundColor: isDark ? '#111827' : 'white',
+                    color: isDark ? '#F9FAFB' : '#111827'
+                  }
+                ]}
+                placeholder="Enter 6-digit code"
+                placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+                value={verificationCode}
               onChangeText={setVerificationCode}
               keyboardType="number-pad"
               maxLength={6}
@@ -294,7 +337,7 @@ export default function Step3Plan() {
             
             <View style={styles.modalButtons}>
               <Pressable
-                style={[styles.modalButton, styles.verifyButton]}
+                style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
                 onPress={onVerifyEmail}
                 disabled={verifying || verificationCode.trim().length < 4}
               >
@@ -306,14 +349,21 @@ export default function Step3Plan() {
               </Pressable>
               
               <Pressable
-                style={[styles.modalButton, styles.resendButton]}
+                style={[
+                  styles.modalButton, 
+                  styles.resendButton,
+                  { 
+                    backgroundColor: isDark ? '#374151' : '#F3F4F6',
+                    borderColor: isDark ? '#4B5563' : '#E5E7EB'
+                  }
+                ]}
                 onPress={onResendCode}
                 disabled={resending}
               >
                 {resending ? (
-                  <ActivityIndicator size="small" color="#111827" />
+                  <ActivityIndicator size="small" color={isDark ? '#F9FAFB' : '#111827'} />
                 ) : (
-                  <Text style={styles.resendButtonText}>Resend Code</Text>
+                  <Text style={[styles.resendButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>Resend Code</Text>
                 )}
               </Pressable>
               
@@ -326,32 +376,27 @@ export default function Step3Plan() {
                   setVerificationInfo(null);
                 }}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
   title: { ...(Type.h1 as any), marginBottom: 12, textAlign: 'center' },
   card: {
     padding: 16,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
     marginBottom: 12,
   },
-  cardSelected: {
-    borderColor: '#111827',
-    backgroundColor: '#FFFFFF',
-  },
+  cardSelected: {},
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -359,10 +404,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cardTitle: { fontWeight: '800', fontSize: 16 },
-  muted: { color: '#6B7280', marginTop: 4 },
+  muted: { marginTop: 4 },
   badge: {
-    color: '#111827',
-    backgroundColor: '#E5E7EB',
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -371,8 +414,8 @@ const styles = StyleSheet.create({
   },
   price: { fontWeight: '700', marginBottom: 4 },
   benefitsList: { marginTop: 8, gap: 4 },
-  benefitItem: { color: '#16A34A' },
-  extraNote: { marginTop: 8, color: '#374151', fontSize: 12 },
+  benefitItem: {},
+  extraNote: { marginTop: 8, fontSize: 12 },
   
   // Modal styles
   modalOverlay: {
@@ -383,7 +426,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: 'white',
     borderRadius: 12,
     padding: 24,
     width: '100%',
@@ -396,14 +438,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   modalSubtitle: {
-    color: '#6B7280',
     textAlign: 'center',
     marginBottom: 20,
     lineHeight: 20,
   },
   codeInput: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
@@ -429,27 +469,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  verifyButton: {
-    backgroundColor: '#111827',
-  },
+  verifyButton: {},
   verifyButtonText: {
     color: 'white',
     fontWeight: '700',
   },
   resendButton: {
-    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   resendButtonText: {
-    color: '#111827',
     fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: 'transparent',
   },
   cancelButtonText: {
-    color: '#6B7280',
     fontWeight: '600',
   },
 });

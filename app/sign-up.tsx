@@ -1,15 +1,19 @@
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,9 +55,8 @@ export default function SignUpScreen() {
         router.replace('/onboarding/step-2-basic');
         return;
       }
-      const userRole = account?.preferences?.role || account?.role || 'fan';
-      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
-      router.replace(landingRoute as any);
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -64,10 +67,10 @@ export default function SignUpScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Create Account' }} />
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Choose how you'd like to sign up</Text>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
       
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -134,17 +137,17 @@ export default function SignUpScreen() {
       )}
 
       <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => router.replace('/sign-in')}>
-        <Text style={styles.signInLink}>Already have an account? Sign in</Text>
+        <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
       </Pressable>
       
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, padding: 16 },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#6b7280', marginBottom: 24, textAlign: 'center' },
+  subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
   error: { color: '#b91c1c', marginBottom: 8, textAlign: 'center' },
   googleButton: {
     flexDirection: 'row',
