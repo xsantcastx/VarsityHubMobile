@@ -84,6 +84,7 @@ export default function PostDetailScreen() {
   const [updatingComment, setUpdatingComment] = useState(false);
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [fullscreenMedia, setFullscreenMedia] = useState(false);
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -455,7 +456,7 @@ export default function PostDetailScreen() {
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
-            <View style={styles.mediaContainer}>
+            <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
                 <ExpoImage source={{ uri: post.media_url }} style={styles.heroImage} contentFit="cover" />
               )}
@@ -480,20 +481,25 @@ export default function PostDetailScreen() {
                 <Text style={styles.countryFlag}>{getCountryFlag(post.country_code)}</Text>
               </View>
               
+              {/* Expand Icon */}
+              <View style={styles.expandIcon}>
+                <Ionicons name="expand-outline" size={24} color="#fff" />
+              </View>
+              
               {/* Live Badge */}
               {post.created_at && new Date(post.created_at).getTime() > Date.now() - 3600000 && (
                 <View style={styles.liveBadge}>
                   <Text style={styles.liveText}>LIVE</Text>
                 </View>
               )}
-            </View>
+            </Pressable>
           ) : (
             <LinearGradient 
               colors={[category.color + '40', category.color + '20']} 
               style={styles.noMediaHero}
             >
               <Text style={styles.noMediaIcon}>{category.icon}</Text>
-              <Text style={styles.noMediaText}>Text Post</Text>
+              <Text style={[styles.noMediaText, { color: Colors[colorScheme].text }]}>Text Post</Text>
             </LinearGradient>
           )}
         </View>
@@ -857,6 +863,37 @@ export default function PostDetailScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Fullscreen Media Modal */}
+      <Modal
+        visible={fullscreenMedia}
+        animationType="fade"
+        onRequestClose={() => setFullscreenMedia(false)}
+      >
+        <View style={styles.fullscreenContainer}>
+          <Pressable 
+            style={styles.fullscreenCloseButton}
+            onPress={() => setFullscreenMedia(false)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </Pressable>
+          
+          {isImage && post.media_url && (
+            <ExpoImage 
+              source={{ uri: post.media_url }} 
+              style={styles.fullscreenImage} 
+              contentFit="contain"
+            />
+          )}
+          
+          {isVideo && post.media_url && (
+            <VideoPlayer 
+              uri={post.media_url} 
+              style={styles.fullscreenVideo}
+            />
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -970,7 +1007,6 @@ const styles = StyleSheet.create({
   noMediaText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
   },
   mediaOverlay: {
     position: 'absolute',
@@ -1021,6 +1057,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '800',
+  },
+  expandIcon: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 20,
   },
 
   // Post Content
@@ -1486,5 +1530,30 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 4,
     marginTop: 8,
+  },
+
+  // Fullscreen Media Styles
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenCloseButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 24,
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullscreenVideo: {
+    width: '100%',
+    height: '100%',
   },
 });
