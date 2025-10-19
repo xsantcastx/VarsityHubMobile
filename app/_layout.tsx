@@ -38,7 +38,7 @@ export default function RootLayout() {
   React.useEffect(() => {
     if (!navState?.key) return;
     const first = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
-    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email']);
+    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(first);
     (async () => {
       try {
@@ -50,18 +50,10 @@ export default function RootLayout() {
           return;
         }
         
-        // Role-aware login landing
-        if (isPublic && me && !needsOnboarding) {
-          const userRole = me?.preferences?.role || me?.role || 'fan';
-          let landingRoute = '/(tabs)/feed'; // Default for fans
-          
-          if (userRole === 'coach') {
-            // Coaches land on manage-teams dashboard
-            landingRoute = '/manage-teams';
-          } else {
-            // Fans land on highlights feed
-            landingRoute = '/highlights';
-          }
+        // Role-aware login landing - only redirect if on public routes
+        if (isPublic && me) {
+          // Everyone lands on feed
+          const landingRoute = '/(tabs)/feed';
           
           if (lastRedirectRef.current !== landingRoute) {
             lastRedirectRef.current = landingRoute;
@@ -73,11 +65,8 @@ export default function RootLayout() {
         if (!isPublic && (status === 401 || status === 403) && lastRedirectRef.current !== '/sign-in') {
           lastRedirectRef.current = '/sign-in';
           router.replace('/sign-in');
-        } else if (!isPublic && status !== 401 && status !== 403 && lastRedirectRef.current !== '/(tabs)/feed') {
-          // If there's a network error or other issue, default to feed
-          lastRedirectRef.current = '/(tabs)/feed';
-          router.replace('/(tabs)/feed');
         }
+        // Don't redirect on other errors - let user stay where they are
       }
     })();
   }, [navState?.key, Array.isArray(segments) ? segments.join('/') : '']);
@@ -94,7 +83,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="create-post" options={{ headerShown: false }} />
             <Stack.Screen name="edit-profile" options={{ headerShown: false }} />

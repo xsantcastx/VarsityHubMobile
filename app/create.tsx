@@ -31,7 +31,15 @@ export default function CreateScreen() {
       <View style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]}>
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create</Text>
         {!verified ? (
-          <Text style={{ color: '#92400E', backgroundColor: '#FEF9C3', borderWidth: StyleSheet.hairlineWidth, borderColor: '#FDE68A', padding: 8, borderRadius: 8, marginBottom: 4 }}>Verify your email to enable actions below.</Text>
+          <Text style={{ 
+            color: colorScheme === 'dark' ? '#fef08a' : '#92400E', 
+            backgroundColor: colorScheme === 'dark' ? 'rgba(254,240,138,0.1)' : '#FEF9C3', 
+            borderWidth: StyleSheet.hairlineWidth, 
+            borderColor: colorScheme === 'dark' ? 'rgba(254,240,138,0.3)' : '#FDE68A', 
+            padding: 8, 
+            borderRadius: 8, 
+            marginBottom: 4 
+          }}>Verify your email to enable actions below.</Text>
         ) : null}
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Post</Text>

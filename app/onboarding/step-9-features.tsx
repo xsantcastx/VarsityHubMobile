@@ -1,24 +1,29 @@
+import { Colors } from '@/constants/Colors';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 import * as Location from 'expo-location';
+import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const colorScheme = useColorScheme();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [messagingAccepted, setMessagingAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
@@ -99,8 +104,11 @@ export default function Step9Features() {
         messaging_policy_accepted: messagingAccepted
       });
       
-  setProgress(9);
-  router.push('/onboarding/step-10-confirmation');
+      // Save progress to AsyncStorage before navigation
+      setProgress(9);
+      await AsyncStorage.setItem('@onboarding_progress', '9');
+      
+      router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
     } finally { 
@@ -109,19 +117,18 @@ export default function Step9Features() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <Stack.Screen options={{ title: 'Step 9/10' }} />
-      <OnboardingBackHeader
-        title="Customize Your Experience"
-        subtitle="Configure your privacy and notification preferences"
-      />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <OnboardingLayout
+      step={9}
+      title="Enable Features"
+      subtitle="Configure your privacy and notification preferences"
+    >
+      <Stack.Screen options={{ headerShown: false }} />
 
-        {/* Location Access */}
-        <View style={styles.featureCard}>
+      {/* Location Access */}
+      <View style={styles.featureCard}>
           <View style={styles.featureHeader}>
             <View style={styles.featureIconContainer}>
-              <Ionicons name="location" size={24} color="#2563EB" />
+              <Ionicons name="location" size={24} color={Colors[colorScheme].tint} />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Location Access</Text>
@@ -133,8 +140,11 @@ export default function Step9Features() {
             <Switch
               value={locationEnabled}
               onValueChange={enableLocation}
-              trackColor={{ false: '#E5E7EB', true: '#2563EB' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ 
+                false: Colors[colorScheme].border, 
+                true: Colors[colorScheme].tint 
+              }}
+              thumbColor={Colors[colorScheme].background}
             />
           </View>
         </View>
@@ -143,7 +153,7 @@ export default function Step9Features() {
         <View style={styles.featureCard}>
           <View style={styles.featureHeader}>
             <View style={styles.featureIconContainer}>
-              <Ionicons name="notifications" size={24} color="#059669" />
+              <Ionicons name="notifications" size={24} color={colorScheme === 'dark' ? '#4ade80' : '#059669'} />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Push Notifications</Text>
@@ -155,8 +165,11 @@ export default function Step9Features() {
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#E5E7EB', true: '#059669' }}
-              thumbColor="#FFFFFF"
+              trackColor={{ 
+                false: Colors[colorScheme].border, 
+                true: colorScheme === 'dark' ? '#4ade80' : '#059669' 
+              }}
+              thumbColor={Colors[colorScheme].background}
             />
           </View>
         </View>
@@ -165,7 +178,7 @@ export default function Step9Features() {
         <View style={[styles.featureCard, styles.requiredCard]}>
           <View style={styles.featureHeader}>
             <View style={styles.featureIconContainer}>
-              <Ionicons name="chatbubble" size={24} color="#DC2626" />
+              <Ionicons name="chatbubble" size={24} color={colorScheme === 'dark' ? '#f87171' : '#DC2626'} />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Messaging Policy</Text>
@@ -183,7 +196,7 @@ export default function Step9Features() {
             >
               <View style={[styles.checkbox, messagingAccepted && styles.checkboxChecked]}>
                 {messagingAccepted && (
-                  <Ionicons name="checkmark" size={16} color="white" />
+                  <Ionicons name="checkmark" size={16} color={Colors[colorScheme].background} />
                 )}
               </View>
               <Text style={styles.checkboxLabel}>
@@ -196,7 +209,7 @@ export default function Step9Features() {
         {/* Safety Notice for Minors */}
         {isMinor && (
           <View style={styles.safetyNotice}>
-            <Ionicons name="shield-checkmark" size={20} color="#059669" />
+            <Ionicons name="shield-checkmark" size={20} color={colorScheme === 'dark' ? '#4ade80' : '#059669'} />
             <Text style={styles.safetyNoticeText}>
               VarsityHub prioritizes the safety of young athletes with age-appropriate messaging restrictions.
             </Text>
@@ -217,32 +230,44 @@ export default function Step9Features() {
             </Text>
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </OnboardingLayout>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: 'white' 
+    backgroundColor: Colors[colorScheme].background 
   },
   scrollContent: { 
     padding: 16, 
     paddingBottom: 28 
   },
+  title: { 
+    ...(Type.h1 as any), 
+    color: Colors[colorScheme].text,
+    marginBottom: 8, 
+    textAlign: 'center' 
+  },
+  subtitle: { 
+    color: Colors[colorScheme].mutedText, 
+    marginBottom: 24, 
+    textAlign: 'center', 
+    fontSize: 16,
+    lineHeight: 24
+  },
   
   featureCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors[colorScheme].border,
   },
   requiredCard: {
-    borderColor: '#FCA5A5',
-    backgroundColor: '#FEF2F2',
+    borderColor: colorScheme === 'dark' ? '#fca5a5' : '#FCA5A5',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(254,242,242,0.1)' : '#FEF2F2',
   },
   featureHeader: {
     flexDirection: 'row',
@@ -258,22 +283,22 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    color: Colors[colorScheme].text,
     marginBottom: 4,
   },
   featureDescription: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 4,
   },
   featureOptional: {
-    color: '#9CA3AF',
+    color: colorScheme === 'dark' ? '#9ca3af' : '#9CA3AF',
     fontSize: 12,
     fontStyle: 'italic',
   },
   featureRequired: {
-    color: '#DC2626',
+    color: colorScheme === 'dark' ? '#f87171' : '#DC2626',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -282,7 +307,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: colorScheme === 'dark' ? 'rgba(243,244,246,0.1)' : '#F3F4F6',
   },
   checkboxContainer: {
     flexDirection: 'row',
@@ -293,19 +318,19 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: Colors[colorScheme].border,
     marginRight: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
   checkboxChecked: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: Colors[colorScheme].text,
+    borderColor: Colors[colorScheme].text,
   },
   checkboxLabel: {
     flex: 1,
-    color: '#374151',
+    color: Colors[colorScheme].mutedText,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -313,17 +338,17 @@ const styles = StyleSheet.create({
   safetyNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(240,253,244,0.1)' : '#F0FDF4',
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: colorScheme === 'dark' ? 'rgba(187,247,208,0.2)' : '#BBF7D0',
   },
   safetyNoticeText: {
     flex: 1,
     marginLeft: 8,
-    color: '#166534',
+    color: colorScheme === 'dark' ? '#4ade80' : '#166534',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -332,7 +357,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   helpText: {
-    color: '#DC2626',
+    color: colorScheme === 'dark' ? '#f87171' : '#DC2626',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,

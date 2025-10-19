@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
@@ -30,6 +34,7 @@ function matchesAccount(ad: ManagedAd, userId: string | null, userEmail: string 
 
 export default function MyAdsScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
@@ -64,261 +69,152 @@ export default function MyAdsScreen() {
     return userId ? `${base}_${userId}` : base;
   }, [userId]);
 
-  const migrateLegacyDrafts = useCallback(
-    async (currentDrafts: ManagedAd[]) => {
-      const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
-      const scopedKey = getLocalAdsKey();
-      if (!userId) return currentDrafts;
-
-      const legacyDrafts = await settings.getJson<ManagedAd[]>(baseKey, []);
-      if (!legacyDrafts.length) return currentDrafts;
-
-      const belongToUser = legacyDrafts.filter((draft) =>
-        matchesAccount(
-          {
-            ...draft,
-            contact_email: (draft.contact_email || '').trim().toLowerCase(),
-            owner_id: draft.owner_id ?? null,
-          },
-          userId,
-          userEmail,
-        ),
-      );
-
-      if (!belongToUser.length) return currentDrafts;
-
-      const merged = [...currentDrafts];
-      belongToUser.forEach((draft) => {
-        const existing = merged.find((ad) => ad.id === draft.id);
-        if (!existing) {
-          merged.push({
-            ...draft,
-            isLocal: true,
-            owner_id: draft.owner_id ?? userId,
-            contact_email: (draft.contact_email || '').trim().toLowerCase(),
-          });
-        }
-      });
-
-      await settings.setJson(
-        scopedKey,
-        merged.filter((ad) => ad.isLocal),
-      );
-
-      const remainingLegacy = legacyDrafts.filter((draft) => !belongToUser.includes(draft));
-      await settings.setJson(baseKey, remainingLegacy);
-
-      return merged;
-    },
-    [getLocalAdsKey, userId, userEmail],
-  );
-
-  const loadAds = useCallback(async () => {
-    if (!userLoaded) return;
-    setLoading(true);
-    try {
-      let serverAds: any[] = [];
-      try {
-        const resp = await AdsApi.listMine();
-        if (Array.isArray(resp)) serverAds = resp;
-      } catch {
-        serverAds = [];
-      }
-
-      const scopedKey = getLocalAdsKey();
-      let localDrafts = await settings.getJson<ManagedAd[]>(scopedKey, []);
-      localDrafts = await migrateLegacyDrafts(localDrafts);
-
-      const normalizedUserId = userId ? String(userId) : null;
-      const normalizedEmail = userEmail || null;
-
-      const combined: ManagedAd[] = [];
-      const add = (source: any, isLocal: boolean) => {
-        const id = String(source.id);
-        if (!id || combined.some((ad) => ad.id === id)) return;
-
-        const ownerId = typeof source.user_id === 'string' && source.user_id.length ? String(source.user_id) : null;
-        const contactEmail = typeof source.contact_email === 'string' ? source.contact_email.trim().toLowerCase() : '';
-
-        if (!isLocal) {
-          if (!matchesAccount({ ...source, contact_email: contactEmail, owner_id: ownerId }, normalizedUserId, normalizedEmail)) {
-            return;
+  const remove = async (id: string) => {
+    Alert.alert(
+      'Delete Ad', 
+      'This will permanently delete the ad and all its scheduled dates. This action cannot be undone.', 
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              // Delete from server
+              console.log('[my-ads2] Deleting ad from server:', id);
+              await AdsApi.delete(id);
+              console.log('[my-ads2] Ad deleted from server successfully');
+              
+              // Also remove from local storage
+              const list = await settings.getJson<DraftAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
+              const next = list.filter((a) => a.id !== id);
+              await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
+              
+              // Reload the list
+              await load();
+              
+              Alert.alert('Success', 'Ad deleted successfully');
+            } catch (error) {
+              console.error('[my-ads2] Error deleting ad:', error);
+              Alert.alert('Error', 'Failed to delete ad. Please try again.');
+            }
           }
         }
-
-        const businessName = String(source.business_name || source.name || '').trim();
-        combined.push({
-          id,
-          business_name: businessName.length ? businessName : 'Untitled Ad',
-          contact_name: String(source.contact_name || ''),
-          contact_email: contactEmail,
-          banner_url: source.banner_url || undefined,
-          zip_code: String(source.target_zip_code || source.zip_code || ''),
-          description: source.description || undefined,
-          created_at: source.created_at || new Date().toISOString(),
-          status: source.status || 'draft',
-          payment_status: source.payment_status || 'unpaid',
-          owner_id: ownerId,
-          isLocal,
-        });
-      };
-
-      serverAds.forEach((ad) => add(ad, false));
-      localDrafts.forEach((ad) => add(ad, true));
-
-      setAds(combined);
-
-      const reservations = await Promise.all(
-        combined.map(async (ad) => {
-          try {
-            const res: any = await AdsApi.reservationsForAd(ad.id);
-            return [ad.id, Array.isArray(res?.dates) ? res.dates : []] as const;
-          } catch {
-            return [ad.id, []] as const;
-          }
-        }),
-      );
-      const dateMap: Record<string, string[]> = {};
-      reservations.forEach(([id, dates]) => {
-        dateMap[id] = dates;
-      });
-      setDatesByAd(dateMap);
-    } finally {
-      setLoading(false);
-    }
-  }, [getLocalAdsKey, migrateLegacyDrafts, userLoaded, userId, userEmail]);
-
-  useEffect(() => {
-    loadAds();
-  }, [loadAds]);
-
-  const summary = useMemo(() => ({
-    active: ads.filter((ad) => ad.status === 'active').length,
-    pending: ads.filter((ad) => ad.status === 'pending').length,
-    drafts: ads.filter((ad) => ad.isLocal || !ad.status || ad.status === 'draft').length,
-  }), [ads]);
-
-  const canManageAd = (ad: ManagedAd) => {
-    const normalizedAdEmail = (ad.contact_email || '').trim().toLowerCase();
-    return (
-      ad.isLocal ||
-      (userId && ad.owner_id && ad.owner_id === userId) ||
-      (userEmail && normalizedAdEmail && normalizedAdEmail === userEmail)
+      ]
     );
-  };
-
-  const removeLocalAd = async (id: string) => {
-    Alert.alert('Remove Draft Ad', 'Removing a draft does not cancel scheduled dates.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          const localKey = getLocalAdsKey();
-          const list = await settings.getJson<ManagedAd[]>(localKey, []);
-          const filtered = list.filter((ad) => ad.id !== id);
-          await settings.setJson(localKey, filtered);
-          setAds((prev) => prev.filter((ad) => ad.id !== id));
-        },
-      },
-    ]);
   };
 
   const renderAd = ({ item }: { item: ManagedAd }) => {
     const dates = datesByAd[item.id] || [];
-    const manageable = canManageAd(item);
-    const paymentLabel = (item.payment_status || 'unpaid').toUpperCase();
-    const statusLabel = (item.status || 'draft').toUpperCase();
-
+    const isPaid = item.payment_status === 'paid';
+    const isActive = item.status === 'active';
+    
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
+      <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+        {/* Banner Section */}
+        <View style={styles.bannerContainer}>
           {item.banner_url ? (
             <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" />
           ) : (
-            <View style={styles.bannerPlaceholder}>
-              <Text style={styles.bannerPlaceholderText}>No banner</Text>
+            <View style={[styles.banner, styles.bannerPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+              <Ionicons name="image-outline" size={40} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>No banner</Text>
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{item.business_name}</Text>
-            <Text style={styles.meta}>{item.contact_name} · {item.contact_email || '—'}</Text>
-            <Text style={styles.meta}>Zip {item.zip_code}</Text>
-            <View style={styles.badgeRow}>
-              <View style={[styles.badgeSmall, badgeStyleForStatus(item.status)]}>
-                <Text style={[styles.badgeSmallText, badgeTextStyleForStatus(item.status)]}>{statusLabel}</Text>
-              </View>
-              <View style={[styles.badgeSmall, badgeStyleForPayment(item.payment_status)]}>
-                <Text style={[styles.badgeSmallText, badgeTextStyleForPayment(item.payment_status)]}>{paymentLabel}</Text>
-              </View>
-              {item.isLocal && (
-                <View style={[styles.badgeSmall, styles.localBadge]}>
-                  <Text style={[styles.badgeSmallText, { color: '#0369A1' }]}>LOCAL DRAFT</Text>
-                </View>
-              )}
+        </View>
+
+        {/* Info Section */}
+        <View style={styles.infoContainer}>
+          <Text style={[styles.businessName, { color: Colors[colorScheme].text }]}>{item.business_name}</Text>
+          
+          <View style={styles.metaRow}>
+            <Ionicons name="person-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_name}</Text>
+          </View>
+          
+          <View style={styles.metaRow}>
+            <Ionicons name="mail-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>{item.contact_email}</Text>
+          </View>
+          
+          <View style={styles.metaRow}>
+            <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.metaText, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
+          </View>
+
+          {/* Status Badges */}
+          <View style={styles.badgesContainer}>
+            <View style={[styles.badge, badgeStyleForStatus(item.status, colorScheme)]}>
+              <Text style={[styles.badgeText, badgeTextStyleForStatus(item.status)]}>
+                {(item.status || 'draft').toUpperCase()}
+              </Text>
+            </View>
+            <View style={[styles.badge, badgeStyleForPayment(item.payment_status, colorScheme)]}>
+              <Text style={[styles.badgeText, badgeTextStyleForPayment(item.payment_status)]}>
+                {(item.payment_status || 'unpaid').toUpperCase()}
+              </Text>
             </View>
           </View>
         </View>
 
-        <Text style={styles.sectionHeading}>Scheduled Dates</Text>
-        {dates.length > 0 ? (
-          <View style={styles.dateWrap}>
-            {dates.map((d) => {
-              let label = d;
-              try {
-                label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                });
-              } catch {}
-              return (
-                <View key={d} style={styles.dateBadge}>
-                  <Text style={styles.dateBadgeText}>{label}</Text>
-                </View>
-              );
-            })}
+        {/* Dates Section */}
+        <View style={[styles.datesSection, { borderTopColor: Colors[colorScheme].border }]}>
+          <View style={styles.datesSectionHeader}>
+            <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].text} />
+            <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
+            <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
+              <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>{dates.length}</Text>
+            </View>
           </View>
-        ) : (
-          <Text style={styles.muted}>None yet</Text>
-        )}
+          
+          {dates.length > 0 ? (
+            <View style={styles.datesBadgeWrap}>
+              {dates.slice(0, 5).map((d) => (
+                <View key={d} style={[styles.dateBadge, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                  <Text style={[styles.dateBadgeText, { color: Colors[colorScheme].text }]}>{d}</Text>
+                </View>
+              ))}
+              {dates.length > 5 && (
+                <View style={[styles.dateBadge, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                  <Text style={[styles.dateBadgeText, { color: Colors[colorScheme].mutedText }]}>+{dates.length - 5}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+          )}
+        </View>
 
-        <View style={styles.actions}>
-          <Pressable
-            style={[styles.primaryButton, !manageable && styles.disabledButton]}
-            onPress={() => {
-              if (!manageable) {
-                Alert.alert('View only', 'This ad belongs to another account. Contact support for changes.');
-                return;
-              }
-              router.push({ pathname: '/ad-calendar', params: { adId: item.id } });
-            }}
+        {/* Actions Section */}
+        <View style={styles.actionsContainer}>
+          <Pressable 
+            style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
+            onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}
           >
-            <Text style={styles.primaryButtonText}>Schedule Dates</Text>
+            <Ionicons name="calendar" size={18} color="#FFFFFF" />
+            <Text style={styles.actionButtonTextPrimary}>Schedule</Text>
           </Pressable>
-          <Pressable
-            style={[styles.secondaryButton, !manageable && styles.disabledButton]}
-            onPress={() => {
-              if (!manageable) {
-                Alert.alert('View only', 'This ad belongs to another account. Contact support for changes.');
-                return;
-              }
-              router.push({ pathname: '/edit-ad', params: { id: item.id } });
-            }}
+          
+          <Pressable 
+            style={[styles.actionButton, styles.actionButtonSecondary, { 
+              backgroundColor: Colors[colorScheme].surface,
+              borderColor: Colors[colorScheme].border
+            }]} 
+            onPress={() => router.push({ pathname: '/edit-ad', params: { id: item.id } })}
           >
-            <Text style={styles.secondaryButtonText}>Edit</Text>
+            <Ionicons name="create-outline" size={18} color={Colors[colorScheme].text} />
+            <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
           </Pressable>
-          <Pressable
-            style={[styles.secondaryButton, (!item.isLocal) && styles.disabledButton]}
-            onPress={() => {
-              if (!item.isLocal) {
-                Alert.alert('Managed by server', 'Live ads cannot be removed here. Contact support to archive the ad.');
-                return;
-              }
-              removeLocalAd(item.id);
-            }}
+          
+          <Pressable 
+            style={[styles.actionButton, styles.actionButtonSecondary, { 
+              backgroundColor: Colors[colorScheme].surface,
+              borderColor: Colors[colorScheme].border
+            }]} 
+            onPress={() => remove(item.id)}
           >
-            <Text style={styles.secondaryButtonText}>Remove</Text>
+            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            <Text style={[styles.actionButtonTextSecondary, { color: '#EF4444' }]}>Remove</Text>
           </Pressable>
         </View>
 
@@ -332,149 +228,306 @@ export default function MyAdsScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'My Ads' }} />
-      {loading && (
-        <View style={styles.loading}>
-          <ActivityIndicator />
-        </View>
-      )}
-      {!loading && ads.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.muted}>No ads yet. Create your first ad.</Text>
-          <Pressable style={styles.primaryButton} onPress={() => router.push('/submit-ad')}>
-            <Text style={styles.primaryButtonText}>Submit Ad</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {!loading && ads.length > 0 && (
-        <FlatList
-          data={ads}
-          keyExtractor={(ad) => ad.id}
-          renderItem={renderAd}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-          ListHeaderComponent={() => (
-            <View style={styles.summary}>
-              <Text style={styles.summaryTitle}>Ad Overview</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Active</Text>
-                <Text style={styles.summaryValue}>{summary.active}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Pending</Text>
-                <Text style={styles.summaryValue}>{summary.pending}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Draft / Local</Text>
-                <Text style={styles.summaryValue}>{summary.drafts}</Text>
-              </View>
-            </View>
-          )}
-        />
-      )}
-    </View>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ 
+        title: 'My Ads',
+        headerShown: false // Use custom header
+      }} />
+      
+      {/* Custom Header */}
+      <View style={[styles.header, { 
+        backgroundColor: Colors[colorScheme].card,
+        borderBottomColor: Colors[colorScheme].border 
+      }]}>
+        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
+        <Pressable 
+          style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
+          onPress={() => router.push('/submit-ad')}
+        >
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>Loading your ads...</Text>
+          </View>
+        )}
+        
+        {!loading && ads.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="megaphone-outline" size={80} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
+            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
+              Create your first advertisement to start promoting your business to local teams and families.
+            </Text>
+            <Pressable 
+              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
+              onPress={() => router.push('/submit-ad')}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        
+        {!loading && ads.length > 0 && (
+          <FlatList
+            data={ads}
+            keyExtractor={(a) => a.id}
+            renderItem={renderItem}
+            ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+            contentContainerStyle={{ 
+              padding: 16, 
+              paddingBottom: Platform.OS === 'ios' ? 34 : 24 
+            }}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
-function badgeStyleForStatus(status?: string) {
-  const s = String(status || 'draft').toLowerCase();
-  if (s === 'active') return { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' };
-  if (s === 'pending') return { backgroundColor: '#FEF9C3', borderColor: '#FDE68A' };
-  if (s === 'archived') return { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' };
-  return { backgroundColor: '#E0E7FF', borderColor: '#C7D2FE' };
+function badgeStyleForStatus(status?: string, colorScheme: 'light' | 'dark' = 'light') {
+  const s = String(status || 'draft');
+  if (s === 'active') return { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#DCFCE7', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC' };
+  if (s === 'pending') return { backgroundColor: colorScheme === 'dark' ? '#92400E' : '#FEF9C3', borderColor: colorScheme === 'dark' ? '#FBBF24' : '#FDE68A' };
+  if (s === 'archived') return { backgroundColor: colorScheme === 'dark' ? '#374151' : '#F3F4F6', borderColor: colorScheme === 'dark' ? '#6B7280' : '#E5E7EB' };
+  return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#E0E7FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#C7D2FE' }; // draft
 }
 function badgeTextStyleForStatus(status?: string) {
-  const s = String(status || 'draft').toLowerCase();
-  if (s === 'active') return { color: '#166534' };
-  if (s === 'pending') return { color: '#92400E' };
-  if (s === 'archived') return { color: '#374151' };
-  return { color: '#3730A3' };
+  const s = String(status || 'draft');
+  if (s === 'active') return { color: '#10B981' };
+  if (s === 'pending') return { color: '#F59E0B' };
+  if (s === 'archived') return { color: '#6B7280' };
+  return { color: '#3B82F6' };
 }
-function badgeStyleForPayment(payment?: string) {
-  const s = String(payment || 'unpaid').toLowerCase();
-  if (s === 'paid') return { backgroundColor: '#DBEAFE', borderColor: '#BFDBFE' };
-  if (s === 'refunded') return { backgroundColor: '#FFE4E6', borderColor: '#FECDD3' };
-  return { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' };
+function badgeStyleForPayment(p?: string, colorScheme: 'light' | 'dark' = 'light') {
+  const s = String(p || 'unpaid');
+  if (s === 'paid') return { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#DBEAFE', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' };
+  if (s === 'refunded') return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FFE4E6', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FECDD3' };
+  return { backgroundColor: colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2', borderColor: colorScheme === 'dark' ? '#EF4444' : '#FCA5A5' }; // unpaid
 }
-function badgeTextStyleForPayment(payment?: string) {
-  const s = String(payment || 'unpaid').toLowerCase();
-  if (s === 'paid') return { color: '#1D4ED8' };
-  if (s === 'refunded') return { color: '#991B1B' };
-  return { color: '#991B1B' };
+function badgeTextStyleForPayment(p?: string) { 
+  const s = String(p || 'unpaid');
+  if (s === 'paid') return { color: '#3B82F6' };
+  if (s === 'refunded') return { color: '#EF4444' };
+  return { color: '#EF4444' };
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  loading: { padding: 24, alignItems: 'center' },
-  emptyState: { padding: 16, gap: 12, alignItems: 'center' },
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 14 : 8,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  cardHeader: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  banner: { width: 120, height: 66, borderRadius: 8, backgroundColor: '#E5E7EB' },
+  bannerContainer: {
+    width: '100%',
+    height: 140,
+    position: 'relative',
+  },
+  banner: {
+    width: '100%',
+    height: '100%',
+  },
   bannerPlaceholder: {
-    width: 120,
-    height: 66,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
   },
-  bannerPlaceholderText: { color: '#6B7280', fontWeight: '600' },
-  title: { fontWeight: '800', fontSize: 16 },
-  meta: { color: '#6B7280', marginTop: 2 },
-  badgeRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  badgeSmall: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
+  bannerPlaceholderText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#6B7280',
   },
-  badgeSmallText: { fontWeight: '800', fontSize: 10 },
-  localBadge: { backgroundColor: '#E0F2FE', borderColor: '#BAE6FD' },
-  sectionHeading: { fontWeight: '700', marginBottom: 6 },
-  dateWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  dateBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: '#F3F4F6' },
-  dateBadgeText: { fontWeight: '700', fontSize: 12, color: '#111827' },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: '#111827',
-    borderRadius: 10,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: { color: '#FFFFFF', fontWeight: '800' },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
-  },
-  secondaryButtonText: { color: '#111827', fontWeight: '800' },
-  disabledButton: { opacity: 0.45 },
-  muted: { color: '#6B7280' },
-  summary: {
-    marginBottom: 16,
+  infoContainer: {
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+  },
+  businessName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  metaText: {
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    marginTop: 10,
+    flexWrap: 'wrap',
     gap: 8,
   },
-  summaryTitle: { fontWeight: '800', fontSize: 16 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryLabel: { color: '#4B5563', fontWeight: '600' },
-  summaryValue: { color: '#111827', fontWeight: '800' },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  datesSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  datesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  datesSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+    flex: 1,
+  },
+  datesCount: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  datesCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  datesBadgeWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  dateBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D1D5DB',
+  },
+  dateBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  noDatesText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 6,
+  },
+  actionButtonPrimary: {
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  actionButtonSecondary: {
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  actionButtonTextPrimary: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  actionButtonTextSecondary: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 80,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  emptyButton: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+  },
 });

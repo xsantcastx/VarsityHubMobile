@@ -1,11 +1,15 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable } from 'react-native';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 
 export default function AdminUserDetailScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,30 +39,32 @@ export default function AdminUserDetailScreen() {
   const datesByAd = detail?.datesByAd || {};
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Admin · User Detail' }} />
       {loading ? <View style={{ padding: 24, alignItems: 'center' }}><ActivityIndicator /></View> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: Colors[colorScheme].mutedText }]}>{error}</Text> : null}
       {!loading && !error && detail ? (
         <>
-          <View style={styles.header}>
-            <Text style={styles.title}>{detail.user?.display_name || '(no name)'}</Text>
-            <Text style={styles.meta}>{detail.user?.email}</Text>
+          <View style={[styles.header, { borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{detail.user?.display_name || '(no name)'}</Text>
+            <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{detail.user?.email}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-              <View style={styles.badge}><Text style={styles.badgeText}>{detail.user?.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text></View>
+              <View style={[styles.badge, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Text style={[styles.badgeText, { color: Colors[colorScheme].text }]}>{detail.user?.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text>
+              </View>
               {detail.user?.banned ? <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}><Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text></View> : null}
             </View>
-            <Pressable style={styles.btn} onPress={onDownload}><Text style={styles.btnText}>Download Ads CSV</Text></Pressable>
+            <Pressable style={[styles.btn, { backgroundColor: Colors[colorScheme].tint }]} onPress={onDownload}><Text style={styles.btnText}>Download Ads CSV</Text></Pressable>
           </View>
           <FlatList
             data={ads}
             keyExtractor={(a) => String(a.id)}
             renderItem={({ item }) => (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>{item.business_name || '(no business)'}</Text>
-                <Text style={styles.meta}>Status: {item.status || 'draft'} · Payment: {item.payment_status || 'unpaid'}</Text>
-                <Text style={styles.meta}>Zip {item.target_zip_code || ''}</Text>
-                <Text style={styles.meta}>Dates: {(datesByAd[item.id] || []).join(', ') || '—'}</Text>
+              <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{item.business_name || '(no business)'}</Text>
+                <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>Status: {item.status || 'draft'} · Payment: {item.payment_status || 'unpaid'}</Text>
+                <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>Zip {item.target_zip_code || ''}</Text>
+                <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>Dates: {(datesByAd[item.id] || []).join(', ') || '—'}</Text>
               </View>
             )}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -66,18 +72,18 @@ export default function AdminUserDetailScreen() {
           />
         </>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  header: { padding: 16, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  container: { flex: 1 },
+  header: { padding: 16, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '800', fontSize: 18 },
-  meta: { color: '#6b7280' },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', backgroundColor: '#E5E7EB' },
+  meta: {},
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
   badgeText: { fontWeight: '800', fontSize: 10 },
-  btn: { alignSelf: 'flex-start', backgroundColor: '#111827', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
+  btn: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
   btnText: { color: 'white', fontWeight: '800' },
   card: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   cardTitle: { fontWeight: '800' },

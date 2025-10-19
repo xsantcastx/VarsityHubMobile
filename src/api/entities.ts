@@ -70,6 +70,7 @@ export const Game = {
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
   },
   media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`),
+  deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
@@ -311,6 +312,7 @@ export const Team = {
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  delete: (id: string) => httpDelete('/teams/' + encodeURIComponent(id)),
 };
 
 export const Support = {
@@ -367,6 +369,7 @@ export const Advertisement = {
   listAll: () => httpGet('/ads?all=1'),
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
+  delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
   forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
     const q: string[] = [];
     if (dateISO) q.push('date=' + encodeURIComponent(dateISO));

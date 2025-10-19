@@ -38,6 +38,7 @@ model User {
   posts       Post[]
   categoryFollows CategoryFollow[]
   promoRedemptions PromoRedemption[]
+  transactionLogs  TransactionLog[]
 
   // Follows (self-relation)
   following Follows[] @relation("following")
@@ -61,6 +62,8 @@ model Game {
   title           String
   date            DateTime
   location        String?
+  latitude        Float?
+  longitude       Float?
   home_team       String?
   away_team       String?
   description     String?
@@ -77,6 +80,7 @@ model Game {
   votes   GameVote[]
 
   @@index([date])
+  @@index([latitude, longitude])
 }
 
 model Post {
@@ -118,6 +122,8 @@ model Event {
   title      String
   date       DateTime
   location   String?
+  latitude   Float?
+  longitude  Float?
   banner_url String?
   game_id    String?
   status     String   @default("draft")
@@ -129,6 +135,7 @@ model Event {
 
   @@index([date])
   @@index([game_id])
+  @@index([latitude, longitude])
 }
 
 model Message {
@@ -142,11 +149,13 @@ model Message {
   recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
 
   content    String?
+  read       Boolean  @default(false)
   created_at DateTime @default(now())
 
   @@index([created_at])
   @@index([sender_id, created_at])
   @@index([recipient_id, created_at])
+  @@index([recipient_id, read])
 }
 
 model Comment {
@@ -232,6 +241,8 @@ model Ad {
   contact_email   String?
   business_name   String?
   banner_url      String?
+  banner_fit_mode String?  @default("fill") // letterbox | fill | stretch
+  target_url      String?  // URL to open when ad is clicked
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
@@ -512,6 +523,77 @@ model PromoRedemption {
 
   @@index([promo_id, user_id])
 }
+
+
+// ===========================
+// Transaction Logging
+// ===========================
+
+enum TransactionType {
+  AD_PURCHASE
+  SUBSCRIPTION_PURCHASE
+  SUBSCRIPTION_RENEWAL
+  SUBSCRIPTION_CANCEL
+  REFUND
+  PROMO_REDEMPTION
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+model TransactionLog {
+  id                  String            @id @default(cuid())
+  
+  // Transaction identification
+  transaction_type    TransactionType
+  status              TransactionStatus @default(PENDING)
+  stripe_session_id   String?           @unique
+  stripe_payment_intent_id String?
+  stripe_subscription_id   String?
+  
+  // User and order details
+  user_id             String?
+  user_email          String?
+  order_id            String?           // Ad ID, subscription ID, etc.
+  
+  // Financial details (all in cents)
+  subtotal_cents      Int               @default(0)
+  tax_cents           Int               @default(0)
+  stripe_fee_cents    Int               @default(0)
+  discount_cents      Int               @default(0)
+  total_cents         Int               @default(0)
+  net_cents           Int               @default(0)  // total - stripe_fee
+  
+  // Promo code tracking
+  promo_code          String?
+  promo_discount_cents Int              @default(0)
+  
+  // Metadata
+  currency            String            @default("usd")
+  payment_method      String?           // "card", "bank_transfer", etc.
+  metadata            Json?             // Additional context (dates, zip codes, etc.)
+  
+  // Audit trail
+  ip_address          String?
+  user_agent          String?
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+  
+  // Relations
+  user                User?             @relation(fields: [user_id], references: [id])
+  
+  @@index([user_id])
+  @@index([stripe_session_id])
+  @@index([transaction_type])
+  @@index([status])
+  @@index([created_at])
+}
+
 
 
 

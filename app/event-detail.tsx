@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import * as WebBrowser from 'expo-web-browser';
@@ -10,6 +11,7 @@ type EventItem = { id: string | number; title?: string; date?: string; location?
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventItem | null>(null);
@@ -104,62 +106,72 @@ export default function EventDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Event Detail' }} />
-      {!id && <Text style={styles.error}>Missing event id.</Text>}
-      {loading && (
-        <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-          <ActivityIndicator />
-        </View>
-      )}
-      {error && !loading && <Text style={styles.error}>{error}</Text>}
-      {event && !loading && (
-        <View style={{ gap: 8 }}>
-          <Text style={styles.title}>{event.title || 'Event'}</Text>
-          
-          {/* Location with Map Pin */}
-          {event.location && (
-            <Pressable 
-              style={styles.locationCard}
-              onPress={openInMaps}
-            >
-              <View style={styles.locationIconContainer}>
-                <Ionicons name="location" size={24} color="#EF4444" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.locationLabel}>Location</Text>
-                <Text style={styles.locationText}>{event.location}</Text>
-                <Text style={styles.locationHint}>Tap to open in Maps</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </Pressable>
-          )}
-          
-          <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
-          <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
-          {event.description ? <Text>{event.description}</Text> : null}
-
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-            <Pressable style={styles.primaryBtn} onPress={toggleRsvp}>
-              <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
-            </Pressable>
-            <Pressable style={styles.outlineBtn} onPress={onShare}>
-              <Text style={styles.outlineBtnText}>Share</Text>
-            </Pressable>
-            {(event as any)?.slug ? (
-              <Pressable style={styles.outlineBtn} onPress={openPublic}>
-                <Text style={styles.outlineBtnText}>Open Public</Text>
-              </Pressable>
-            ) : null}
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ title: 'Event Detail', headerShown: false }} />
+      
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ 
+          paddingBottom: Math.max(insets.bottom, 16),
+          padding: 16,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {!id && <Text style={styles.error}>Missing event id.</Text>}
+        {loading && (
+          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+            <ActivityIndicator />
           </View>
-        </View>
-      )}
-    </View>
+        )}
+        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {event && !loading && (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.title}>{event.title || 'Event'}</Text>
+            
+            {/* Location with Map Pin */}
+            {event.location && (
+              <Pressable 
+                style={styles.locationCard}
+                onPress={openInMaps}
+              >
+                <View style={styles.locationIconContainer}>
+                  <Ionicons name="location" size={24} color="#EF4444" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.locationLabel}>Location</Text>
+                  <Text style={styles.locationText}>{event.location}</Text>
+                  <Text style={styles.locationHint}>Tap to open in Maps</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </Pressable>
+            )}
+            
+            <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
+            <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
+            {event.description ? <Text>{event.description}</Text> : null}
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <Pressable style={styles.primaryBtn} onPress={toggleRsvp}>
+                <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
+              </Pressable>
+              <Pressable style={styles.outlineBtn} onPress={onShare}>
+                <Text style={styles.outlineBtnText}>Share</Text>
+              </Pressable>
+              {(event as any)?.slug ? (
+                <Pressable style={styles.outlineBtn} onPress={openPublic}>
+                  <Text style={styles.outlineBtnText}>Open Public</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1, backgroundColor: 'white' },
   title: { fontSize: 22, fontWeight: '800' },
   meta: { color: '#6b7280' },
   error: { color: '#b91c1c' },
