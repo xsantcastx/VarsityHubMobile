@@ -72,6 +72,30 @@ export default function MyAdsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  const categorizeAdDates = (dates: string[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const past: string[] = [];
+    const future: string[] = [];
+    
+    dates.forEach(dateStr => {
+      try {
+        const date = new Date(dateStr + 'T00:00:00');
+        if (date < today) {
+          past.push(dateStr);
+        } else {
+          future.push(dateStr);
+        }
+      } catch {
+        // If date parsing fails, assume future
+        future.push(dateStr);
+      }
+    });
+    
+    return { past, future };
+  };
+
   const remove = async (id: string) => {
     Alert.alert('Remove Ad', 'This removes the local draft only. Scheduled dates remain.', [
       { text: 'Cancel', style: 'cancel' },
@@ -86,6 +110,23 @@ export default function MyAdsScreen() {
 
   const renderItem = ({ item }: { item: DraftAd }) => {
     const dates = datesByAd[item.id] || [];
+    const { past, future } = categorizeAdDates(dates);
+    const hasCompleted = past.length > 0;
+    const hasUpcoming = future.length > 0;
+    const hasDates = dates.length > 0;
+    
+    const formatDate = (d: string) => {
+      try {
+        return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { 
+          month: 'short', 
+          day: 'numeric', 
+          year: 'numeric' 
+        });
+      } catch {
+        return d;
+      }
+    };
+    
     return (
       <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
         <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -102,26 +143,82 @@ export default function MyAdsScreen() {
             <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>Zip {item.zip_code}</Text>
           </View>
         </View>
-        <View style={{ height: 8 }} />
-        <Text style={[styles.section, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
-        {dates.length > 0 ? (
-          <View style={styles.badgeWrap}>
-            {dates.map((d) => {
-              let label = d;
-              try { label = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); } catch {}
-              return (
-                <View key={d} style={[styles.badge, { backgroundColor: Colors[colorScheme].border }]}><Text style={[styles.badgeText, { color: Colors[colorScheme].text }]}>{label}</Text></View>
-              );
-            })}
-          </View>
-        ) : (
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>None yet</Text>
+        <View style={{ height: 12 }} />
+        
+        {/* Completed Dates */}
+        {hasCompleted && (
+          <>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+              Completed ✅ ({past.length})
+            </Text>
+            <View style={styles.badgeWrap}>
+              {past.map((d) => (
+                <View 
+                  key={d} 
+                  style={[
+                    styles.badge, 
+                    styles.badgeCompleted,
+                    colorScheme === 'dark' && styles.badgeCompletedDark
+                  ]}
+                >
+                  <Text style={[styles.badgeText, styles.badgeTextCompleted]}>
+                    {formatDate(d)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ height: 8 }} />
+          </>
         )}
+        
+        {/* Upcoming Dates */}
+        {hasUpcoming && (
+          <>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+              Upcoming 📅 ({future.length})
+            </Text>
+            <View style={styles.badgeWrap}>
+              {future.map((d) => (
+                <View 
+                  key={d} 
+                  style={[
+                    styles.badge, 
+                    styles.badgeUpcoming,
+                    colorScheme === 'dark' && styles.badgeUpcomingDark
+                  ]}
+                >
+                  <Text style={[styles.badgeText, styles.badgeTextUpcoming]}>
+                    {formatDate(d)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ height: 8 }} />
+          </>
+        )}
+        
+        {/* No Dates */}
+        {!hasDates && (
+          <>
+            <Text style={[styles.section, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
+            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+            <View style={{ height: 8 }} />
+          </>
+        )}
+        
         <View style={styles.row}>
-          <Pressable style={[styles.btn, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}>
-            <Text style={styles.btnText}>Schedule Dates</Text>
+          <Pressable 
+            style={[styles.btn, { backgroundColor: Colors[colorScheme].tint }]} 
+            onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}
+          >
+            <Text style={styles.btnText}>
+              {hasDates ? 'Schedule More' : 'Schedule Dates'}
+            </Text>
           </Pressable>
-          <Pressable style={[styles.btn, styles.btnSecondary, { backgroundColor: Colors[colorScheme].border }]} onPress={() => remove(item.id)}>
+          <Pressable 
+            style={[styles.btn, styles.btnSecondary, { backgroundColor: Colors[colorScheme].border }]} 
+            onPress={() => remove(item.id)}
+          >
             <Text style={[styles.btnText, { color: Colors[colorScheme].text }]}>Remove</Text>
           </Pressable>
         </View>
@@ -161,9 +258,44 @@ const styles = StyleSheet.create({
   title: { fontWeight: '800', fontSize: 16 },
   meta: {},
   section: { fontWeight: '700', marginBottom: 6 },
+  sectionTitle: { 
+    fontWeight: '700', 
+    fontSize: 14, 
+    marginBottom: 8,
+    opacity: 0.8,
+  },
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#F3F4F6' },
+  badge: { 
+    paddingHorizontal: 10, 
+    paddingVertical: 5, 
+    borderRadius: 999, 
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  badgeCompleted: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#10B981',
+  },
+  badgeCompletedDark: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#10B981',
+  },
+  badgeUpcoming: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  badgeUpcomingDark: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#3B82F6',
+  },
   badgeText: { fontWeight: '700', fontSize: 12, color: '#111827' },
+  badgeTextCompleted: {
+    color: '#065F46',
+  },
+  badgeTextUpcoming: {
+    color: '#1E40AF',
+  },
   row: { flexDirection: 'row', gap: 8, marginTop: 10 },
   btn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 42, borderRadius: 10, backgroundColor: '#111827' },
   btnSecondary: { backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
