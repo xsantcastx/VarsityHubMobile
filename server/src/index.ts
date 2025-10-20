@@ -107,7 +107,7 @@ app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);
 app.use('/events', apiLimiter, eventsRouter);
 app.use('/messages', noStore, apiLimiter, messagesRouter);
-app.use('/uploads', uploadsRouter);
+app.use('/api/uploads', uploadsRouter); // Changed from /uploads to /api/uploads to avoid conflict with static files
 
 app.use('/ads', adsRouter);
 app.use('/payments', paymentsRouter);

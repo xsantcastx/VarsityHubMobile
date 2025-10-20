@@ -18,7 +18,7 @@ function computeBase(provided?: string | null) {
 
 export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string): Promise<any> {
   const finalBase = computeBase(baseUrl);
-  const target = `${finalBase}/uploads`;
+  const target = `${finalBase}/api/uploads`;
 
   const form = new FormData();
   form.append('file', {
