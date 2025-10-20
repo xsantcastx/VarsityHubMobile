@@ -12,8 +12,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
-const weekdayRate = 10.00;  // Per single day (Mon-Thu)
-const weekendRate = 17.50;  // Per single day (Fri-Sun)
+const weekdayBlockRate = 10.00;  // Mon-Thu entire week block
+const weekendBlockRate = 17.50;  // Fri-Sun entire weekend block
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
@@ -28,20 +28,47 @@ function getDayOfWeek(dateISO: string): number {
   return new Date(dateISO + 'T00:00:00').getDay();
 }
 
+// Get the week key for a date (ISO week start, e.g., "2025-10-20")
+function getWeekKey(dateISO: string): string {
+  const date = new Date(dateISO + 'T00:00:00');
+  const day = date.getDay();
+  // Find Monday of this week
+  const diff = day === 0 ? -6 : 1 - day; // Sunday is 0, so go back 6 days, otherwise go back to Monday
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diff);
+  return format(monday, 'yyyy-MM-dd');
+}
+
 function calculatePrice(selectedISO: Set<string>): number {
   if (selectedISO.size === 0) return 0;
-  let total = 0;
   
-  // Calculate price per individual day
-  for (const d of selectedISO) {
-    const dow = getDayOfWeek(d);
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($10)
-    // Fri=5, Sat=6, Sun=0 are weekend ($17.50)
-    if (dow >= 1 && dow <= 4) {
-      total += weekdayRate; // $10.00 per weekday
-    } else {
-      total += weekendRate; // $17.50 per weekend day
+  // Group selected dates by week
+  const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();
+  
+  for (const dateStr of selectedISO) {
+    const weekKey = getWeekKey(dateStr);
+    const dow = getDayOfWeek(dateStr);
+    
+    if (!weekMap.has(weekKey)) {
+      weekMap.set(weekKey, { hasWeekday: false, hasWeekend: false });
     }
+    
+    const week = weekMap.get(weekKey)!;
+    
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
+    // Fri=5, Sat=6, Sun=0 are weekend
+    if (dow >= 1 && dow <= 4) {
+      week.hasWeekday = true;
+    } else {
+      week.hasWeekend = true;
+    }
+  }
+  
+  // Calculate total: $10 per week with weekdays, $17.50 per week with weekend days
+  let total = 0;
+  for (const week of weekMap.values()) {
+    if (week.hasWeekday) total += weekdayBlockRate;
+    if (week.hasWeekend) total += weekendBlockRate;
   }
   
   return total;
@@ -399,11 +426,11 @@ export default function AdCalendarScreen() {
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayBlockRate.toFixed(2)} per week</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendBlockRate.toFixed(2)} per week</Text>
             </View>
           </View>
 
@@ -433,13 +460,15 @@ export default function AdCalendarScreen() {
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Pricing</Text>
           <View style={styles.rowBetween}>
             <Text style={{ color: Colors[colorScheme].text }}>Weekday Rate (Mon-Thu):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayRate.toFixed(2)}/day</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayBlockRate.toFixed(2)}</Text>
           </View>
           <View style={styles.rowBetween}>
             <Text style={{ color: Colors[colorScheme].text }}>Weekend Rate (Fri-Sun):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendRate.toFixed(2)}/day</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendBlockRate.toFixed(2)}</Text>
           </View>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each day is priced individually. Select multiple days to see your total.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>
+            Weekday rate covers Mon-Thu for the entire week. Weekend rate covers Fri-Sun for the entire weekend.
+          </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>

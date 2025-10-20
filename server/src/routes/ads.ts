@@ -248,19 +248,45 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     skipDuplicates: true,
   });
 
-  // Price logic: charge per individual day
-  // Mon-Thu = $10/day, Fri-Sun = $17.50/day
-  let totalPrice = 0;
-  isoDates.forEach((s) => {
-    const d = new Date(s + 'T00:00:00.000Z').getUTCDay();
-    if (d >= 1 && d <= 4) {
-      // Mon-Thu: weekday rate
-      totalPrice += 10.00;
+  // Price logic: charge per week block
+  // Mon-Thu = $10 per week block, Fri-Sun = $17.50 per weekend block
+  const weekdayBlockPrice = 10.00;
+  const weekendBlockPrice = 17.50;
+  
+  // Group dates by week
+  const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();
+  
+  isoDates.forEach((dateStr) => {
+    const date = new Date(dateStr + 'T00:00:00.000Z');
+    const day = date.getUTCDay(); // 0 Sun .. 6 Sat
+    
+    // Find Monday of this week to use as key
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() + diff);
+    const weekKey = monday.toISOString().split('T')[0];
+    
+    if (!weekMap.has(weekKey)) {
+      weekMap.set(weekKey, { hasWeekday: false, hasWeekend: false });
+    }
+    
+    const week = weekMap.get(weekKey)!;
+    
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
+    // Fri=5, Sat=6, Sun=0 are weekend
+    if (day >= 1 && day <= 4) {
+      week.hasWeekday = true;
     } else {
-      // Fri-Sun: weekend rate (Sun=0, Fri=5, Sat=6)
-      totalPrice += 17.50;
+      week.hasWeekend = true;
     }
   });
+  
+  // Calculate total: charge once per week block
+  let totalPrice = 0;
+  for (const week of weekMap.values()) {
+    if (week.hasWeekday) totalPrice += weekdayBlockPrice;
+    if (week.hasWeekend) totalPrice += weekendBlockPrice;
+  }
 
   return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
 });
