@@ -839,9 +839,6 @@ export default function FeedScreen() {
                           <Text style={[styles.promoTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
                             Reserve Your Ad Space Now
                           </Text>
-                          <Text style={[styles.promoSubtitle, { color: colorScheme === 'dark' ? '#94A3B8' : '#475569' }]}>
-                            Get your business in front of thousands of athletes, coaches & fans
-                          </Text>
                         </View>
                         <View style={styles.promoteCtaBanner}>
                           <Ionicons name="arrow-forward" size={18} color="#ffffff" />

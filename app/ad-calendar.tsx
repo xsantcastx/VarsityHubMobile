@@ -77,8 +77,9 @@ function calculatePrice(selectedISO: Set<string>): number {
 export default function AdCalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ adId?: string }>();
+  const params = useLocalSearchParams<{ adId?: string; isPaid?: string }>();
   const adId = params.adId ?? '';
+  const isPaid = params.isPaid === 'true';
   const colorScheme = useColorScheme() ?? 'light';
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -251,6 +252,39 @@ export default function AdCalendarScreen() {
       return;
     }
     
+    // If ad is already paid, just reserve the dates without payment
+    if (isPaid) {
+      setSubmitting(true);
+      try {
+        const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
+        const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+        const headers: any = { 'Content-Type': 'application/json' };
+        const token = getAuthToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+        
+        // Call reservations endpoint directly (no payment needed)
+        const r = await fetch(`${base.replace(/\/$/, '')}/ads/reservations`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ad_id: String(adId), dates }),
+        });
+        const txt = await r.text();
+        const data = txt ? JSON.parse(txt) : null;
+        if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+        
+        Alert.alert('Success!', 'Your additional dates have been scheduled. No payment required.', [
+          { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
+        ]);
+      } catch (err) {
+        console.error('Failed to reserve dates:', err);
+        const msg = (err as any)?.message || 'An error occurred reserving dates.';
+        Alert.alert('Error', msg);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+    
     // Validate 8-week limit on selected dates
     const maxDate = maxDateISO();
     const invalidDates = Array.from(selected).filter(date => date > maxDate);
@@ -364,6 +398,22 @@ export default function AdCalendarScreen() {
             </View>
             <Text style={{ color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', fontSize: 14 }}>
               Your ad will reach <Text style={{ fontWeight: '700' }}>20 miles</Text> around zip code <Text style={{ fontWeight: '700' }}>{zipCode}</Text>
+            </Text>
+          </View>
+        )}
+        
+        {/* Already Paid Notice */}
+        {isPaid && (
+          <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5', borderColor: colorScheme === 'dark' ? '#10B981' : '#86EFAC', borderWidth: 2 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 24 }}>✓</Text>
+              <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#D1FAE5' : '#065F46', fontSize: 16 }]}>Ad Already Paid</Text>
+            </View>
+            <Text style={{ color: colorScheme === 'dark' ? '#D1FAE5' : '#065F46', fontSize: 14, lineHeight: 20 }}>
+              This advertisement is already paid for. You can schedule additional dates at <Text style={{ fontWeight: '700' }}>no extra charge</Text>. Simply select the dates you want and confirm your selection.
+            </Text>
+            <Text style={{ color: colorScheme === 'dark' ? '#A7F3D0' : '#047857', fontSize: 13, marginTop: 8, fontStyle: 'italic' }}>
+              💡 No payment required - just select your dates and confirm!
             </Text>
           </View>
         )}
@@ -544,7 +594,9 @@ export default function AdCalendarScreen() {
           ) : null}
           <View style={styles.rowBetween}>
             <Text style={[styles.bold, { fontSize: 18, color: Colors[colorScheme].text }]}>Total:</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>${effective.toFixed(2)}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: Colors[colorScheme].text }}>
+              {isPaid ? 'Already Paid ✓' : `$${effective.toFixed(2)}`}
+            </Text>
           </View>
 
           <Pressable
@@ -555,7 +607,9 @@ export default function AdCalendarScreen() {
             {submitting ? (
               <ActivityIndicator />
             ) : (
-              <Text style={styles.payBtnText}>Pay ${effective.toFixed(2)}</Text>
+              <Text style={styles.payBtnText}>
+                {isPaid ? 'Confirm Selection (No Payment)' : `Pay $${effective.toFixed(2)}`}
+              </Text>
             )}
           </Pressable>
         </View>
