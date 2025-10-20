@@ -152,6 +152,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                 zip_code: null,
               });
               const [plan, setPlan] = useState<string | null>(null);
+              const [isAdmin, setIsAdmin] = useState(false);
 
               // Debounce timer refs for PATCH batching
               const timers = useRef<{ [k: string]: any }>({});
@@ -165,6 +166,11 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     const me: any = await User.me();
                     if (!mounted) return;
                     setEmail(me?.email || null);
+                    
+                    // Check if user is admin (email-based)
+                    const adminEmails = ['xsancastrillonx@hotmail.com']; // Could also fetch from API
+                    setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
+                    
                     const serverPrefs = (me && me.preferences) || {};
                     setPrefs({
                       notifications: {
@@ -325,6 +331,32 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                       <NavRow title="Contact Varsity Hub Team" onPress={() => router.push('/settings/contact')} />
                       <NavRow title="Leave Feedback" onPress={() => router.push('/settings/feedback')} />
                     </SectionCard>
+
+                    {/* Admin Panel - Only visible to admins */}
+                    {isAdmin && (
+                      <SectionCard title="🛡️ Admin Panel" initiallyOpen>
+                        <NavRow 
+                          title="Manage Users" 
+                          subtitle="View all users, ban/unban" 
+                          onPress={() => router.push('/admin-users')} 
+                        />
+                        <NavRow 
+                          title="Manage Teams" 
+                          subtitle="View and moderate all teams" 
+                          onPress={() => router.push('/admin-teams')} 
+                        />
+                        <NavRow 
+                          title="Manage Ads" 
+                          subtitle="Review and moderate advertisements" 
+                          onPress={() => router.push('/admin-ads')} 
+                        />
+                        <NavRow 
+                          title="View Messages" 
+                          subtitle="Content moderation" 
+                          onPress={() => router.push('/admin-messages')} 
+                        />
+                      </SectionCard>
+                    )}
 
                     {/* Session */}
                     <SectionCard title="Session">
