@@ -1,5 +1,7 @@
 import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +14,8 @@ import { OnboardingLayout } from './components/OnboardingLayout';
 
 export default function Step4Season() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
@@ -37,8 +41,8 @@ export default function Step4Season() {
     switch (ob.plan) {
       case 'rookie':
         return {
-          name: 'Rookie (Free Trial)',
-          description: '6-month free trial season',
+          name: 'Rookie (Free)',
+          description: 'Always free for up to 2 teams',
           color: '#16A34A'
         };
       case 'veteran':
@@ -141,6 +145,8 @@ export default function Step4Season() {
     return suggestions;
   }, []);
 
+  const styles = useMemo(() => createStyles(theme, colorScheme === 'dark'), [theme, colorScheme]);
+
   return (
     <OnboardingLayout
       step={4}
@@ -186,14 +192,21 @@ export default function Step4Season() {
             markedDates={startDate ? {
               [startDate]: {
                 selected: true,
-                selectedColor: '#111827'
+                selectedColor: theme.tint
               }
             } : {}}
             minDate={new Date().toISOString().split('T')[0]}
             theme={{
-              selectedDayBackgroundColor: '#111827',
-              todayTextColor: '#2563EB',
-              arrowColor: '#111827',
+              backgroundColor: theme.card,
+              calendarBackground: theme.card,
+              textSectionTitleColor: theme.text,
+              selectedDayBackgroundColor: theme.tint,
+              selectedDayTextColor: '#ffffff',
+              todayTextColor: theme.tint,
+              dayTextColor: theme.text,
+              textDisabledColor: theme.mutedText,
+              monthTextColor: theme.text,
+              arrowColor: theme.tint,
             }}
           />
         </View>
@@ -227,17 +240,17 @@ export default function Step4Season() {
       )}
     </OnboardingLayout>
   );
-}const styles = StyleSheet.create({
+}const createStyles = (theme: typeof Colors.light, isDark: boolean) => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: 'white' 
+    backgroundColor: theme.background
   },
   scrollContent: { 
     padding: 16, 
     paddingBottom: 28 
   },
   planInfo: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.card,
     borderRadius: 8,
     padding: 12,
     borderLeftWidth: 4,
@@ -247,9 +260,10 @@ export default function Step4Season() {
     fontWeight: '700',
     fontSize: 16,
     marginBottom: 2,
+    color: theme.text,
   },
   planDescription: {
-    color: '#6B7280',
+    color: theme.mutedText,
     fontSize: 14,
   },
   sectionTitle: {
@@ -257,18 +271,19 @@ export default function Step4Season() {
     fontSize: 16,
     marginBottom: 12,
     marginTop: 8,
+    color: theme.text,
   },
   suggestionCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.card,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   suggestionSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#111827',
+    backgroundColor: theme.background,
+    borderColor: theme.tint,
   },
   suggestionHeader: {
     flexDirection: 'row',
@@ -279,31 +294,32 @@ export default function Step4Season() {
   suggestionLabel: {
     fontWeight: '600',
     fontSize: 14,
+    color: theme.text,
   },
   suggestionDates: {
-    color: '#6B7280',
+    color: theme.mutedText,
     fontSize: 12,
   },
   calendarContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.card,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
     marginBottom: 16,
     overflow: 'hidden',
   },
   summaryCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.1)' : '#F0FDF4',
     borderRadius: 8,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: isDark ? 'rgba(34, 197, 94, 0.3)' : '#BBF7D0',
   },
   summaryTitle: {
     fontWeight: '700',
     fontSize: 16,
-    color: '#166534',
+    color: isDark ? '#4ade80' : '#166534',
     marginBottom: 8,
   },
   summaryRow: {
@@ -312,11 +328,11 @@ export default function Step4Season() {
     marginBottom: 4,
   },
   summaryLabel: {
-    color: '#166534',
+    color: isDark ? '#86efac' : '#166534',
     fontSize: 14,
   },
   summaryValue: {
-    color: '#166534',
+    color: isDark ? '#86efac' : '#166534',
     fontSize: 14,
     fontWeight: '600',
   },
