@@ -14,22 +14,43 @@ export const paymentsRouter = Router();
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
   
-  // Individual day pricing: $10 weekday (Mon-Thu), $17.50 weekend (Fri-Sun)
-  const weekdayPrice = 1000; // $10.00 in cents
-  const weekendPrice = 1750; // $17.50 in cents
-  let total = 0;
+  // Week block pricing: $10 for Mon-Thu week, $17.50 for Fri-Sun weekend
+  const weekdayBlockPrice = 1000; // $10.00 in cents for entire Mon-Thu block
+  const weekendBlockPrice = 1750; // $17.50 in cents for entire Fri-Sun block
   
-  for (const s of isoDates) {
-    const d = new Date(s + 'T00:00:00');
-    const day = d.getDay(); // 0 Sun .. 6 Sat
+  // Group dates by week
+  const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();
+  
+  for (const dateStr of isoDates) {
+    const date = new Date(dateStr + 'T00:00:00');
+    const day = date.getDay(); // 0 Sun .. 6 Sat
+    
+    // Find Monday of this week to use as key
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(date);
+    monday.setDate(date.getDate() + diff);
+    const weekKey = monday.toISOString().split('T')[0];
+    
+    if (!weekMap.has(weekKey)) {
+      weekMap.set(weekKey, { hasWeekday: false, hasWeekend: false });
+    }
+    
+    const week = weekMap.get(weekKey)!;
     
     // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
     // Fri=5, Sat=6, Sun=0 are weekend
     if (day >= 1 && day <= 4) {
-      total += weekdayPrice;
+      week.hasWeekday = true;
     } else {
-      total += weekendPrice;
+      week.hasWeekend = true;
     }
+  }
+  
+  // Calculate total: charge once per week block
+  let total = 0;
+  for (const week of weekMap.values()) {
+    if (week.hasWeekday) total += weekdayBlockPrice;
+    if (week.hasWeekend) total += weekendBlockPrice;
   }
   
   return total;
