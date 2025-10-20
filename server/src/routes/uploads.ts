@@ -1,4 +1,4 @@
-import { Request, Router } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import fs from 'node:fs';
@@ -72,6 +72,17 @@ const fileUpload = multer({
 });
 
 export const uploadsRouter = Router();
+
+// Add error logging middleware
+uploadsRouter.use((req, res, next) => {
+  console.log('[uploads] Incoming request:', {
+    method: req.method,
+    path: req.path,
+    headers: req.headers,
+    contentType: req.headers['content-type'],
+  });
+  next();
+});
 
 // Original media upload endpoint (images/videos only)
 uploadsRouter.post('/', upload.single('file'), (req: MulterRequest, res) => {
@@ -160,6 +171,39 @@ uploadsRouter.post('/files', fileUpload.single('file'), (req: MulterRequest, res
     size: req.file.size,
     originalName: req.file.originalname,
     storage: useCloudinary ? 'cloudinary' : 'local'
+  });
+});
+
+// Error handler for multer and other upload errors
+uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[uploads] Error:', {
+    message: err.message,
+    code: err.code,
+    stack: err.stack,
+    path: req.path,
+  });
+  
+  // Multer errors
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'File too large. Maximum size is 50MB.' });
+  }
+  
+  if (err.message === 'Only image or video files are allowed') {
+    return res.status(400).json({ error: err.message });
+  }
+  
+  // Cloudinary errors
+  if (err.http_code) {
+    return res.status(err.http_code).json({ 
+      error: 'Upload failed', 
+      message: err.message 
+    });
+  }
+  
+  // Generic error
+  res.status(500).json({ 
+    error: 'Upload failed', 
+    message: err.message || 'Unknown error'
   });
 });
 
