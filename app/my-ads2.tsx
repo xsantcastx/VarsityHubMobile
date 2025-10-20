@@ -69,6 +69,58 @@ export default function MyAdsScreen() {
     return userId ? `${base}_${userId}` : base;
   }, [userId]);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      let serverAds: any[] | null = null;
+      try {
+        const s = await AdsApi.listMine();
+        serverAds = Array.isArray(s) ? s : [];
+      } catch { serverAds = null; }
+
+      const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
+      const combined: ManagedAd[] = [];
+      const add = (a: any) => {
+        const id = String(a.id);
+        if (combined.find((x) => x.id === id)) return;
+        combined.push({
+          id,
+          business_name: String(a.business_name || a.name || ''),
+          contact_name: String(a.contact_name || ''),
+          contact_email: String(a.contact_email || ''),
+          banner_url: a.banner_url || undefined,
+          zip_code: String(a.target_zip_code || a.zip_code || ''),
+          description: a.description || undefined,
+          created_at: a.created_at || new Date().toISOString(),
+          status: a.status,
+          payment_status: a.payment_status,
+          owner_id: a.owner_id,
+        });
+      };
+      if (serverAds) serverAds.forEach(add);
+      localAds.forEach(add);
+      setAds(combined);
+
+      const entries = await Promise.all(
+        combined.map(async (ad) => {
+          try {
+            const r: any = await AdsApi.reservationsForAd(ad.id);
+            return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
+          } catch { return [ad.id, []] as const; }
+        })
+      );
+      const map: Record<string, string[]> = {};
+      for (const [id, dates] of entries) map[id] = dates;
+      setDatesByAd(map);
+    } finally { setLoading(false); }
+  }, [getLocalAdsKey]);
+
+  useEffect(() => {
+    if (userLoaded) {
+      load();
+    }
+  }, [userLoaded, load]);
+
   const remove = async (id: string) => {
     Alert.alert(
       'Delete Ad', 
@@ -86,7 +138,7 @@ export default function MyAdsScreen() {
               console.log('[my-ads2] Ad deleted from server successfully');
               
               // Also remove from local storage
-              const list = await settings.getJson<DraftAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
+              const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
               const next = list.filter((a) => a.id !== id);
               await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
               
@@ -104,8 +156,48 @@ export default function MyAdsScreen() {
     );
   };
 
+  const categorizeAdDates = (dates: string[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const past: string[] = [];
+    const future: string[] = [];
+    
+    dates.forEach(dateStr => {
+      try {
+        const date = new Date(dateStr + 'T00:00:00');
+        if (date < today) {
+          past.push(dateStr);
+        } else {
+          future.push(dateStr);
+        }
+      } catch {
+        // If date parsing fails, assume future
+        future.push(dateStr);
+      }
+    });
+    
+    return { past, future };
+  };
+
+  const formatDate = (d: string) => {
+    try {
+      return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
+    } catch {
+      return d;
+    }
+  };
+
   const renderAd = ({ item }: { item: ManagedAd }) => {
     const dates = datesByAd[item.id] || [];
+    const { past, future } = categorizeAdDates(dates);
+    const hasCompleted = past.length > 0;
+    const hasUpcoming = future.length > 0;
+    const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
     const isActive = item.status === 'active';
     
@@ -159,29 +251,86 @@ export default function MyAdsScreen() {
 
         {/* Dates Section */}
         <View style={[styles.datesSection, { borderTopColor: Colors[colorScheme].border }]}>
-          <View style={styles.datesSectionHeader}>
-            <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].text} />
-            <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
-            <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>{dates.length}</Text>
-            </View>
-          </View>
+          {/* Completed Dates */}
+          {hasCompleted && (
+            <>
+              <View style={styles.datesSectionHeader}>
+                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>
+                  Completed ✅ ({past.length})
+                </Text>
+              </View>
+              <View style={styles.datesBadgeWrap}>
+                {past.slice(0, 5).map((d) => (
+                  <View 
+                    key={d} 
+                    style={[
+                      styles.dateBadge, 
+                      styles.dateBadgeCompleted,
+                      colorScheme === 'dark' && styles.dateBadgeCompletedDark,
+                      { borderColor: Colors[colorScheme].border }
+                    ]}
+                  >
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>
+                      {formatDate(d)}
+                    </Text>
+                  </View>
+                ))}
+                {past.length > 5 && (
+                  <View style={[styles.dateBadge, styles.dateBadgeCompleted, colorScheme === 'dark' && styles.dateBadgeCompletedDark]}>
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextCompleted]}>+{past.length - 5}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ height: 10 }} />
+            </>
+          )}
           
-          {dates.length > 0 ? (
-            <View style={styles.datesBadgeWrap}>
-              {dates.slice(0, 5).map((d) => (
-                <View key={d} style={[styles.dateBadge, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.dateBadgeText, { color: Colors[colorScheme].text }]}>{d}</Text>
+          {/* Upcoming Dates */}
+          {hasUpcoming && (
+            <>
+              <View style={styles.datesSectionHeader}>
+                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>
+                  Upcoming 📅 ({future.length})
+                </Text>
+              </View>
+              <View style={styles.datesBadgeWrap}>
+                {future.slice(0, 5).map((d) => (
+                  <View 
+                    key={d} 
+                    style={[
+                      styles.dateBadge, 
+                      styles.dateBadgeUpcoming,
+                      colorScheme === 'dark' && styles.dateBadgeUpcomingDark,
+                      { borderColor: Colors[colorScheme].border }
+                    ]}
+                  >
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>
+                      {formatDate(d)}
+                    </Text>
+                  </View>
+                ))}
+                {future.length > 5 && (
+                  <View style={[styles.dateBadge, styles.dateBadgeUpcoming, colorScheme === 'dark' && styles.dateBadgeUpcomingDark]}>
+                    <Text style={[styles.dateBadgeText, styles.dateBadgeTextUpcoming]}>+{future.length - 5}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={{ height: 10 }} />
+            </>
+          )}
+          
+          {/* No Dates */}
+          {!hasDates && (
+            <>
+              <View style={styles.datesSectionHeader}>
+                <Ionicons name="calendar-outline" size={16} color={Colors[colorScheme].text} />
+                <Text style={[styles.datesSectionTitle, { color: Colors[colorScheme].text }]}>Scheduled Dates</Text>
+                <View style={[styles.datesCount, { backgroundColor: Colors[colorScheme].surface }]}>
+                  <Text style={[styles.datesCountText, { color: Colors[colorScheme].text }]}>0</Text>
                 </View>
-              ))}
-              {dates.length > 5 && (
-                <View style={[styles.dateBadge, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.dateBadgeText, { color: Colors[colorScheme].mutedText }]}>+{dates.length - 5}</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+              </View>
+              <Text style={[styles.noDatesText, { color: Colors[colorScheme].mutedText }]}>No dates scheduled yet</Text>
+            </>
           )}
         </View>
 
@@ -192,7 +341,9 @@ export default function MyAdsScreen() {
             onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}
           >
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
-            <Text style={styles.actionButtonTextPrimary}>Schedule</Text>
+            <Text style={styles.actionButtonTextPrimary}>
+              {hasDates ? 'Schedule More' : 'Schedule'}
+            </Text>
           </Pressable>
           
           <Pressable 
@@ -217,12 +368,6 @@ export default function MyAdsScreen() {
             <Text style={[styles.actionButtonTextSecondary, { color: '#EF4444' }]}>Remove</Text>
           </Pressable>
         </View>
-
-        {!manageable && (
-          <Text style={[styles.muted, { marginTop: 8 }]}>
-            This ad is read-only because it belongs to another account. Contact support if you need changes.
-          </Text>
-        )}
       </View>
     );
   };
@@ -277,7 +422,7 @@ export default function MyAdsScreen() {
           <FlatList
             data={ads}
             keyExtractor={(a) => a.id}
-            renderItem={renderItem}
+            renderItem={renderAd}
             ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
             contentContainerStyle={{ 
               padding: 16, 
@@ -455,10 +600,34 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#D1D5DB',
   },
+  dateBadgeCompleted: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#10B981',
+  },
+  dateBadgeCompletedDark: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderColor: '#10B981',
+  },
+  dateBadgeUpcoming: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  dateBadgeUpcomingDark: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#3B82F6',
+  },
   dateBadgeText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#374151',
+  },
+  dateBadgeTextCompleted: {
+    color: '#065F46',
+    fontWeight: '600',
+  },
+  dateBadgeTextUpcoming: {
+    color: '#1E40AF',
+    fontWeight: '600',
   },
   noDatesText: {
     fontSize: 13,
