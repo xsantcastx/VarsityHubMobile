@@ -594,6 +594,27 @@ model TransactionLog {
   @@index([created_at])
 }
 
+// ===========================
+// Admin Activity Log
+// ===========================
+
+model AdminActivityLog {
+  id           String   @id @default(cuid())
+  admin_id     String
+  admin_email  String
+  action       String   // e.g., "Ban User", "Delete Team", "Approve Ad"
+  target_type  String   // e.g., "user", "team", "ad", "post"
+  target_id    String   // ID of the affected resource
+  description  String   // Human-readable description
+  metadata     Json?    // Additional context (old values, new values, etc.)
+  timestamp    DateTime @default(now())
+  
+  @@index([admin_id])
+  @@index([target_type])
+  @@index([target_id])
+  @@index([timestamp])
+}
+
 
 
 

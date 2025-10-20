@@ -6,14 +6,169 @@ import {
     getTransactionSummary
 } from '../lib/transactionLogger.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
 
 const adminRouter = express.Router();
+
+/**
+ * GET /admin/dashboard
+ * Get platform statistics for admin dashboard
+ */
+adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const [
+      totalUsers,
+      verifiedUsers,
+      bannedUsers,
+      totalTeams,
+      totalAds,
+      pendingAds,
+      totalPosts,
+      totalMessages,
+      recentActivity
+    ] = await Promise.all([
+      // Total users
+      prisma.user.count(),
+      
+      // Verified users (email verified)
+      prisma.user.count({ where: { emailVerified: true } }),
+      
+      // Banned users
+      prisma.user.count({ where: { banned: true } }),
+      
+      // Total teams
+      prisma.team.count(),
+      
+      // Total ads
+      prisma.advertisement.count(),
+      
+      // Pending ads (status = pending)
+      prisma.advertisement.count({ where: { status: 'pending' } }),
+      
+      // Total posts
+      prisma.post.count(),
+      
+      // Total messages
+      prisma.message.count(),
+      
+      // Recent activity (last 5 admin actions) - Check if table exists
+      prisma.$queryRaw`
+        SELECT id, admin_email, action, target_type, description, timestamp
+        FROM "AdminActivityLog"
+        ORDER BY timestamp DESC
+        LIMIT 5
+      `.catch(() => []) // Return empty array if table doesn't exist yet
+    ]);
+
+    return res.json({
+      ok: true,
+      totalUsers,
+      verifiedUsers,
+      bannedUsers,
+      totalTeams,
+      totalAds,
+      pendingAds,
+      totalPosts,
+      totalMessages,
+      recentActivity: recentActivity || []
+    });
+  } catch (error) {
+    console.error('[admin] Error fetching dashboard data:', error);
+    return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
+
+/**
+ * GET /admin/activity-log
+ * Get admin activity audit trail
+ * Query params:
+ * - type: filter by target_type (e.g., 'user', 'team', 'ad', 'post')
+ * - q: search query for action, description, or admin_email
+ * - page: page number (default 1)
+ * - limit: items per page (default 50, max 100)
+ */
+adminRouter.get('/activity-log', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const { type, q, page = '1', limit = '50' } = req.query;
+    
+    const pageNum = parseInt(String(page), 10);
+    const limitNum = Math.min(parseInt(String(limit), 10), 100); // Max 100 per page
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build where clause
+    const where: any = {};
+    
+    // Filter by type
+    if (type && type !== 'all') {
+      where.target_type = String(type);
+    }
+    
+    // Search query
+    if (q && typeof q === 'string' && q.trim()) {
+      where.OR = [
+        { action: { contains: String(q), mode: 'insensitive' } },
+        { description: { contains: String(q), mode: 'insensitive' } },
+        { admin_email: { contains: String(q), mode: 'insensitive' } }
+      ];
+    }
+
+    // Check if AdminActivityLog table exists, if not return empty results
+    try {
+      const [activities, total] = await Promise.all([
+        prisma.adminActivityLog.findMany({
+          where,
+          skip,
+          take: limitNum,
+          orderBy: { timestamp: 'desc' },
+          select: {
+            id: true,
+            admin_id: true,
+            admin_email: true,
+            action: true,
+            target_type: true,
+            target_id: true,
+            description: true,
+            metadata: true,
+            timestamp: true
+          }
+        }),
+        prisma.adminActivityLog.count({ where })
+      ]);
+
+      return res.json({
+        ok: true,
+        activities,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          pages: Math.ceil(total / limitNum)
+        }
+      });
+    } catch (error) {
+      // Table doesn't exist yet, return empty results
+      return res.json({
+        ok: true,
+        activities: [],
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: 0,
+          pages: 0
+        }
+      });
+    }
+  } catch (error) {
+    console.error('[admin] Error fetching activity log:', error);
+    return res.status(500).json({ error: 'Failed to fetch activity log' });
+  }
+});
 
 // Type for authenticated request
 type AuthedRequest = express.Request & { user?: { id: string } };
 
 /**
- * Middleware to check if user is admin
+ * Middleware to check if user is admin (LEGACY - use requireAdminMiddleware for new routes)
  */
 async function requireAdmin(req: AuthedRequest, res: express.Response, next: express.NextFunction) {
   try {
@@ -26,8 +181,13 @@ async function requireAdmin(req: AuthedRequest, res: express.Response, next: exp
       select: { email: true }
     });
 
-    // Check if user is admin (you can modify this logic as needed)
-    if (!user || user.email !== 'admin@varsityhub.com') {
+    // Check if user is admin using ADMIN_EMAILS environment variable
+    const adminEmails = (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map(e => e.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (!user || !adminEmails.includes(user.email?.toLowerCase() || '')) {
       return res.status(403).json({ error: 'Admin access required' });
     }
 

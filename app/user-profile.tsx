@@ -31,6 +31,7 @@ export default function UserProfileScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async () => {
     if (!params.id) { setError('No user id'); setLoading(false); return; }
@@ -38,7 +39,17 @@ export default function UserProfileScreen() {
     setLoading(true); setError(null);
     try {
       // Fetch current user and the public profile for target id
-      try { const current = await User.me(); setMe(current); } catch {}
+      try { 
+        const current = await User.me(); 
+        setMe(current);
+        
+        // Check if current user is admin
+        const adminEmails = (process.env.EXPO_PUBLIC_ADMIN_EMAILS || '')
+          .split(',')
+          .map(e => e.trim().toLowerCase())
+          .filter(Boolean);
+        setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
+      } catch {}
       const u = await User.getPublic(String(params.id));
       console.log('Loaded user profile:', u);
       setUser(u);
@@ -157,7 +168,15 @@ export default function UserProfileScreen() {
 
               {/* User Info */}
               <View style={S.userInfo}>
-                <Text style={S.userName}>{user.display_name || user.username || 'User'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={S.userName}>{user.display_name || user.username || 'User'}</Text>
+                  {/* Admin Badge - Only visible when viewing own profile as admin */}
+                  {isAdmin && me?.id === user.id && (
+                    <View style={S.adminBadge}>
+                      <Ionicons name="shield-checkmark" size={16} color="#ffffff" />
+                    </View>
+                  )}
+                </View>
                 
                 {/* Role and Plan Badges */}
                 {(user.role || user.preferences?.plan) && (
@@ -475,6 +494,16 @@ const S = StyleSheet.create({
   coachBadge: { backgroundColor: '#1d4ed8' },
   playerBadge: { backgroundColor: '#dc2626' },
   fanBadge: { backgroundColor: '#7c3aed' },
+  adminBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 20,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   roleText: {
     color: '#ffffff',
     fontSize: 11,

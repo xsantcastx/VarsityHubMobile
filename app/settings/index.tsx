@@ -336,6 +336,16 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     {isAdmin && (
                       <SectionCard title="🛡️ Admin Panel" initiallyOpen>
                         <NavRow 
+                          title="Admin Dashboard" 
+                          subtitle="Overview and analytics" 
+                          onPress={() => router.push('/admin-dashboard')} 
+                        />
+                        <NavRow 
+                          title="Activity Log" 
+                          subtitle="Track all admin actions" 
+                          onPress={() => router.push('/admin-activity-log')} 
+                        />
+                        <NavRow 
                           title="Manage Users" 
                           subtitle="View all users, ban/unban" 
                           onPress={() => router.push('/admin-users')} 
