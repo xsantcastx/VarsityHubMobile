@@ -3,7 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { getAuthToken } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';

@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import PrimaryButton from '@/ui/PrimaryButton';
+import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, useColorScheme } from 'react-native';

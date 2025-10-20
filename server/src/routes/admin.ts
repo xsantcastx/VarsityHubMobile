@@ -1,12 +1,12 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
 import {
-    getAllTransactions,
-    getTransactionBySession,
-    getTransactionSummary
+  getAllTransactions,
+  getTransactionBySession,
+  getTransactionSummary
 } from '../lib/transactionLogger.js';
-import { requireVerified } from '../middleware/requireVerified.js';
 import { requireAdmin as requireAdminMiddleware } from '../middleware/requireAdmin.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 
 const adminRouter = express.Router();
 
@@ -31,7 +31,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.user.count(),
       
       // Verified users (email verified)
-      prisma.user.count({ where: { emailVerified: true } }),
+      prisma.user.count({ where: { email_verified: true } }),
       
       // Banned users
       prisma.user.count({ where: { banned: true } }),
@@ -40,10 +40,10 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.team.count(),
       
       // Total ads
-      prisma.advertisement.count(),
+      prisma.ad.count(),
       
       // Pending ads (status = pending)
-      prisma.advertisement.count({ where: { status: 'pending' } }),
+      prisma.ad.count({ where: { status: 'pending' } }),
       
       // Total posts
       prisma.post.count(),
