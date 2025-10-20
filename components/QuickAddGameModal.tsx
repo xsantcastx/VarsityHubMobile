@@ -6,6 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
 import {
+    ActionSheetIOS,
     Alert,
     Image,
     Modal,
@@ -198,6 +199,58 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         opponentSearchText === '' || 
         team.name.toLowerCase().includes(opponentSearchText.toLowerCase())
       );
+  };
+
+  // iOS ActionSheet handlers for team selection
+  const showCurrentTeamPickerIOS = () => {
+    if (Platform.OS !== 'ios') {
+      setShowCurrentTeamPicker(true);
+      return;
+    }
+    
+    const teamNames = teams.map(t => t.name);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ['Cancel', ...teamNames],
+        cancelButtonIndex: 0,
+        title: 'Select Your Team',
+      },
+      (buttonIndex) => {
+        if (buttonIndex > 0) {
+          const selectedTeam = teamNames[buttonIndex - 1];
+          setCurrentTeam(selectedTeam);
+          if (errors.currentTeam) {
+            setErrors(prev => ({ ...prev, currentTeam: '' }));
+          }
+        }
+      }
+    );
+  };
+
+  const showOpponentPickerIOS = () => {
+    if (Platform.OS !== 'ios') {
+      setShowOpponentPicker(true);
+      return;
+    }
+    
+    const filteredTeams = getFilteredOpponentTeams();
+    const teamNames = filteredTeams.map(t => t.name);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ['Cancel', ...teamNames],
+        cancelButtonIndex: 0,
+        title: 'Select Opponent',
+      },
+      (buttonIndex) => {
+        if (buttonIndex > 0) {
+          const selectedTeam = teamNames[buttonIndex - 1];
+          setOpponent(selectedTeam);
+          if (errors.opponent) {
+            setErrors(prev => ({ ...prev, opponent: '' }));
+          }
+        }
+      }
+    );
   };
 
   // Get team logo by team name
@@ -421,7 +474,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle={Platform.OS === 'ios' ? 'fullScreen' : 'pageSheet'}
       onRequestClose={handleClose}
     >
       <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -470,7 +523,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }]}
-              onPress={() => setShowCurrentTeamPicker(true)}
+              onPress={showCurrentTeamPickerIOS}
             >
               <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                 {currentTeam || 'Select your team'}
@@ -491,7 +544,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 alignItems: 'center',
                 justifyContent: 'space-between',
               }]}
-              onPress={() => setShowOpponentPicker(true)}
+              onPress={showOpponentPickerIOS}
             >
               <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                 {opponent || 'Select opponent team'}
@@ -730,37 +783,112 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        {/* Date/Time Pickers */}
-        {showDatePicker && (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if (date) {
-                setSelectedDate(date);
-                if (errors.date) {
-                  setErrors(prev => ({ ...prev, date: '' }));
+        {/* Date Picker - iOS needs Modal wrapper */}
+        {Platform.OS === 'ios' ? (
+          <Modal
+            visible={showDatePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <View style={styles.pickerOverlay}>
+              <View style={[styles.datePickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
+                <View style={styles.pickerHeader}>
+                  <Pressable onPress={() => setShowDatePicker(false)}>
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
+                  </Pressable>
+                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Date</Text>
+                  <Pressable onPress={() => setShowDatePicker(false)}>
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, date) => {
+                    if (date) {
+                      setSelectedDate(date);
+                      if (errors.date) {
+                        setErrors(prev => ({ ...prev, date: '' }));
+                      }
+                    }
+                  }}
+                  minimumDate={new Date()}
+                  textColor={Colors[colorScheme].text}
+                  style={{ backgroundColor: Colors[colorScheme].background }}
+                />
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              onChange={(event, date) => {
+                setShowDatePicker(false);
+                if (date) {
+                  setSelectedDate(date);
+                  if (errors.date) {
+                    setErrors(prev => ({ ...prev, date: '' }));
+                  }
                 }
-              }
-            }}
-            minimumDate={new Date()}
-          />
+              }}
+              minimumDate={new Date()}
+            />
+          )
         )}
 
-        {showTimePicker && (
-          <DateTimePicker
-            value={selectedTime}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, time) => {
-              setShowTimePicker(false);
-              if (time) {
-                setSelectedTime(time);
-              }
-            }}
-          />
+        {/* Time Picker - iOS needs Modal wrapper */}
+        {Platform.OS === 'ios' ? (
+          <Modal
+            visible={showTimePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowTimePicker(false)}
+          >
+            <View style={styles.pickerOverlay}>
+              <View style={[styles.datePickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
+                <View style={styles.pickerHeader}>
+                  <Pressable onPress={() => setShowTimePicker(false)}>
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
+                  </Pressable>
+                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Time</Text>
+                  <Pressable onPress={() => setShowTimePicker(false)}>
+                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={selectedTime}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event, time) => {
+                    if (time) {
+                      setSelectedTime(time);
+                    }
+                  }}
+                  textColor={Colors[colorScheme].text}
+                  style={{ backgroundColor: Colors[colorScheme].background }}
+                />
+              </View>
+            </View>
+          </Modal>
+        ) : (
+          showTimePicker && (
+            <DateTimePicker
+              value={selectedTime}
+              mode="time"
+              display="default"
+              onChange={(event, time) => {
+                setShowTimePicker(false);
+                if (time) {
+                  setSelectedTime(time);
+                }
+              }}
+            />
+          )
         )}
       </View>
     </Modal>
@@ -781,7 +909,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       }
     }} />
 
-    {/* Current Team Picker Modal */}
+    {/* Current Team Picker Modal - Android only, iOS uses ActionSheet */}
+    {Platform.OS === 'android' && (
     <Modal
       visible={showCurrentTeamPicker}
       transparent
@@ -838,8 +967,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         </View>
       </View>
     </Modal>
+    )}
 
-    {/* Opponent Team Picker Modal */}
+    {/* Opponent Team Picker Modal - Android only, iOS uses ActionSheet */}
+    {Platform.OS === 'android' && (
     <Modal
       visible={showOpponentPicker}
       transparent
@@ -929,6 +1060,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         </View>
       </View>
     </Modal>
+    )}
     </>
   );
 }
@@ -1053,6 +1185,11 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+  },
+  datePickerContainer: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
   },
   pickerHeader: {
     flexDirection: 'row',
