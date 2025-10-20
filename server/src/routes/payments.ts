@@ -116,14 +116,22 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   }
   const priceIdRaw = membershipPriceIds[chosen];
   const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
-  const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id'];
+  const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id', 'your-'];
   const isPlaceholder = normalizedPriceId.length === 0 || placeholderHints.some((hint) => normalizedPriceId.toLowerCase().includes(hint));
-  const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !isPlaceholder;
-  if (!hasExplicitPriceId && normalizedPriceId) {
-    console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
+  
+  // Validate that price ID exists in Stripe before using it
+  let hasValidPriceId = false;
+  if (/^price_/i.test(normalizedPriceId) && !isPlaceholder) {
+    try {
+      await stripe.prices.retrieve(normalizedPriceId);
+      hasValidPriceId = true;
+      console.log('[payments] Using valid Stripe price ID:', normalizedPriceId);
+    } catch (err) {
+      console.warn('[payments] Price ID not found in Stripe, using dynamic pricing:', normalizedPriceId);
+    }
   }
 
-  const lineItems = hasExplicitPriceId
+  const lineItems = hasValidPriceId
     ? [{ price: normalizedPriceId, quantity: 1 }]
     : [{
         quantity: 1,
