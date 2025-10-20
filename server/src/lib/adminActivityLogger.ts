@@ -28,7 +28,7 @@ export async function logAdminActivity(
         target_type,
         target_id,
         description,
-        metadata: metadata || null
+        metadata: metadata ?? undefined
       }
     });
   } catch (error) {
