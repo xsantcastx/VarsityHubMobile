@@ -13,7 +13,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ devCode?: string }>();
+  const params = useLocalSearchParams<{ devCode?: string; returnTo?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export default function VerifyEmailScreen() {
 
   const navigateAfterVerification = () => {
     const target = returnTo || '/onboarding/step-1-role';
-    router.replace(target);
+    router.replace(target as any);
   };
 
   // Load dev code from params if available

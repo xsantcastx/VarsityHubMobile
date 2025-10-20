@@ -3,8 +3,9 @@ import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
@@ -38,6 +39,19 @@ export default function Step2Basic() {
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+
+  // Helper function to refresh email verification status
+  const refreshEmailVerification = useCallback(async () => {
+    try {
+      const me = await User.me();
+      setEmail(me?.email || '');
+      setEmailVerified(Boolean(me?.email_verified));
+      return me;
+    } catch (error) {
+      console.error('Failed to refresh email verification:', error);
+      return null;
+    }
+  }, []);
 
   useEffect(() => { 
     (async () => { 
@@ -99,7 +113,10 @@ export default function Step2Basic() {
   const usernameError = username.length > 0 && !usernameRe.test(username);
   const isCoach = ob.role === 'coach';
   const zipRequired = isCoach; // Zip code is mandatory for coaches
-  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
+  const normalizedZipValue = zip.trim();
+  const zipValid = zipRe.test(normalizedZipValue);
+  const baseContinueReady = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zipValid);
+  const canContinue = baseContinueReady;
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
