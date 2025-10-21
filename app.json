@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "VarsityHub",
-    "slug": "VarsityHubMobile",
+    "slug": "varsityhub",
+    "owner": "varsithub",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -25,7 +26,7 @@
         "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
         "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
       },
-      "bundleIdentifier": "com.xsantcastx.varsityhub",
+      "bundleIdentifier": "varsityhub.app",
       "config": {
         "googleMapsApiKey": ""
       }
@@ -88,7 +89,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dd17922e-328b-42af-a083-95eab643113a"
+        "projectId": "3fe6308a-93a3-480e-83f1-9d88786c80ff"
       }
     }
   }
