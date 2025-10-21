@@ -1,6 +1,9 @@
 const IS_DEV = process.env.EXPO_PUBLIC_ENV !== 'production';
 
-module.exports = ({ config }) => {
+// Import base config from app.json
+const appJson = require('./app.json');
+
+module.exports = () => {
   // Base plugins that are always needed
   const basePlugins = [
     "expo-router",
@@ -32,7 +35,7 @@ module.exports = ({ config }) => {
   const devPlugins = IS_DEV ? ["expo-dev-client"] : [];
 
   return {
-    ...config,
+    ...appJson.expo,
     plugins: [
       ...basePlugins,
       ...devPlugins
