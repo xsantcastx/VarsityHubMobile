@@ -338,11 +338,11 @@ export default function MyAdsScreen() {
         <View style={styles.actionsContainer}>
           <Pressable 
             style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id } })}
+            onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } })}
           >
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>
-              {hasDates ? 'Schedule More' : 'Schedule'}
+              {isPaid && hasDates ? '✓ Paid - Schedule More' : hasDates ? 'Schedule More' : 'Schedule Dates'}
             </Text>
           </Pressable>
           

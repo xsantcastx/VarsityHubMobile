@@ -127,22 +127,36 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())
   );
 
-  // iOS ActionSheet handlers
+  // iOS ActionSheet handlers with enhanced UX
   const showCurrentTeamPickerIOS = () => {
     if (Platform.OS !== 'ios') {
       setShowCurrentTeamPicker(true);
       return;
     }
 
-    const teamNames = teams.map(t => t.name);
+    // Sort teams alphabetically for easier finding
+    const sortedTeams = [...teams].sort((a, b) => a.name.localeCompare(b.name));
+    const teamNames = sortedTeams.map(t => t.name);
+    
+    // Add visual prefix to each team
+    const teamOptions = teamNames.map(name => `🏆 ${name}`);
+    
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: ['Cancel', ...teamNames],
-        cancelButtonIndex: 0,
         title: 'Select Your Team',
+        options: ['Cancel', ...teamOptions, '✏️ Type Custom Team'],
+        cancelButtonIndex: 0,
+        destructiveButtonIndex: undefined,
+        userInterfaceStyle: colorScheme === 'dark' ? 'dark' : 'light',
       },
       (buttonIndex) => {
-        if (buttonIndex > 0) {
+        if (buttonIndex === 0) return; // Cancel
+        
+        if (buttonIndex === teamOptions.length + 1) {
+          // User wants to type custom team - open the modal
+          setShowCurrentTeamPicker(true);
+        } else if (buttonIndex > 0) {
+          // Regular team selection
           const selectedTeam = teamNames[buttonIndex - 1];
           setFormData(prev => ({ ...prev, currentTeam: selectedTeam }));
           if (errors.currentTeam) {
@@ -159,15 +173,31 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       return;
     }
 
-    const teamNames = teams.map(t => t.name);
+    // Sort teams alphabetically and filter out current team
+    const sortedTeams = [...teams]
+      .filter(t => t.name !== formData.currentTeam)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const teamNames = sortedTeams.map(t => t.name);
+    
+    // Add visual prefix to each team
+    const teamOptions = teamNames.map(name => `🏈 ${name}`);
+    
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: ['Cancel', ...teamNames],
-        cancelButtonIndex: 0,
         title: 'Select Opponent Team',
+        options: ['Cancel', ...teamOptions, '✏️ Type Custom Team'],
+        cancelButtonIndex: 0,
+        destructiveButtonIndex: undefined,
+        userInterfaceStyle: colorScheme === 'dark' ? 'dark' : 'light',
       },
       (buttonIndex) => {
-        if (buttonIndex > 0) {
+        if (buttonIndex === 0) return; // Cancel
+        
+        if (buttonIndex === teamOptions.length + 1) {
+          // User wants to type custom team - open the modal
+          setShowOpponentPicker(true);
+        } else if (buttonIndex > 0) {
+          // Regular team selection
           const selectedTeam = teamNames[buttonIndex - 1];
           setFormData(prev => ({ ...prev, opponent: selectedTeam }));
           if (errors.opponent) {
