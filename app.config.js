@@ -1,11 +1,9 @@
-const IS_DEV = process.env.EXPO_PUBLIC_ENV !== 'production';
-
 // Import base config from app.json
 const appJson = require('./app.json');
 
-module.exports = () => {
-  // Base plugins that are always needed
-  const basePlugins = [
+module.exports = {
+  ...appJson.expo,
+  plugins: [
     "expo-router",
     [
       "expo-splash-screen",
@@ -29,16 +27,5 @@ module.exports = () => {
     "expo-secure-store",
     "expo-font",
     "expo-audio"
-  ];
-
-  // Development-only plugins (expo-dev-client includes expo-dev-launcher and expo-dev-menu)
-  const devPlugins = IS_DEV ? ["expo-dev-client"] : [];
-
-  return {
-    ...appJson.expo,
-    plugins: [
-      ...basePlugins,
-      ...devPlugins
-    ]
-  };
+  ]
 };
