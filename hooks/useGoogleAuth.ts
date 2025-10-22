@@ -15,6 +15,11 @@ const selectAppScheme = () => {
   return typeof scheme === 'string' && scheme.length > 0 ? scheme : 'varsityhubmobile';
 };
 
+const makeNativeRedirect = () => {
+  const scheme = selectAppScheme();
+  return `${scheme}://oauthredirect`;
+};
+
 const googleClientConfig = () => {
   const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
@@ -38,15 +43,20 @@ export function useGoogleAuth() {
     [clients],
   );
 
-  const redirectUri = useMemo(() => {
-    if (Platform.OS === 'web') {
-      return makeRedirectUri({
-        scheme: selectAppScheme(),
-        preferLocalhost: true,
-      });
-    }
-    return undefined;
-  }, []);
+  const redirectUri = useMemo(
+    () =>
+      makeRedirectUri(
+        Platform.OS === 'web'
+          ? {
+              scheme: selectAppScheme(),
+              preferLocalhost: true,
+            }
+          : {
+              native: makeNativeRedirect(),
+            },
+      ),
+    [],
+  );
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
@@ -55,14 +65,12 @@ export function useGoogleAuth() {
     if (isConfigured) {
       const config: Google.GoogleAuthRequestConfig = {
         scopes: ['profile', 'email'],
+        redirectUri,
         androidClientId: clients.androidClientId || undefined,
         iosClientId: clients.iosClientId || undefined,
         webClientId: clients.webClientId || undefined,
         clientId: clients.expoClientId || undefined,
       };
-      if (redirectUri) {
-        config.redirectUri = redirectUri;
-      }
       return config;
     }
     
