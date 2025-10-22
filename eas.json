@@ -29,7 +29,14 @@
       "channel": "production",
       "env": {
         "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
+        "EXPO_PUBLIC_ADMIN_EMAILS": "xsancastrillonx@hotmail.com,emilancero@gmail.com",
+        "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-ao1i3hse3j7jl1o5rn606lplnocf8nlv.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
       },
       "ios": {
         "resourceClass": "m-medium",
