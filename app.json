@@ -28,7 +28,7 @@
       },
       "bundleIdentifier": "varsityhub.app",
       "config": {
-        "googleMapsApiKey": ""
+        "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
       }
     },
     "android": {
