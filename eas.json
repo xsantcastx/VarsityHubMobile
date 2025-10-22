@@ -28,7 +28,8 @@
       "developmentClient": false,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_ENV": "production"
+        "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app"
       },
       "ios": {
         "resourceClass": "m-medium",
