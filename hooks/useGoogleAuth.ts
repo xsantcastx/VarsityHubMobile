@@ -38,28 +38,32 @@ export function useGoogleAuth() {
     [clients],
   );
 
-  const redirectUri = useMemo(
-    () =>
-      makeRedirectUri({
+  const redirectUri = useMemo(() => {
+    if (Platform.OS === 'web') {
+      return makeRedirectUri({
         scheme: selectAppScheme(),
-        preferLocalhost: Platform.OS === 'web',
-      }),
-    [],
-  );
+        preferLocalhost: true,
+      });
+    }
+    return undefined;
+  }, []);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
   const requestConfig: Google.GoogleAuthRequestConfig = useMemo(() => {
     // If configured, use real values
     if (isConfigured) {
-      return {
+      const config: Google.GoogleAuthRequestConfig = {
         scopes: ['profile', 'email'],
-        redirectUri,
         androidClientId: clients.androidClientId || undefined,
         iosClientId: clients.iosClientId || undefined,
         webClientId: clients.webClientId || undefined,
         clientId: clients.expoClientId || undefined,
       };
+      if (redirectUri) {
+        config.redirectUri = redirectUri;
+      }
+      return config;
     }
     
     // If not configured, provide placeholder values that satisfy the hook
