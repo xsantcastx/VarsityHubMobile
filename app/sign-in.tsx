@@ -68,10 +68,9 @@ export default function SignInScreen() {
         return;
       }
 
-      const userRole = prefs?.role || account?.role || 'fan';
-      const landingRoute = userRole === 'coach' ? '/manage-teams' : '/highlights';
+      // Everyone lands on feed after successful login
       Alert.alert('Signed in', 'Welcome back!');
-      router.replace(landingRoute as any);
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       console.error('Login failed', e);
       setError(e?.message || 'Login failed');
