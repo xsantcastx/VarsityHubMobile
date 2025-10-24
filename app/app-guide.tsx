@@ -11,7 +11,9 @@ export default function AppGuideScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'App Guide' }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>App Guide</Text>
-      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Mobile implementation coming soon.</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+        View the complete VarsityHub guide at varsityhub.app/help for walkthroughs and best practices.
+      </Text>
     </SafeAreaView>
   );
 }

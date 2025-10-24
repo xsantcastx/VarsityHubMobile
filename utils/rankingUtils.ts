@@ -14,6 +14,7 @@ export interface HighlightItem {
     display_name: string;
     avatar_url?: string;
   };
+  has_upvoted?: boolean;
   lat?: number;
   lng?: number;
   country_code?: string;

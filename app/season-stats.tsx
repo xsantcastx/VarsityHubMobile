@@ -467,7 +467,7 @@ export default function SeasonStatsScreen() {
               </Text>
               
               <Text style={[styles.comingSoon, { color: Colors[colorScheme].mutedText }]}>
-                Detailed game statistics and analytics coming soon. This will include game-by-game breakdowns, performance trends, and opponent analysis.
+                Detailed game statistics and analytics are provided through the VarsityHub coaching dashboard, including game-by-game breakdowns, performance trends, and opponent analysis.
               </Text>
             </View>
           </View>

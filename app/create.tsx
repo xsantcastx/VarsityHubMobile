@@ -47,9 +47,6 @@ export default function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Fan Event</Text>
-        </Pressable>
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
         </Pressable>

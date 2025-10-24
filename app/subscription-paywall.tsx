@@ -16,6 +16,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,6 +40,15 @@ export default function SubscriptionPaywallScreen() {
   } | null>(null);
 
   const handleSubscribe = async () => {
+    if (Platform.OS === 'ios') {
+      setModal({
+        visible: true,
+        title: 'Upgrade on the Web',
+        message: 'Coach subscriptions are managed through our secure web portal. Please sign in at varsityhub.app from a desktop browser to upgrade your plan.',
+        options: [{ label: 'Got it', onPress: () => setModal(null) }],
+      });
+      return;
+    }
     if (selectedTier === 'rookie') {
       setModal({
         visible: true,

@@ -1556,7 +1556,7 @@ export default function TeamChatScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerRight: () => (
-            <Pressable onPress={() => showModal('Chat Settings', 'Chat settings coming soon!')}>
+            <Pressable onPress={() => showModal('Chat Settings', 'Chat settings are managed in the VarsityHub web dashboard.')}>
               <Ionicons name="settings-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),

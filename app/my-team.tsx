@@ -7,7 +7,7 @@ export default function MyTeamScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'My Team' }} />
       <Text style={styles.title}>My Team</Text>
-      <Text style={styles.subtitle}>Mobile implementation coming soon.</Text>
+      <Text style={styles.subtitle}>Manage your team roster and staff from the VarsityHub web dashboard.</Text>
     </View>
   );
 }
@@ -17,4 +17,3 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
   subtitle: { color: '#6b7280' },
 });
-

@@ -14,6 +14,7 @@ import {
     Pressable,
     RefreshControl,
     ScrollView,
+    Share,
     StatusBar,
     StyleSheet,
     Text,
@@ -22,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Highlights, User } from '@/api/entities';
+import { Highlights, Post, User } from '@/api/entities';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -52,6 +53,7 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
       display_name: String(input.author.display_name || 'Anonymous'),
       avatar_url: input.author.avatar_url || undefined,
     } : undefined,
+    has_upvoted: typeof input.has_upvoted === 'boolean' ? input.has_upvoted : undefined,
     _count: input._count ? {
       comments: typeof input._count.comments === 'number' ? input._count.comments : 0
     } : undefined,
@@ -114,6 +116,8 @@ const HighlightCard = ({
   onAuthorPress,
   onTeamPress,
   onEventPress,
+  onToggleUpvote,
+  onShare,
   colorScheme 
 }: { 
   item: HighlightItem; 
@@ -126,6 +130,8 @@ const HighlightCard = ({
   onAuthorPress?: (authorId: string) => void;
   onTeamPress?: (teamId: string) => void;
   onEventPress?: (eventId: string) => void;
+  onToggleUpvote?: (item: HighlightItem) => void;
+  onShare?: (item: HighlightItem) => void;
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
@@ -134,6 +140,8 @@ const HighlightCard = ({
   
   // Calculate ranking for this item
   const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
+  const hasUpvoted = item.has_upvoted === true;
+  const upvoteColor = hasUpvoted ? '#1D4ED8' : '#2563EB';
   
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
@@ -228,15 +236,17 @@ const HighlightCard = ({
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable 
-              style={styles.actionButton}
+              style={[styles.actionButton, hasUpvoted && styles.actionButtonActive]}
               onPress={(e) => {
                 e.stopPropagation();
-                // Handle upvote action
-                Alert.alert('Upvote', 'Feature coming soon!');
+                onToggleUpvote?.(item);
               }}
+              accessibilityLabel={hasUpvoted ? 'Remove upvote' : 'Upvote highlight'}
             >
-              <Ionicons name="arrow-up" size={18} color="#2563EB" />
-              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
+              <Ionicons name={hasUpvoted ? 'arrow-up' : 'arrow-up-outline'} size={18} color={upvoteColor} />
+              <Text style={[styles.statText, styles.statTextUpvote, hasUpvoted && styles.statTextUpvoteActive]}>
+                {formatCount(item.upvotes_count || 0)}
+              </Text>
             </Pressable>
             
             <Pressable 
@@ -254,8 +264,7 @@ const HighlightCard = ({
               style={styles.actionButton}
               onPress={(e) => {
                 e.stopPropagation();
-                // Handle share action
-                Alert.alert('Share', 'Share this highlight!');
+                onShare?.(item);
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
@@ -359,6 +368,64 @@ export default function HighlightsScreen() {
     load();
   }, [load]);
 
+  const applyHighlightUpdate = useCallback((highlightId: string, changes: Partial<HighlightItem>) => {
+    const merge = (items: HighlightItem[]) =>
+      items.map((item) => (item.id === highlightId ? { ...item, ...changes } : item));
+    setHighlights((prev) => merge(prev));
+    setNationalTop((prev) => merge(prev));
+    setRanked((prev) => merge(prev));
+  }, []);
+
+  const handleToggleUpvote = useCallback(
+    async (highlight: HighlightItem) => {
+      try {
+        const result: any = await Post.toggleUpvote(highlight.id);
+        const hasUpvoted =
+          typeof result?.has_upvoted === 'boolean' ? result.has_upvoted : Boolean(result?.upvoted);
+        const nextCount =
+          typeof result?.upvotes_count === 'number'
+            ? result.upvotes_count
+            : typeof result?.count === 'number'
+            ? result.count
+            : highlight.upvotes_count || 0;
+        applyHighlightUpdate(highlight.id, {
+          has_upvoted: hasUpvoted,
+          upvotes_count: nextCount,
+        });
+      } catch (err: any) {
+        const message =
+          typeof err?.message === 'string' && err.message.length
+            ? err.message
+            : 'Unable to update your upvote right now.';
+        Alert.alert('Upvote failed', message);
+      }
+    },
+    [applyHighlightUpdate],
+  );
+
+  const handleShare = useCallback(async (highlight: HighlightItem) => {
+    try {
+      const parts: string[] = [];
+      if (highlight.title) parts.push(highlight.title);
+      else if (highlight.caption) parts.push(highlight.caption);
+      else parts.push('Check out this highlight on VarsityHub!');
+      if (highlight.media_url) {
+        parts.push(highlight.media_url);
+      }
+      parts.push('https://varsityhub.app');
+      await Share.share({ message: parts.join('\n\n') });
+    } catch (err: any) {
+      if (err?.message && err.message.toLowerCase().includes('aborted')) {
+        return;
+      }
+      const message =
+        typeof err?.message === 'string' && err.message.length
+          ? err.message
+          : 'Unable to share this highlight right now.';
+      Alert.alert('Share failed', message);
+    }
+  }, []);
+
   const handleHighlightPress = useCallback((item: HighlightItem) => {
     // Navigate to post detail screen
     router.push(`/post-detail?id=${item.id}`);
@@ -458,6 +525,8 @@ export default function HighlightsScreen() {
       onAuthorPress={handleAuthorPress}
       onTeamPress={handleTeamPress}
       onEventPress={handleEventPress}
+      onToggleUpvote={handleToggleUpvote}
+      onShare={handleShare}
       colorScheme={colorScheme} 
     />
   );
@@ -891,9 +960,19 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  actionButtonActive: {
+    backgroundColor: 'rgba(37, 99, 235, 0.18)',
+  },
   statText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  statTextUpvote: {
+    color: '#2563EB',
+    fontWeight: '700',
+  },
+  statTextUpvoteActive: {
+    color: '#1D4ED8',
   },
 });

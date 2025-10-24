@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function ManageSubscription() {
   const [loading, setLoading] = useState(false);
@@ -50,6 +50,13 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   );
 
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
+    if (Platform.OS === 'ios') {
+      Alert.alert(
+        'Upgrade on the web',
+        'Coach subscriptions are managed through our secure web portal. Please sign in at varsityhub.app from a desktop browser to upgrade your plan.',
+      );
+      return;
+    }
     setLoading(true);
     try {
       const res: any = await Subscriptions.createCheckout(targetPlan);
