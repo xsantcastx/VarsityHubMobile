@@ -24,7 +24,15 @@
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
         "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
         "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
+        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "varsityhubmobile",
+              "com.googleusercontent.apps.316424843313-ao1i3hse3j7jl1o5rn606lplnocf8nlv"
+            ]
+          }
+        ]
       },
       "bundleIdentifier": "varsityhub.app",
       "config": {

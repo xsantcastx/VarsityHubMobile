@@ -20,6 +20,15 @@ const makeNativeRedirect = () => {
   return `${scheme}://oauthredirect`;
 };
 
+const buildGoogleRedirectUri = (clientId?: string | null) => {
+  if (!clientId) return null;
+  const trimmed = clientId.trim();
+  if (!trimmed.endsWith('.apps.googleusercontent.com')) return null;
+  const identifier = trimmed.replace('.apps.googleusercontent.com', '');
+  if (!identifier) return null;
+  return `com.googleusercontent.apps.${identifier}:/oauthredirect`;
+};
+
 const googleClientConfig = () => {
   const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
@@ -43,20 +52,22 @@ export function useGoogleAuth() {
     [clients],
   );
 
-  const redirectUri = useMemo(
-    () =>
-      makeRedirectUri(
-        Platform.OS === 'web'
-          ? {
-              scheme: selectAppScheme(),
-              preferLocalhost: true,
-            }
-          : {
-              native: makeNativeRedirect(),
-            },
-      ),
-    [],
-  );
+  const redirectUri = useMemo(() => {
+    if (Platform.OS === 'web') {
+      return makeRedirectUri({
+        scheme: selectAppScheme(),
+        preferLocalhost: true,
+      });
+    }
+
+    const nativeRedirect =
+      Platform.OS === 'ios' ? buildGoogleRedirectUri(clients.iosClientId) : null;
+
+    return makeRedirectUri({
+      native: nativeRedirect ?? makeNativeRedirect(),
+      useProxy: false,
+    });
+  }, [clients]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)

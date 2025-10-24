@@ -12,9 +12,12 @@ export default function PublicEventScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Public Event' }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Public Event</Text>
-      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Mobile implementation coming soon.</Text>
-      {params?.id ? <Text style={{ color: Colors[colorScheme].text }}>Event ID: {params.id}</Text> : null}
-      <Text style={[styles.params, { color: Colors[colorScheme].text }]}>{JSON.stringify(params, null, 2)}</Text>
+      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+        Public event pages are hosted on the VarsityHub event hub (varsityhub.app/events). Share that link to give fans the full schedule and RSVP options.
+      </Text>
+      {params?.id ? (
+        <Text style={{ color: Colors[colorScheme].text }}>Event ID: {params.id}</Text>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -23,6 +26,5 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
   subtitle: { marginBottom: 12 },
-  params: { fontFamily: 'monospace' },
 });
 
