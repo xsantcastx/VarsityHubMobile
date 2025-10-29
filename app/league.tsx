@@ -3,20 +3,19 @@ import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type LeagueTeam = {
   id: string;
   name: string;
-  sport?: string;
-  season?: string;
-  logo_url?: string;
-  description?: string;
-  organization_id?: string;
+  sport?: string | null;
+  season?: string | null;
+  logo_url?: string | null;
+  description?: string | null;
+  organization_id?: string | null;
   _count?: {
     members?: number;
     games?: number;
@@ -33,11 +32,139 @@ type LeagueData = {
   contact_info?: string;
 };
 
+const toParamString = (value?: string | string[] | null): string | null => {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+};
+
+const formatSeasonRange = (seasonStart?: string | null, seasonEnd?: string | null): string | null => {
+  if (!seasonStart && !seasonEnd) return null;
+  const toLabel = (value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString(undefined, { month: 'short', year: 'numeric' });
+  };
+
+  const startLabel = toLabel(seasonStart);
+  const endLabel = toLabel(seasonEnd);
+
+  if (startLabel && endLabel) {
+    if (startLabel === endLabel) return startLabel;
+    return `${startLabel} - ${endLabel}`;
+  }
+
+  return startLabel || endLabel;
+};
+
+const normalizeTeam = (team: any): LeagueTeam | null => {
+  if (!team || !team.id) return null;
+
+  const memberCount =
+    typeof team?._count?.memberships === 'number'
+      ? team._count.memberships
+      : typeof team?.members === 'number'
+        ? team.members
+        : undefined;
+
+  const normalizedCount =
+    typeof memberCount === 'number'
+      ? { members: memberCount }
+      : undefined;
+
+  const organizationId =
+    team.organization_id ??
+    (team.organization && 'id' in team.organization ? team.organization.id : null);
+
+  return {
+    id: String(team.id),
+    name: team.name || 'Team',
+    sport: team.sport || null,
+    season: team.season || formatSeasonRange(team.season_start, team.season_end),
+    logo_url: team.logo_url || team.avatar_url || null,
+    description: team.description || null,
+    organization_id: organizationId ? String(organizationId) : null,
+    _count: normalizedCount,
+  };
+};
+
+const normalizeTeams = (teams: any[]): LeagueTeam[] => {
+  return (Array.isArray(teams) ? teams : [])
+    .map(normalizeTeam)
+    .filter((team): team is LeagueTeam => Boolean(team))
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const extractLeagueTeams = (organizationData: any, fallbackName?: string | string[] | null): LeagueTeam[] => {
+  if (!organizationData) return [];
+  if (Array.isArray(organizationData.teams)) {
+    const teams = normalizeTeams(organizationData.teams);
+    if (teams.length > 0) return teams;
+  }
+
+  // If the organization response included memberships with nested teams, flatten them
+  if (Array.isArray(organizationData.memberships)) {
+    const memberTeams = organizationData.memberships
+      .map((membership: any) => membership.team)
+      .filter(Boolean);
+    const teams = normalizeTeams(memberTeams);
+    if (teams.length > 0) return teams;
+  }
+
+  if (fallbackName) {
+    const fallback = toParamString(fallbackName);
+    if (fallback) {
+      return normalizeTeams(
+        (organizationData.teams || []).filter((team: any) =>
+          String(team?.name || '').toLowerCase().includes(fallback.toLowerCase())
+        )
+      );
+    }
+  }
+
+  return [];
+};
+
+const filterTeamsByOrganization = (
+  teamsData: any,
+  organizationId?: string | string[] | null,
+  organizationName?: string | string[] | null
+): LeagueTeam[] => {
+  const orgId = toParamString(organizationId);
+  const orgName = toParamString(organizationName)?.toLowerCase();
+
+  if (!Array.isArray(teamsData)) return [];
+
+  const filtered = teamsData.filter((team: any) => {
+    const teamOrgId =
+      team.organization_id ??
+      (team.organization && 'id' in team.organization ? team.organization.id : null);
+
+    if (orgId && teamOrgId && String(teamOrgId) === orgId) {
+      return true;
+    }
+
+    if (orgName) {
+      const organizationMatch = String(team.organization_name || team.organization?.name || '')
+        .toLowerCase()
+        .includes(orgName);
+      if (organizationMatch) return true;
+
+      const teamNameMatch = String(team.name || '').toLowerCase().includes(orgName);
+      if (teamNameMatch) return true;
+    }
+
+    return false;
+  });
+
+  return normalizeTeams(filtered);
+};
+
 export default function LeagueScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string; name?: string }>();
   
   const [loading, setLoading] = useState(true);
@@ -70,6 +197,15 @@ export default function LeagueScreen() {
             organizationData = orgList.find((org: any) => 
               org.name?.toLowerCase() === params.name?.toLowerCase()
             ) || orgList[0];
+            
+            // Fetch full organization details if we only have partial data
+            if (organizationData?.id) {
+              try {
+                organizationData = await Organization.get(organizationData.id);
+              } catch (err) {
+                console.error('[League] Error fetching organization from search result:', err);
+              }
+            }
           }
         } catch (err) {
           console.error('[League] Error searching organizations:', err);
@@ -98,30 +234,23 @@ export default function LeagueScreen() {
         });
       }
 
-      // Fetch all teams for this organization
-      const teamsData = await Team.list();
-      const teamsList = Array.isArray(teamsData) ? teamsData : [];
-      
-      // Filter teams by organization_id or name matching
-      const orgId = organizationData?.id || params.id;
-      const orgName = organizationData?.name || params.name;
-      
-      const filteredTeams = teamsList.filter((t: any) => {
-        // First try matching by organization_id
-        if (orgId && t.organization_id === orgId) {
-          return true;
-        }
-        // Otherwise match by name prefix
-        if (orgName && t.name) {
-          const teamNameParts = String(t.name).split(/\s+/);
-          const firstPart = teamNameParts[0] || '';
-          return firstPart.toLowerCase() === orgName.toLowerCase() || 
-                 String(t.name).toLowerCase().includes(orgName.toLowerCase());
-        }
-        return false;
-      });
+      const formattedTeams = extractLeagueTeams(organizationData, params.name);
 
-      setTeams(filteredTeams);
+      // Fallback: if organization response didn't include teams, filter from all teams
+      if (formattedTeams.length === 0) {
+        try {
+          const allTeamsData = await Team.list();
+          const orgId = organizationData?.id || params.id;
+          const orgName = organizationData?.name || params.name;
+          const fallbackTeams = filterTeamsByOrganization(allTeamsData, orgId, orgName);
+          setTeams(fallbackTeams);
+        } catch (teamErr) {
+          console.error('[League] Error loading fallback teams:', teamErr);
+          setTeams([]);
+        }
+      } else {
+        setTeams(formattedTeams);
+      }
     } catch (err) {
       console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
@@ -174,32 +303,15 @@ export default function LeagueScreen() {
     );
   }
 
+  const handle = league?.name?.replace(/\s+/g, '').toLowerCase() ?? null;
+  const contactText = league?.contact_info?.trim() ? league.contact_info : 'Not set';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: league?.display_name || 'League', headerShown: false }} />
-      
-      {/* Custom Header */}
-      <View style={[styles.header, { 
-        backgroundColor: theme.card,
-        borderBottomColor: theme.border,
-        paddingTop: insets.top,
-      }]}>
-        <Pressable 
-          onPress={() => router.back()} 
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-          {league?.display_name || league?.name || 'League'}
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.content, { backgroundColor: theme.background }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -208,129 +320,91 @@ export default function LeagueScreen() {
             colors={[theme.tint]}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
-        {/* Cover Photo */}
-        <View style={styles.coverContainer}>
+        <Pressable onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </Pressable>
+
+        <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {league?.cover_url ? (
-            <Image
-              source={{ uri: league.cover_url }}
-              style={styles.coverImage}
-              contentFit="cover"
-            />
+            <Image source={{ uri: league.cover_url }} style={styles.coverImage} contentFit="cover" />
           ) : (
-            <LinearGradient
-              colors={[theme.tint, theme.tint]}
-              style={styles.coverImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
+            <View style={[styles.coverPlaceholder, { borderColor: theme.border }]}>
+              <Ionicons name="image-outline" size={24} color={theme.mutedText} />
+              <Text style={[styles.placeholderText, { color: theme.mutedText }]}>
+                Cover image not set
+              </Text>
+            </View>
           )}
         </View>
 
-        {/* Profile Section */}
-        <View style={[styles.profileSection, { backgroundColor: theme.background }]}>
-          {/* Avatar */}
-          <View style={[styles.avatarContainer, { backgroundColor: theme.card }]}>
+        <View style={[styles.card, styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={[styles.avatarShell, { borderColor: theme.border }]}>
             {league?.avatar_url ? (
-              <Image
-                source={{ uri: league.avatar_url }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
+              <Image source={{ uri: league.avatar_url }} style={styles.avatarImage} contentFit="cover" />
             ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.border }]}>
-                <Text style={[styles.avatarText, { color: theme.text }]}>
-                  {(league?.display_name || league?.name || 'L')[0].toUpperCase()}
+              <View style={[styles.avatarFallback, { backgroundColor: theme.surface }]}>
+                <Text style={[styles.avatarInitial, { color: theme.mutedText }]}>
+                  {(league?.display_name || league?.name || '?').charAt(0).toUpperCase()}
                 </Text>
               </View>
             )}
           </View>
-
-          {/* League Info */}
-          <View style={styles.infoContainer}>
-            <Text style={[styles.leagueName, { color: theme.text }]}>
-              {league?.display_name || league?.name || 'League Name'}
+          <View style={styles.profileText}>
+            <Text style={[styles.profileName, { color: theme.text }]}>
+              {league?.display_name || league?.name || 'League'}
             </Text>
-            {league?.bio && (
-              <Text style={[styles.bio, { color: theme.mutedText }]}>
-                {league.bio}
+            {handle && (
+              <Text style={[styles.profileHandle, { color: theme.mutedText }]}>
+                @{handle}
               </Text>
             )}
           </View>
         </View>
 
-        {/* Contact Info Card (if available) */}
-        {league?.contact_info && (
-          <View style={[styles.contactCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={styles.contactHeader}>
-              <Ionicons name="information-circle-outline" size={20} color={theme.mutedText} />
-              <Text style={[styles.contactTitle, { color: theme.text }]}>Contact Info</Text>
-            </View>
-            <Text style={[styles.contactText, { color: theme.mutedText }]}>
-              {league.contact_info}
+        <View style={[styles.card, styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.infoTitle, { color: theme.text }]}>About</Text>
+          <Text style={[styles.infoBody, { color: league?.bio ? theme.text : theme.mutedText }]}>
+            {league?.bio || 'This league has not added a description yet.'}
+          </Text>
+          <View style={[styles.infoRow, { borderColor: theme.border }]}>
+            <Ionicons name="person-outline" size={16} color={theme.mutedText} />
+            <Text style={[styles.infoRowText, { color: theme.mutedText }]}>
+              Contact: {contactText}
             </Text>
           </View>
-        )}
+        </View>
 
-        {/* Teams Section */}
-        <View style={styles.teamsSection}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Teams</Text>
-          
+        <View style={[styles.card, styles.teamsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.teamsTitle, { color: theme.text }]}>Teams</Text>
           {teams.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Ionicons name="people-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyText, { color: theme.mutedText }]}>
-                No teams found
-              </Text>
-            </View>
+            <Text style={[styles.emptyTeamsText, { color: theme.mutedText }]}>
+              No teams listed yet.
+            </Text>
           ) : (
-            <View style={styles.teamsGrid}>
-              {teams.map((team) => (
+            teams.map((team) => {
+              const subline = [team.sport, team.season].filter(Boolean).join(' • ');
+              return (
                 <Pressable
                   key={team.id}
-                  style={[styles.teamCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                  style={[styles.teamButton, { borderColor: theme.border }]}
                   onPress={() => handleTeamPress(team)}
                 >
-                  {team.logo_url ? (
-                    <Image
-                      source={{ uri: team.logo_url }}
-                      style={styles.teamLogo}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.teamLogoPlaceholder, { backgroundColor: theme.border }]}>
-                      <Ionicons name="shield-outline" size={24} color={theme.mutedText} />
-                    </View>
-                  )}
-                  <Text style={[styles.teamName, { color: theme.text }]} numberOfLines={2}>
-                    {team.name}
-                  </Text>
-                  {team.sport && (
-                    <Text style={[styles.teamSport, { color: theme.mutedText }]}>
-                      {team.sport}
+                  <View style={styles.teamButtonText}>
+                    <Text style={[styles.teamButtonTitle, { color: theme.text }]} numberOfLines={1}>
+                      {team.name}
                     </Text>
-                  )}
-                  <View style={styles.teamStats}>
-                    {team._count?.members !== undefined && (
-                      <View style={styles.statItem}>
-                        <Ionicons name="people-outline" size={14} color={theme.mutedText} />
-                        <Text style={[styles.statText, { color: theme.mutedText }]}>
-                          {team._count.members}
-                        </Text>
-                      </View>
-                    )}
-                    {team._count?.games !== undefined && (
-                      <View style={styles.statItem}>
-                        <Ionicons name="trophy-outline" size={14} color={theme.mutedText} />
-                        <Text style={[styles.statText, { color: theme.mutedText }]}>
-                          {team._count.games}
-                        </Text>
-                      </View>
+                    {subline.length > 0 && (
+                      <Text style={[styles.teamButtonSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+                        {subline}
+                      </Text>
                     )}
                   </View>
+                  <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
                 </Pressable>
-              ))}
-            </View>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -368,162 +442,133 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  headerRight: {
-    width: 32,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  coverContainer: {
-    height: 120,
-    width: '100%',
+  content: {
+    padding: 16,
+    gap: 16,
   },
   coverImage: {
     width: '100%',
     height: '100%',
   },
-  profileSection: {
-    marginTop: -30,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    borderColor: '#fff',
+  card: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+  },
+  coverCard: {
+    padding: 0,
+    height: 140,
     overflow: 'hidden',
   },
-  avatar: {
-    width: '100%',
-    height: '100%',
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  infoContainer: {
-    marginTop: 12,
-  },
-  leagueName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  bio: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  contactCard: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  contactHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  contactTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  contactText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  teamsSection: {
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  teamsGrid: {
-    gap: 12,
-  },
-  teamCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  teamLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-  },
-  teamLogoPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  teamName: {
+  coverPlaceholder: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  teamSport: {
-    fontSize: 14,
-    marginRight: 8,
+  placeholderText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
-  teamStats: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statItem: {
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
+  },
+  avatarShell: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitial: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  profileText: {
+    flex: 1,
     gap: 4,
   },
-  statText: {
-    fontSize: 12,
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
   },
-  emptyCard: {
-    padding: 32,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  profileHandle: {
+    fontSize: 14,
+    fontWeight: '500',
   },
-  emptyText: {
+  infoCard: {
+    gap: 12,
+  },
+  infoTitle: {
     fontSize: 16,
-    marginTop: 12,
+    fontWeight: '700',
+  },
+  infoBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  infoRowText: {
+    fontSize: 14,
+  },
+  teamsCard: {
+    gap: 12,
+  },
+  teamsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyTeamsText: {
+    fontSize: 14,
+  },
+  teamButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  teamButtonText: {
+    flex: 1,
+    gap: 2,
+  },
+  teamButtonTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  teamButtonSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

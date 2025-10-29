@@ -209,8 +209,10 @@ export default function EditTeamScreen() {
       if (logoUrl) {
         teamData.logo_url = logoUrl;
       }
+      // Always send organization fields when they change
       if (organizationId !== undefined) {
         teamData.organization_id = organizationId;
+        teamData.organization_name = trimmedOrgName || undefined;
       }
       
       console.log('[EditTeam] Updating team with data:', JSON.stringify(teamData));
