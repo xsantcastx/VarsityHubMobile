@@ -96,6 +96,21 @@ export default function Step1Role() {
     if (ob.role) setRole(ob.role);
   }, [ob.role]);
 
+  // Check email verification status on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const me: any = await User.me();
+        // If user is not verified and didn't sign in with Google, redirect to verification
+        if (me && !me.email_verified && !me.google_id) {
+          console.log('[onboarding] User email not verified, redirecting to verify-email');
+          router.replace('/verify-email');
+        }
+      } catch (error) {
+        console.error('[onboarding] Failed to check email verification:', error);
+      }
+    })();
+  }, []);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
