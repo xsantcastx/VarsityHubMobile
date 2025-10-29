@@ -952,7 +952,7 @@ export default function TeamProfileScreen() {
                     <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
                       @{selectedUser.username || 'user'}
                     </Text>
-                    {selectedUser.mutual_friends && selectedUser.mutual_friends > 0 && (
+                    {(selectedUser.mutual_friends ?? 0) > 0 && (
                       <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
                         {selectedUser.mutual_friends} mutual friends
                       </Text>
@@ -999,7 +999,7 @@ export default function TeamProfileScreen() {
                               <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
                                 @{item.username || 'user'}
                               </Text>
-                              {item.mutual_friends && item.mutual_friends > 0 && (
+                              {(item.mutual_friends ?? 0) > 0 && (
                                 <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
                                   {item.mutual_friends} mutual friends
                                 </Text>

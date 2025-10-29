@@ -295,7 +295,7 @@ export const Team = {
     description?: string;
     sport?: string;
     season?: string;
-    organization_id?: string;
+    organization_id?: string | null;
     organization_name?: string;
     logo_url?: string | null;
   }) => {
