@@ -1206,6 +1206,8 @@ export default function FeedScreen() {
                         ? `${item.actor?.display_name || 'Someone'} upvoted your post`
                         : item.type === 'COMMENT'
                         ? `${item.actor?.display_name || 'Someone'} commented on your post`
+                        : item.type === 'TEAM_INVITE'
+                        ? `${item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
                         : 'Notification';
                       
                       return (
@@ -1233,6 +1235,8 @@ export default function FeedScreen() {
                               router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
                             } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
                               router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+                            } else if (item.type === 'TEAM_INVITE') {
+                              router.push('/team-invites');
                             }
                           }}
                         >

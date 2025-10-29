@@ -351,7 +351,33 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  
+  // Create the invite
   const invite = await prisma.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+  
+  // Find the invited user by email and create notification if they exist
+  const invitedUser = await prisma.user.findUnique({ where: { email } });
+  if (invitedUser) {
+    try {
+      await (prisma as any).notification.create({
+        data: {
+          user_id: invitedUser.id,
+          actor_id: req.user.id,
+          type: 'TEAM_INVITE',
+          meta: {
+            team_id: team.id,
+            team_name: team.name,
+            invite_id: invite.id,
+            role: role || 'member'
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to create team invite notification:', error);
+      // Continue even if notification fails
+    }
+  }
+  
   return res.status(201).json(invite);
 });
 

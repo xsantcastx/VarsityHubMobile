@@ -336,6 +336,7 @@ enum NotificationType {
   FOLLOW
   UPVOTE
   COMMENT
+  TEAM_INVITE
 }
 
 model Notification {
