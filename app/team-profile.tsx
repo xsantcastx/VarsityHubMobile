@@ -316,7 +316,7 @@ export default function TeamProfileScreen() {
         username: user.username,
         email: user.email,
         avatar_url: user.avatar_url,
-        verified: user.verified || false,
+        verified: user.email_verified || false,
         mutual_friends: user.mutual_friends || 0,
       }));
       setSearchResults(convertedResults);
