@@ -95,7 +95,6 @@ export default function TeamProfileScreen() {
   const [searchResults, setSearchResults] = useState<AppUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [suggestedUsers, setSuggestedUsers] = useState<AppUser[]>([]);
 
   // Default role system with sport-specific and custom roles
   const defaultRoles: CustomRole[] = useMemo(() => [
@@ -334,56 +333,6 @@ export default function TeamProfileScreen() {
       setSearchLoading(false);
     }
   }, []);
-  {/* Universal Action Modal for errors */}
-  <CustomActionModal
-    visible={actionModal.visible}
-    title={actionModal.title}
-    message={actionModal.message}
-    options={actionModal.options.map(opt => ({
-      ...opt,
-      onPress: () => {
-        setActionModal(a => ({ ...a, visible: false }));
-        setTimeout(opt.onPress, 150);
-      },
-    }))}
-    onClose={() => setActionModal(a => ({ ...a, visible: false }))}
-  />
-
-  const loadSuggestedUsers = useCallback(async () => {
-    try {
-      // Mock API call for suggested users (friends, recent players, etc.)
-      const mockSuggestions: AppUser[] = [
-        {
-          id: '10',
-          display_name: 'Alex Wilson',
-          username: 'alexw',
-          avatar_url: undefined,
-          verified: true,
-          mutual_friends: 5,
-        },
-        {
-          id: '11',
-          display_name: 'Emma Brown',
-          username: 'emmab',
-          avatar_url: undefined,
-          verified: false,
-          mutual_friends: 2,
-        },
-        {
-          id: '12',
-          display_name: 'Chris Lee',
-          username: 'chrisl',
-          avatar_url: undefined,
-          verified: true,
-          mutual_friends: 1,
-        },
-      ];
-      
-      setSuggestedUsers(mockSuggestions);
-    } catch (error) {
-      console.error('Failed to load suggestions:', error);
-    }
-  }, []);
 
   // Reset invite modal when opening
   const openInviteModal = useCallback(() => {
@@ -391,8 +340,7 @@ export default function TeamProfileScreen() {
     setSearchQuery('');
     setSelectedUser(null);
     setSearchResults([]);
-    loadSuggestedUsers();
-  }, [loadSuggestedUsers]);
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -525,7 +473,7 @@ export default function TeamProfileScreen() {
 
   const updateMemberRole = async (memberId: string, newRole: string) => {
     try {
-      // Mock API call - replace with actual implementation
+      // Update member role via API
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
       setActionModal({
         visible: true,
@@ -801,27 +749,11 @@ export default function TeamProfileScreen() {
         {/* Tab Content */}
         {selectedTab === 'overview' && (
           <View style={styles.tabContent}>
-            {/* Recent Activity */}
             <View style={[styles.activityCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Recent Activity</Text>
-              <View style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: '#10B981' + '20' }]}>
-                  <Ionicons name="person-add" size={16} color="#10B981" />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={[styles.activityText, { color: Colors[colorScheme].text }]}>New member joined</Text>
-                  <Text style={[styles.activityTime, { color: Colors[colorScheme].mutedText }]}>2 hours ago</Text>
-                </View>
-              </View>
-              <View style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: Colors[colorScheme].tint + '20' }]}>
-                  <Ionicons name="trophy" size={16} color={Colors[colorScheme].tint} />
-                </View>
-                <View style={styles.activityContent}>
-                  <Text style={[styles.activityText, { color: Colors[colorScheme].text }]}>Game scheduled</Text>
-                  <Text style={[styles.activityTime, { color: Colors[colorScheme].mutedText }]}>1 day ago</Text>
-                </View>
-              </View>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Team Overview</Text>
+              <Text style={[styles.activityText, { color: Colors[colorScheme].mutedText, textAlign: 'center', paddingVertical: 20 }]}>
+                Team activity will appear here
+              </Text>
             </View>
           </View>
         )}
@@ -1085,52 +1017,6 @@ export default function TeamProfileScreen() {
                   </View>
                 ) : null}
               </View>
-            )}
-
-            {/* Suggested Users */}
-            {!searchQuery && !selectedUser && suggestedUsers.length > 0 && (
-              <>
-                <Text style={[styles.modalLabel, { color: Colors[colorScheme].text, marginTop: 24 }]}>Suggested</Text>
-                <View style={{ maxHeight: 300 }}>
-                  <FlatList
-                    data={suggestedUsers}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                      <Pressable
-                        style={[styles.userCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-                        onPress={() => setSelectedUser(item)}
-                      >
-                        <View style={styles.userInfo}>
-                          <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
-                            <Text style={styles.userInitials}>
-                              {item.display_name ? item.display_name.charAt(0).toUpperCase() : ''}
-                            </Text>
-                          </View>
-                          <View style={styles.userDetails}>
-                            <View style={styles.userNameRow}>
-                              <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
-                                {item.display_name}
-                              </Text>
-                              {item.verified && (
-                                <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
-                              )}
-                            </View>
-                            <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
-                              @{item.username}
-                            </Text>
-                            {item.mutual_friends && item.mutual_friends > 0 && (
-                              <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
-                                {item.mutual_friends} mutual friends
-                              </Text>
-                            )}
-                          </View>
-                        </View>
-                        <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
-                      </Pressable>
-                    )}
-                  />
-                </View>
-              </>
             )}
             
             <Text style={[styles.modalLabel, { color: Colors[colorScheme].text, marginTop: 24 }]}>Role</Text>
