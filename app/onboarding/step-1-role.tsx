@@ -4,8 +4,9 @@ import { User } from '@/api/entities';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { OnboardingLayout } from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
@@ -91,26 +92,25 @@ export default function Step1Role() {
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (ob.role) setRole(ob.role);
   }, [ob.role]);
 
-  // Check email verification status on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const me: any = await User.me();
-        // If user is not verified and didn't sign in with Google, redirect to verification
-        if (me && !me.email_verified && !me.google_id) {
-          console.log('[onboarding] User email not verified, redirecting to verify-email');
-          router.replace('/verify-email');
+  // Check email verification status on mount and when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const me: any = await User.me();
+          setEmailVerified(me?.email_verified ?? null);
+        } catch (error) {
+          console.error('Failed to check email verification:', error);
         }
-      } catch (error) {
-        console.error('[onboarding] Failed to check email verification:', error);
-      }
-    })();
-  }, []);
+      })();
+    }, [])
+  );
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
@@ -168,6 +168,8 @@ export default function Step1Role() {
       title="Choose Your Role"
       subtitle="Tell us how you'll be using VarsityHub to personalize your experience"
       showBackButton={false}
+      emailVerified={emailVerified === null ? undefined : emailVerified}
+      onVerifyEmail={() => router.push('/verify-email')}
     >
       <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
       

@@ -59,11 +59,9 @@ export default function VerifyEmailScreen() {
       console.log('[verify-email] Attempting to verify with code:', code.trim());
       const result = await User.verifyEmail(code.trim());
       console.log('[verify-email] Verification result:', result);
-      setInfo('Email verified!');
-      // After verification, start onboarding from step 1 (role selection)
-      setTimeout(() => {
-        router.replace('/onboarding/step-1-role');
-      }, 1000);
+      setInfo('✅ Email verified successfully! You can go back now.');
+      setCode(''); // Clear the code input
+      // Don't auto-redirect - let user go back manually
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';

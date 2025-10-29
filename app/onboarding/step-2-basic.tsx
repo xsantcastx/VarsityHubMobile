@@ -3,13 +3,14 @@ import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useFocusEffect } from '@react-navigation/native';
 import { OnboardingLayout } from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
@@ -26,23 +27,30 @@ export default function Step2Basic() {
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
+  // Check email verification status when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const me: any = await User.me();
+          setEmailVerified(me?.email_verified ?? null);
+        } catch (error) {
+          console.error('Failed to check email verification:', error);
+        }
+      })();
+    }, [])
+  );
+
   useEffect(() => { 
     (async () => { 
       try { 
-        const me: any = await User.me(); 
-        
-        // Check email verification first - redirect if not verified
-        if (me && !me.email_verified && !me.google_id) {
-          console.log('[onboarding step-2] User email not verified, redirecting to verify-email');
-          router.replace('/verify-email');
-          return;
-        }
-        
+        const me: any = await User.me();
         const displayName = me?.display_name || '';
         setUsername(displayName);
         setZip(me?.preferences?.zip_code || '');
@@ -142,6 +150,8 @@ export default function Step2Basic() {
       title="Basic Information"
       subtitle="We'll set up your account with a username and preferences"
       onBack={onBack}
+      emailVerified={emailVerified === null ? undefined : emailVerified}
+      onVerifyEmail={() => router.push('/verify-email')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       
