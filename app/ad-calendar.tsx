@@ -265,16 +265,29 @@ export default function AdCalendarScreen() {
                 try {
                   const result = await WebBrowser.openBrowserAsync(String(data.url));
                   
-                  // When browser closes, ALWAYS assume success and redirect
+                  // When browser closes, redirect to confirmation screen
                   console.log('[ad-calendar] Browser closed:', result.type);
                   
                   // Reset submitting state
                   setSubmitting(false);
                   
-                  // Always redirect to My Ads after browser closes
-                  // (whether they paid or not, they can check there)
-                  console.log('[ad-calendar] Redirecting to My Ads');
-                  router.replace('/(tabs)/my-ads');
+                  // Get ad details for confirmation screen
+                  const adData = await Advertisement.get(adId).catch(() => null);
+                  const businessName = adData?.business_name || 'Your Business';
+                  const datesText = sortedDates.length > 0 
+                    ? `${sortedDates.length} ${sortedDates.length === 1 ? 'day' : 'days'}`
+                    : 'selected dates';
+                  
+                  // Redirect to confirmation screen with ad details
+                  console.log('[ad-calendar] Redirecting to confirmation');
+                  router.replace({
+                    pathname: '/ad-confirmation',
+                    params: {
+                      businessName,
+                      selectedDates: datesText,
+                      totalAmount: `$${effective.toFixed(2)}`,
+                    }
+                  } as any);
                   
                 } catch (browserErr) {
                   console.error('Browser error:', browserErr);

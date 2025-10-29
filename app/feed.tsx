@@ -513,7 +513,7 @@ export default function FeedScreen() {
   // Insert sponsored ads into upcoming events feed (Instagram-style)
   const upcomingWithAds = useMemo(() => {
     const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
-    const adInterval = 8; // Show ad every 8 events (reduced frequency)
+    const adInterval = 8; // Show ad every 8 events
     const hasAds = sponsoredAds && sponsoredAds.length > 0;
     
     // If no events exist, show promotional ad card alone
@@ -522,19 +522,20 @@ export default function FeedScreen() {
       return result;
     }
     
-    // Always add a promotional card at the start if we have events
-    if (hasAds) {
-      const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-      result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-    } else {
-      result.push({ type: 'ad', ad: null });
-    }
-    
     upcomingEvents.forEach((event, index) => {
       result.push(event);
       
-      // Insert ad or promotional card after every adInterval events (starting from the first interval)
-      if ((index + 1) % adInterval === 0) {
+      // Insert first ad AFTER the first event (index 0)
+      if (index === 0) {
+        if (hasAds) {
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+        } else {
+          result.push({ type: 'ad', ad: null });
+        }
+      }
+      // Insert subsequent ads after every adInterval events (starting from the first interval)
+      else if ((index + 1) % adInterval === 0) {
         if (hasAds) {
           // Pick a random ad from available ads
           const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
@@ -708,21 +709,39 @@ export default function FeedScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
+          {/* Notifications on LEFT */}
+          <View style={styles.headerActions}>
+            <Pressable 
+              onPress={() => { setActiveMenuTab('notifications'); setNotificationsMenuOpen(true); }} 
+              style={styles.iconButton} 
+              accessibilityRole="button" 
+              accessibilityLabel="Open notifications"
+            >
+              <View>
+                <Ionicons name="notifications-outline" size={24} color={Colors[colorScheme].text} />
+                {hasUnreadAlerts ? (
+                  <View style={styles.alertDot} />
+                ) : null}
+              </View>
+            </Pressable>
+          </View>
           <View style={{ flex: 1 }} />
           <View style={styles.brandRow}>
             <Image source={require('../assets/images/logo.png')} style={styles.logoImage} />
             <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
           </View>
+          <View style={{ flex: 1 }} />
+          {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => setNotificationsMenuOpen(true)} 
+              onPress={() => { setActiveMenuTab('messages'); setNotificationsMenuOpen(true); }} 
               style={styles.iconButton} 
               accessibilityRole="button" 
-              accessibilityLabel="Open notifications and messages"
+              accessibilityLabel="Open messages"
             >
               <View>
-                <Ionicons name="apps-outline" size={24} color={Colors[colorScheme].text} />
-                {(hasUnreadAlerts || hasUnreadMessages) ? (
+                <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
+                {hasUnreadMessages ? (
                   <View style={styles.alertDot} />
                 ) : null}
               </View>

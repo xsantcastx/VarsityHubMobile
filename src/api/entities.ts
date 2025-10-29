@@ -295,6 +295,8 @@ export const Team = {
     description?: string;
     sport?: string;
     season?: string;
+    organization_id?: string;
+    organization_name?: string;
     logo_url?: string | null;
   }) => {
     const payload: Record<string, any> = {};

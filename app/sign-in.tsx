@@ -2,15 +2,15 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-    useColorScheme
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useColorScheme
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
