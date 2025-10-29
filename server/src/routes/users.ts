@@ -444,7 +444,7 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
       display_name: true,
       email: true,
       avatar_url: true,
-      verified: true,
+      email_verified: true,
     },
     take: limit,
     orderBy: [
