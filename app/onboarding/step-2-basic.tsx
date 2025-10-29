@@ -35,6 +35,14 @@ export default function Step2Basic() {
     (async () => { 
       try { 
         const me: any = await User.me(); 
+        
+        // Check email verification first - redirect if not verified
+        if (me && !me.email_verified && !me.google_id) {
+          console.log('[onboarding step-2] User email not verified, redirecting to verify-email');
+          router.replace('/verify-email');
+          return;
+        }
+        
         const displayName = me?.display_name || '';
         setUsername(displayName);
         setZip(me?.preferences?.zip_code || '');
