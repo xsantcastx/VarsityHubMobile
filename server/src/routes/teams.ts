@@ -180,6 +180,8 @@ const updateSchema = z.object({
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
+  organization_id: z.string().optional(),
+  organization_name: z.string().optional(),
   logo_url: z.string().optional().or(z.literal('')),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -205,6 +207,8 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
+  if (parsed.data.organization_id !== undefined) updateData.organization_id = parsed.data.organization_id;
+  if (parsed.data.organization_name !== undefined) updateData.organization_name = parsed.data.organization_name;
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
   try {
