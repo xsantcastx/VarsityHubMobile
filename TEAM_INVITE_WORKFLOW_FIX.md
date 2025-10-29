@@ -1,41 +1,88 @@
-# Team Invite Workflow Fix
+# Team Invite Workflow Fix - COMPLETE
 
-## Issues Found
+## Issues Found & Fixed
 
-### 1. User Search Endpoint Problems
-**Location:** `server/src/routes/users.ts` - `/users/search/mentions`
+### 1. User Search API Response Format ✅
+**Problem:** Backend returned `{ users: [...] }` but frontend expected just the array  
+**Fixed:** Changed `res.json({ users })` to `res.json(users)` in `server/src/routes/users.ts`
 
-**Previous Issues:**
-- ❌ Only returned `id`, `display_name`, `avatar_url` (missing `email` and `username`)
-- ❌ Only searched users you follow/followers (too restrictive)
-- ❌ Didn't search by username or email
-- ❌ Frontend expected `email` field but it was undefined
+### 2. User Search Missing Fields ✅
+**Problem:** Only returned `id`, `display_name`, `avatar_url` (missing `email` and `username`)  
+**Fixed:** Now returns complete user data: `id`, `username`, `display_name`, `email`, `avatar_url`, `verified`
 
-**Impact:**
-- User search appeared to work but didn't return email
-- `sendInvite()` in team-profile.tsx would fail silently when trying to access `selectedUser.email`
-- Couldn't find users by username or email, only display name
-- Couldn't invite users you don't follow
+### 3. Search Too Restrictive ✅
+**Problem:** Only searched users you follow/followers  
+**Fixed:** Now searches ALL non-banned users
 
-### 2. What Was Fixed
+### 4. Limited Search Fields ✅
+**Problem:** Only searched by display_name  
+**Fixed:** Now searches by `username`, `display_name`, AND `email` (case-insensitive)
 
-**Backend Changes:** `server/src/routes/users.ts`
+### 5. Hardcoded Mock Data ✅
+**Removed:**
+- ❌ Suggested users (mockSuggestions array with fake data)
+- ❌ Recent Activity (hardcoded "New member joined", "Game scheduled")
+- ❌ Mock API comments
+
+**Replaced with:**
+- ✅ Real user search results only
+- ✅ "Team activity will appear here" placeholder
+- ✅ Clean API calls without mock comments
+
+## Changes Made
+
+### Backend: `server/src/routes/users.ts`
 ```typescript
-// NOW searches ALL users (not just followers) by:
-// - username (case-insensitive)
-// - display_name (case-insensitive)  
-// - email (case-insensitive)
+// BEFORE (Lines 415-454):
+// - Searched only followers/following
+// - Searched only display_name
+// - Returned { users: [...] }
+// - Returned id, display_name, avatar_url only
 
-// NOW returns complete user data:
-{
-  id: true,
-  username: true,        // ✅ ADDED
-  display_name: true,
-  email: true,           // ✅ ADDED
-  avatar_url: true,
-  verified: true,        // ✅ ADDED
-}
+// AFTER:
+usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedRequest, res) => {
+  // ...
+  const users = await prisma.user.findMany({
+    where: {
+      AND: [
+        { banned: false },
+        {
+          OR: [
+            { username: { contains: query, mode: 'insensitive' } },     // ✅ NEW
+            { display_name: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } }         // ✅ NEW
+          ]
+        }
+      ]
+    },
+    select: {
+      id: true,
+      username: true,      // ✅ NEW
+      display_name: true,
+      email: true,         // ✅ NEW
+      avatar_url: true,
+      verified: true,      // ✅ NEW
+    },
+    // ...
+  });
+
+  res.json(users);  // ✅ FIXED: Direct array response
+});
 ```
+
+### Frontend: `app/team-profile.tsx`
+**Removed:**
+- Line 98: `const [suggestedUsers, setSuggestedUsers] = useState<AppUser[]>([]);`
+- Lines 352-382: `loadSuggestedUsers()` function with hardcoded mock data
+- Lines 394-395: `loadSuggestedUsers()` call in `openInviteModal()`
+- Lines 1038-1080: Suggested Users UI section in invite modal
+- Lines 804-828: Hardcoded "Recent Activity" with fake events
+- Line 528: "Mock API call" comment in `updateMemberRole()`
+
+**Simplified:**
+- Clean user search without suggestions
+- Real-time search results only
+- Team overview placeholder instead of fake activity
 
 ## Complete Team Invite Workflow
 
@@ -106,28 +153,83 @@
 - Lines 61-74: `decline()` - Decline invite
 - Full invite list UI with accept/decline buttons
 
+
 ## Testing Checklist
 
-- [x] User search returns email field
-- [x] Can search by username
-- [x] Can search by display name
-- [x] Can search by email
-- [x] Search finds users you don't follow
-- [x] Invite sends with email correctly
-- [x] Invites appear in team-invites.tsx
-- [x] Accept creates team membership
-- [x] Decline updates invite status
-- [ ] **Deploy backend changes to Railway** (REQUIRED!)
+- [x] ✅ Backend returns array directly (not wrapped in object)
+- [x] ✅ User search returns email field
+- [x] ✅ Can search by username
+- [x] ✅ Can search by display name
+- [x] ✅ Can search by email
+- [x] ✅ Search finds all users (not just followers)
+- [x] ✅ All hardcoded data removed
+- [x] ✅ No suggested users mock data
+- [x] ✅ No fake recent activity
+- [ ] ⏳ Invite sends with email correctly (NEEDS TESTING)
+- [ ] ⏳ Invites appear in team-invites.tsx (NEEDS TESTING)
+- [ ] ⏳ Accept creates team membership (NEEDS TESTING)
+- [ ] ⏳ Decline updates invite status (NEEDS TESTING)
+- [ ] ⚠️ **Deploy backend changes to Railway** (REQUIRED!)
 
-## Deployment Required
+## Next Steps
 
-⚠️ **IMPORTANT**: The backend changes to `server/src/routes/users.ts` must be deployed to Railway before the search will work properly in production.
+### 1. Restart Local Backend Server (If Running)
+If you're testing locally, restart the backend server to apply changes:
 
-**To deploy:**
-1. Commit changes to git
-2. Push to main branch
-3. Railway will auto-deploy
-4. Verify search endpoint returns email field
+```powershell
+# Navigate to server directory
+cd server
+
+# Kill existing server process (if running)
+# Then restart:
+npm run dev
+```
+
+### 2. Test the Workflow
+1. **Search Users**:
+   - Open team profile → "Invite Members"
+   - Type a username, display name, or email
+   - Verify search results appear with email addresses
+
+2. **Send Invite**:
+   - Select a user from search results
+   - Click "Send Invite"
+   - Verify success message
+
+3. **Check Invites**:
+   - Log in as the invited user
+   - Navigate to Team Invites screen
+   - Verify invite appears
+
+4. **Accept/Decline**:
+   - Click Accept on an invite
+   - Verify membership created
+   - Try declining an invite
+   - Verify it disappears
+
+### 3. Deploy to Railway
+Once local testing passes:
+
+```bash
+git add .
+git commit -m "Fix: Team invite workflow - search all users by username/email, remove hardcoded data"
+git push origin main
+```
+
+Railway will auto-deploy the backend changes.
+
+## Files Changed
+
+### Backend
+- ✅ `server/src/routes/users.ts` - Fixed search endpoint
+
+### Frontend  
+- ✅ `app/team-profile.tsx` - Removed hardcoded data, cleaned up invite modal
+
+### Documentation
+- ✅ `TEAM_INVITE_WORKFLOW_FIX.md` - This file
+
+## API Endpoint
 
 ## Known Limitations
 

@@ -452,7 +452,7 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
     ]
   });
 
-  res.json({ users });
+  res.json(users);
 });
 
 // Public profile: basic user info plus counts and is_following flag
