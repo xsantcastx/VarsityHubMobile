@@ -265,7 +265,6 @@ export default function CreateTeamScreen() {
         season: season || undefined,
         primary_color: teamColor || undefined,
         organization_id: organizationId, // Link to organization
-        organization_name: organizationName.trim() || undefined, // Keep for backward compatibility
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       

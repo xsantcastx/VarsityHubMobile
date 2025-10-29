@@ -48,17 +48,19 @@ export default function EditTeamScreen() {
       setSeason(teamData.season || '');
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
       
-      // Load organization name
-      if (teamData.organization_id) {
+      const orgFromResponse = (teamData as any).organization;
+      if (orgFromResponse?.name) {
+        setOrganizationName(orgFromResponse.name);
+      } else if (teamData.organization_id) {
         try {
           const org = await Organization.get(teamData.organization_id);
           setOrganizationName(org.name || '');
         } catch (err) {
           console.error('Failed to load organization:', err);
-          setOrganizationName(teamData.organization_name || '');
+          setOrganizationName('');
         }
       } else {
-        setOrganizationName(teamData.organization_name || '');
+        setOrganizationName('');
       }
     } catch (error) {
       console.error('Failed to load team:', error);
@@ -147,55 +149,85 @@ export default function EditTeamScreen() {
       }
       
       // Handle organization - find existing or create new
-      let organizationId: string | undefined = team?.organization_id; // Keep existing by default
+      let organizationId: string | null | undefined = team?.organization_id ?? null; // Keep existing by default
+      const trimmedOrgName = organizationName.trim();
       
-      if (organizationName.trim()) {
+      if (trimmedOrgName) {
         try {
+          console.log('[EditTeam] Searching for organization:', trimmedOrgName);
           // Search for existing organization
-          const existingOrgs = await Organization.list(organizationName.trim(), 10);
+          const existingOrgs = await Organization.list(trimmedOrgName, 10);
+          console.log('[EditTeam] Search results:', JSON.stringify(existingOrgs));
           
           if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
             // Check for exact match (case-insensitive)
             const exactMatch = existingOrgs.find((org: any) => 
-              org.name?.toLowerCase() === organizationName.trim().toLowerCase()
+              org.name?.toLowerCase() === trimmedOrgName.toLowerCase()
             );
             
             if (exactMatch) {
               organizationId = exactMatch.id;
+              console.log('[EditTeam] Using exact match:', organizationId);
             } else {
               // Use first result if no exact match
               organizationId = existingOrgs[0].id;
+              console.log('[EditTeam] Using first result:', organizationId);
             }
           } else {
             // Create new organization if none found
             try {
+              console.log('[EditTeam] Creating new organization');
               const newOrg = await Organization.createOrganization({
-                name: organizationName.trim(),
-                description: `Organization for ${organizationName.trim()}`,
+                name: trimmedOrgName,
+                description: `Organization for ${trimmedOrgName}`,
               });
               organizationId = newOrg.id;
-            } catch (orgErr) {
+              console.log('[EditTeam] Created organization:', organizationId);
+            } catch (orgErr: any) {
               console.error('[EditTeam] Failed to create organization:', orgErr);
+              console.error('[EditTeam] Error message:', orgErr?.message);
+              Alert.alert('Warning', `Could not create organization. Team will be updated without organization change.`);
               // Continue without changing organization if creation fails
             }
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('[EditTeam] Error handling organization:', err);
+          console.error('[EditTeam] Error message:', err?.message);
+          Alert.alert('Warning', `Error with organization. Team will be updated without organization change.`);
           // Continue without changing organization if there's an error
         }
+      } else {
+        organizationId = null;
       }
       
-      const teamData = {
+      const teamData: Record<string, any> = {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
         season: season || undefined,
-        organization_id: organizationId,
-        organization_name: organizationName.trim() || undefined,
-        logo_url: logoUrl || undefined,
       };
+      if (logoUrl) {
+        teamData.logo_url = logoUrl;
+      }
+      if (organizationId !== undefined) {
+        teamData.organization_id = organizationId;
+      }
       
+      console.log('[EditTeam] Updating team with data:', JSON.stringify(teamData));
       await Team.update(params.id!, teamData);
+      console.log('[EditTeam] Team update successful');
+      setExistingLogoUrl(logoUrl || null);
+      setLogoUri(null);
+      if (organizationId !== undefined) {
+        setTeam((prev: any) => prev ? {
+          ...prev,
+          organization_id: organizationId,
+          organization: organizationId
+            ? { id: organizationId, name: trimmedOrgName }
+            : null,
+        } : prev);
+        setOrganizationName(organizationId ? trimmedOrgName : '');
+      }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
         { text: 'OK', onPress: () => router.back() }
       ]);

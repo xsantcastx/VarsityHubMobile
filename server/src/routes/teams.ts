@@ -118,9 +118,43 @@ teamsRouter.get('/', async (req, res) => {
 // Team details with counts
 teamsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
-  const t = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { memberships: true } } } });
+  const t = await prisma.team.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { memberships: true } },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true,
+        },
+      },
+    },
+  });
   if (!t) return res.status(404).json({ error: 'Not found' });
-  return res.json({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null });
+  return res.json({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    status: t.status,
+    sport: t.sport,
+    season_start: t.season_start,
+    season_end: t.season_end,
+    organization_id: t.organization_id,
+    organization: t.organization
+      ? {
+          id: t.organization.id,
+          name: t.organization.name,
+          description: t.organization.description,
+          sport: t.organization.sport,
+        }
+      : null,
+    members: (t as any)._count.memberships,
+    logo_url: (t as any).logo_url || null,
+    avatar_url: (t as any).avatar_url || null,
+    created_at: t.created_at,
+  });
 });
 
 // Team members list
@@ -180,7 +214,7 @@ const updateSchema = z.object({
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
-  organization_id: z.string().optional(),
+  organization_id: z.string().optional().nullable(),
   organization_name: z.string().optional(),
   logo_url: z.string().optional().or(z.literal('')),
 });
@@ -207,14 +241,49 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
-  if (parsed.data.organization_id !== undefined) updateData.organization_id = parsed.data.organization_id;
+  if (parsed.data.organization_id !== undefined) {
+    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
+  }
   if (parsed.data.organization_name !== undefined) updateData.organization_name = parsed.data.organization_name;
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
   try {
-  const updatedTeam = await prisma.team.update({ where: { id: teamId }, data: updateData as any });
-    // Return a compact team object including logo/avatar fields for client convenience
-    return res.json({ id: updatedTeam.id, name: updatedTeam.name, description: updatedTeam.description, sport: updatedTeam.sport, season_start: updatedTeam.season_start, season_end: updatedTeam.season_end, logo_url: (updatedTeam as any).logo_url || null, avatar_url: (updatedTeam as any).avatar_url || null, status: updatedTeam.status, created_at: updatedTeam.created_at });
+    const updatedTeam = await prisma.team.update({
+      where: { id: teamId },
+      data: updateData as any,
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sport: true,
+          },
+        },
+      },
+    });
+    // Return a compact team object including organization and logo/avatar fields for client convenience
+    return res.json({
+      id: updatedTeam.id,
+      name: updatedTeam.name,
+      description: updatedTeam.description,
+      sport: updatedTeam.sport,
+      season_start: updatedTeam.season_start,
+      season_end: updatedTeam.season_end,
+      organization_id: updatedTeam.organization_id,
+      organization: updatedTeam.organization
+        ? {
+            id: updatedTeam.organization.id,
+            name: updatedTeam.organization.name,
+            description: updatedTeam.organization.description,
+            sport: updatedTeam.organization.sport,
+          }
+        : null,
+      logo_url: (updatedTeam as any).logo_url || null,
+      avatar_url: (updatedTeam as any).avatar_url || null,
+      status: updatedTeam.status,
+      created_at: updatedTeam.created_at,
+    });
   } catch (err: any) {
     console.error('Failed to update team', err?.message || err);
     // Handle common Prisma client runtime errors gracefully
