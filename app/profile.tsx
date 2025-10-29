@@ -1,4 +1,4 @@
-import { User } from '@/api/entities';
+import { User, Organization, Team } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -88,6 +88,7 @@ export default function ProfileScreen() {
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
   const rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [organizations, setOrganizations] = useState<any[]>([]);
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -154,6 +155,63 @@ export default function ProfileScreen() {
       const u: any = await User.me();
       if (u && !u._isNotModified) setMe(u ?? null);
       if (!u?.id) { setLoading(false); return; }
+
+      // Load organizations - get user's teams and extract their organizations
+      try {
+        const myTeams = await Team.list('', true); // mine=true
+        
+        if (Array.isArray(myTeams) && myTeams.length > 0) {
+          // Extract unique organization IDs from teams
+          const orgIds = new Set<string>();
+          const orgNames = new Set<string>();
+          
+          myTeams.forEach((team: any) => {
+            if (team.organization_id) {
+              orgIds.add(team.organization_id);
+            }
+            // Also try to extract organization from team name (e.g., "SHS Men's Soccer" -> "SHS")
+            if (team.name) {
+              const nameParts = String(team.name).split(/\s+/);
+              if (nameParts.length > 0) {
+                orgNames.add(nameParts[0]);
+              }
+            }
+          });
+
+          // Try to fetch by ID first
+          if (orgIds.size > 0) {
+            const orgPromises = Array.from(orgIds).map(id => 
+              Organization.get(id).catch(err => null)
+            );
+            
+            const orgsData = await Promise.all(orgPromises);
+            const validOrgs = orgsData.filter(org => org !== null);
+            
+            if (validOrgs.length > 0) {
+              setOrganizations(validOrgs);
+            }
+          }
+          
+          // If no orgs found by ID, try searching by name
+          if (orgIds.size === 0 && orgNames.size > 0) {
+            const searchPromises = Array.from(orgNames).map(name => 
+              Organization.list(name, 5).catch(err => [])
+            );
+            
+            const searchResults = await Promise.all(searchPromises);
+            const flatResults = searchResults.flat();
+            
+            // Deduplicate by ID
+            const uniqueOrgs = flatResults.filter((org: any, index: number, self: any[]) => 
+              org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
+            );
+            
+            setOrganizations(uniqueOrgs);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load organizations', err);
+      }
 
       // Load first page for active tab
       if (activeTab === 'posts') {
@@ -389,6 +447,41 @@ export default function ProfileScreen() {
           </React.Fragment>
         ))}
       </View>
+
+      {/* Organizations Section */}
+      {organizations.length > 0 && (
+        <View style={[styles.organizationsSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.orgHeader}>
+            <Ionicons name="business-outline" size={20} color={theme.tint} />
+            <Text style={[styles.orgTitle, { color: theme.text }]}>Organizations</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orgList}>
+            {organizations.map((org) => (
+              <Pressable
+                key={org.id}
+                style={[styles.orgCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => router.push({ pathname: '/league', params: { id: org.id, name: org.name } })}
+              >
+                {org.avatar_url ? (
+                  <Image
+                    source={{ uri: org.avatar_url }}
+                    style={styles.orgLogo}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={[styles.orgLogoPlaceholder, { backgroundColor: theme.border }]}>
+                    <Ionicons name="shield-outline" size={20} color={theme.mutedText} />
+                  </View>
+                )}
+                <Text style={[styles.orgName, { color: theme.text }]} numberOfLines={2}>
+                  {org.display_name || org.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
           onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
@@ -981,5 +1074,54 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  
+  // Organizations Section
+  organizationsSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  orgHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  orgTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  orgList: {
+    gap: 12,
+    paddingRight: 16,
+  },
+  orgCard: {
+    width: 100,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  orgLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  orgLogoPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orgName: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 

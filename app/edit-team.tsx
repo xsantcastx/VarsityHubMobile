@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team } from '@/api/entities';
+import { Team, Organization } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 
 export default function EditTeamScreen() {
@@ -21,6 +21,7 @@ export default function EditTeamScreen() {
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
   const [season, setSeason] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +47,19 @@ export default function EditTeamScreen() {
       setSport(teamData.sport || '');
       setSeason(teamData.season || '');
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
+      
+      // Load organization name
+      if (teamData.organization_id) {
+        try {
+          const org = await Organization.get(teamData.organization_id);
+          setOrganizationName(org.name || '');
+        } catch (err) {
+          console.error('Failed to load organization:', err);
+          setOrganizationName(teamData.organization_name || '');
+        }
+      } else {
+        setOrganizationName(teamData.organization_name || '');
+      }
     } catch (error) {
       console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
@@ -132,11 +146,52 @@ export default function EditTeamScreen() {
         }
       }
       
+      // Handle organization - find existing or create new
+      let organizationId: string | undefined = team?.organization_id; // Keep existing by default
+      
+      if (organizationName.trim()) {
+        try {
+          // Search for existing organization
+          const existingOrgs = await Organization.list(organizationName.trim(), 10);
+          
+          if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+            // Check for exact match (case-insensitive)
+            const exactMatch = existingOrgs.find((org: any) => 
+              org.name?.toLowerCase() === organizationName.trim().toLowerCase()
+            );
+            
+            if (exactMatch) {
+              organizationId = exactMatch.id;
+            } else {
+              // Use first result if no exact match
+              organizationId = existingOrgs[0].id;
+            }
+          } else {
+            // Create new organization if none found
+            try {
+              const newOrg = await Organization.createOrganization({
+                name: organizationName.trim(),
+                description: `Organization for ${organizationName.trim()}`,
+              });
+              organizationId = newOrg.id;
+            } catch (orgErr) {
+              console.error('[EditTeam] Failed to create organization:', orgErr);
+              // Continue without changing organization if creation fails
+            }
+          }
+        } catch (err) {
+          console.error('[EditTeam] Error handling organization:', err);
+          // Continue without changing organization if there's an error
+        }
+      }
+      
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
         season: season || undefined,
+        organization_id: organizationId,
+        organization_name: organizationName.trim() || undefined,
         logo_url: logoUrl || undefined,
       };
       
@@ -261,6 +316,20 @@ export default function EditTeamScreen() {
               numberOfLines={3}
               maxLength={500}
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
+            <TextInput
+              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              value={organizationName}
+              onChangeText={setOrganizationName}
+              placeholder="e.g., Duke, UNC, Stamford High School"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              Link this team to a school or organization
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -508,6 +577,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  fieldHint: {
+    fontSize: 13,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });
 
