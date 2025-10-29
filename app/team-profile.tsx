@@ -312,8 +312,8 @@ export default function TeamProfileScreen() {
       // Convert to AppUser format
       const convertedResults: AppUser[] = safeResults.map((user: any) => ({
         id: user.id,
-        display_name: user.display_name || user.username,
-        username: user.username,
+        display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
+        username: user.username || user.email?.split('@')[0] || 'user',
         email: user.email,
         avatar_url: user.avatar_url,
         verified: user.email_verified || false,
@@ -948,7 +948,7 @@ export default function TeamProfileScreen() {
                       )}
                     </View>
                     <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
-                      @{selectedUser.username}
+                      @{selectedUser.username || 'user'}
                     </Text>
                     {selectedUser.mutual_friends && selectedUser.mutual_friends > 0 && (
                       <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
@@ -995,7 +995,7 @@ export default function TeamProfileScreen() {
                                 )}
                               </View>
                               <Text style={[styles.userUsername, { color: Colors[colorScheme].mutedText }]}>
-                                @{item.username}
+                                @{item.username || 'user'}
                               </Text>
                               {item.mutual_friends && item.mutual_friends > 0 && (
                                 <Text style={[styles.mutualFriends, { color: Colors[colorScheme].mutedText }]}>
