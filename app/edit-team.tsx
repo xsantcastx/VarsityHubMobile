@@ -212,7 +212,6 @@ export default function EditTeamScreen() {
       // Always send organization fields when they change
       if (organizationId !== undefined) {
         teamData.organization_id = organizationId;
-        teamData.organization_name = trimmedOrgName || undefined;
       }
       
       console.log('[EditTeam] Updating team with data:', JSON.stringify(teamData));
@@ -225,7 +224,7 @@ export default function EditTeamScreen() {
           ...prev,
           organization_id: organizationId,
           organization: organizationId
-            ? { id: organizationId, name: trimmedOrgName }
+            ? { ...(prev.organization ?? {}), id: organizationId, name: trimmedOrgName }
             : null,
         } : prev);
         setOrganizationName(organizationId ? trimmedOrgName : '');

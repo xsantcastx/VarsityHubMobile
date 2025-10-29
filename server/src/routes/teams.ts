@@ -209,13 +209,12 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
 const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
-const updateSchema = z.object({ 
-  name: z.string().min(2).optional(), 
+const updateSchema = z.object({
+  name: z.string().min(2).optional(),
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
-  organization_id: z.string().optional().nullable().or(z.literal('')),
-  organization_name: z.string().optional().nullable().or(z.literal('')),
+  organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -246,16 +245,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
-    // Handle null, empty string, or valid ID
-    updateData.organization_id = (parsed.data.organization_id === null || parsed.data.organization_id === '') 
-      ? null 
-      : parsed.data.organization_id;
-  }
-  if (parsed.data.organization_name !== undefined) {
-    // Handle null, empty string, or valid name
-    updateData.organization_name = (parsed.data.organization_name === null || parsed.data.organization_name === '') 
-      ? null 
-      : parsed.data.organization_name;
+    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
