@@ -214,13 +214,17 @@ const updateSchema = z.object({
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
-  organization_id: z.string().optional().nullable(),
-  organization_name: z.string().optional(),
+  organization_id: z.string().optional().nullable().or(z.literal('')),
+  organization_name: z.string().optional().nullable().or(z.literal('')),
   logo_url: z.string().optional().or(z.literal('')),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  console.log('[Teams PUT] Received update request:', JSON.stringify(req.body));
   const parsed = updateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  }
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const teamId = String(req.params.id);
@@ -242,10 +246,20 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
   if (parsed.data.organization_id !== undefined) {
-    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
+    // Handle null, empty string, or valid ID
+    updateData.organization_id = (parsed.data.organization_id === null || parsed.data.organization_id === '') 
+      ? null 
+      : parsed.data.organization_id;
   }
-  if (parsed.data.organization_name !== undefined) updateData.organization_name = parsed.data.organization_name;
+  if (parsed.data.organization_name !== undefined) {
+    // Handle null, empty string, or valid name
+    updateData.organization_name = (parsed.data.organization_name === null || parsed.data.organization_name === '') 
+      ? null 
+      : parsed.data.organization_name;
+  }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
+  
+  console.log('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
   
   try {
     const updatedTeam = await prisma.team.update({
@@ -262,6 +276,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
         },
       },
     });
+    console.log('[Teams PUT] Update successful');
     // Return a compact team object including organization and logo/avatar fields for client convenience
     return res.json({
       id: updatedTeam.id,
@@ -468,8 +483,21 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
   if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  const existingMembership = await prisma.teamMembership.findUnique({
+    where: {
+      team_id_user_id: {
+        team_id: invite.team_id,
+        user_id: user.id,
+      } as any,
+    },
+  });
+  const roleToApply = existingMembership?.role || invite.role;
   await prisma.$transaction([
-    prisma.teamMembership.upsert({ where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any, update: { role: invite.role, status: 'active' }, create: { team_id: invite.team_id, user_id: user.id, role: invite.role, status: 'active' } }),
+    prisma.teamMembership.upsert({
+      where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
+      update: { role: roleToApply, status: 'active' },
+      create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
+    }),
     prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
   ]);
   return res.json({ ok: true });

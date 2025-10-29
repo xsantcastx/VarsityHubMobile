@@ -47,7 +47,24 @@ organizationsRouter.get('/:id', async (req, res) => {
     where: { id },
     include: {
       teams: {
-        select: { id: true, name: true, sport: true, created_at: true }
+        orderBy: { name: 'asc' },
+        select: { 
+          id: true,
+          name: true,
+          description: true,
+          sport: true,
+          season_start: true,
+          season_end: true,
+          status: true,
+          logo_url: true,
+          avatar_url: true,
+          created_at: true,
+          _count: {
+            select: {
+              memberships: true,
+            }
+          }
+        }
       },
       memberships: {
         include: {
