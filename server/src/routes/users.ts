@@ -452,7 +452,17 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
     ]
   });
 
-  res.json(users);
+  // Ensure all fields have safe defaults (no null values that will crash React Native)
+  const safeUsers = users.map(user => ({
+    id: user.id,
+    username: user.username || user.email?.split('@')[0] || 'user',
+    display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
+    email: user.email,
+    avatar_url: user.avatar_url,
+    email_verified: user.email_verified,
+  }));
+
+  res.json(safeUsers);
 });
 
 // Public profile: basic user info plus counts and is_following flag

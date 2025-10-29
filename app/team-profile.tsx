@@ -309,16 +309,18 @@ export default function TeamProfileScreen() {
       const results = await User.searchForMentions(query, 10);
       // Defensive: ensure results is an array
       const safeResults = Array.isArray(results) ? results : [];
-      // Convert to AppUser format
-      const convertedResults: AppUser[] = safeResults.map((user: any) => ({
-        id: user.id,
-        display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
-        username: user.username || user.email?.split('@')[0] || 'user',
-        email: user.email,
-        avatar_url: user.avatar_url,
-        verified: user.email_verified || false,
-        mutual_friends: user.mutual_friends || 0,
-      }));
+      // Convert to AppUser format with strict validation
+      const convertedResults: AppUser[] = safeResults
+        .filter((user: any) => user && user.id) // Only include users with valid IDs
+        .map((user: any) => ({
+          id: String(user.id),
+          display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
+          username: user.username || user.email?.split('@')[0] || 'user',
+          email: user.email || '',
+          avatar_url: user.avatar_url || null,
+          verified: user.email_verified || false,
+          mutual_friends: user.mutual_friends || 0,
+        }));
       setSearchResults(convertedResults);
     } catch (error) {
       console.error('User search failed:', error);
@@ -982,13 +984,13 @@ export default function TeamProfileScreen() {
                           <View style={styles.userInfo}>
                             <View style={[styles.userAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
                               <Text style={styles.userInitials}>
-                                {item.display_name ? item.display_name.charAt(0).toUpperCase() : ''}
+                                {(item.display_name || 'U').charAt(0).toUpperCase()}
                               </Text>
                             </View>
                             <View style={styles.userDetails}>
                               <View style={styles.userNameRow}>
                                 <Text style={[styles.userName, { color: Colors[colorScheme].text }]}>
-                                  {item.display_name}
+                                  {item.display_name || item.username || 'User'}
                                 </Text>
                                 {item.verified && (
                                   <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />

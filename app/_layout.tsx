@@ -50,8 +50,8 @@ export default function RootLayout() {
           return;
         }
         
-        // Role-aware login landing - only redirect if on public routes
-        if (isPublic && me) {
+        // Role-aware login landing - only redirect if on public routes (but NOT verify-email, user might be verifying during onboarding)
+        if (isPublic && me && first !== 'verify-email') {
           // Everyone lands on feed
           const landingRoute = '/(tabs)/feed';
           
