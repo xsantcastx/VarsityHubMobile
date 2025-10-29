@@ -421,43 +421,30 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
     return res.json({ users: [] });
   }
 
-  // Search users I'm following or who follow me, plus exact username matches
+  // Search all users by username, display_name, or email
   const users = await prisma.user.findMany({
     where: {
       AND: [
         { banned: false },
         {
           OR: [
-            // Users I follow
-            {
-              id: {
-                in: await prisma.follows.findMany({
-                  where: { follower_id: currentUserId },
-                  select: { following_id: true }
-                }).then(follows => follows.map(f => f.following_id))
-              }
-            },
-            // Users who follow me
-            {
-              id: {
-                in: await prisma.follows.findMany({
-                  where: { following_id: currentUserId },
-                  select: { follower_id: true }
-                }).then(follows => follows.map(f => f.follower_id))
-              }
-            },
-            // Exact username matches (for discoverability)
-            { display_name: { contains: query, mode: 'insensitive' } }
+            // Search by username
+            { username: { contains: query, mode: 'insensitive' } },
+            // Search by display name
+            { display_name: { contains: query, mode: 'insensitive' } },
+            // Search by email (for team invites)
+            { email: { contains: query, mode: 'insensitive' } }
           ]
-        },
-        // Match query in display name
-        { display_name: { contains: query, mode: 'insensitive' } }
+        }
       ]
     },
     select: {
       id: true,
+      username: true,
       display_name: true,
+      email: true,
       avatar_url: true,
+      verified: true,
     },
     take: limit,
     orderBy: [
