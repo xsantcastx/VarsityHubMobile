@@ -19,7 +19,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
-  role: z.enum(['fan', 'coach']).optional(),
+  role: z.enum(['fan', 'rookie', 'coach']).optional(),
 });
 
 authRouter.post('/register', async (req, res) => {
@@ -347,7 +347,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     
     // New onboarding fields
     plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-    role: z.enum(['fan', 'coach']).optional(),
+    role: z.enum(['fan', 'rookie', 'coach']).optional(),
     affiliation: z.enum(['school', 'independent']).optional(),
     dob: z.string().optional(),
     sports_interests: z.array(z.string()).optional(),
@@ -369,7 +369,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     is_parent: false,
     zip_code: null,
     onboarding_completed: true,
-    plan: 'rookie',
+    plan: null, // Plans only for coaches - don't default to 'rookie'
     role: 'fan',
     sports_interests: [],
     personalization_goals: [],
@@ -386,7 +386,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
   // Core identity fields
-  role: z.enum(['fan', 'coach']).optional(),
+  role: z.enum(['fan', 'rookie', 'coach']).optional(),
   username: z.string().min(3).max(20).optional(),
   display_name: z.string().optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),

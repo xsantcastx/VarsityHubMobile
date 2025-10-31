@@ -107,7 +107,14 @@ export default function Step7Profile() {
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-8-interests');
+        // Fans and rookies skip to role-onboarding, coaches continue to interests
+        if (ob.role === 'fan' || ob.role === 'rookie') {
+          // Mark onboarding as complete for fans/rookies
+          await User.updatePreferences({ onboarding_completed: true });
+          router.replace('/role-onboarding');
+        } else {
+          router.push('/onboarding/step-8-interests');
+        }
       }
     } catch (e: any) { 
       Alert.alert('Failed to save profile', e?.message || 'Please try again'); 

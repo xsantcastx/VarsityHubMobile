@@ -2,15 +2,15 @@ import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useColorScheme
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useColorScheme
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -101,7 +101,7 @@ export default function SignInScreen() {
           <View style={styles.header}>
             <View style={[styles.logoContainer, { backgroundColor: palette.card, shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a' }]}>
               <Image
-                source={require('../assets/images/logo.png')}
+                source={require('../assets/images/logo.svg')}
                 style={styles.logo}
                 contentFit="contain"
               />

@@ -14,9 +14,9 @@ export const paymentsRouter = Router();
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
   
-  // Individual day pricing: $10 weekday (Mon-Thu), $17.50 weekend (Fri-Sun)
-  const weekdayPrice = 1000; // $10.00 in cents
-  const weekendPrice = 1750; // $17.50 in cents
+  // Weekly slot pricing: $8/week (Mon-Thu slot), $10/week (Fri-Sun slot)
+  const weekdayPrice = 800; // $8.00 per week in cents
+  const weekendPrice = 1000; // $10.00 per week in cents
   let total = 0;
   
   for (const s of isoDates) {
@@ -108,11 +108,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 7000 : 15000,
-          recurring: { interval: 'year' },
+          unit_amount: chosen === 'veteran' ? 150 : 1750, // Veteran: $1.50/month, Legend: $17.50/year
+          recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
-            description: chosen + ' membership (fallback price)',
+            description: chosen === 'veteran' 
+              ? 'Veteran plan - $1.50/month per team' 
+              : 'Legend plan - $17.50/year unlimited (fallback price)',
           },
         },
       }];
@@ -158,7 +160,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 7000 : 15000;
+  const amount = chosen === 'veteran' ? 150 : 1750; // $1.50 or $17.50
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',

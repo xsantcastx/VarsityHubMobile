@@ -233,6 +233,92 @@ adsRouter.get('/reservations', async (req, res) => {
   return res.json({ dates });
 });
 
+/**
+ * GET /ads/availability?zip=12345&from=2025-01-15&to=2025-01-31
+ * 
+ * Returns availability status for each date in the range.
+ * Each date can have up to 3 ads (slots). If 3+ ads already exist, date is full.
+ */
+adsRouter.get('/availability', async (req, res) => {
+  const zipCode = req.query.zip ? String(req.query.zip) : undefined;
+  const from = req.query.from ? String(req.query.from) : undefined;
+  const to = req.query.to ? String(req.query.to) : undefined;
+
+  if (!zipCode || !from || !to) {
+    return res.status(400).json({ error: 'zip, from, and to are required' });
+  }
+
+  const MAX_ADS_PER_DATE = 3; // Maximum ad slots per date
+
+  // Parse date range
+  const fromDate = new Date(from + 'T00:00:00.000Z');
+  const toDate = new Date(to + 'T00:00:00.000Z');
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid date format' });
+  }
+
+  // Get all ads for this zip code
+  const adsInZip = await prisma.ad.findMany({
+    where: {
+      target_zip_code: zipCode,
+      payment_status: 'paid', // Only count paid ads
+    },
+    select: { id: true },
+  });
+
+  const adIds = adsInZip.map(a => a.id);
+
+  // Get all reservations for these ads in the date range
+  const reservations = await prisma.adReservation.findMany({
+    where: {
+      ad_id: { in: adIds },
+      date: {
+        gte: fromDate,
+        lte: toDate,
+      },
+    },
+    select: {
+      date: true,
+      ad_id: true,
+    },
+  });
+
+  // Count ads per date
+  const adCountByDate: Record<string, number> = {};
+  
+  reservations.forEach(r => {
+    const dateISO = r.date.toISOString().slice(0, 10);
+    adCountByDate[dateISO] = (adCountByDate[dateISO] || 0) + 1;
+  });
+
+  // Generate all dates in range and check availability
+  const availability: Record<string, { available: boolean; slotsUsed: number; slotsRemaining: number }> = {};
+  
+  let currentDate = new Date(fromDate);
+  while (currentDate <= toDate) {
+    const dateISO = currentDate.toISOString().slice(0, 10);
+    const slotsUsed = adCountByDate[dateISO] || 0;
+    const slotsRemaining = MAX_ADS_PER_DATE - slotsUsed;
+    
+    availability[dateISO] = {
+      available: slotsRemaining > 0,
+      slotsUsed,
+      slotsRemaining: Math.max(0, slotsRemaining),
+    };
+    
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return res.json({
+    zip: zipCode,
+    from,
+    to,
+    maxSlotsPerDate: MAX_ADS_PER_DATE,
+    availability,
+  });
+});
+
 // Create reservation for a set of dates (yyyy-MM-dd strings)
 adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
   const { ad_id, dates } = req.body || {};

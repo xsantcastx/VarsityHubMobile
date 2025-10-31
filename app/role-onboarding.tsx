@@ -103,6 +103,38 @@ export default function RoleOnboardingScreen() {
     },
   ];
 
+  // Rookie (Player) actions - active participation focused
+  const rookieActions: OnboardingAction[] = [
+    {
+      icon: 'people',
+      title: 'Join Teams',
+      description: 'Find and join teams to start playing',
+      route: '/my-team',
+      gradient: ['#2563eb', '#1d4ed8'],
+    },
+    {
+      icon: 'calendar',
+      title: 'View Schedule',
+      description: 'Check your games and practice schedule',
+      route: '/feed',
+      gradient: ['#7c3aed', '#6d28d9'],
+    },
+    {
+      icon: 'stats-chart',
+      title: 'Track Stats',
+      description: 'View your performance and team statistics',
+      route: '/highlights',
+      gradient: ['#059669', '#047857'],
+    },
+    {
+      icon: 'chatbubbles',
+      title: 'Team Chat',
+      description: 'Stay connected with teammates and coaches',
+      route: '/messages',
+      gradient: ['#dc2626', '#b91c1c'],
+    },
+  ];
+
   if (!userRole) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -111,8 +143,17 @@ export default function RoleOnboardingScreen() {
     );
   }
 
-  // Only show fan onboarding for fans
-  const actions = userRole === 'fan' ? fanActions : [];
+  // Choose actions based on role
+  let actions: OnboardingAction[] = [];
+  let welcomeTitle = 'Welcome to Varsity Hub! 🎉';
+  
+  if (userRole === 'fan') {
+    actions = fanActions;
+    welcomeTitle = 'Welcome, Fan! 🎉';
+  } else if (userRole === 'rookie') {
+    actions = rookieActions;
+    welcomeTitle = 'Welcome, Rookie! 🏀';
+  }
 
   if (actions.length === 0) {
     // For coaches/admins, redirect to appropriate screen
@@ -132,7 +173,7 @@ export default function RoleOnboardingScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            Welcome, Fan! 🎉
+            {welcomeTitle}
           </Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
             {zipCodeProvided ? "Here's what you can do on Varsity Hub" : 'First, tell us where you are'}

@@ -3,13 +3,13 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { User } from '@/api/entities';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { OnboardingLayout } from './components/OnboardingLayout';
 
-type UserRole = 'fan' | 'coach';
+type UserRole = 'fan' | 'rookie' | 'coach';
 
 function RoleCard({ 
   title, 
@@ -148,11 +148,15 @@ export default function Step1Role() {
       } else {
         // Route based on role selection for normal onboarding flow
         if (role === 'fan') {
-          // Fan gets light setup - skip to profile or interests
+          // Fan gets lightest setup - skip to profile
           setProgress(6); // step-7 (0-based)
           router.push('/onboarding/step-7-profile');
+        } else if (role === 'rookie') {
+          // Rookie (Player) gets medium setup - basic info + profile, no teams/subscriptions
+          setProgress(1); // step-2
+          router.push('/onboarding/step-2-basic');
         } else {
-          // Coach/Organizer gets full onboarding
+          // Coach/Organizer gets full onboarding with teams and subscriptions
           setProgress(1); // step-2
           router.push('/onboarding/step-2-basic');
         }
@@ -184,6 +188,21 @@ export default function Step1Role() {
           'Get game updates and highlights',
           'Connect with other fans',
           'Quick setup process'
+        ]}
+      />
+
+      <RoleCard
+        title="Rookie (Player)"
+        description="Join teams and play"
+        icon="basketball"
+        selected={role === 'rookie'}
+        onPress={() => setRole('rookie')}
+        features={[
+          'Join and play for teams',
+          'View personal and team stats',
+          'Get roster updates',
+          'Event notifications',
+          'Participate in team chat'
         ]}
       />
 

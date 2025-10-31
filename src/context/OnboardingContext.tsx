@@ -5,7 +5,7 @@ import { User } from '@/api/entities';
 
 export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
-export type UserRole = 'fan' | 'coach';
+export type UserRole = 'fan' | 'rookie' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';
 export type Intent = 'find_local_games' | 'add_players' | 'follow';
 export type Interest = 'Football' | 'Basketball' | 'Baseball' | 'Soccer' | 'Volleyball' | 'Track & Field' | 'Swimming' | 'Hockey' | 'Other';

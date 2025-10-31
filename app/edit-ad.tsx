@@ -1,4 +1,5 @@
 import { uploadFile } from '@/api/upload';
+import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -189,11 +190,9 @@ export default function EditAdScreen() {
                 placeholder="12345"
                 maxLength={10}
               />
-              {zip.trim() && (
-                <Text style={styles.helperText}>
-                  📍 Your ad will reach 20 miles around zip code {zip}
-                </Text>
-              )}
+
+              {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
+              <ReachMapPreview zipCode={zip} radiusKm={15} />
 
               <Text style={styles.label}>Banner Image</Text>
               {bannerUrl ? (

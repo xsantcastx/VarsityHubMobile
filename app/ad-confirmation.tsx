@@ -1,54 +1,110 @@
+import { Advertisement } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AdConfirmationScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ 
+    ad_id?: string;
     businessName?: string; 
     selectedDates?: string;
     totalAmount?: string;
   }>();
   
-  const businessName = params.businessName || 'Your Business';
+  const [adDetails, setAdDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(!!params.ad_id);
+
+  useEffect(() => {
+    if (params.ad_id) {
+      Advertisement.get(params.ad_id)
+        .then(data => {
+          setAdDetails(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Failed to load ad details:', err);
+          setLoading(false);
+        });
+    }
+  }, [params.ad_id]);
+  
+  const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';
   const totalAmount = params.totalAmount || '$0.00';
+  const bannerUrl = adDetails?.banner_url;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      <ScrollView 
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Success Animation */}
-        <View style={styles.animationContainer}>
-          <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' }]}>
-            <Ionicons name="checkmark-circle" size={100} color="#10B981" />
-          </View>
-        </View>
-
-        {/* Success Message */}
-        <View style={styles.messageContainer}>
-          <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-            🎉 Your Ad is Live!
-          </Text>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            Your payment was successful and your ad campaign is now active.
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+            Loading your ad details...
           </Text>
         </View>
-
-        {/* Details Card */}
-        <LinearGradient
-          colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
-          style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
+      ) : (
+        <ScrollView 
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
         >
+          {/* Success Animation */}
+          <View style={styles.animationContainer}>
+            <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' }]}>
+              <Ionicons name="checkmark-circle" size={100} color="#10B981" />
+            </View>
+          </View>
+
+          {/* Success Message */}
+          <View style={styles.messageContainer}>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+              🎉 Your Ad is Live!
+            </Text>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              Your payment was successful and your ad campaign is now active.
+            </Text>
+          </View>
+
+          {/* Ad Preview Section */}
+          {bannerUrl && (
+            <View style={[styles.previewSection, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              <View style={styles.previewHeader}>
+                <Ionicons name="eye" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
+                  Ad Preview
+                </Text>
+              </View>
+              <View style={styles.bannerContainer}>
+                <Image 
+                  source={{ uri: bannerUrl }}
+                  style={styles.bannerImage}
+                  resizeMode="cover"
+                />
+              </View>
+              {adDetails?.target_url && (
+                <View style={styles.linkRow}>
+                  <Ionicons name="link" size={16} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.linkText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                    {adDetails.target_url}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Details Card */}
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+            style={[styles.detailsCard, { borderColor: Colors[colorScheme].border }]}
+          >
           <View style={styles.detailRow}>
             <Ionicons name="business" size={24} color="#10B981" />
             <View style={{ flex: 1, marginLeft: 12 }}>
@@ -131,15 +187,24 @@ export default function AdConfirmationScreen() {
           <Text style={[styles.supportText, { color: Colors[colorScheme].mutedText }]}>
             Need help? Contact Support
           </Text>
-        </Pressable>
-      </ScrollView>
+          </Pressable>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
-}
-
-const styles = StyleSheet.create({
+}const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   content: {
     padding: 24,
@@ -178,6 +243,43 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     maxWidth: 300,
+  },
+  previewSection: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  bannerContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+    marginBottom: 8,
+  },
+  bannerImage: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 8,
+  },
+  linkText: {
+    fontSize: 13,
+    flex: 1,
   },
   detailsCard: {
     borderRadius: 20,

@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -60,7 +60,6 @@ export default function CreatePostScreen() {
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
-  const [shareLocation, setShareLocation] = useState(true);
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [locGranted, setLocGranted] = useState<boolean | null>(null);
@@ -70,6 +69,8 @@ export default function CreatePostScreen() {
   const [rotatingPromptIndex, setRotatingPromptIndex] = useState(0);
   const [eventSelectorVisible, setEventSelectorVisible] = useState(false);
   const [hasAutoSuggested, setHasAutoSuggested] = useState(!!gameId); // If gameId from params, don't auto-suggest
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
 
   // Rotate placeholder prompts
   useEffect(() => {
@@ -96,6 +97,23 @@ export default function CreatePostScreen() {
     })();
   }, []);
 
+  // Load game details if gameId is provided via params (from event page)
+  useEffect(() => {
+    if (!gameId) return;
+    
+    (async () => {
+      try {
+        const game = await Game.get(gameId);
+        if (game) {
+          setSuggestedGame(game);
+          setSelectedGameId(String(game.id));
+        }
+      } catch (error) {
+        console.warn('Failed to load game from params:', error);
+      }
+    })();
+  }, [gameId]);
+
   // Auto-suggest nearest event based on time and location
   useEffect(() => {
     // Only auto-suggest once, and don't override if already selected via params
@@ -121,8 +139,32 @@ export default function CreatePostScreen() {
         
         if (!upcomingGames.length) return;
         
-        // Sort by closest time
-        upcomingGames.sort((a: any, b: any) => {
+        // Calculate distance for each game if we have user location
+        const gamesWithDistance = upcomingGames.map((g: any) => {
+          let distance = null;
+          if (lat && lng && g.lat && g.lng) {
+            // Haversine formula for distance in km
+            const R = 6371; // Earth's radius in km
+            const dLat = (g.lat - lat) * Math.PI / 180;
+            const dLng = (g.lng - lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat * Math.PI / 180) * Math.cos(g.lat * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            distance = R * c; // Distance in km
+          }
+          return { ...g, distance };
+        });
+        
+        // Sort by distance (closest first), then by time
+        gamesWithDistance.sort((a: any, b: any) => {
+          if (a.distance !== null && b.distance !== null) {
+            return a.distance - b.distance;
+          }
+          if (a.distance !== null) return -1;
+          if (b.distance !== null) return 1;
+          
+          // If no distance, sort by time
           const aTime = new Date(a.date).getTime();
           const bTime = new Date(b.date).getTime();
           const aDiff = Math.abs(aTime - now.getTime());
@@ -130,18 +172,16 @@ export default function CreatePostScreen() {
           return aDiff - bDiff;
         });
         
-        setNearbyGames(upcomingGames.slice(0, 5)); // Keep top 5 for selection
+        // Keep at least 3 nearby games, more if available
+        setNearbyGames(gamesWithDistance.slice(0, Math.max(3, 5)));
         
-        // Auto-select the nearest game only on first load
-        const nearest = upcomingGames[0];
-        setSuggestedGame(nearest);
-        setSelectedGameId(String(nearest.id));
-        setHasAutoSuggested(true); // Mark that we've done the auto-suggestion
+        // Don't auto-select - let user choose from nearby games
+        setHasAutoSuggested(true);
       } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
       }
     })();
-  }, []); // Empty dependency - only run once on mount
+  }, [lat, lng, selectedGameId, hasAutoSuggested]);
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
@@ -255,8 +295,28 @@ export default function CreatePostScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
+    // First, show preview
+    const trimmedContent = content.trim();
+    if (!trimmedContent && !picked?.uri) {
+      setError('Add content or select a media file');
+      return;
+    }
+    
+    // Prepare preview data
+    setPreviewData({
+      content: trimmedContent,
+      media: picked,
+      game: suggestedGame,
+      type: postType,
+    });
+    setPreviewVisible(true);
+  };
+
+  const confirmPost = async () => {
     setSubmitting(true);
     setError(null);
+    setPreviewVisible(false);
+    
     try {
       // Ensure user is authenticated
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
@@ -269,12 +329,8 @@ export default function CreatePostScreen() {
         finalMediaUrl = res?.url || res?.path;
       }
       const trimmedContent = content.trim();
-      if (!trimmedContent && !finalMediaUrl) {
-        setError('Add content or select a media file');
-        setSubmitting(false);
-        return;
-      }
-      const location = shareLocation ? { lat, lng, source: 'device' as const } : {};
+      
+      const location = lat && lng ? { lat, lng, source: 'device' as const } : {};
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
@@ -285,9 +341,14 @@ export default function CreatePostScreen() {
         payload.game_id = selectedGameId;
       }
       await Post.create(payload);
+      
+      // Show success message based on where post will appear
+      const postDestination = selectedGameId ? 'event page' : 'profile';
       Alert.alert(
-        postType === 'highlight' ? 'Highlight shared' : 'Posted',
-        postType === 'highlight' ? 'Your highlight has been shared.' : 'Your post has been created.'
+        postType === 'highlight' ? 'Highlight shared' : 'Posted successfully!',
+        postType === 'highlight' 
+          ? 'Your highlight has been shared.' 
+          : `Your post has been created and will appear on the ${postDestination}.`
       );
       router.replace('/(tabs)/feed');
     } catch (e: any) {
@@ -380,11 +441,68 @@ export default function CreatePostScreen() {
           </View>
         ) : null}
 
-        {/* Suggested Game/Event */}
-        {(suggestedGame || nearbyGames.length > 0) && (
+        {/* Nearby Games/Events Prompt */}
+        {nearbyGames.length > 0 && !suggestedGame && (
+          <View style={styles.gameSection}>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+              📍 Nearby games you can tag:
+            </Text>
+            <Text style={[styles.nearbyGamesHint, { color: Colors[colorScheme].mutedText }]}>
+              Select a game to attach your post to
+            </Text>
+            {nearbyGames.slice(0, 3).map((game, idx) => (
+              <Pressable
+                key={game.id}
+                style={[styles.nearbyGameCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                onPress={() => {
+                  setSuggestedGame(game);
+                  setSelectedGameId(String(game.id));
+                }}
+              >
+                <View style={styles.gameIconContainer}>
+                  <Ionicons name="location" size={18} color="#3B82F6" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                    {game.title || `${game.home_team} vs ${game.away_team}`}
+                  </Text>
+                  <View style={styles.gameMetaRow}>
+                    {game.distance !== null && game.distance !== undefined && (
+                      <Text style={[styles.gameDistance, { color: '#3B82F6' }]}>
+                        {game.distance < 1 
+                          ? `${Math.round(game.distance * 1000)}m away` 
+                          : `${game.distance.toFixed(1)}km away`}
+                      </Text>
+                    )}
+                    {game.date && (
+                      <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
+                        {game.distance !== null && game.distance !== undefined && ' • '}
+                        {new Date(game.date).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+            ))}
+            {nearbyGames.length > 3 && (
+              <Pressable 
+                style={[styles.viewMoreButton, { backgroundColor: Colors[colorScheme].surface }]}
+                onPress={() => setEventSelectorVisible(true)}
+              >
+                <Text style={[styles.viewMoreText, { color: Colors[colorScheme].tint }]}>
+                  View all {nearbyGames.length} nearby games
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* Selected Game/Event */}
+        {suggestedGame && (
           <View style={styles.gameSection}>
             <View style={styles.sectionTitleRow}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attach to Event</Text>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attached Event</Text>
               {nearbyGames.length > 1 && (
                 <Pressable onPress={() => setEventSelectorVisible(true)}>
                   <Text style={[styles.changeEventButton, { color: Colors[colorScheme].tint }]}>Change</Text>
@@ -392,63 +510,49 @@ export default function CreatePostScreen() {
               )}
             </View>
             
-            {suggestedGame ? (
-              <Pressable 
-                style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
-              >
-                <View style={styles.gameIconContainer}>
-                  <Ionicons name="trophy" size={20} color="#059669" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
-                    {suggestedGame.id === nearbyGames[0]?.id ? 'Suggested Event (nearest)' : 'Selected Event'}
-                  </Text>
-                  <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
-                    {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
-                  </Text>
+            <Pressable 
+              style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
+            >
+              <View style={styles.gameIconContainer}>
+                <Ionicons name="trophy" size={20} color="#059669" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
+                  Selected Event
+                </Text>
+                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                  {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
+                </Text>
+                <View style={styles.gameMetaRow}>
+                  {suggestedGame.distance !== null && suggestedGame.distance !== undefined && (
+                    <Text style={[styles.gameDistance, { color: '#3B82F6' }]}>
+                      {suggestedGame.distance < 1 
+                        ? `${Math.round(suggestedGame.distance * 1000)}m away` 
+                        : `${suggestedGame.distance.toFixed(1)}km away`}
+                    </Text>
+                  )}
                   {suggestedGame.date && (
                     <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
+                      {suggestedGame.distance !== null && suggestedGame.distance !== undefined && ' • '}
                       {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   )}
                 </View>
-                <Ionicons name="checkmark-circle" size={24} color="#059669" />
-              </Pressable>
-            ) : (
-              <Pressable 
-                style={[styles.noEventCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                onPress={() => setEventSelectorVisible(true)}
-              >
-                <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.noEventText, { color: Colors[colorScheme].mutedText }]}>Select an event to attach</Text>
-              </Pressable>
-            )}
+                <Text style={[styles.eventConfirmation, { color: '#059669', marginTop: 4 }]}>
+                  ✓ This post will appear in this event
+                </Text>
+              </View>
+              <Ionicons name="checkmark-circle" size={24} color="#059669" />
+            </Pressable>
             
             <View style={styles.eventActions}>
-              {suggestedGame && (
-                <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
-                  <Text style={[styles.removeEventButton, { color: '#EF4444' }]}>Remove Event</Text>
-                </Pressable>
-              )}
+              <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
+                <Text style={[styles.removeEventButton, { color: '#EF4444' }]}>Remove Event</Text>
+              </Pressable>
             </View>
           </View>
         )}
-
-        {/* Settings Section */}
-        <View style={styles.settingsSection}>
-          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Settings</Text>
-          <View style={[styles.locRow, { backgroundColor: Colors[colorScheme].surface }]}>
-            <View style={styles.settingInfo}>
-              <Text style={[styles.locLabel, { color: Colors[colorScheme].text }]}>Share location</Text>
-              <Text style={[styles.settingDescription, { color: Colors[colorScheme].mutedText }]}>Help others discover local content</Text>
-            </View>
-            <Switch value={shareLocation} onValueChange={setShareLocation} />
-          </View>
-          {locGranted === false && shareLocation ? (
-            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Location permission denied. You can still post; we'll try to infer your country from your profile.</Text>
-          ) : null}
-        </View>
 
         {/* Footer */}
         <View style={styles.footerSection}>
@@ -499,12 +603,19 @@ export default function CreatePostScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      {index === 0 && (
+                      {index === 0 && game.distance !== null && game.distance !== undefined && (
                         <Text style={[styles.eventOptionBadge, { color: '#F59E0B' }]}>Nearest Event</Text>
                       )}
                       <Text style={[styles.eventOptionTitle, { color: Colors[colorScheme].text }]}>
                         {game.title || `${game.home_team} vs ${game.away_team}`}
                       </Text>
+                      {game.distance !== null && game.distance !== undefined && (
+                        <Text style={[styles.gameDistance, { color: '#3B82F6', marginTop: 4 }]}>
+                          📍 {game.distance < 1 
+                            ? `${Math.round(game.distance * 1000)}m away` 
+                            : `${game.distance.toFixed(1)}km away`}
+                        </Text>
+                      )}
                       {game.date && (
                         <Text style={[styles.eventOptionDate, { color: Colors[colorScheme].mutedText }]}>
                           {new Date(game.date).toLocaleDateString()} at {new Date(game.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -531,6 +642,143 @@ export default function CreatePostScreen() {
                 </Text>
               </View>
             )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Post Preview Modal */}
+      <Modal
+        visible={previewVisible}
+        animationType="slide"
+        onRequestClose={() => setPreviewVisible(false)}
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Preview Post</Text>
+            <Pressable onPress={() => setPreviewVisible(false)}>
+              <Ionicons name="close" size={24} color={Colors[colorScheme].text} />
+            </Pressable>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            {/* Preview Card - Shows how post will look in feed */}
+            <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.previewLabel, { color: Colors[colorScheme].mutedText }]}>
+                This is how your post will appear in the feed:
+              </Text>
+              
+              {/* Post Content */}
+              {previewData?.content && (
+                <Text style={[styles.previewContent, { color: Colors[colorScheme].text }]}>
+                  {previewData.content}
+                </Text>
+              )}
+
+              {/* Media Preview */}
+              {previewData?.media && (
+                <View style={styles.previewMediaContainer}>
+                  {previewData.media.type === 'image' ? (
+                    <RNImage 
+                      source={{ uri: previewData.media.uri }} 
+                      style={styles.previewMediaFull}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <VideoPlayer 
+                      uri={previewData.media.uri} 
+                      style={styles.previewMediaFull}
+                      autoPlay={false}
+                    />
+                  )}
+                  {/* Retake/Replace Media Button */}
+                  <Pressable
+                    style={[styles.retakeButton, { backgroundColor: Colors[colorScheme].background }]}
+                    onPress={() => {
+                      setPreviewVisible(false);
+                      setPicked(null);
+                      Alert.alert(
+                        'Replace Media',
+                        'Choose how you want to replace your media:',
+                        [
+                          { text: 'Camera', onPress: () => captureWithCamera(previewData.media.type) },
+                          { text: 'Gallery', onPress: () => pickFromLibrary(previewData.media.type) },
+                          { text: 'Cancel', style: 'cancel' }
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons name="camera" size={18} color={Colors[colorScheme].tint} />
+                    <Text style={[styles.retakeButtonText, { color: Colors[colorScheme].tint }]}>
+                      Retake / Replace
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Event Badge */}
+              {previewData?.game && (
+                <View style={styles.previewEventBadge}>
+                  <Ionicons name="trophy" size={16} color="#059669" />
+                  <Text style={[styles.previewEventText, { color: Colors[colorScheme].text }]}>
+                    {previewData.game.title || `${previewData.game.home_team} vs ${previewData.game.away_team}`}
+                  </Text>
+                </View>
+              )}
+
+              {/* Destination Info */}
+              <View style={[styles.previewDestination, { backgroundColor: Colors[colorScheme].surface }]}>
+                <Ionicons 
+                  name={previewData?.game ? "trophy" : "person"} 
+                  size={16} 
+                  color={Colors[colorScheme].mutedText} 
+                />
+                <Text style={[styles.previewDestinationText, { color: Colors[colorScheme].mutedText }]}>
+                  {previewData?.game 
+                    ? "This post will appear on the event page" 
+                    : "This post will appear on your profile"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.previewActions}>
+              <Pressable
+                style={[styles.previewButton, styles.editButton, { backgroundColor: Colors[colorScheme].surface }]}
+                onPress={() => setPreviewVisible(false)}
+              >
+                <Ionicons name="create-outline" size={20} color={Colors[colorScheme].text} />
+                <Text style={[styles.previewButtonText, { color: Colors[colorScheme].text }]}>
+                  Edit Post
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.previewButton, styles.confirmButton, { opacity: submitting ? 0.6 : 1 }]}
+                onPress={confirmPost}
+                disabled={submitting}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles.confirmButtonText}>
+                  {submitting ? 'Posting...' : 'Confirm & Upload'}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Helpful Tips */}
+            <View style={[styles.previewTips, { backgroundColor: Colors[colorScheme].surface }]}>
+              <Ionicons name="information-circle-outline" size={20} color={Colors[colorScheme].mutedText} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.previewTipsTitle, { color: Colors[colorScheme].text }]}>
+                  Before you post:
+                </Text>
+                <Text style={[styles.previewTipsText, { color: Colors[colorScheme].mutedText }]}>
+                  • Double-check your media looks good{'\n'}
+                  • Make sure your caption is error-free{'\n'}
+                  • Verify the event is correct (if attached)
+                </Text>
+              </View>
+            </View>
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -800,6 +1048,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#047857',
   },
+  eventConfirmation: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   gameHint: {
     fontSize: 12,
     color: '#6B7280',
@@ -1067,6 +1319,161 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Nearby games
+  nearbyGamesHint: {
+    fontSize: 13,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  nearbyGameCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  gameMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  gameDistance: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  viewMoreButton: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Preview modal
+  previewCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 24,
+  },
+  previewLabel: {
+    fontSize: 13,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  previewContent: {
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  previewMediaContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  previewMediaFull: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#F3F4F6',
+  },
+  retakeButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  retakeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  previewEventBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  previewEventText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  previewDestination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+  },
+  previewDestinationText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  previewActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  previewButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    borderRadius: 12,
+  },
+  editButton: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  confirmButton: {
+    backgroundColor: '#2563EB',
+  },
+  previewButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  previewTips: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  previewTipsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  previewTipsText: {
+    fontSize: 13,
     lineHeight: 20,
   },
 });

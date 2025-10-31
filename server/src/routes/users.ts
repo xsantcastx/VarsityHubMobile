@@ -504,3 +504,74 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     is_following: Boolean(rel),
   });
 });
+
+// Block a user
+usersRouter.post('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+  const blocker_id = req.user!.id;
+  const blocked_id = req.params.id;
+
+  if (blocker_id === blocked_id) {
+    return res.status(400).json({ error: 'Cannot block yourself' });
+  }
+
+  try {
+    await prisma.blockedUser.create({
+      data: {
+        blocker_id,
+        blocked_id,
+      },
+    });
+    return res.status(201).json({ success: true });
+  } catch (error: any) {
+    // Handle duplicate blocking
+    if (error.code === 'P2002') {
+      return res.status(200).json({ success: true, message: 'User already blocked' });
+    }
+    console.error('Block user error:', error);
+    return res.status(500).json({ error: 'Failed to block user' });
+  }
+});
+
+// Unblock a user
+usersRouter.delete('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+  const blocker_id = req.user!.id;
+  const blocked_id = req.params.id;
+
+  try {
+    await prisma.blockedUser.deleteMany({
+      where: {
+        blocker_id,
+        blocked_id,
+      },
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Unblock user error:', error);
+    return res.status(500).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// Get blocked users
+usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const blocks = await prisma.blockedUser.findMany({
+      where: { blocker_id: req.user!.id },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_url: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.json(blocks.map(b => b.blocked));
+  } catch (error) {
+    console.error('Get blocked users error:', error);
+    return res.status(500).json({ error: 'Failed to get blocked users' });
+  }
+});
