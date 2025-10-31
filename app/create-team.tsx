@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team, User, Organization } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Platform } from 'react-native';
 
@@ -162,7 +162,7 @@ export default function CreateTeamScreen() {
         if (userPlan === 'rookie' && teamCount >= 2) {
           Alert.alert(
             'Team Limit Reached',
-            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($29.99/year unlimited) to add more teams.',
+            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($17.50/year unlimited) to add more teams.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'View Plans', onPress: () => router.push('/billing') }
@@ -173,7 +173,7 @@ export default function CreateTeamScreen() {
         }
         
         if (userPlan === 'veteran') {
-          // Veteran plan: Show confirmation about per-team charge
+          // Veteran plan: Per-team monthly charge
           Alert.alert(
             'Add Team',
             `Adding a team will incur a charge of $1.50/month. You currently have ${teamCount} team${teamCount === 1 ? '' : 's'}.`,

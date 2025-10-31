@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
@@ -297,13 +297,51 @@ export default function MessageThreadScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
             <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
               <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety & Settings</Text>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/report-abuse'); }}>
+              <Pressable 
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
+                onPress={() => { 
+                  setSafetyOpen(false); 
+                  if (otherParticipant?.id) {
+                    router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
+                  } else {
+                    router.push('/report-abuse');
+                  }
+                }}
+              >
                 <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report conversation</Text>
+                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report user</Text>
               </Pressable>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/blocked-users'); }}>
-                <Ionicons name="person-remove-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Block user</Text>
+              <Pressable 
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
+                onPress={async () => {
+                  setSafetyOpen(false);
+                  if (!otherParticipant?.id) return;
+                  
+                  Alert.alert(
+                    'Block User',
+                    `Are you sure you want to block ${otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Block',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            // Call block API
+                            await User.block(otherParticipant.id);
+                            Alert.alert('User Blocked', 'This user can no longer send you messages.');
+                            router.back();
+                          } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to block user');
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="person-remove-outline" size={20} color="#EF4444" />
+                <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
               </Pressable>
               <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/dm-restrictions'); }}>
                 <Ionicons name="options-outline" size={20} color={Colors[colorScheme].text} />

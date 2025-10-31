@@ -189,8 +189,14 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
 
       {/* Animated VS overlay - stacked: Left name above VS, Right name below VS */}
       <Animated.View style={[styles.vsWrapper as any, { transform: [{ scale }], opacity: glow }]} pointerEvents="box-none">
-        <Animated.View style={[styles.titlesColumn as any, { opacity: glow }]} pointerEvents="none">
-          <View style={styles.topTitleWrap as any}>
+        <Animated.View style={[styles.titlesColumn as any, { opacity: glow }]} pointerEvents="box-none">
+          <Pressable 
+            style={styles.topTitleWrap as any}
+            onPress={onLeftPress}
+            disabled={!onLeftPress}
+            accessibilityRole={onLeftPress ? "button" : undefined}
+            accessibilityLabel={onLeftPress ? `View ${leftName} team page` : undefined}
+          >
             {leftImage ? (
               <Image source={{ uri: leftImage }} style={styles.smallLogo as any} />
             ) : null}
@@ -203,7 +209,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
                 {leftName}
               </Text>
             </View>
-          </View>
+          </Pressable>
 
           <Pressable
             onPress={onVsPress || onPress}
@@ -217,7 +223,13 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
             </View>
           </Pressable>
 
-          <View style={styles.bottomTitleWrap as any}>
+          <Pressable 
+            style={styles.bottomTitleWrap as any}
+            onPress={onRightPress}
+            disabled={!onRightPress}
+            accessibilityRole={onRightPress ? "button" : undefined}
+            accessibilityLabel={onRightPress ? `View ${rightName} team page` : undefined}
+          >
             {rightImage ? (
               <Image source={{ uri: rightImage }} style={styles.smallLogo as any} />
             ) : null}
@@ -230,7 +242,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
                 {rightName}
               </Text>
             </View>
-          </View>
+          </Pressable>
         </Animated.View>
 
         {/* Lightweight decorative sparkles (Animated fallback) */}

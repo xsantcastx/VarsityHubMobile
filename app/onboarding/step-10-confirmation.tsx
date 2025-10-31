@@ -29,13 +29,17 @@ export default function Step10Confirmation() {
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
+    const isFan = ob.role === 'fan';
+    const isRookie = ob.role === 'rookie';
+    const isCoach = ob.role === 'coach';
+
     const checks = [
       {
         label: 'Role Selected',
         completed: !!ob.role,
         required: true,
         route: '/onboarding/step-1-role',
-        description: 'Choose your role: Fan or Coach/Organizer'
+        description: 'Choose your role: Fan, Rookie (Player), or Coach/Organizer'
       },
       {
         label: 'Basic Info',
@@ -47,23 +51,23 @@ export default function Step10Confirmation() {
       {
         label: 'Plan Selected',
         completed: !!ob.plan,
-        required: true,
+        required: isCoach, // Only required for coaches, not fans or rookies
         route: '/onboarding/step-3-plan',
-        description: 'Choose your subscription plan'
+        description: 'Choose your subscription plan (coaches only)'
       },
       {
         label: 'Season Set',
         completed: !!(ob.season_start && ob.season_end),
-        required: true,
+        required: isCoach, // Only required for coaches
         route: '/onboarding/step-4-season',
-        description: 'Set your season dates'
+        description: 'Set your season dates (coaches only)'
       },
       {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
-        required: true,
+        required: isCoach, // Only required for coaches
         route: '/onboarding/step-5-league',
-        description: 'Create your team or organization page'
+        description: 'Create your team or organization page (coaches only)'
       },
       {
         label: 'Profile Setup',
@@ -77,7 +81,7 @@ export default function Step10Confirmation() {
         completed: Array.isArray(ob.authorized) && ob.authorized.length > 0,
         required: false,
         route: '/onboarding/step-6-authorized-users',
-        description: 'Manage authorized users (optional)'
+        description: 'Manage authorized users (optional, coaches only)'
       },
       {
         label: 'Interests Set',
@@ -157,6 +161,7 @@ export default function Step10Confirmation() {
       }
       
       // Send complete onboarding state - all fields
+      // IMPORTANT: Fans should NOT have plans
       const completionPayload = {
         // Core identity fields
         role: ob.role,
@@ -167,35 +172,35 @@ export default function Step10Confirmation() {
         zip: ob.zip,
         zip_code: ob.zip_code,
         
-        // Plan and subscription
-        plan: ob.plan,
-        payment_pending: ob.payment_pending,
+        // Plan and subscription (ONLY for coaches)
+        plan: ob.role === 'coach' ? ob.plan : undefined,
+        payment_pending: ob.role === 'coach' ? ob.payment_pending : undefined,
         
-        // Team/Organization
-        team_id: ob.team_id,
-        team_name: ob.team_name,
-        organization_id: ob.organization_id,
-        organization_name: ob.organization_name,
-        sport: ob.sport,
+        // Team/Organization (ONLY for coaches)
+        team_id: ob.role === 'coach' ? ob.team_id : undefined,
+        team_name: ob.role === 'coach' ? ob.team_name : undefined,
+        organization_id: ob.role === 'coach' ? ob.organization_id : undefined,
+        organization_name: ob.role === 'coach' ? ob.organization_name : undefined,
+        sport: ob.role === 'coach' ? ob.sport : undefined,
         
-        // Season
-        season_start: ob.season_start,
-        season_end: ob.season_end,
+        // Season (ONLY for coaches)
+        season_start: ob.role === 'coach' ? ob.season_start : undefined,
+        season_end: ob.role === 'coach' ? ob.season_end : undefined,
         
-        // Authorized users
-        authorized: ob.authorized,
-        authorized_users: ob.authorized_users,
+        // Authorized users (ONLY for coaches)
+        authorized: ob.role === 'coach' ? ob.authorized : undefined,
+        authorized_users: ob.role === 'coach' ? ob.authorized_users : undefined,
         
-        // Profile
+        // Profile (ALL users)
         avatar_url: ob.avatar_url,
         bio: ob.bio,
         sports_interests: ob.sports_interests,
         
-        // Interests/Goals
+        // Interests/Goals (ALL users)
         primary_intents: ob.primary_intents,
         personalization_goals: ob.personalization_goals,
         
-        // Features/Permissions
+        // Features/Permissions (ALL users)
         location_enabled: ob.location_enabled,
         notifications_enabled: ob.notifications_enabled,
         messaging_policy_accepted: ob.messaging_policy_accepted,
@@ -314,16 +319,31 @@ export default function Step10Confirmation() {
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Role:</Text>
             <Text style={styles.summaryValue}>
-              {ob.role === 'fan' ? 'Fan' : 'Coach/Organizer'}
+              {ob.role === 'fan' ? 'Fan' : ob.role === 'rookie' ? 'Rookie (Player)' : 'Coach/Organizer'}
             </Text>
           </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Plan:</Text>
-            <Text style={styles.summaryValue}>
-              {ob.plan === 'rookie' ? 'Rookie (Free)' : 
-               ob.plan === 'veteran' ? 'Veteran ($70/year)' : 'Legend ($150/year)'}
-            </Text>
-          </View>
+          {ob.role === 'coach' && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Plan:</Text>
+              <Text style={styles.summaryValue}>
+                {ob.plan === 'rookie' ? 'Rookie (Free)' : 
+                 ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
+                 ob.plan === 'legend' ? 'Legend ($17.50/year unlimited)' : 'Not selected'}
+              </Text>
+            </View>
+          )}
+          {ob.role === 'fan' && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Subscription:</Text>
+              <Text style={styles.summaryValue}>Free (No subscription needed)</Text>
+            </View>
+          )}
+          {ob.role === 'rookie' && (
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryLabel}>Subscription:</Text>
+              <Text style={styles.summaryValue}>Free (Players don't need subscriptions)</Text>
+            </View>
+          )}
           {ob.team_name && (
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Team:</Text>

@@ -54,6 +54,10 @@ export const User = {
   getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
+  // Block/unblock users
+  block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
+  unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
+  blockedUsers: () => httpGet('/users/blocked'),
 };
 
 export const Game = {

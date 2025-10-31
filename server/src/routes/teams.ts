@@ -77,6 +77,7 @@ teamsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
+  const directory = String((req.query as any).directory || '') === '1'; // Team directory search
   
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
@@ -85,7 +86,19 @@ teamsRouter.get('/', async (req, res) => {
   }
   
   let where: any = {};
-  if (q) where.name = { contains: q, mode: 'insensitive' };
+  
+  // Directory search: search across name, city, league, sport
+  if (directory && q) {
+    where.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { city: { contains: q, mode: 'insensitive' } },
+      { state: { contains: q, mode: 'insensitive' } },
+      { league: { contains: q, mode: 'insensitive' } },
+      { sport: { contains: q, mode: 'insensitive' } },
+    ];
+  } else if (q) {
+    where.name = { contains: q, mode: 'insensitive' };
+  }
   
   // Filter to only teams where the current user has management roles
   if (mine) {
@@ -111,7 +124,27 @@ teamsRouter.get('/', async (req, res) => {
     orderBy: { created_at: 'desc' },
     include: { _count: { select: { memberships: true } } },
   });
-  const list = rows.map((t) => ({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null }));
+  
+  const list = rows.map((t) => ({ 
+    id: t.id, 
+    name: t.name, 
+    description: t.description, 
+    status: t.status, 
+    members: (t as any)._count.memberships, 
+    logo_url: (t as any).logo_url || null, 
+    avatar_url: (t as any).avatar_url || null,
+    city: (t as any).city || null,
+    state: (t as any).state || null,
+    league: (t as any).league || null,
+    sport: t.sport || null,
+    venue: (t as any).venue_place_id ? {
+      place_id: (t as any).venue_place_id,
+      lat: (t as any).venue_lat,
+      lng: (t as any).venue_lng,
+      address: (t as any).venue_address,
+      updated_at: (t as any).venue_updated_at,
+    } : null,
+  }));
   return res.json(list);
 });
 
@@ -216,6 +249,13 @@ const updateSchema = z.object({
   season: z.string().optional(),
   organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  league: z.string().max(100).optional(),
+  venue_place_id: z.string().optional(),
+  venue_lat: z.number().optional(),
+  venue_lng: z.number().optional(),
+  venue_address: z.string().optional(),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   console.log('[Teams PUT] Received update request:', JSON.stringify(req.body));
@@ -248,6 +288,18 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
     updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
+  
+  // Venue fields
+  if (parsed.data.city !== undefined) updateData.city = parsed.data.city;
+  if (parsed.data.state !== undefined) updateData.state = parsed.data.state;
+  if (parsed.data.league !== undefined) updateData.league = parsed.data.league;
+  if (parsed.data.venue_place_id !== undefined) {
+    updateData.venue_place_id = parsed.data.venue_place_id;
+    updateData.venue_updated_at = new Date();
+  }
+  if (parsed.data.venue_lat !== undefined) updateData.venue_lat = parsed.data.venue_lat;
+  if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
+  if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
   
   console.log('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
   
@@ -355,6 +407,13 @@ const createTeamSchema = z.object({
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
   logo_url: z.string().optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  league: z.string().max(100).optional(),
+  venue_place_id: z.string().optional(),
+  venue_lat: z.number().optional(),
+  venue_lng: z.number().optional(),
+  venue_address: z.string().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -369,8 +428,34 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Check team limit for free tier (Rookie plan)
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userPlan = prefs.plan || 'rookie';
+  const userRole = prefs.role || 'fan';
+  
+  // Rookie plan: max 2 teams as owner
+  if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+    const ownedTeamsCount = await prisma.teamMembership.count({
+      where: {
+        user_id: me.id,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    
+    if (ownedTeamsCount >= 2) {
+      return res.status(403).json({ 
+        error: 'Team limit reached',
+        message: "You've reached your free limit (2 teams). Upgrade to add more.",
+        code: 'TEAM_LIMIT_EXCEEDED',
+        limit: 2,
+        current: ownedTeamsCount,
+      });
+    }
+  }
   
   // Create team
   const team = await prisma.team.create({ 
@@ -382,6 +467,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       season_end: data.season_end ? new Date(data.season_end) : null,
       organization_id: data.organization_id,
       logo_url: data.logo_url,
+      city: data.city,
+      state: data.state,
+      league: data.league,
+      venue_place_id: data.venue_place_id,
+      venue_lat: data.venue_lat,
+      venue_lng: data.venue_lng,
+      venue_address: data.venue_address,
+      venue_updated_at: data.venue_place_id ? new Date() : null,
     }
   });
   
@@ -490,6 +583,60 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     }),
     prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
   ]);
+
+  // Check if team group chat exists, if not create it
+  try {
+    let groupChat = await prisma.groupChat.findFirst({
+      where: { team_id: invite.team_id },
+    });
+
+    if (!groupChat) {
+      // Get team info
+      const team = await prisma.team.findUnique({ where: { id: invite.team_id } });
+      
+      // Get all active team members
+      const allMembers = await prisma.teamMembership.findMany({
+        where: { 
+          team_id: invite.team_id,
+          status: 'active'
+        },
+        select: { user_id: true },
+      });
+
+      // Create group chat with all members
+      groupChat = await prisma.groupChat.create({
+        data: {
+          name: `${team?.name || 'Team'} Chat`,
+          team_id: invite.team_id,
+          created_by: req.user.id,
+          members: {
+            create: allMembers.map(m => ({ user_id: m.user_id })),
+          },
+        },
+      });
+    } else {
+      // Add user to existing group chat if not already a member
+      const existingMember = await prisma.groupChatMember.findFirst({
+        where: {
+          chat_id: groupChat.id,
+          user_id: user.id,
+        },
+      });
+
+      if (!existingMember) {
+        await prisma.groupChatMember.create({
+          data: {
+            chat_id: groupChat.id,
+            user_id: user.id,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error managing group chat:', error);
+    // Don't fail the invite acceptance if group chat creation fails
+  }
+
   return res.json({ ok: true });
 });
 

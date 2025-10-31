@@ -3,7 +3,7 @@ import DateField from '@/ui/DateField';
 import PrimaryButton from '@/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -129,13 +129,20 @@ export default function Step2Basic() {
       } catch (e) {}
       await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
-      // Navigate back to confirmation if we came from there, otherwise continue to next step
+      // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
         setProgress(9); // step-10 confirmation
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(2); // step-3 plan
-        router.push('/onboarding/step-3-plan');
+        // Rookies skip plan/season/team steps and go straight to profile
+        if (ob.role === 'rookie') {
+          setProgress(6); // step-7 profile
+          router.push('/onboarding/step-7-profile');
+        } else {
+          // Coaches continue to plan selection
+          setProgress(2); // step-3 plan
+          router.push('/onboarding/step-3-plan');
+        }
       }
     } catch (e: any) { 
       Alert.alert('Failed to save', e?.message || 'Please try again'); 
@@ -170,14 +177,17 @@ export default function Step2Basic() {
         <Text style={styles.success}>Available!</Text>
       ) : null}
 
-      <Text style={styles.label}>Affiliation</Text>
+      <Text style={styles.label}>Organization Type</Text>
+      <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
+        Select the type of organization you're affiliated with (optional)
+      </Text>
       <View style={styles.affiliationGrid}>
         {[
           { value: 'none', label: 'None', icon: '❌' },
           { value: 'university', label: 'University', icon: '🎓' },
           { value: 'high_school', label: 'High School', icon: '🏫' },
           { value: 'club', label: 'Club', icon: '⚽' },
-          { value: 'youth', label: 'Youth', icon: '👶' },
+          { value: 'youth', label: 'Youth Org', icon: '🏀' },
         ].map((option) => (
           <Pressable
             key={option.value}
@@ -186,6 +196,8 @@ export default function Step2Basic() {
               affiliation === option.value && styles.affiliationButtonSelected
             ]}
             onPress={() => setAffiliation(option.value as Affiliation)}
+            accessibilityLabel={`${option.label} affiliation`}
+            accessibilityRole="button"
           >
             <Text style={styles.affiliationIcon}>{option.icon}</Text>
             <Text style={[
@@ -288,6 +300,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 14,
     color: Colors[colorScheme].mutedText,
     marginTop: 4,
+  },
+  hint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   affiliationGrid: {
     flexDirection: 'row',

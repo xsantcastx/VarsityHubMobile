@@ -1,4 +1,4 @@
-import { User, Organization, Team } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';

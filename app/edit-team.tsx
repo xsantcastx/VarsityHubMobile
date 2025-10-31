@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team, Organization } from '@/api/entities';
+import { Organization, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 
 export default function EditTeamScreen() {

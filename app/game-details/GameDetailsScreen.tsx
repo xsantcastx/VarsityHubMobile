@@ -161,12 +161,15 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
     );
   }, [items, current, gameId, deleting, onDelete, onClose, goPrev, goNext]);
 
-  // Reset progress when current changes
+  // Reset progress when current changes and autoplay videos
   useEffect(() => {
     progress.stopAnimation();
     progress.setValue(0);
-    setPlaying(false);
-  }, [current, progress]);
+    const item = items[current];
+    const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
+    // Autoplay videos when story changes
+    setPlaying(isVideo);
+  }, [current, progress, items]);
 
   // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
   useEffect(() => {
@@ -297,18 +300,9 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
           collapsable={false}
         >
             {isVideo ? (
-              // start videos paused to avoid unexpected audio/looping; user can tap to play
+              // Videos autoplay when story opens - no controls, just video
               <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
-                <VideoPlayer uri={item.url} autoPlay={false} onEnd={goNext} nativeControls paused={!playing} style={{ width: '100%', height: '100%' }} />
-                {!playing ? (
-                  <Pressable onPress={() => setPlaying(true)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Play video">
-                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="play" size={28} color={Colors[colorScheme].text} />
-                    </View>
-                  </Pressable>
-                ) : (
-                  <Pressable onPress={() => setPlaying(false)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Pause video" />
-                )}
+                <VideoPlayer uri={item.url} autoPlay={true} onEnd={goNext} nativeControls={false} paused={paused} style={{ width: '100%', height: '100%' }} />
               </View>
             ) : (
               <Image
@@ -913,6 +907,7 @@ const GameDetailsScreen = () => {
               await loadGameById(vm.gameId);
               Alert.alert('Added', 'Story added to this game.');
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -948,6 +943,7 @@ const GameDetailsScreen = () => {
               await loadGameById(vm.gameId);
               Alert.alert('Added', 'Story added to this game.');
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -1377,6 +1373,18 @@ const renderVoteSection = () => {
         appearance={(vm as any)?.appearance || 'classic'}
         headerFade={headerOpacity}
         onVsPress={() => setVsModalOpen(true)}
+        onLeftPress={() => {
+          // Navigate to home team profile if team object exists
+          if (homeTeamObj?.id) {
+            router.push(`/team-profile?id=${homeTeamObj.id}`);
+          }
+        }}
+        onRightPress={() => {
+          // Navigate to away team profile if team object exists
+          if (awayTeamObj?.id) {
+            router.push(`/team-profile?id=${awayTeamObj.id}`);
+          }
+        }}
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
