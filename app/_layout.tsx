@@ -111,7 +111,6 @@ export default function RootLayout() {
             <Stack.Screen name="payment-success" options={{ headerShown: false }} />
             <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="settings" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

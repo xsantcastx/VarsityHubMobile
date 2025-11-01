@@ -16,7 +16,7 @@ interface OnboardingLayoutProps {
   onVerifyEmail?: () => void;
 }
 
-export function OnboardingLayout({
+export default function OnboardingLayout({
   step,
   totalSteps = 10,
   title,
