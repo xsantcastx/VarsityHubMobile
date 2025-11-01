@@ -223,6 +223,8 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
+      home_team: true,
+      away_team: true,
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
@@ -262,18 +264,20 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     return [reviewTotal, count, Boolean(userRow)] as const;
   })();
 
+  const gameData = game as any; // Type assertion for updated schema
+
   return res.json({
-    id: game.id,
-    title: game.title,
-    appearance: game.appearance ?? null,
-    homeTeam: game.home_team || null,
-    awayTeam: game.away_team || null,
-    date: game.date instanceof Date ? game.date.toISOString() : game.date,
+    id: gameData.id,
+    title: gameData.title,
+    appearance: gameData.appearance ?? null,
+    homeTeam: gameData.home_team ? { id: gameData.home_team.id, name: gameData.home_team.name } : null,
+    awayTeam: gameData.away_team ? { id: gameData.away_team.id, name: gameData.away_team.name } : (gameData.away_team_name ? { name: gameData.away_team_name } : null),
+    date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
     timeLocal: null,
     location,
-    description: game.description,
+    description: gameData.description,
     bannerUrl,
-    coverImageUrl: game.cover_image_url,
+    coverImageUrl: gameData.cover_image_url,
     eventId: event?.id ?? null,
     capacity: event?.capacity ?? null,
     rsvpCount,
