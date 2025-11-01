@@ -1,5 +1,6 @@
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
+import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
@@ -31,6 +32,7 @@ const googleClientConfig = () => {
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const isExpoGo = Constants.appOwnership === 'expo';
 
   const clients = useMemo(() => googleClientConfig(), []);
   const isConfigured = useMemo(
@@ -43,8 +45,9 @@ export function useGoogleAuth() {
       makeRedirectUri({
         scheme: selectAppScheme(),
         preferLocalhost: Platform.OS === 'web',
+        useProxy: isExpoGo,
       }),
-    [],
+    [isExpoGo],
   );
 
   // Create request config - use placeholder values if not configured
@@ -88,7 +91,7 @@ export function useGoogleAuth() {
     setError(null);
     setLoading(true);
     try {
-      const response = await promptAsync();
+      const response = await promptAsync(isExpoGo ? { useProxy: true } : undefined);
       if (response.type !== 'success' || !response.authentication?.idToken) {
         throw new Error(response.type === 'dismiss' ? 'Google sign-in cancelled' : 'Google sign-in failed');
       }
