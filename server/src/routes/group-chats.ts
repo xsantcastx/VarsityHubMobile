@@ -223,12 +223,12 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
       data: {
         name: name.trim(),
         team_id: teamId || null,
-        created_by: req.user.id,
+        created_by: req.user!.id,
         members: {
           create: [
-            { user_id: req.user.id }, // Add creator
+            { user_id: req.user!.id }, // Add creator
             ...memberIds
-              .filter((id: string) => id !== req.user.id) // Avoid duplicates
+              .filter((id: string) => id !== req.user!.id) // Avoid duplicates
               .map((id: string) => ({ user_id: id })),
           ],
         },
