@@ -73,8 +73,7 @@ eventsRouter.get('/', async (req, res) => {
     where,
     orderBy,
     include: { 
-      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } },
-      creator: { select: { id: true, display_name: true, avatar_url: true } }
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } }
     },
   });
   res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
