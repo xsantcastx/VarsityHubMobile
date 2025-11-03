@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getApiBaseUrl } from '../src/api/http';
+import { getApiBaseUrl } from '../api/http';
 
 export default function EnvDebugScreen() {
   const envVars = {

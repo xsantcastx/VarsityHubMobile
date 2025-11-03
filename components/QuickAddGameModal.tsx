@@ -19,8 +19,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
+import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
-import { Team } from '../src/api/entities';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
 
