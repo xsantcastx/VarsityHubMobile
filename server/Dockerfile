@@ -7,14 +7,12 @@ WORKDIR /app
 # Install build dependencies (needed for some native modules like bcrypt)
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy package files and Prisma schema (needed for postinstall)
 COPY package*.json ./
+COPY prisma ./prisma/
 
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
-
-# Copy prisma schema
-COPY prisma ./prisma/
 
 # Generate Prisma Client
 RUN npx prisma generate
