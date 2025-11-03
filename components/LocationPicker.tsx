@@ -72,6 +72,10 @@ export default function LocationPicker({
           }}
           fetchDetails={true}
           enablePoweredByContainer={false}
+          onFail={(error) => {
+            console.error('Google Places error:', error);
+          }}
+          listViewDisplayed={false}
           styles={{
             textInput: {
               backgroundColor: Colors[colorScheme].surface,
