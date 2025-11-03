@@ -349,7 +349,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
-  const game = await prisma.game.findUnique({
+  const game = await (prisma.game.findUnique as any)({
     where: { id },
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
@@ -367,7 +367,7 @@ gamesRouter.get('/:id', async (req, res) => {
 // Compact summary payload for the Game Details screen
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const game = await prisma.game.findUnique({
+  const game = await (prisma.game.findUnique as any)({
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
