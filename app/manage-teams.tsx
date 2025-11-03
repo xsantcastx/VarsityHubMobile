@@ -179,6 +179,9 @@ export default function ManageTeamsSimpleScreen() {
       }
       if (data.watchLocation) {
         gamePayload.watch_location = data.watchLocation;
+        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
+        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
+        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
       }
       if (data.destination) {
         gamePayload.destination = data.destination;

@@ -13,6 +13,7 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
+import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
@@ -89,6 +90,8 @@ export default function CommunityDiscoverScreen() {
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
+  const [sectionTab, setSectionTab] = useState<'events' | 'team-hub' | 'create-event' | 'approvals' | 'organization'>('events');
+  const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -210,6 +213,104 @@ export default function CommunityDiscoverScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try { await load({ silent: true }); } finally { setRefreshing(false); }
+  }, [load]);
+
+  const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
+    try {
+      // Parse date and time
+      const [year, month, day] = data.date.split('-').map(Number);
+      const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!timeParts) throw new Error('Invalid time format');
+      let hours = parseInt(timeParts[1], 10);
+      const minutes = parseInt(timeParts[2], 10);
+      const isPM = timeParts[3].toUpperCase() === 'PM';
+      if (isPM && hours !== 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+      
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+      // Create game payload
+      const gamePayload: Record<string, any> = {
+        title: data.isCompetitive 
+          ? `${data.currentTeam} vs ${data.opponent}`
+          : `${data.currentTeam} Event`,
+        date: gameDateTime.toISOString(),
+        description: data.isCompetitive
+          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
+          : `Event for ${data.currentTeam}`,
+      };
+
+      // Only add team fields if this is a competitive game
+      if (data.isCompetitive) {
+        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
+        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
+        
+        if (data.currentTeamId) gamePayload.home_team_id = data.type === 'home' ? data.currentTeamId : null;
+        if (data.opponentTeamId) {
+          gamePayload.away_team_id = data.type === 'home' ? data.opponentTeamId : data.currentTeamId;
+        } else if (data.opponent) {
+          gamePayload.away_team_name = data.opponent;
+        }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (data.currentTeamId) {
+          gamePayload.home_team_id = data.currentTeamId;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (data.expectedAttendance) {
+        gamePayload.expected_attendance = data.expectedAttendance;
+      }
+
+      // Add event type
+      if (data.eventType) {
+        gamePayload.event_type = data.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (data.donationGoal) {
+        gamePayload.donation_goal = data.donationGoal;
+      }
+      if (data.watchLocation) {
+        gamePayload.watch_location = data.watchLocation;
+        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
+        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
+        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
+      }
+      if (data.destination) {
+        gamePayload.destination = data.destination;
+      }
+
+      if (data.banner_url) {
+        gamePayload.banner_url = data.banner_url;
+        gamePayload.cover_image_url = data.banner_url;
+      } else if (data.cover_image_url) {
+        gamePayload.cover_image_url = data.cover_image_url;
+      }
+
+      if (data.appearance) {
+        gamePayload.appearance = data.appearance;
+      }
+
+      // Create game using the API
+      await Game.create(gamePayload);
+
+      setCreateEventModalOpen(false);
+      
+      // Refresh the games list
+      await load({ silent: true });
+      
+      // Show success message - use native alert
+      if (typeof alert !== 'undefined') {
+        alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
+      }
+    } catch (error) {
+      console.error('Error adding quick game:', error);
+      if (typeof alert !== 'undefined') {
+        alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
   }, [load]);
 
   const filtered = useMemo(() => {
@@ -485,7 +586,120 @@ export default function CommunityDiscoverScreen() {
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>      
       <Stack.Screen options={{ title: 'Discover' }} />
       
-      {viewMode === 'map' ? (
+      {/* Section Tabs */}
+      <View style={[styles.sectionTabBar, { 
+        backgroundColor: Colors[colorScheme].surface,
+        borderBottomColor: Colors[colorScheme].border 
+      }]}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sectionTabContent}
+        >
+          <Pressable
+            style={[
+              styles.sectionTab,
+              sectionTab === 'events' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
+            ]}
+            onPress={() => setSectionTab('events')}
+          >
+            <Ionicons 
+              name="calendar-outline" 
+              size={18} 
+              color={sectionTab === 'events' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+            />
+            <Text style={[
+              styles.sectionTabLabel,
+              { color: sectionTab === 'events' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
+            ]}>
+              Events
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.sectionTab,
+              sectionTab === 'team-hub' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
+            ]}
+            onPress={() => router.push('/manage-teams')}
+          >
+            <Ionicons 
+              name="shield-outline" 
+              size={18} 
+              color={sectionTab === 'team-hub' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+            />
+            <Text style={[
+              styles.sectionTabLabel,
+              { color: sectionTab === 'team-hub' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
+            ]}>
+              Team Hub
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.sectionTab,
+              sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
+            ]}
+            onPress={() => setCreateEventModalOpen(true)}
+          >
+            <Ionicons 
+              name="add-circle-outline" 
+              size={18} 
+              color={sectionTab === 'create-event' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+            />
+            <Text style={[
+              styles.sectionTabLabel,
+              { color: sectionTab === 'create-event' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
+            ]}>
+              Create Event
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.sectionTab,
+              sectionTab === 'approvals' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
+            ]}
+            onPress={() => router.push('/event-approvals')}
+          >
+            <Ionicons 
+              name="notifications-outline" 
+              size={18} 
+              color={sectionTab === 'approvals' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+            />
+            <Text style={[
+              styles.sectionTabLabel,
+              { color: sectionTab === 'approvals' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
+            ]}>
+              Approvals
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.sectionTab,
+              sectionTab === 'organization' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
+            ]}
+            onPress={() => setSectionTab('organization')}
+          >
+            <Ionicons 
+              name="business-outline" 
+              size={18} 
+              color={sectionTab === 'organization' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+            />
+            <Text style={[
+              styles.sectionTabLabel,
+              { color: sectionTab === 'organization' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
+            ]}>
+              Organization
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+      
+      {/* Section Content */}
+      {sectionTab === 'events' && viewMode === 'map' ? (
         /* Map View - Simplified without ListHeader */
         <View style={{ flex: 1 }}>
           {/* Just the search and toggle button */}
@@ -563,7 +777,7 @@ export default function CommunityDiscoverScreen() {
             );
           })()}
         </View>
-      ) : (
+      ) : sectionTab === 'events' ? (
         /* List View */
         <FlatList
           style={{ flex: 1 }}
@@ -607,7 +821,38 @@ export default function CommunityDiscoverScreen() {
           onRefresh={onRefresh}
           keyboardShouldPersistTaps="handled"
         />
-      )}
+      ) : sectionTab === 'team-hub' ? (
+        <View style={[styles.center, { flex: 1 }]}>
+          <Ionicons name="people-outline" size={64} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.helper, { marginTop: 16 }]}>Team Hub - Coming Soon</Text>
+          <Text style={[styles.helper, { fontSize: 14 }]}>Manage your teams and players</Text>
+        </View>
+      ) : sectionTab === 'approvals' ? (
+        <View style={[styles.center, { flex: 1 }]}>
+          <Ionicons name="checkmark-circle-outline" size={64} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.helper, { marginTop: 16 }]}>Event Approvals</Text>
+          <Pressable 
+            onPress={() => router.push('/event-approvals')}
+            style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>View Pending Events</Text>
+          </Pressable>
+        </View>
+      ) : sectionTab === 'organization' ? (
+        <View style={[styles.center, { flex: 1 }]}>
+          <Ionicons name="business-outline" size={64} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.helper, { marginTop: 16 }]}>Organization</Text>
+          <Text style={[styles.helper, { fontSize: 14, textAlign: 'center', paddingHorizontal: 32 }]}>
+            Manage your organization, teams, and members
+          </Text>
+          <Pressable 
+            onPress={() => router.push('/create-team')}
+            style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 }]}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Create Team</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen
@@ -618,6 +863,14 @@ export default function CommunityDiscoverScreen() {
           showHeader
         />
       </Modal>
+
+      <QuickAddGameModal
+        visible={createEventModalOpen}
+        onClose={() => setCreateEventModalOpen(false)}
+        onSave={handleQuickGameSave}
+        currentTeamName={me?.team?.name}
+        currentTeamId={me?.team?.id}
+      />
     </View>
   );
 }
@@ -712,5 +965,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 14,
+  },
+  // Section Tabs
+  sectionTabBar: {
+    borderBottomWidth: 1,
+    marginBottom: 8,
+  },
+  sectionTabContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+  },
+  sectionTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  sectionTabLabel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

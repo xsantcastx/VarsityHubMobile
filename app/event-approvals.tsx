@@ -54,15 +54,18 @@ export default function EventApprovalsScreen() {
   
   const loadPendingEvents = async () => {
     try {
-      const data = await httpGet('/events/pending');
-      setEvents(data.events || []);
-    } catch (e: any) {
-      if (e?.code === 'PERMISSION_DENIED') {
-        Alert.alert('Permission Denied', 'You must be a coach or admin to approve events.');
-        router.back();
+      const response = await httpGet('/api/games?show_pending=true&approval_status=pending');
+      if (response.ok) {
+        const data = await response.json();
+        // Filter only pending events
+        const pendingEvents = (data || []).filter((event: any) => event.approval_status === 'pending');
+        setEvents(pendingEvents);
       } else {
-        Alert.alert('Error', 'Failed to load pending events.');
+        throw new Error('Failed to load events');
       }
+    } catch (e: any) {
+      console.error('Error loading pending events:', e);
+      Alert.alert('Error', 'Failed to load pending events.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -81,11 +84,18 @@ export default function EventApprovalsScreen() {
   const handleApprove = async (eventId: number) => {
     setProcessingId(eventId);
     try {
-      await httpPut(`/events/${eventId}/approve`, {});
-      Alert.alert('Event Approved', 'The event has been published!');
-      // Remove from list
-      setEvents(prev => prev.filter(e => e.id !== eventId));
+      const response = await httpPut(`/api/games/${eventId}/approve`, {
+        approval_status: 'approved'
+      });
+      if (response.ok) {
+        Alert.alert('Event Approved', 'The event has been published!');
+        // Remove from list
+        setEvents(prev => prev.filter(e => e.id !== eventId));
+      } else {
+        throw new Error('Failed to approve event');
+      }
     } catch (e: any) {
+      console.error('Error approving event:', e);
       Alert.alert('Error', e?.message || 'Failed to approve event.');
     } finally {
       setProcessingId(null);
@@ -93,27 +103,29 @@ export default function EventApprovalsScreen() {
   };
   
   const handleReject = async (eventId: number) => {
-    Alert.prompt(
+    Alert.alert(
       'Reject Event',
-      'Please provide a reason for rejection:',
+      'Are you sure you want to reject this event?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Reject',
           style: 'destructive',
-          onPress: async (reason) => {
-            if (!reason || !reason.trim()) {
-              Alert.alert('Error', 'Please provide a rejection reason.');
-              return;
-            }
-            
+          onPress: async () => {
             setProcessingId(eventId);
             try {
-              await httpPut(`/events/${eventId}/reject`, { reason });
-              Alert.alert('Event Rejected', 'The creator has been notified.');
-              // Remove from list
-              setEvents(prev => prev.filter(e => e.id !== eventId));
+              const response = await httpPut(`/api/games/${eventId}/approve`, {
+                approval_status: 'rejected'
+              });
+              if (response.ok) {
+                Alert.alert('Event Rejected', 'The event has been rejected.');
+                // Remove from list
+                setEvents(prev => prev.filter(e => e.id !== eventId));
+              } else {
+                throw new Error('Failed to reject event');
+              }
             } catch (e: any) {
+              console.error('Error rejecting event:', e);
               Alert.alert('Error', e?.message || 'Failed to reject event.');
             } finally {
               setProcessingId(null);

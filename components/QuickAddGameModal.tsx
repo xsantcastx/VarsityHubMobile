@@ -23,6 +23,7 @@ import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
+import LocationPicker from './LocationPicker';
 
 interface QuickAddGameModalProps {
   visible: boolean;
@@ -61,6 +62,9 @@ export interface QuickGameData {
   // Event type-specific fields
   donationGoal?: number; // For fundraisers
   watchLocation?: string; // For watch parties
+  watchLocationLat?: number; // Watch party location latitude
+  watchLocationLng?: number; // Watch party location longitude
+  watchLocationPlaceId?: string; // Watch party location place ID
   destination?: string; // For team trips
 }
 
@@ -117,6 +121,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   // Event type-specific fields
   const [donationGoal, setDonationGoal] = useState('');
   const [watchLocation, setWatchLocation] = useState('');
+  const [watchLocationLat, setWatchLocationLat] = useState<number | undefined>();
+  const [watchLocationLng, setWatchLocationLng] = useState<number | undefined>();
+  const [watchLocationPlaceId, setWatchLocationPlaceId] = useState<string | undefined>();
   const [destination, setDestination] = useState('');
 
   // Update current team when prop changes or modal opens
@@ -304,6 +311,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       // Event type-specific fields
       donationGoal: donationGoal ? parseFloat(donationGoal) : undefined,
       watchLocation: watchLocation.trim() || undefined,
+      watchLocationLat,
+      watchLocationLng,
+      watchLocationPlaceId,
       destination: destination.trim() || undefined,
     };
 
@@ -812,18 +822,19 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           {eventType === 'watch_party' && (
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Watch Location (Optional)</Text>
-              <TextInput
-                style={[styles.input, { 
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: Colors[colorScheme].border,
-                  color: Colors[colorScheme].text,
-                }]}
-                placeholder="e.g., Sports Bar, Team House"
-                placeholderTextColor={Colors[colorScheme].mutedText}
+              <LocationPicker
                 value={watchLocation}
-                onChangeText={setWatchLocation}
-                maxLength={200}
+                onLocationSelect={(location) => {
+                  setWatchLocation(location.address);
+                  setWatchLocationLat(location.latitude);
+                  setWatchLocationLng(location.longitude);
+                  setWatchLocationPlaceId(location.placeId);
+                }}
+                placeholder="e.g., Sports Bar, Team House"
               />
+              <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                Where fans will gather to watch the game
+              </Text>
             </View>
           )}
 

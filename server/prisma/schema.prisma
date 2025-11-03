@@ -117,6 +117,9 @@ model Game {
   // Event type-specific fields
   donation_goal   Float?   // For fundraisers - target amount
   watch_location  String?  // For watch parties - viewing location
+  watch_location_lat Float? // Watch party location latitude
+  watch_location_lng Float? // Watch party location longitude
+  watch_location_place_id String? // Google Places ID for watch location
   destination     String?  // For team trips - destination city/venue
   
   // Approval workflow

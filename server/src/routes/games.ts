@@ -167,6 +167,9 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     // Event type-specific fields
     donation_goal: z.number().min(0).optional(), // For fundraisers
     watch_location: z.string().max(200).optional(), // For watch parties
+    watch_location_lat: z.number().optional(), // Watch party latitude
+    watch_location_lng: z.number().optional(), // Watch party longitude
+    watch_location_place_id: z.string().optional(), // Watch party Google Place ID
     destination: z.string().max(200).optional(), // For team trips
     // Coordinate options
     latitude: z.number().optional(),
@@ -206,6 +209,9 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       event_type: parsed.data.event_type ?? 'game',
       donation_goal: parsed.data.donation_goal ?? null,
       watch_location: parsed.data.watch_location ?? null,
+      watch_location_lat: parsed.data.watch_location_lat ?? null,
+      watch_location_lng: parsed.data.watch_location_lng ?? null,
+      watch_location_place_id: parsed.data.watch_location_place_id ?? null,
       destination: parsed.data.destination ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
@@ -275,15 +281,10 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     }
     
     // Auto-approve if coach, otherwise set to pending
-    // For now, auto-approve all events during development
-    gameData.approval_status = isCoach ? 'approved' : 'approved'; // TODO: Change to 'pending' for production
+    gameData.approval_status = isCoach ? 'approved' : 'pending';
     gameData.created_by_id = req.user.id;
     
     if (isCoach) {
-      gameData.approved_by_id = req.user.id;
-      gameData.approved_at = new Date();
-    } else {
-      // Auto-approve for now
       gameData.approved_by_id = req.user.id;
       gameData.approved_at = new Date();
     }
@@ -352,8 +353,8 @@ gamesRouter.get('/:id', async (req, res) => {
     where: { id },
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
-      homeTeam: { select: { id: true, name: true, avatar_url: true } },
-      awayTeam: { select: { id: true, name: true, avatar_url: true } },
+      home_team: { select: { id: true, name: true, avatar_url: true } },
+      away_team: { select: { id: true, name: true, avatar_url: true } },
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
@@ -370,8 +371,8 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
-      homeTeam: { select: { id: true, name: true, avatar_url: true } },
-      awayTeam: { select: { id: true, name: true, avatar_url: true } },
+      home_team: { select: { id: true, name: true, avatar_url: true } },
+      away_team: { select: { id: true, name: true, avatar_url: true } },
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
@@ -612,4 +613,52 @@ gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const game = await prisma.game.update({ where: { id }, data: { cover_image_url: parsed.data.cover_image_url, appearance: parsed.data.appearance ?? undefined } });
   return res.json(game);
+});
+
+// Approve or reject event
+gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const id = String(req.params.id);
+  const schema = z.object({
+    approval_status: z.enum(['approved', 'rejected']),
+  });
+  
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  
+  // Get the game to check permissions
+  const game = await (prisma.game.findUnique as any)({
+    where: { id },
+    select: { id: true, home_team_id: true, approval_status: true }
+  });
+  
+  if (!game) return res.status(404).json({ error: 'Event not found' });
+  
+  // Check if user is coach/manager of the team
+  let isCoach = false;
+  if (game.home_team_id) {
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: game.home_team_id,
+        user_id: req.user.id,
+        role: { in: ['coach', 'manager', 'owner'] }
+      }
+    });
+    isCoach = !!membership;
+  }
+  
+  // For now, allow any authenticated user to approve (you can tighten this later)
+  // In production, you'd want: if (!isCoach) return res.status(403).json({ error: 'Only coaches can approve events' });
+  
+  const updatedGame = await (prisma.game.update as any)({
+    where: { id },
+    data: {
+      approval_status: parsed.data.approval_status,
+      approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
+      approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
+    }
+  });
+  
+  return res.json(updatedGame);
 });

@@ -504,6 +504,9 @@ export default function ManageSeasonScreen() {
       }
       if (gameData.watchLocation) {
         gamePayload.watch_location = gameData.watchLocation;
+        if (gameData.watchLocationLat) gamePayload.watch_location_lat = gameData.watchLocationLat;
+        if (gameData.watchLocationLng) gamePayload.watch_location_lng = gameData.watchLocationLng;
+        if (gameData.watchLocationPlaceId) gamePayload.watch_location_place_id = gameData.watchLocationPlaceId;
       }
       if (gameData.destination) {
         gamePayload.destination = gameData.destination;
