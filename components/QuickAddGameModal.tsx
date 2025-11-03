@@ -112,6 +112,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
   const [expectedAttendance, setExpectedAttendance] = useState('');
   const [eventType, setEventType] = useState<EventType>('game'); // Default to game
+  const [eventTitle, setEventTitle] = useState(''); // For non-competitive events
   
   // Event type-specific fields
   const [donationGoal, setDonationGoal] = useState('');
@@ -256,17 +257,23 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
     
-    if (!currentTeam.trim()) {
-      newErrors.currentTeam = 'Current team name is required';
-    }
-    
-    // Only require opponent if this is a competitive game
-    if (isCompetitive && !opponent.trim()) {
-      newErrors.opponent = 'Opponent name is required';
+    if (isCompetitive) {
+      // Competitive games need team selection
+      if (!currentTeam.trim()) {
+        newErrors.currentTeam = 'Team name is required';
+      }
+      if (!opponent.trim()) {
+        newErrors.opponent = 'Opponent name is required';
+      }
+    } else {
+      // Non-competitive events need event title
+      if (!eventTitle.trim()) {
+        newErrors.currentTeam = 'Event title is required';
+      }
     }
     
     if (selectedDate < new Date(new Date().setHours(0, 0, 0, 0))) {
-      newErrors.date = 'Game date cannot be in the past';
+      newErrors.date = 'Event date cannot be in the past';
     }
 
     setErrors(newErrors);
@@ -280,7 +287,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     
     const baseGameData: QuickGameData = {
       id: initialData?.id, // Include id when editing
-      currentTeam: currentTeam.trim(),
+      currentTeam: isCompetitive ? currentTeam.trim() : eventTitle.trim(), // Use event title for non-competitive
       currentTeamId: storedCurrentTeamId || '',
       opponent: isCompetitive ? opponent.trim() : '', // Only include opponent if competitive
       opponentTeamId: isCompetitive ? (opponentTeamId || '') : '', // Only include opponent ID if competitive
@@ -357,6 +364,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setIsCompetitive(true);
     setEventType('game');
     setExpectedAttendance('');
+    setEventTitle('');
     setDonationGoal('');
     setWatchLocation('');
     setDestination('');
@@ -589,28 +597,50 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             </View>
           )}
 
-          {/* Current Team */}
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
-              {isCompetitive ? 'Your Team' : 'Host Team'}
-            </Text>
-            <Pressable
-              style={[styles.input, { 
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }]}
-              onPress={() => setShowCurrentTeamPicker(true)}
-            >
-              <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                {currentTeam || 'Select your team'}
+          {/* Team/Event Selection - Different for competitive vs non-competitive */}
+          {isCompetitive ? (
+            // Competitive: Show team picker
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
+              <Pressable
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }]}
+                onPress={() => setShowCurrentTeamPicker(true)}
+              >
+                <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                  {currentTeam || 'Select your team'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+              {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+            </View>
+          ) : (
+            // Non-competitive: Show event title text field
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                }]}
+                placeholder="e.g., Team Fundraiser BBQ, Watch Party"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={eventTitle}
+                onChangeText={setEventTitle}
+                maxLength={100}
+              />
+              {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+              <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                Give your event a descriptive name
               </Text>
-              <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-            </Pressable>
-            {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
-          </View>
+            </View>
+          )}
 
           {/* Opponent Team - Only show if competitive */}
           {isCompetitive && (
