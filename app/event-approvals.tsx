@@ -132,8 +132,7 @@ export default function EventApprovalsScreen() {
             }
           },
         },
-      ],
-      'plain-text'
+      ]
     );
   };
   
