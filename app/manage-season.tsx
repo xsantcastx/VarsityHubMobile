@@ -406,6 +406,33 @@ export default function ManageSeasonScreen() {
     });
   };
 
+  const sanitizeTeamId = (value?: string) => {
+    const trimmed = (value || '').trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  };
+
+  const parseDateParts = (date: string) => {
+    const [yearStr, monthStr, dayStr] = (date || '').split('-');
+    const year = parseInt(yearStr || '', 10);
+    const month = parseInt(monthStr || '', 10);
+    const day = parseInt(dayStr || '', 10);
+    return { year, month, day };
+  };
+
+  const parseMeridiemTime = (time: string) => {
+    const normalized = (time || '').replace(/\u202f/g, ' ').trim();
+    const match = normalized.match(/^(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?$/i);
+    if (!match) {
+      throw new Error('Invalid time format');
+    }
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2] ?? '0', 10);
+    const meridiem = (match[3] || '').toUpperCase();
+    if (meridiem === 'PM' && hours < 12) hours += 12;
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+    return { hours, minutes };
+  };
+
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
     try {
       const isEditing = !!gameData.id;
@@ -414,48 +441,46 @@ export default function ManageSeasonScreen() {
       console.log('handleSaveQuickGame - Params teamId:', params.teamId);
       console.log('handleSaveQuickGame - gameData:', gameData);
       
-      // Convert 12-hour time to 24-hour format for ISO string
-      const convertTo24Hour = (time12h: string) => {
-        const [time, modifier] = time12h.split(' ');
-        let [hours, minutes] = time.split(':');
-        hours = hours.padStart(2, '0');
-        
-        if (hours === '12') {
-          hours = modifier === 'AM' ? '00' : '12';
-        } else if (modifier === 'PM') {
-          hours = String(parseInt(hours, 10) + 12).padStart(2, '0');
-        }
-        return `${hours}:${minutes || '00'}`;
-      };
+      const { year, month, day } = parseDateParts(gameData.date);
+      const { hours, minutes } = parseMeridiemTime(gameData.time);
 
-      // Create proper datetime for API - combine date and time properly
-      const time24h = convertTo24Hour(gameData.time);
-      const [year, month, day] = gameData.date.split('-');
-      const [hours, minutes] = time24h.split(':');
-      
-      // Create date object more safely
-      const gameDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
+      if ([year, month, day, hours, minutes].some((val) => Number.isNaN(val))) {
+        throw new Error('Invalid date/time combination');
+      }
+
+      // Create the timestamp in UTC so the intended date/time is preserved server-side
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
       
       // Validate the date
       if (isNaN(gameDateTime.getTime())) {
         throw new Error('Invalid date/time combination');
       }
       
+      const homeTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId);
+      const awayTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId);
+
       // Create game data for API
-      const gamePayload: any = {
+      const gamePayload: Record<string, any> = {
         title: `${gameData.currentTeam} vs ${gameData.opponent}`,
         home_team: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
         away_team: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
-        home_team_id: gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId,
-        away_team_id: gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId,
         date: gameDateTime.toISOString(),
-        location: gameData.type === 'home' ? 'Home Stadium' : 'Away Venue',
         description: `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
       };
+
+      if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+      if (awayTeamId) {
+        gamePayload.away_team_id = awayTeamId;
+      } else if (gameData.opponent) {
+        gamePayload.away_team_name = gameData.opponent;
+      }
+
       // Include banner URL if provided by the QuickAdd modal
       if (gameData.banner_url) {
         gamePayload.banner_url = gameData.banner_url;
         gamePayload.cover_image_url = gameData.banner_url; // Also set cover_image_url to the same value
+      } else if (gameData.cover_image_url) {
+        gamePayload.cover_image_url = gameData.cover_image_url;
       }
       // Include appearance preset if provided
       if (gameData.appearance) {
@@ -512,7 +537,8 @@ export default function ManageSeasonScreen() {
       console.error('Error status:', error?.status);
       console.error('Error data:', error?.data);
       console.error('Error message:', error?.message);
-      const errorMsg = error?.data?.error || error?.data?.message || error?.message || 'Unknown error';
+      const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
+      const errorMsg = (error?.data?.error || error?.data?.message || error?.message || 'Unknown error') + details;
       setActionModal({
         visible: true,
         title: 'Error',

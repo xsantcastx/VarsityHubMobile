@@ -169,6 +169,10 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) {
+    console.warn('create game validation failed', {
+      body: req.body,
+      issues: parsed.error.issues,
+    });
     return res.status(400).json({ 
       error: 'Invalid game data', 
       issues: parsed.error.issues 
