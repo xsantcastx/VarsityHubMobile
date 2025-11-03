@@ -241,8 +241,8 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       data: gameData,
       include: { 
         events: { orderBy: { date: 'asc' }, take: 1 },
-        home_team: { select: { id: true, name: true, venue_address: true } },
-        away_team: { select: { id: true, name: true, venue_address: true } }
+        homeTeam: { select: { id: true, name: true, venue_address: true } },
+        awayTeam: { select: { id: true, name: true, venue_address: true } }
       },
     }) as any;
     
@@ -272,15 +272,15 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       banner_url: game.banner_url,
       venue_maps_link: venueMapsLink,
       // Include team info with linking capability
-      home_team: game.home_team ? {
-        id: game.home_team.id,
-        name: game.home_team.name,
-        profile_link: `/teams/${game.home_team.id}` // Frontend can use this to link to team page
+      home_team: game.homeTeam ? {
+        id: game.homeTeam.id,
+        name: game.homeTeam.name,
+        profile_link: `/teams/${game.homeTeam.id}` // Frontend can use this to link to team page
       } : null,
-      away_team: game.away_team ? {
-        id: game.away_team.id,
-        name: game.away_team.name,
-        profile_link: `/teams/${game.away_team.id}` // Link to opponent's page if they exist
+      away_team: game.awayTeam ? {
+        id: game.awayTeam.id,
+        name: game.awayTeam.name,
+        profile_link: `/teams/${game.awayTeam.id}` // Link to opponent's page if they exist
       } : (game.away_team_name ? {
         name: game.away_team_name, // Manual opponent name
         profile_link: null // No link available
@@ -314,8 +314,6 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
-      home_team: true,
-      away_team: true,
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
