@@ -28,6 +28,13 @@ model User {
   password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
   preferences                Json      @default("{}")
+  
+  // Subscription/Premium fields
+  subscription_tier          String    @default("free") // free | premium | pro
+  subscription_status        String    @default("active") // active | cancelled | expired
+  subscription_expires_at    DateTime?
+  stripe_customer_id         String?
+  max_teams                  Int       @default(2) // Free users get 2 teams
 
   // Relations
   memberships TeamMembership[]

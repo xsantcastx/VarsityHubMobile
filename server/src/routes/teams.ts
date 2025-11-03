@@ -72,6 +72,35 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
   return res.json(list);
 });
 
+// Check team creation limits for current user
+teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  
+  const ownedTeamsCount = await prisma.teamMembership.count({
+    where: {
+      user_id: req.user.id,
+      role: 'owner',
+      status: 'active'
+    }
+  });
+  
+  const maxTeams = (user as any).max_teams ?? 2;
+  const canCreateMore = ownedTeamsCount < maxTeams;
+  const subscriptionTier = (user as any).subscription_tier ?? 'free';
+  
+  return res.json({
+    owned_teams: ownedTeamsCount,
+    max_teams: maxTeams,
+    can_create_more: canCreateMore,
+    remaining: Math.max(0, maxTeams - ownedTeamsCount),
+    subscription_tier: subscriptionTier,
+    upgrade_required: !canCreateMore
+  });
+});
+
 // List teams with member counts; optional search q
 teamsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim().toLowerCase();
@@ -234,6 +263,28 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Check team ownership limit
+  const ownedTeamsCount = await prisma.teamMembership.count({
+    where: {
+      user_id: me.id,
+      role: 'owner',
+      status: 'active'
+    }
+  });
+  
+  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
+  
+  if (ownedTeamsCount >= maxTeams) {
+    return res.status(403).json({ 
+      error: 'Team limit reached',
+      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
+      owned_teams: ownedTeamsCount,
+      max_teams: maxTeams,
+      upgrade_required: true
+    });
+  }
+  
   const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);

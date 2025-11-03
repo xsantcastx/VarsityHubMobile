@@ -14,6 +14,28 @@ const isVideoUrl = (url?: string | null) => {
   return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext));
 };
 
+// Helper function to generate Google Maps links
+const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
+  if (!location && !lat && !lng && !placeId) return null;
+  
+  // If we have a place ID, use that for the most accurate link
+  if (placeId) {
+    return `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+  }
+  
+  // If we have coordinates, use those
+  if (lat !== null && lng !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  
+  // Fall back to location text search
+  if (location) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+  }
+  
+  return null;
+};
+
 const serializePost = (post: any) => ({
   ...post,
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
@@ -121,8 +143,9 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   
   const schema = z.object({
     title: z.string().min(1).max(200),
-    home_team: z.string().optional(),
-    away_team: z.string().optional(),
+    home_team_id: z.string().optional(), // Team ID for home team
+    away_team_id: z.string().optional(), // Team ID if opponent exists in system
+    away_team_name: z.string().optional(), // Manual opponent name if not in system
     date: z.string().datetime().optional(),
     location: z.string().optional(),
     description: z.string().optional(),
@@ -134,6 +157,12 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     latitude: z.number().optional(),
     longitude: z.number().optional(),
     autoGeocode: z.boolean().optional(),
+    // Venue information for opponent's location
+    venue_place_id: z.string().optional(),
+    venue_address: z.string().optional(),
+    venue_lat: z.number().optional(),
+    venue_lng: z.number().optional(),
+    is_neutral: z.boolean().optional(),
   });
   
   const parsed = schema.safeParse(req.body || {});
@@ -147,14 +176,46 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     // Prepare game data
     let gameData: any = {
-      ...parsed.data,
+      title: parsed.data.title,
       date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      location: parsed.data.location,
+      description: parsed.data.description,
       banner_url: parsed.data.banner_url ?? null,
       cover_image_url: parsed.data.cover_image_url ?? null,
       appearance: parsed.data.appearance ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
+      home_team_id: parsed.data.home_team_id ?? null,
+      away_team_id: parsed.data.away_team_id ?? null,
+      away_team_name: parsed.data.away_team_name ?? null,
+      venue_place_id: parsed.data.venue_place_id ?? null,
+      venue_address: parsed.data.venue_address ?? null,
+      venue_lat: parsed.data.venue_lat ?? null,
+      venue_lng: parsed.data.venue_lng ?? null,
+      is_neutral: parsed.data.is_neutral ?? false,
     };
+    
+    // If home_team_id is provided, use that team's venue as default location
+    if (parsed.data.home_team_id && !parsed.data.location) {
+      const homeTeam = await prisma.team.findUnique({
+        where: { id: parsed.data.home_team_id },
+        select: { 
+          venue_address: true, 
+          venue_lat: true, 
+          venue_lng: true,
+          city: true,
+          state: true,
+          name: true
+        }
+      });
+      
+      if (homeTeam) {
+        gameData.location = homeTeam.venue_address || `${homeTeam.city || ''}, ${homeTeam.state || ''}`.trim();
+        gameData.latitude = homeTeam.venue_lat;
+        gameData.longitude = homeTeam.venue_lng;
+        console.log(`✅ Using home team location: ${gameData.location}`);
+      }
+    }
 
     // Handle auto-geocoding if requested and location is provided
     if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
@@ -174,7 +235,11 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
 
     const game = await (prisma.game.create as any)({
       data: gameData,
-      include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+      include: { 
+        events: { orderBy: { date: 'asc' }, take: 1 },
+        home_team: { select: { id: true, name: true, venue_address: true } },
+        away_team: { select: { id: true, name: true, venue_address: true } }
+      },
     }) as any;
     
     // Automatically create an associated Event for RSVP functionality
@@ -189,11 +254,33 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       } as any,
     });
     
+    // Generate Google Maps link for venue
+    const venueMapsLink = generateMapsLink(
+      game.venue_address || game.location,
+      game.venue_lat || game.latitude,
+      game.venue_lng || game.longitude,
+      game.venue_place_id
+    );
+    
     const response = {
       ...game,
       event_id: event.id,
-      // Fixed: Ensure banner_url from game data is preserved
       banner_url: game.banner_url,
+      venue_maps_link: venueMapsLink,
+      // Include team info with linking capability
+      home_team: game.home_team ? {
+        id: game.home_team.id,
+        name: game.home_team.name,
+        profile_link: `/teams/${game.home_team.id}` // Frontend can use this to link to team page
+      } : null,
+      away_team: game.away_team ? {
+        id: game.away_team.id,
+        name: game.away_team.name,
+        profile_link: `/teams/${game.away_team.id}` // Link to opponent's page if they exist
+      } : (game.away_team_name ? {
+        name: game.away_team_name, // Manual opponent name
+        profile_link: null // No link available
+      } : null)
     };
     
     res.status(201).json(response);
@@ -265,16 +352,36 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   })();
 
   const gameData = game as any; // Type assertion for updated schema
+  
+  // Generate Google Maps link for venue
+  const venueMapsLink = generateMapsLink(
+    gameData.venue_address || location,
+    gameData.venue_lat || gameData.latitude,
+    gameData.venue_lng || gameData.longitude,
+    gameData.venue_place_id
+  );
 
   return res.json({
     id: gameData.id,
     title: gameData.title,
     appearance: gameData.appearance ?? null,
-    homeTeam: gameData.home_team ? { id: gameData.home_team.id, name: gameData.home_team.name } : null,
-    awayTeam: gameData.away_team ? { id: gameData.away_team.id, name: gameData.away_team.name } : (gameData.away_team_name ? { name: gameData.away_team_name } : null),
+    homeTeam: gameData.home_team ? { 
+      id: gameData.home_team.id, 
+      name: gameData.home_team.name,
+      profile_link: `/teams/${gameData.home_team.id}`
+    } : null,
+    awayTeam: gameData.away_team ? { 
+      id: gameData.away_team.id, 
+      name: gameData.away_team.name,
+      profile_link: `/teams/${gameData.away_team.id}` // Link to opponent's page
+    } : (gameData.away_team_name ? { 
+      name: gameData.away_team_name,
+      profile_link: null // No link for manual opponent names
+    } : null),
     date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
     timeLocal: null,
     location,
+    venueMapsLink, // Google Maps link for the venue
     description: gameData.description,
     bannerUrl,
     coverImageUrl: gameData.cover_image_url,
