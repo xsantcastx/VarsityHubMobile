@@ -85,10 +85,12 @@ model Game {
   // New: Team relationships
   home_team_id    String?
   away_team_id    String?
-  home_team       Team?    @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
-  away_team       Team?    @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
+  homeTeam        Team?    @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
+  awayTeam        Team?    @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
   
-  // Legacy: Keep for backward compatibility with manual opponent names
+  // Team names for display (backward compatibility)
+  home_team       String?
+  away_team       String?
   away_team_name  String?
   
   // Venue information

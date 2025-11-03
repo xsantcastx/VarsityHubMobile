@@ -90,15 +90,17 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [uploadingCustomBanner, setUploadingCustomBanner] = useState(false);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
 
-  // Update current team when prop changes
+  // Update current team when prop changes or modal opens
   useEffect(() => {
-    if (currentTeamName) {
-      setCurrentTeam(currentTeamName);
+    if (visible) {
+      if (currentTeamName) {
+        setCurrentTeam(currentTeamName);
+      }
+      if (currentTeamId) {
+        setStoredCurrentTeamId(currentTeamId);
+      }
     }
-    if (currentTeamId) {
-      setStoredCurrentTeamId(currentTeamId);
-    }
-  }, [currentTeamName, currentTeamId]);
+  }, [currentTeamName, currentTeamId, visible]);
 
   // Populate form when editing (initialData provided)
   useEffect(() => {
