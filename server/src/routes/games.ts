@@ -99,7 +99,12 @@ gamesRouter.get('/', async (req, res) => {
       : sort === 'date'
         ? { date: 'asc' as const }
         : { created_at: 'desc' as const };
-  const games = await prisma.game.findMany({
+  
+  // By default, only show approved games unless specifically requested otherwise
+  const showPending = req.query.show_pending === 'true';
+  
+  const games = await (prisma.game.findMany as any)({
+    where: showPending ? undefined : { approval_status: 'approved' },
     orderBy,
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
@@ -108,8 +113,8 @@ gamesRouter.get('/', async (req, res) => {
   });
   
   // Get RSVP counts for all games with events
-  const gameIds = games.map(g => g.id);
-  const eventIds = games.map(g => g.events[0]?.id).filter(Boolean);
+  const gameIds = games.map((g: any) => g.id);
+  const eventIds = games.map((g: any) => g.events[0]?.id).filter(Boolean);
   
   const rsvpCounts = eventIds.length > 0 ? await prisma.eventRsvp.groupBy({
     by: ['event_id'],
@@ -119,7 +124,7 @@ gamesRouter.get('/', async (req, res) => {
   
   const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
   
-  const payload = games.map((game) => {
+  const payload = games.map((game: any) => {
     const event = game.events[0] ?? null;
     const { events, _count, ...rest } = game as any;
     return {
@@ -157,6 +162,12 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     appearance: z.string().optional(),
     // Expected attendance for events
     expected_attendance: z.number().int().min(1).max(99999).optional(),
+    // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'other']).optional(),
+    // Event type-specific fields
+    donation_goal: z.number().min(0).optional(), // For fundraisers
+    watch_location: z.string().max(200).optional(), // For watch parties
+    destination: z.string().max(200).optional(), // For team trips
     // Coordinate options
     latitude: z.number().optional(),
     longitude: z.number().optional(),
@@ -192,6 +203,10 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       cover_image_url: parsed.data.cover_image_url ?? null,
       appearance: parsed.data.appearance ?? null,
       expected_attendance: parsed.data.expected_attendance ?? null,
+      event_type: parsed.data.event_type ?? 'game',
+      donation_goal: parsed.data.donation_goal ?? null,
+      watch_location: parsed.data.watch_location ?? null,
+      destination: parsed.data.destination ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
       home_team: parsed.data.home_team ?? null,
@@ -242,6 +257,30 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
         // Continue without coordinates - don't fail the game creation
       }
+    }
+
+    // Approval workflow: Check if user is a coach/manager
+    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+    let isCoach = false;
+    
+    if (parsed.data.home_team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: parsed.data.home_team_id,
+          user_id: req.user.id,
+          role: { in: managementRoles }
+        }
+      });
+      isCoach = !!membership;
+    }
+    
+    // Auto-approve if coach, otherwise set to pending
+    gameData.approval_status = isCoach ? 'approved' : 'pending';
+    gameData.created_by_id = req.user.id;
+    
+    if (isCoach) {
+      gameData.approved_by_id = req.user.id;
+      gameData.approved_at = new Date();
     }
 
     const game = await (prisma.game.create as any)({

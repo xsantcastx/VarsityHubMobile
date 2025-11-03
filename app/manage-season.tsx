@@ -488,6 +488,22 @@ export default function ManageSeasonScreen() {
         gamePayload.expected_attendance = gameData.expectedAttendance;
       }
 
+      // Add event type
+      if (gameData.eventType) {
+        gamePayload.event_type = gameData.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (gameData.donationGoal) {
+        gamePayload.donation_goal = gameData.donationGoal;
+      }
+      if (gameData.watchLocation) {
+        gamePayload.watch_location = gameData.watchLocation;
+      }
+      if (gameData.destination) {
+        gamePayload.destination = gameData.destination;
+      }
+
       // Include banner URL if provided by the QuickAdd modal
       if (gameData.banner_url) {
         gamePayload.banner_url = gameData.banner_url;

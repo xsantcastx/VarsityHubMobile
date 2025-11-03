@@ -41,6 +41,8 @@ interface QuickAddGameModalProps {
   };
 }
 
+export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'other';
+
 export interface QuickGameData {
   id?: string; // Add id for editing
   currentTeam: string;
@@ -55,6 +57,11 @@ export interface QuickGameData {
   appearance?: string; // Add appearance support
   isCompetitive?: boolean; // Whether this is a competitive game or general event
   expectedAttendance?: number; // Expected number of attendees
+  eventType?: EventType; // Type of event (game, fundraiser, watch_party, etc.)
+  // Event type-specific fields
+  donationGoal?: number; // For fundraisers
+  watchLocation?: string; // For watch parties
+  destination?: string; // For team trips
 }
 
 type TeamOption = {
@@ -62,6 +69,15 @@ type TeamOption = {
   name: string;
   logo?: string;
 };
+
+const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicons.glyphMap; description: string }[] = [
+  { value: 'game', label: 'Game/Match', icon: 'trophy-outline', description: 'Competitive sports game' },
+  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash-outline', description: 'Fundraising event' },
+  { value: 'watch_party', label: 'Watch Party', icon: 'tv-outline', description: 'Watch game together' },
+  { value: 'team_trip', label: 'Team Trip', icon: 'bus-outline', description: 'Travel or field trip' },
+  { value: 'meeting', label: 'Meeting', icon: 'people-outline', description: 'Team meeting or practice' },
+  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline', description: 'Other event type' },
+];
 
 export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
@@ -95,6 +111,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   // New state for competitive toggle and attendance
   const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
   const [expectedAttendance, setExpectedAttendance] = useState('');
+  const [eventType, setEventType] = useState<EventType>('game'); // Default to game
+  
+  // Event type-specific fields
+  const [donationGoal, setDonationGoal] = useState('');
+  const [watchLocation, setWatchLocation] = useState('');
+  const [destination, setDestination] = useState('');
 
   // Update current team when prop changes or modal opens
   useEffect(() => {
@@ -271,6 +293,11 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       type: gameType,
       isCompetitive,
       expectedAttendance: expectedAttendance ? parseInt(expectedAttendance, 10) : undefined,
+      eventType: isCompetitive ? 'game' : eventType, // Use 'game' for competitive, selected type for non-competitive
+      // Event type-specific fields
+      donationGoal: donationGoal ? parseFloat(donationGoal) : undefined,
+      watchLocation: watchLocation.trim() || undefined,
+      destination: destination.trim() || undefined,
     };
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
@@ -327,6 +354,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setBannerUrl(null);
     setEditingImageUri(null);
     setUploadingCustomBanner(false);
+    setIsCompetitive(true);
+    setEventType('game');
+    setExpectedAttendance('');
+    setDonationGoal('');
+    setWatchLocation('');
+    setDestination('');
   };
 
   const handleClose = () => {
@@ -457,7 +490,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           </Pressable>
           
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
-            {initialData ? 'Edit Event' : 'Quick Add Event'}
+            {initialData 
+              ? 'Edit Event' 
+              : isCompetitive 
+                ? 'Quick Add Game' 
+                : `Add ${EVENT_TYPES.find(et => et.value === eventType)?.label || 'Event'}`
+            }
           </Text>
           
           <Pressable style={styles.headerButton} onPress={handleSave}>
@@ -494,12 +532,62 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                   backgroundColor: isCompetitive ? '#10B981' : Colors[colorScheme].border,
                   justifyContent: isCompetitive ? 'flex-end' : 'flex-start',
                 }]}
-                onPress={() => setIsCompetitive(!isCompetitive)}
+                onPress={() => {
+                  const newValue = !isCompetitive;
+                  setIsCompetitive(newValue);
+                  // When toggling to competitive, set event type to game
+                  if (newValue) {
+                    setEventType('game');
+                  } else {
+                    // When toggling to non-competitive, default to first non-game type
+                    setEventType('fundraiser');
+                  }
+                }}
               >
                 <View style={[styles.toggleThumb, { backgroundColor: '#FFFFFF' }]} />
               </Pressable>
             </View>
           </View>
+
+          {/* Event Type Selector - Only show for non-competitive events */}
+          {!isCompetitive && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 12 }]}>Event Type</Text>
+              <View style={styles.eventTypeGrid}>
+                {EVENT_TYPES.filter(et => et.value !== 'game').map((type) => (
+                  <Pressable
+                    key={type.value}
+                    style={[
+                      styles.eventTypeCard,
+                      {
+                        backgroundColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                        borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                      }
+                    ]}
+                    onPress={() => setEventType(type.value)}
+                  >
+                    <Ionicons 
+                      name={type.icon} 
+                      size={24} 
+                      color={eventType === type.value ? '#fff' : Colors[colorScheme].text} 
+                    />
+                    <Text style={[
+                      styles.eventTypeLabel,
+                      { color: eventType === type.value ? '#fff' : Colors[colorScheme].text }
+                    ]}>
+                      {type.label}
+                    </Text>
+                    <Text style={[
+                      styles.eventTypeDescription,
+                      { color: eventType === type.value ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText }
+                    ]}>
+                      {type.description}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Current Team */}
           <View style={styles.formSection}>
@@ -666,6 +754,64 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               maxLength={4}
             />
           </View>
+
+          {/* Event Type-Specific Fields */}
+          {eventType === 'fundraiser' && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Fundraising Goal (Optional)</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                }]}
+                placeholder="e.g., 1000"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={donationGoal}
+                onChangeText={setDonationGoal}
+                keyboardType="decimal-pad"
+              />
+              <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                Target amount to raise ($)
+              </Text>
+            </View>
+          )}
+
+          {eventType === 'watch_party' && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Watch Location (Optional)</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                }]}
+                placeholder="e.g., Sports Bar, Team House"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={watchLocation}
+                onChangeText={setWatchLocation}
+                maxLength={200}
+              />
+            </View>
+          )}
+
+          {eventType === 'team_trip' && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Destination (Optional)</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                }]}
+                placeholder="e.g., State Tournament, Orlando FL"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={destination}
+                onChangeText={setDestination}
+                maxLength={200}
+              />
+            </View>
+          )}
 
           {/* Enhanced Game Preview */}
           {currentTeam.trim() && (!isCompetitive || opponent.trim()) && !errors.currentTeam && !errors.opponent && !errors.date && (
@@ -1343,5 +1489,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 3,
+  },
+  eventTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
+  },
+  eventTypeCard: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: 8,
+  },
+  eventTypeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  eventTypeDescription: {
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 14,
   },
 });

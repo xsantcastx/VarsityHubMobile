@@ -72,6 +72,10 @@ model User {
   // Notifications
   notifications   Notification[] @relation("notification_user")
   actions         Notification[] @relation("notification_actor")
+  
+  // Games (approval workflow)
+  createdGames    Game[] @relation("created_games")
+  approvedGames   Game[] @relation("approved_games")
 }
 
 model Game {
@@ -107,6 +111,22 @@ model Game {
   appearance      String?
   // Expected attendance for events (optional)
   expected_attendance Int?
+  // Event type: game, fundraiser, watch_party, team_trip, meeting, other
+  event_type      String?  @default("game")
+  
+  // Event type-specific fields
+  donation_goal   Float?   // For fundraisers - target amount
+  watch_location  String?  // For watch parties - viewing location
+  destination     String?  // For team trips - destination city/venue
+  
+  // Approval workflow
+  approval_status String   @default("approved") // approved | pending | rejected
+  created_by_id   String?
+  created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
+  approved_by_id  String?
+  approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  approved_at     DateTime?
+  
   created_at      DateTime @default(now())
 
   // Back-relations

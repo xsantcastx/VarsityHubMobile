@@ -163,6 +163,22 @@ export default function ManageTeamsSimpleScreen() {
         gamePayload.expected_attendance = data.expectedAttendance;
       }
 
+      // Add event type
+      if (data.eventType) {
+        gamePayload.event_type = data.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (data.donationGoal) {
+        gamePayload.donation_goal = data.donationGoal;
+      }
+      if (data.watchLocation) {
+        gamePayload.watch_location = data.watchLocation;
+      }
+      if (data.destination) {
+        gamePayload.destination = data.destination;
+      }
+
       if (data.banner_url) {
         gamePayload.banner_url = data.banner_url;
         gamePayload.cover_image_url = data.banner_url;
