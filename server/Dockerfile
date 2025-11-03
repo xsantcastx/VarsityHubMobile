@@ -1,11 +1,13 @@
-# Use Node.js 20 LTS Alpine as base image
-FROM node:20-alpine
+# Use Node.js 20 LTS Debian-based image for broader libc/SSL support
+FROM node:20-bookworm-slim
 
 # Set working directory
 WORKDIR /app
 
 # Install build dependencies (needed for native modules and Prisma engines)
-RUN apk add --no-cache python3 make g++ openssl openssl1.1-compat libstdc++
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential python3 openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and Prisma schema (needed for postinstall)
 COPY package*.json ./
