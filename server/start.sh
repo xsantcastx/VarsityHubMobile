@@ -1,11 +1,10 @@
 #!/bin/sh
-# Railway Startup Script
-# This runs migrations before starting the server
+# Railway startup script: run migrations before launching the API
 
 set -e
 
-echo "🔄 Running Prisma migrations..."
+echo "[startup] Applying Prisma migrations..."
 npx prisma migrate deploy
 
-echo "✅ Migrations complete! Starting server..."
+echo "[startup] Launching API server..."
 exec node dist/index.js
