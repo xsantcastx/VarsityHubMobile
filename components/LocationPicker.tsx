@@ -29,7 +29,8 @@ export default function LocationPicker({
 
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-  if (!apiKey) {
+  // Always use simple text input for now to avoid GooglePlacesAutocomplete crashes
+  if (!apiKey || true) {
     // Fallback to simple text input if no API key
     return (
       <View>
