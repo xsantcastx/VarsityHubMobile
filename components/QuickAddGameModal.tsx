@@ -591,7 +591,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
 
           {/* Current Team */}
           <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+              {isCompetitive ? 'Your Team' : 'Host Team'}
+            </Text>
             <Pressable
               style={[styles.input, { 
                 backgroundColor: Colors[colorScheme].surface,
