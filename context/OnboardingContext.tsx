@@ -63,3 +63,7 @@ export function useOnboarding() {
   if (!ctx) throw new Error('useOnboarding must be used within OBProvider');
   return ctx;
 }
+
+export function useOnboardingOptional() {
+  return useContext(OBContext);
+}

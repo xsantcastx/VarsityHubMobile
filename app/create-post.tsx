@@ -10,7 +10,7 @@ import { MentionInput } from '@/components/ui/MentionInput';
 import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';

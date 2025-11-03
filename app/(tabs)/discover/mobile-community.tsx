@@ -321,7 +321,7 @@ export default function CommunityDiscoverScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           <Pressable 
             style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-            onPress={() => router.push('/manage-teams-simple')}
+            onPress={() => router.push('/manage-teams')}
           >
             <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
             <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>

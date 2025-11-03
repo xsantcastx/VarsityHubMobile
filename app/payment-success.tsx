@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 // @ts-ignore
 import { httpPost } from '@/api/http';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 
 export default function PaymentSuccessScreen() {
   const router = useRouter();

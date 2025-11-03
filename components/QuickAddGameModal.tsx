@@ -29,6 +29,7 @@ interface QuickAddGameModalProps {
   onClose: () => void;
   onSave: (gameData: QuickGameData) => void;
   currentTeamName?: string; // Optional current team context
+  currentTeamId?: string; // Current team ID for database relation
   initialData?: {
     id?: string;
     opponent: string;
@@ -43,7 +44,9 @@ interface QuickAddGameModalProps {
 export interface QuickGameData {
   id?: string; // Add id for editing
   currentTeam: string;
+  currentTeamId?: string; // Team ID for database relation
   opponent: string;
+  opponentTeamId?: string; // Opponent team ID for database relation
   date: string; // Will be today + some days
   time: string; // Selected time
   type: 'home' | 'away';
@@ -58,7 +61,7 @@ type TeamOption = {
   logo?: string;
 };
 
-export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, initialData }: QuickAddGameModalProps) {
+export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   
@@ -69,7 +72,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   
   const [currentTeam, setCurrentTeam] = useState(currentTeamName || 'My Team');
+  const [storedCurrentTeamId, setStoredCurrentTeamId] = useState(currentTeamId || '');
   const [opponent, setOpponent] = useState('');
+  const [opponentTeamId, setOpponentTeamId] = useState('');
   const [opponentSearchText, setOpponentSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [selectedTime, setSelectedTime] = useState(new Date(new Date().setHours(19, 0, 0, 0))); // Default to 7:00 PM
@@ -90,7 +95,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     if (currentTeamName) {
       setCurrentTeam(currentTeamName);
     }
-  }, [currentTeamName]);
+    if (currentTeamId) {
+      setStoredCurrentTeamId(currentTeamId);
+    }
+  }, [currentTeamName, currentTeamId]);
 
   // Populate form when editing (initialData provided)
   useEffect(() => {
@@ -242,7 +250,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     const baseGameData: QuickGameData = {
       id: initialData?.id, // Include id when editing
       currentTeam: currentTeam.trim(),
+      currentTeamId: storedCurrentTeamId,
       opponent: opponent.trim(),
+      opponentTeamId: opponentTeamId,
       date: selectedDate.toISOString().split('T')[0],
       time: selectedTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -808,6 +818,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 ]}
                 onPress={() => {
                   setCurrentTeam(team.name);
+                  setStoredCurrentTeamId(team.id); // Update team ID when team changes
                   if (errors.currentTeam) {
                     setErrors(prev => ({ ...prev, currentTeam: '' }));
                   }
@@ -891,6 +902,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                 ]}
                 onPress={() => {
                   setOpponent(team.name);
+                  setOpponentTeamId(team.id); // Store the team ID
                   if (errors.opponent) {
                     setErrors(prev => ({ ...prev, opponent: '' }));
                   }

@@ -204,7 +204,8 @@ export default function EditTeamScreen() {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
-        season: season || undefined,
+        // Note: season is stored as display text in team state but database uses season_start/season_end
+        // Don't send 'season' field - it doesn't exist in Team model
       };
       if (logoUrl) {
         teamData.logo_url = logoUrl;
@@ -234,7 +235,11 @@ export default function EditTeamScreen() {
       ]);
     } catch (e: any) {
       console.error('Team update error:', e);
-      Alert.alert('Error', e?.message || 'Failed to update team. Please try again.');
+      console.error('Team update error status:', e?.status);
+      console.error('Team update error data:', e?.data);
+      console.error('Team update error message:', e?.message);
+      const errorMsg = e?.data?.error || e?.data?.message || e?.message || 'Failed to update team. Please try again.';
+      Alert.alert('Error', errorMsg);
     } finally {
       setSubmitting(false);
     }

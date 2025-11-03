@@ -143,6 +143,8 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   
   const schema = z.object({
     title: z.string().min(1).max(200),
+    home_team: z.string().optional(), // Home team name for display
+    away_team: z.string().optional(), // Away team name for display
     home_team_id: z.string().optional(), // Team ID for home team
     away_team_id: z.string().optional(), // Team ID if opponent exists in system
     away_team_name: z.string().optional(), // Manual opponent name if not in system
@@ -185,6 +187,8 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       appearance: parsed.data.appearance ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
+      home_team: parsed.data.home_team ?? null,
+      away_team: parsed.data.away_team ?? null,
       home_team_id: parsed.data.home_team_id ?? null,
       away_team_id: parsed.data.away_team_id ?? null,
       away_team_name: parsed.data.away_team_name ?? null,

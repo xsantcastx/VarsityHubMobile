@@ -1,4 +1,4 @@
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 type Plan = 'rookie' | 'veteran' | 'legend';
 

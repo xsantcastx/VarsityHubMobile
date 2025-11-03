@@ -5,7 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 
 export default function OnboardingFinish() {

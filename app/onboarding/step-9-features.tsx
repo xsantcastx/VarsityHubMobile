@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/Colors';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,7 +10,7 @@ import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
 import * as Location from 'expo-location';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();

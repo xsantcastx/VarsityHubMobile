@@ -1,5 +1,5 @@
 import { Input } from '@/components/ui/input';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -12,7 +12,7 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 const ALL_INTERESTS = ['Football','Basketball','Baseball','Soccer','Volleyball','Track & Field','Swimming','Hockey','Other'] as const;
 

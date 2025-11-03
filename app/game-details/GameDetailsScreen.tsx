@@ -1539,10 +1539,18 @@ const renderVoteSection = () => {
     const homeTeam = vm?.homeTeam?.trim();
     const awayTeam = vm?.awayTeam?.trim();
     
+    console.log('[GameDetails] Teams check:', { 
+      hasTeamsArray: !!vm?.teams?.length, 
+      teamsCount: vm?.teams?.length || 0,
+      homeTeam, 
+      awayTeam 
+    });
+    
     if (!homeTeam && !awayTeam) {
       return (
         <View style={{ paddingVertical: 12 }}>
-          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center' }}>No teams linked to this game</Text>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center' }}>No teams linked to this game yet.</Text>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center', fontSize: 12, marginTop: 4 }}>Teams can be added when editing the game.</Text>
         </View>
       );
     }

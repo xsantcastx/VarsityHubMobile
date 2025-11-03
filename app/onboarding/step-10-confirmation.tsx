@@ -1,4 +1,4 @@
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
@@ -9,7 +9,7 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useEffect } from 'react';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step10Confirmation() {
   const router = useRouter();

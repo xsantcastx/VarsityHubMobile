@@ -410,6 +410,10 @@ export default function ManageSeasonScreen() {
     try {
       const isEditing = !!gameData.id;
       
+      console.log('handleSaveQuickGame - Current team state:', currentTeam);
+      console.log('handleSaveQuickGame - Params teamId:', params.teamId);
+      console.log('handleSaveQuickGame - gameData:', gameData);
+      
       // Convert 12-hour time to 24-hour format for ISO string
       const convertTo24Hour = (time12h: string) => {
         const [time, modifier] = time12h.split(' ');
@@ -442,6 +446,8 @@ export default function ManageSeasonScreen() {
         title: `${gameData.currentTeam} vs ${gameData.opponent}`,
         home_team: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
         away_team: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
+        home_team_id: gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId,
+        away_team_id: gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId,
         date: gameDateTime.toISOString(),
         location: gameData.type === 'home' ? 'Home Stadium' : 'Away Venue',
         description: `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
@@ -456,6 +462,8 @@ export default function ManageSeasonScreen() {
         // Map to backend field - use `appearance` or `banner_style` depending on API
         gamePayload.appearance = gameData.appearance;
       }
+
+      console.log('Sending gamePayload to backend:', JSON.stringify(gamePayload, null, 2));
 
       // Save to backend API (create or update)
       const savedGame = isEditing 
@@ -499,14 +507,18 @@ export default function ManageSeasonScreen() {
       setShowQuickAddModal(false);
       setEditingGame(null);
       
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error adding quick game:', error);
+      console.error('Error status:', error?.status);
+      console.error('Error data:', error?.data);
+      console.error('Error message:', error?.message);
+      const errorMsg = error?.data?.error || error?.data?.message || error?.message || 'Unknown error';
       setActionModal({
         visible: true,
         title: 'Error',
-        message: `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to add game: ${errorMsg}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      console.error('Error adding quick game:', error);
     }
   };
 
@@ -1227,6 +1239,7 @@ export default function ManageSeasonScreen() {
         }}
         onSave={handleSaveQuickGame}
         currentTeamName={currentTeam?.name || 'My Team'}
+        currentTeamId={currentTeam?.id || params.teamId || ''}
         initialData={editingGame ? {
           id: editingGame.id,
           opponent: editingGame.opponent,

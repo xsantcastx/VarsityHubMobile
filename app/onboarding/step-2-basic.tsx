@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,7 +11,7 @@ import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
 

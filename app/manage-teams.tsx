@@ -191,8 +191,13 @@ export default function ManageTeamsSimpleScreen() {
           <Pressable 
             style={styles.leagueCard}
             onPress={() => {
-              // TODO: Navigate to organization page
-              console.log('Navigate to organization:', organization.id);
+              router.push({
+                pathname: '/league',
+                params: { 
+                  id: organization.id,
+                  name: organization.name 
+                }
+              });
             }}
           >
             <LinearGradient

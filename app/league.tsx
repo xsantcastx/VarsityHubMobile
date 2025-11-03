@@ -1,4 +1,4 @@
-import { Organization, Team } from '@/api/entities';
+import { Event, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +30,20 @@ type LeagueData = {
   bio?: string;
   cover_url?: string;
   contact_info?: string;
+};
+
+type LeagueEvent = {
+  id: string;
+  title: string;
+  date: string;
+  location?: string;
+  event_type?: string;
+  description?: string;
+  attendees_count?: number;
+  creator?: {
+    id: string;
+    display_name: string;
+  };
 };
 
 const toParamString = (value?: string | string[] | null): string | null => {
@@ -171,6 +185,7 @@ export default function LeagueScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [league, setLeague] = useState<LeagueData | null>(null);
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
+  const [events, setEvents] = useState<LeagueEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const loadLeague = useCallback(async () => {
@@ -251,6 +266,50 @@ export default function LeagueScreen() {
       } else {
         setTeams(formattedTeams);
       }
+
+      // Load events for this league
+      try {
+        const leagueId = organizationData?.id || params.id;
+        const leagueName = organizationData?.name || params.name;
+        
+        if (leagueId || leagueName) {
+          const eventsData = await Event.filter({ status: 'approved' });
+          
+          // Filter events linked to this league
+          const linkedEvents = (Array.isArray(eventsData) ? eventsData : [])
+            .filter((event: any) => {
+              // Only show approved events
+              if (event.approval_status !== 'approved') return false;
+              
+              // Match by linked_league field
+              if (leagueId && event.linked_league === leagueId) return true;
+              if (leagueName && event.linked_league?.toLowerCase() === leagueName.toLowerCase()) return true;
+              
+              return false;
+            })
+            .map((event: any) => ({
+              id: String(event.id),
+              title: event.title,
+              date: event.date,
+              location: event.location,
+              event_type: event.event_type,
+              description: event.description,
+              attendees_count: event.attendees_count || event.rsvp_count || 0,
+              creator: event.creator ? {
+                id: String(event.creator.id),
+                display_name: event.creator.display_name || event.creator.name || 'Unknown'
+              } : undefined,
+            }))
+            .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          
+          setEvents(linkedEvents);
+        } else {
+          setEvents([]);
+        }
+      } catch (eventErr) {
+        console.error('[League] Error loading events:', eventErr);
+        setEvents([]);
+      }
     } catch (err) {
       console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
@@ -278,6 +337,48 @@ export default function LeagueScreen() {
         name: team.name,
       }
     });
+  };
+
+  const handleEventPress = (event: LeagueEvent) => {
+    router.push({
+      pathname: '/event-detail',
+      params: { id: event.id }
+    });
+  };
+
+  const formatEventDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const eventDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      const daysDiff = Math.floor((eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff === 0) return 'Today';
+      if (daysDiff === 1) return 'Tomorrow';
+      if (daysDiff === -1) return 'Yesterday';
+      
+      const options: Intl.DateTimeFormatOptions = { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      };
+      return date.toLocaleDateString(undefined, options);
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getEventTypeIcon = (eventType?: string): keyof typeof Ionicons.glyphMap => {
+    switch (eventType) {
+      case 'game': return 'football';
+      case 'watch_party': return 'tv';
+      case 'fundraiser': return 'cash';
+      case 'tryout': return 'fitness';
+      case 'bbq': return 'restaurant';
+      default: return 'calendar';
+    }
   };
 
   if (loading && !refreshing) {
@@ -405,6 +506,54 @@ export default function LeagueScreen() {
                 </Pressable>
               );
             })
+          )}
+        </View>
+
+        <View style={[styles.card, styles.eventsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.eventsTitle, { color: theme.text }]}>Upcoming Events</Text>
+          {events.length === 0 ? (
+            <Text style={[styles.emptyEventsText, { color: theme.mutedText }]}>
+              No events scheduled yet.
+            </Text>
+          ) : (
+            events.map((event) => (
+              <Pressable
+                key={event.id}
+                style={[styles.eventButton, { borderColor: theme.border }]}
+                onPress={() => handleEventPress(event)}
+              >
+                <View style={[styles.eventIconContainer, { backgroundColor: theme.surface }]}>
+                  <Ionicons name={getEventTypeIcon(event.event_type)} size={20} color={theme.tint} />
+                </View>
+                <View style={styles.eventButtonText}>
+                  <Text style={[styles.eventButtonTitle, { color: theme.text }]} numberOfLines={1}>
+                    {event.title}
+                  </Text>
+                  <View style={styles.eventMetaRow}>
+                    <Text style={[styles.eventButtonMeta, { color: theme.mutedText }]} numberOfLines={1}>
+                      {formatEventDate(event.date)}
+                    </Text>
+                    {event.location && (
+                      <>
+                        <Text style={[styles.eventMetaDot, { color: theme.mutedText }]}>•</Text>
+                        <Text style={[styles.eventButtonMeta, { color: theme.mutedText }]} numberOfLines={1}>
+                          {event.location}
+                        </Text>
+                      </>
+                    )}
+                    {(event.attendees_count ?? 0) > 0 && (
+                      <>
+                        <Text style={[styles.eventMetaDot, { color: theme.mutedText }]}>•</Text>
+                        <Text style={[styles.eventButtonMeta, { color: theme.mutedText }]}>
+                          {event.attendees_count} {event.attendees_count === 1 ? 'attendee' : 'attendees'}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={theme.mutedText} />
+              </Pressable>
+            ))
           )}
         </View>
       </ScrollView>
@@ -570,5 +719,53 @@ const styles = StyleSheet.create({
   teamButtonSubtitle: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  eventsCard: {
+    gap: 12,
+  },
+  eventsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyEventsText: {
+    fontSize: 14,
+  },
+  eventButton: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  eventIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventButtonText: {
+    flex: 1,
+    gap: 4,
+  },
+  eventButtonTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  eventMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  eventButtonMeta: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  eventMetaDot: {
+    fontSize: 12,
+    marginHorizontal: 2,
   },
 });
