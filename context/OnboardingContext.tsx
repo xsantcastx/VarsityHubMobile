@@ -40,18 +40,22 @@ type Ctx = {
   state: OnboardingState; 
   setState: React.Dispatch<React.SetStateAction<OnboardingState>>;
   clearOnboarding: () => void;
+  progress: number;
+  setProgress: (progress: number) => void;
 };
 
 const OBContext = createContext<Ctx | null>(null);
 
 export function OBProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<OnboardingState>({});
+  const [progress, setProgress] = useState(0);
   
   const clearOnboarding = () => {
     setState({});
+    setProgress(0);
   };
   
-  return <OBContext.Provider value={{ state, setState, clearOnboarding }}>{children}</OBContext.Provider>;
+  return <OBContext.Provider value={{ state, setState, clearOnboarding, progress, setProgress }}>{children}</OBContext.Provider>;
 }
 
 export function useOnboarding() {

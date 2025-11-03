@@ -1,13 +1,13 @@
 import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import PrimaryButton from '@/ui/PrimaryButton';
+import Button from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'rookie' | 'coach';
 
@@ -223,12 +223,14 @@ export default function Step1Role() {
 
       {role && (
         <View style={styles.continueContainer}>
-          <PrimaryButton 
-            label={saving ? 'Setting up...' : 'Continue'} 
+          <Button 
             onPress={onContinue} 
-            disabled={saving} 
-            loading={saving} 
-          />
+            disabled={saving}
+            size="lg"
+            style={{ width: '100%' }}
+          >
+            {saving ? <ActivityIndicator color="white" /> : 'Continue'}
+          </Button>
         </View>
       )}
     </OnboardingLayout>

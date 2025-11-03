@@ -7,8 +7,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
+      "@/api/*": [
+        "api/*"
       ],
       "@/components/*": [
         "components/*"
@@ -18,6 +18,15 @@
       ],
       "@/hooks/*": [
         "hooks/*"
+      ],
+      "@/context/*": [
+        "context/*"
+      ],
+      "@/utils/*": [
+        "utils/*"
+      ],
+      "@/config/*": [
+        "config/*"
       ]
     },
     "types": [
