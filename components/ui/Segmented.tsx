@@ -1,6 +1,4 @@
-import React from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { Colors } from '@/constants/Colors';
 
 interface SegmentedOption {
   value: string;

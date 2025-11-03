@@ -105,6 +105,8 @@ model Game {
   banner_url      String?
   // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
   appearance      String?
+  // Expected attendance for events (optional)
+  expected_attendance Int?
   created_at      DateTime @default(now())
 
   // Back-relations

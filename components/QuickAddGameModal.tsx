@@ -53,6 +53,8 @@ export interface QuickGameData {
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
   appearance?: string; // Add appearance support
+  isCompetitive?: boolean; // Whether this is a competitive game or general event
+  expectedAttendance?: number; // Expected number of attendees
 }
 
 type TeamOption = {
@@ -89,6 +91,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [editorVisible, setEditorVisible] = useState(false);
   const [uploadingCustomBanner, setUploadingCustomBanner] = useState(false);
   const [appearance, setAppearance] = useState<AppearancePreset>('classic');
+  
+  // New state for competitive toggle and attendance
+  const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
+  const [expectedAttendance, setExpectedAttendance] = useState('');
 
   // Update current team when prop changes or modal opens
   useEffect(() => {
@@ -232,7 +238,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       newErrors.currentTeam = 'Current team name is required';
     }
     
-    if (!opponent.trim()) {
+    // Only require opponent if this is a competitive game
+    if (isCompetitive && !opponent.trim()) {
       newErrors.opponent = 'Opponent name is required';
     }
     
@@ -253,8 +260,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       id: initialData?.id, // Include id when editing
       currentTeam: currentTeam.trim(),
       currentTeamId: storedCurrentTeamId || '',
-      opponent: opponent.trim(),
-      opponentTeamId: opponentTeamId || '',
+      opponent: isCompetitive ? opponent.trim() : '', // Only include opponent if competitive
+      opponentTeamId: isCompetitive ? (opponentTeamId || '') : '', // Only include opponent ID if competitive
       date: selectedDate.toISOString().split('T')[0],
       time: selectedTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
@@ -262,6 +269,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         hour12: true
       }),
       type: gameType,
+      isCompetitive,
+      expectedAttendance: expectedAttendance ? parseInt(expectedAttendance, 10) : undefined,
     };
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
@@ -276,8 +285,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         // User has uploaded a custom banner, use it directly
         finalData.banner_url = bannerUrl;
         finalData.cover_image_url = bannerUrl; // Also set cover_image_url to the same value
-      } else if (getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
-        // No custom banner, try to capture the auto-generated preview and upload
+      } else if (isCompetitive && getHomeAwayTeams().homeTeam && getHomeAwayTeams().awayTeam) {
+        // No custom banner, competitive game - try to capture the auto-generated preview and upload
         if (viewShotRef.current) {
           try {
             setUploadingBanner(true);
@@ -448,7 +457,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           </Pressable>
           
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
-            {initialData ? 'Edit Game' : 'Quick Add Game'}
+            {initialData ? 'Edit Event' : 'Quick Add Event'}
           </Text>
           
           <Pressable style={styles.headerButton} onPress={handleSave}>
@@ -469,6 +478,27 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             <Text style={[styles.helpText, { color: Colors[colorScheme].mutedText }]}>
               Quick add with smart defaults. For more options, use Manual Entry.
             </Text>
+          </View>
+
+          {/* Competitive Game Toggle */}
+          <View style={styles.formSection}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 4 }]}>Competitive Game</Text>
+                <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                  Toggle on if this event has an opponent team
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.toggle, { 
+                  backgroundColor: isCompetitive ? '#10B981' : Colors[colorScheme].border,
+                  justifyContent: isCompetitive ? 'flex-end' : 'flex-start',
+                }]}
+                onPress={() => setIsCompetitive(!isCompetitive)}
+              >
+                <View style={[styles.toggleThumb, { backgroundColor: '#FFFFFF' }]} />
+              </Pressable>
+            </View>
           </View>
 
           {/* Current Team */}
@@ -492,31 +522,33 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
           </View>
 
-          {/* Opponent Team */}
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent Team</Text>
-            <Pressable
-              style={[styles.input, { 
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: errors.opponent ? '#EF4444' : Colors[colorScheme].border,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }]}
-              onPress={() => setShowOpponentPicker(true)}
-            >
-              <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                {opponent || 'Select opponent team'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-            </Pressable>
-            {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
-          </View>
+          {/* Opponent Team - Only show if competitive */}
+          {isCompetitive && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent Team</Text>
+              <Pressable
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: errors.opponent ? '#EF4444' : Colors[colorScheme].border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }]}
+                onPress={() => setShowOpponentPicker(true)}
+              >
+                <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                  {opponent || 'Select opponent team'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+              </Pressable>
+              {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
+            </View>
+          )}
 
           {/* Date and Time Selection */}
           <View style={{ flexDirection: 'row', marginBottom: 24 }}>
             <View style={[styles.formSection, { flex: 1, marginRight: 8, marginBottom: 0 }]}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Date</Text>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Date</Text>
               <Pressable
                 style={[styles.input, { 
                   backgroundColor: Colors[colorScheme].surface,
@@ -540,7 +572,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             </View>
 
             <View style={[styles.formSection, { flex: 1, marginLeft: 8, marginBottom: 0 }]}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Time</Text>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Time</Text>
               <Pressable
                 style={[styles.input, { 
                   backgroundColor: Colors[colorScheme].surface,
@@ -563,10 +595,11 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             </View>
           </View>
 
-          {/* Game Type */}
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Type</Text>
-            <View style={styles.gameTypeContainer}>
+          {/* Game Type - Only show if competitive */}
+          {isCompetitive && (
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Type</Text>
+              <View style={styles.gameTypeContainer}>
               <Pressable
                 style={[
                   styles.gameTypeButton,
@@ -614,11 +647,32 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               </Pressable>
             </View>
           </View>
+          )}
+
+          {/* Expected Attendance - Show for all events */}
+          <View style={styles.formSection}>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Expected Attendance (Optional)</Text>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
+              }]}
+              placeholder="e.g., 50"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={expectedAttendance}
+              onChangeText={setExpectedAttendance}
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+          </View>
 
           {/* Enhanced Game Preview */}
-          {currentTeam.trim() && opponent.trim() && !errors.currentTeam && !errors.opponent && !errors.date && (
+          {currentTeam.trim() && (!isCompetitive || opponent.trim()) && !errors.currentTeam && !errors.opponent && !errors.date && (
             <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>Game Preview</Text>
+              <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
+                {isCompetitive ? 'Game Preview' : 'Event Preview'}
+              </Text>
               
               {/* Custom Banner Upload Section */}
               <View style={styles.bannerUploadSection}>
@@ -1267,5 +1321,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
+  },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    padding: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });

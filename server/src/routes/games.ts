@@ -155,6 +155,8 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     banner_url: z.string().url().optional(),
     // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
     appearance: z.string().optional(),
+    // Expected attendance for events
+    expected_attendance: z.number().int().min(1).max(99999).optional(),
     // Coordinate options
     latitude: z.number().optional(),
     longitude: z.number().optional(),
@@ -189,6 +191,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       banner_url: parsed.data.banner_url ?? null,
       cover_image_url: parsed.data.cover_image_url ?? null,
       appearance: parsed.data.appearance ?? null,
+      expected_attendance: parsed.data.expected_attendance ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
       home_team: parsed.data.home_team ?? null,

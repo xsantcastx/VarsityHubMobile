@@ -461,18 +461,31 @@ export default function ManageSeasonScreen() {
 
       // Create game data for API
       const gamePayload: Record<string, any> = {
-        title: `${gameData.currentTeam} vs ${gameData.opponent}`,
-        home_team: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
-        away_team: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
+        title: gameData.isCompetitive 
+          ? `${gameData.currentTeam} vs ${gameData.opponent}`
+          : `${gameData.currentTeam} Event`,
         date: gameDateTime.toISOString(),
-        description: `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
+        description: gameData.isCompetitive
+          ? `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`
+          : `Event for ${gameData.currentTeam}`,
       };
 
-      if (homeTeamId) gamePayload.home_team_id = homeTeamId;
-      if (awayTeamId) {
-        gamePayload.away_team_id = awayTeamId;
-      } else if (gameData.opponent) {
-        gamePayload.away_team_name = gameData.opponent;
+      // Only add team fields if this is a competitive game
+      if (gameData.isCompetitive) {
+        gamePayload.home_team = gameData.type === 'home' ? gameData.currentTeam : gameData.opponent;
+        gamePayload.away_team = gameData.type === 'home' ? gameData.opponent : gameData.currentTeam;
+        
+        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+        if (awayTeamId) {
+          gamePayload.away_team_id = awayTeamId;
+        } else if (gameData.opponent) {
+          gamePayload.away_team_name = gameData.opponent;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (gameData.expectedAttendance) {
+        gamePayload.expected_attendance = gameData.expectedAttendance;
       }
 
       // Include banner URL if provided by the QuickAdd modal

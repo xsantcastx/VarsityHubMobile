@@ -1,4 +1,3 @@
-import React from 'react';
 import { ActivityIndicator, ViewStyle } from 'react-native';
 import Button from './button';
 

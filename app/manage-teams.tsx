@@ -136,18 +136,31 @@ export default function ManageTeamsSimpleScreen() {
 
       // Create game payload matching backend schema
       const gamePayload: Record<string, any> = {
-        title: `${data.currentTeam} vs ${data.opponent}`,
-        home_team: data.type === 'home' ? data.currentTeam : data.opponent,
-        away_team: data.type === 'home' ? data.opponent : data.currentTeam,
+        title: data.isCompetitive 
+          ? `${data.currentTeam} vs ${data.opponent}`
+          : `${data.currentTeam} Event`,
         date: gameDateTime.toISOString(),
-        description: `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`,
+        description: data.isCompetitive
+          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
+          : `Event for ${data.currentTeam}`,
       };
 
-      if (homeTeamId) gamePayload.home_team_id = homeTeamId;
-      if (awayTeamId) {
-        gamePayload.away_team_id = awayTeamId;
-      } else if (data.opponent) {
-        gamePayload.away_team_name = data.opponent;
+      // Only add team fields if this is a competitive game
+      if (data.isCompetitive) {
+        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
+        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
+        
+        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+        if (awayTeamId) {
+          gamePayload.away_team_id = awayTeamId;
+        } else if (data.opponent) {
+          gamePayload.away_team_name = data.opponent;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (data.expectedAttendance) {
+        gamePayload.expected_attendance = data.expectedAttendance;
       }
 
       if (data.banner_url) {
@@ -167,9 +180,11 @@ export default function ManageTeamsSimpleScreen() {
       const newGame = await GameApi.create(gamePayload);
 
       setShowQuickAddModal(false);
-      Alert.alert('Success', 'Game added successfully!', [
-        { text: 'OK', onPress: () => {} }
-      ]);
+      Alert.alert(
+        'Success', 
+        data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!', 
+        [{ text: 'OK', onPress: () => {} }]
+      );
     } catch (error) {
       console.error('Error adding quick game:', error);
       Alert.alert(
