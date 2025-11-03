@@ -34,8 +34,9 @@ ENV NODE_ENV=production
 # Expose the API port (app respects Railway-assigned PORT at runtime)
 EXPOSE 4000
 
-# Ensure startup script is executable
-RUN chmod +x start.sh
+# Ensure startup script is present and executable
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
