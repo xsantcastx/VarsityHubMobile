@@ -205,7 +205,7 @@ export default function ManageTeamsSimpleScreen() {
       console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',
-        `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`,
         [{ text: 'OK' }]
       );
     }
@@ -240,14 +240,14 @@ export default function ManageTeamsSimpleScreen() {
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
           onPress={() => {
-            // Navigate to first team's add game, or show team selection if multiple teams
+            // Navigate to first team's add event, or show team selection if multiple teams
             if (activeTeams.length > 0) {
               router.push(`/manage-season?teamId=${activeTeams[0].id}`);
             }
           }}
         >
           <Ionicons name="basketball-outline" size={24} color="#fff" />
-          <Text style={styles.inlineActionText}>Add Game</Text>
+          <Text style={styles.inlineActionText}>Add Event</Text>
         </Pressable>
       </View>
 
@@ -378,14 +378,14 @@ export default function ManageTeamsSimpleScreen() {
             onPress={() => setShowQuickAddModal(true)}
           >
             <Ionicons name="calendar" size={32} color="#FFF" />
-            <Text style={styles.bigActionButtonText}>ADD GAME</Text>
+            <Text style={styles.bigActionButtonText}>ADD EVENT</Text>
           </Pressable>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Quick Add Game Modal */}
+      {/* Quick Add Event Modal */}
       <QuickAddGameModal
         visible={showQuickAddModal}
         onClose={() => setShowQuickAddModal(false)}

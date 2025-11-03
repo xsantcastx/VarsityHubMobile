@@ -571,7 +571,7 @@ export default function ManageSeasonScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: `Failed to add game: ${errorMsg}`,
+        message: `Failed to add event: ${errorMsg}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     }
@@ -623,7 +623,7 @@ export default function ManageSeasonScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: 'Failed to add game. Please try again.',
+        message: 'Failed to add event. Please try again.',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       console.error('Error adding game:', error);
@@ -876,14 +876,14 @@ export default function ManageSeasonScreen() {
         </View>
       </View>
 
-      {/* Quick Actions - SIMPLIFIED: Add Game Only */}
+      {/* Quick Actions - SIMPLIFIED: Add Event Only */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
         <Pressable 
           style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={handleAddGame}
         >
           <Ionicons name="add-outline" size={20} color="#fff" />
-          <Text style={styles.quickActionText}>Add Game</Text>
+          <Text style={styles.quickActionText}>Add Event</Text>
         </Pressable>
       </View>
 
@@ -1277,7 +1277,7 @@ export default function ManageSeasonScreen() {
         )}
       </ScrollView>
 
-      {/* Add Game Modal */}
+      {/* Add Event Modal */}
       <AddGameModal
         visible={showAddGameModal}
         onClose={() => setShowAddGameModal(false)}
@@ -1285,7 +1285,7 @@ export default function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
       />
 
-      {/* Quick Add Game Modal */}
+      {/* Quick Add Event Modal */}
       <QuickAddGameModal
         visible={showQuickAddModal}
         onClose={() => {

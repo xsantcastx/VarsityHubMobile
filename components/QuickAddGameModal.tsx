@@ -493,7 +493,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             {initialData 
               ? 'Edit Event' 
               : isCompetitive 
-                ? 'Quick Add Game' 
+                ? 'Add Game' 
                 : `Add ${EVENT_TYPES.find(et => et.value === eventType)?.label || 'Event'}`
             }
           </Text>
@@ -822,7 +822,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               
               {/* Custom Banner Upload Section */}
               <View style={styles.bannerUploadSection}>
-                <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].text }]}>Game Banner</Text>
+                <Text style={[styles.bannerUploadLabel, { color: Colors[colorScheme].text }]}>
+                  {isCompetitive ? 'Game Banner' : 'Event Banner'}
+                </Text>
                 
                 {bannerUrl ? (
                   // Show custom uploaded banner
