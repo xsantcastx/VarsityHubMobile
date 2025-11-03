@@ -481,6 +481,11 @@ export default function ManageSeasonScreen() {
         } else if (gameData.opponent) {
           gamePayload.away_team_name = gameData.opponent;
         }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (gameData.currentTeamId) {
+          gamePayload.home_team_id = gameData.currentTeamId;
+        }
       }
 
       // Add expected attendance if provided

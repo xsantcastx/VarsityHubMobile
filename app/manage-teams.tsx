@@ -156,6 +156,11 @@ export default function ManageTeamsSimpleScreen() {
         } else if (data.opponent) {
           gamePayload.away_team_name = data.opponent;
         }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (data.currentTeamId) {
+          gamePayload.home_team_id = data.currentTeamId;
+        }
       }
 
       // Add expected attendance if provided

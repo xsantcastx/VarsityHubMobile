@@ -275,10 +275,15 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     }
     
     // Auto-approve if coach, otherwise set to pending
-    gameData.approval_status = isCoach ? 'approved' : 'pending';
+    // For now, auto-approve all events during development
+    gameData.approval_status = isCoach ? 'approved' : 'approved'; // TODO: Change to 'pending' for production
     gameData.created_by_id = req.user.id;
     
     if (isCoach) {
+      gameData.approved_by_id = req.user.id;
+      gameData.approved_at = new Date();
+    } else {
+      // Auto-approve for now
       gameData.approved_by_id = req.user.id;
       gameData.approved_at = new Date();
     }
