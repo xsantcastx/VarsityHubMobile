@@ -303,11 +303,16 @@ gamesRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
   const game = await prisma.game.findUnique({
     where: { id },
-    include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+    include: { 
+      events: { orderBy: { date: 'asc' }, take: 1 },
+      homeTeam: { select: { id: true, name: true, avatar_url: true } },
+      awayTeam: { select: { id: true, name: true, avatar_url: true } },
+    },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
-  const event = game.events[0] ?? null;
-  const { events, ...rest } = game as any;
+  const gameData = game as any; // Type assertion for relation fields
+  const event = gameData.events[0] ?? null;
+  const { events, ...rest } = gameData;
   return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
 });
 
@@ -318,6 +323,8 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
+      homeTeam: { select: { id: true, name: true, avatar_url: true } },
+      awayTeam: { select: { id: true, name: true, avatar_url: true } },
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
@@ -332,9 +339,10 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
 
-  const event = game.events[0] ?? null;
-  const posts = game.posts.map(serializePost);
-  const media = game.stories.map(serializeMedia);
+  const g = game as any; // Type assertion for relation fields
+  const event = g.events[0] ?? null;
+  const posts = g.posts.map(serializePost);
+  const media = g.stories.map(serializeMedia);
   const bannerUrl = pickBannerUrl(game, event, media);
   const location = game.location || event?.location || null;
   const anchorDate = event?.date ?? game.date;
@@ -371,18 +379,21 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     id: gameData.id,
     title: gameData.title,
     appearance: gameData.appearance ?? null,
-    homeTeam: gameData.home_team ? { 
-      id: gameData.home_team.id, 
-      name: gameData.home_team.name,
-      profile_link: `/teams/${gameData.home_team.id}`
-    } : null,
-    awayTeam: gameData.away_team ? { 
-      id: gameData.away_team.id, 
-      name: gameData.away_team.name,
-      profile_link: `/teams/${gameData.away_team.id}` // Link to opponent's page
-    } : (gameData.away_team_name ? { 
-      name: gameData.away_team_name,
-      profile_link: null // No link for manual opponent names
+    home_team: gameData.homeTeam || gameData.home_team, // Return relation object or string fallback
+    away_team: gameData.awayTeam || gameData.away_team, // Return relation object or string fallback
+    homeTeam: gameData.homeTeam ? { 
+      id: gameData.homeTeam.id, 
+      name: gameData.homeTeam.name,
+      avatar_url: gameData.homeTeam.avatar_url,
+      profile_link: `/teams/${gameData.homeTeam.id}`
+    } : (gameData.home_team ? { name: gameData.home_team } : null),
+    awayTeam: gameData.awayTeam ? { 
+      id: gameData.awayTeam.id, 
+      name: gameData.awayTeam.name,
+      avatar_url: gameData.awayTeam.avatar_url,
+      profile_link: `/teams/${gameData.awayTeam.id}`
+    } : (gameData.away_team || gameData.away_team_name ? { 
+      name: gameData.away_team || gameData.away_team_name
     } : null),
     date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
     timeLocal: null,
@@ -395,7 +406,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     capacity: event?.capacity ?? null,
     rsvpCount,
     userRsvped,
-    teams: [],
+    teams: [gameData.homeTeam, gameData.awayTeam].filter(Boolean), // Include team relations
     posts,
     media,
     reviewsCount,

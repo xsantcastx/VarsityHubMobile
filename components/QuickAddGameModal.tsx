@@ -252,9 +252,9 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     const baseGameData: QuickGameData = {
       id: initialData?.id, // Include id when editing
       currentTeam: currentTeam.trim(),
-      currentTeamId: storedCurrentTeamId?.trim() || undefined,
+      currentTeamId: storedCurrentTeamId || '',
       opponent: opponent.trim(),
-      opponentTeamId: opponentTeamId?.trim() || undefined,
+      opponentTeamId: opponentTeamId || '',
       date: selectedDate.toISOString().split('T')[0],
       time: selectedTime.toLocaleTimeString('en-US', {
         hour: 'numeric',

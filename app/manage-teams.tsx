@@ -113,17 +113,58 @@ export default function ManageTeamsSimpleScreen() {
         return;
       }
 
+      // Parse date and time to create ISO datetime
+      const [year, month, day] = data.date.split('-').map(Number);
+      const timeMatch = data.time.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
+      if (!timeMatch) {
+        Alert.alert('Error', 'Invalid time format');
+        return;
+      }
+      
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2] || '0', 10);
+      const meridiem = timeMatch[3]?.toUpperCase();
+      
+      if (meridiem === 'PM' && hours !== 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      
+      // Determine home/away team IDs based on game type
+      const homeTeamId = data.type === 'home' ? (data.currentTeamId || team.id) : data.opponentTeamId;
+      const awayTeamId = data.type === 'home' ? data.opponentTeamId : (data.currentTeamId || team.id);
+
+      // Create game payload matching backend schema
+      const gamePayload: Record<string, any> = {
+        title: `${data.currentTeam} vs ${data.opponent}`,
+        home_team: data.type === 'home' ? data.currentTeam : data.opponent,
+        away_team: data.type === 'home' ? data.opponent : data.currentTeam,
+        date: gameDateTime.toISOString(),
+        description: `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`,
+      };
+
+      if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+      if (awayTeamId) {
+        gamePayload.away_team_id = awayTeamId;
+      } else if (data.opponent) {
+        gamePayload.away_team_name = data.opponent;
+      }
+
+      if (data.banner_url) {
+        gamePayload.banner_url = data.banner_url;
+        gamePayload.cover_image_url = data.banner_url;
+      } else if (data.cover_image_url) {
+        gamePayload.cover_image_url = data.cover_image_url;
+      }
+
+      if (data.appearance) {
+        gamePayload.appearance = data.appearance;
+      }
+
+      console.log('manage-teams sending gamePayload:', JSON.stringify(gamePayload, null, 2));
+
       // Create game using the API
-      const newGame = await GameApi.create({
-        team_id: team.id,
-        opponent: data.opponent,
-        game_date: data.date,
-        game_time: data.time,
-        home_away: data.type,
-        banner_url: data.banner_url,
-        cover_image_url: data.cover_image_url,
-        appearance: data.appearance,
-      });
+      const newGame = await GameApi.create(gamePayload);
 
       setShowQuickAddModal(false);
       Alert.alert('Success', 'Game added successfully!', [

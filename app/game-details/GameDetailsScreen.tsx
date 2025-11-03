@@ -752,8 +752,11 @@ const GameDetailsScreen = () => {
         teams = mapTeams(summary.teams);
         dateIso = ensureIso(summary.date);
         title = summary.title ?? '';
-        homeTeam = summary.homeTeam ?? summary.home_team ?? null;
-        awayTeam = summary.awayTeam ?? summary.away_team ?? null;
+        // Extract team names - handle both string and object formats
+        const summaryHome = summary.homeTeam ?? summary.home_team ?? null;
+        const summaryAway = summary.awayTeam ?? summary.away_team ?? null;
+        homeTeam = typeof summaryHome === 'string' ? summaryHome : (summaryHome as any)?.name || null;
+        awayTeam = typeof summaryAway === 'string' ? summaryAway : (summaryAway as any)?.name || null;
       }
 
       if (!summary && gameRecord) {
@@ -767,8 +770,31 @@ const GameDetailsScreen = () => {
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
         isPast = computeIsPast(dateIso);
-        homeTeam = gameRecord.home_team || null;
-        awayTeam = gameRecord.away_team || null;
+        // Extract team names - handle both string and object formats
+        homeTeam = typeof gameRecord.home_team === 'string' 
+          ? gameRecord.home_team 
+          : (gameRecord.home_team as any)?.name || null;
+        awayTeam = typeof gameRecord.away_team === 'string'
+          ? gameRecord.away_team
+          : (gameRecord.away_team as any)?.name || null;
+        
+        // Build teams array from homeTeam and awayTeam relations
+        const teamsArray: TeamInfo[] = [];
+        if (gameRecord.homeTeam && typeof gameRecord.homeTeam === 'object') {
+          teamsArray.push({
+            id: gameRecord.homeTeam.id,
+            name: gameRecord.homeTeam.name,
+            avatarUrl: (gameRecord.homeTeam as any).avatar_url || null,
+          });
+        }
+        if (gameRecord.awayTeam && typeof gameRecord.awayTeam === 'object') {
+          teamsArray.push({
+            id: gameRecord.awayTeam.id,
+            name: gameRecord.awayTeam.name,
+            avatarUrl: (gameRecord.awayTeam as any).avatar_url || null,
+          });
+        }
+        teams = teamsArray;
       }
 
       if (!title) title = 'Game';
