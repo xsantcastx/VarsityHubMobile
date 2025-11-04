@@ -449,7 +449,6 @@ const openMaps = (location: string) => {
 
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
   const result = vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
-  console.log('pickBannerFromArrays:', { bannerUrl: vm.bannerUrl, coverImageUrl: vm.coverImageUrl, firstMediaUrl: media[0]?.url, result });
   return result;
 };
 
@@ -710,17 +709,19 @@ const GameDetailsScreen = () => {
 
   const loadGameById = useCallback(
     async (gameIdValue: string) => {
-      const summary: any = await Game.summary(gameIdValue).catch(() => null);
-      let gameRecord: any = null;
-      if (!summary) {
-        console.log('Loading game details for ID:', gameIdValue);
-        gameRecord = await Game.get(gameIdValue);
-        console.log('Loaded game record:', gameRecord);
-      }
-      const [postsData, mediaData] = await Promise.all([
-        Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
-        Game.media(gameIdValue).catch(() => summary?.media || []),
-      ]);
+      try {
+        const summary: any = await Game.summary(gameIdValue).catch(() => null);
+        let gameRecord: any = null;
+        if (!summary) {
+          gameRecord = await Game.get(gameIdValue).catch((err) => {
+            console.error('Error fetching game record:', err);
+            return null;
+          });
+        }
+        const [postsData, mediaData] = await Promise.all([
+          Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
+          Game.media(gameIdValue).catch(() => summary?.media || []),
+        ]);
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -842,10 +843,12 @@ const GameDetailsScreen = () => {
         isPast,
       };
 
-      console.log('Final game view model banner URL:', bannerCandidate);
-      console.log('Final game view model created');
       setVm(vmPayload);
       setActiveSection('overview');
+      } catch (error) {
+        console.error('Error in loadGameById:', error);
+        throw error; // Re-throw to be caught by outer try-catch
+      }
     },
     [],
   );
@@ -1564,13 +1567,6 @@ const renderVoteSection = () => {
     // Otherwise use homeTeam and awayTeam strings if available
     const homeTeam = vm?.homeTeam?.trim();
     const awayTeam = vm?.awayTeam?.trim();
-    
-    console.log('[GameDetails] Teams check:', { 
-      hasTeamsArray: !!vm?.teams?.length, 
-      teamsCount: vm?.teams?.length || 0,
-      homeTeam, 
-      awayTeam 
-    });
     
     if (!homeTeam && !awayTeam) {
       return (

@@ -21,7 +21,7 @@ export default function PrimaryButton({
       onPress={onPress} 
       disabled={disabled || loading}
       size="lg"
-      style={{ width: '100%', ...style }}
+      style={{ width: '100%', maxWidth: 400, alignSelf: 'center', ...style }}
     >
       {loading ? <ActivityIndicator color="white" /> : label}
     </Button>

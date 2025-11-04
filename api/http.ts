@@ -12,7 +12,9 @@ export function getApiBaseUrl(): string {
   if (Platform.OS === 'android' && url.startsWith('http://localhost')) {
     url = url.replace('http://localhost', 'http://10.0.2.2');
   }
-  return url.replace(/\/$/, '');
+  const finalUrl = url.replace(/\/$/, '');
+  console.log('[API] Using base URL:', finalUrl);
+  return finalUrl;
 }
 
 function getBaseUrl(): string {
@@ -31,35 +33,54 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
     headers['If-None-Match'] = headers['If-None-Match'] || '';
   }
 
-  const res = await fetch(base + path, { ...options, headers });
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-  // Handle 304 Not Modified: return a special object or null.
-  // The caller can then decide whether to use cached data or ignore.
-  if (res.status === 304) {
-    return { _status: 304, _isNotModified: true };
-  }
+  try {
+    const res = await fetch(base + path, { 
+      ...options, 
+      headers,
+      signal: controller.signal 
+    });
+    clearTimeout(timeoutId);
 
-  const text = await res.text();
-  const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
-  let data: any = null;
-  if (ct.includes('application/json')) {
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = null;
+    // Handle 304 Not Modified: return a special object or null.
+    // The caller can then decide whether to use cached data or ignore.
+    if (res.status === 304) {
+      return { _status: 304, _isNotModified: true };
     }
-  } else {
-    data = text; // plain text or HTML
-  }
 
-  if (!res.ok) {
-    const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
-    const err: any = new Error(msg || `HTTP ${res.status}`);
-    err.status = res.status;
-    err.data = data;
-    throw err;
+    const text = await res.text();
+    const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+    let data: any = null;
+    if (ct.includes('application/json')) {
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+    } else {
+      data = text; // plain text or HTML
+    }
+
+    if (!res.ok) {
+      const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
+      const err: any = new Error(msg || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return data;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      const err: any = new Error('Request timeout - server did not respond');
+      err.status = 408;
+      throw err;
+    }
+    throw error;
   }
-  return data;
 }
 
 export function httpGet(path: string, options: RequestInit = {}) {

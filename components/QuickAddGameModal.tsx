@@ -59,6 +59,7 @@ export interface QuickGameData {
   isCompetitive?: boolean; // Whether this is a competitive game or general event
   expectedAttendance?: number; // Expected number of attendees
   eventType?: EventType; // Type of event (game, fundraiser, watch_party, etc.)
+  description?: string; // Event description
   // Event type-specific fields
   donationGoal?: number; // For fundraisers
   watchLocation?: string; // For watch parties
@@ -66,12 +67,24 @@ export interface QuickGameData {
   watchLocationLng?: number; // Watch party location longitude
   watchLocationPlaceId?: string; // Watch party location place ID
   destination?: string; // For team trips
+  // Game venue fields
+  homeVenue?: string; // Home game venue name
+  homeVenueLat?: number; // Home game venue latitude
+  homeVenueLng?: number; // Home game venue longitude
+  awayVenue?: string; // Away game venue name
+  awayVenueLat?: number; // Away game venue latitude
+  awayVenueLng?: number; // Away game venue longitude
+  mapsUrl?: string; // Google Maps URL for the venue
 }
 
 type TeamOption = {
   id: string;
   name: string;
   logo?: string;
+  venue_address?: string | null;
+  venue_lat?: number | null;
+  venue_lng?: number | null;
+  venue_place_id?: string | null;
 };
 
 const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicons.glyphMap; description: string }[] = [
@@ -117,6 +130,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [expectedAttendance, setExpectedAttendance] = useState('');
   const [eventType, setEventType] = useState<EventType>('game'); // Default to game
   const [eventTitle, setEventTitle] = useState(''); // For non-competitive events
+  const [eventDescription, setEventDescription] = useState(''); // Event description
   
   // Event type-specific fields
   const [donationGoal, setDonationGoal] = useState('');
@@ -124,6 +138,14 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [watchLocationLat, setWatchLocationLat] = useState<number | undefined>();
   const [watchLocationLng, setWatchLocationLng] = useState<number | undefined>();
   const [watchLocationPlaceId, setWatchLocationPlaceId] = useState<string | undefined>();
+  
+  // Game venue state
+  const [homeVenue, setHomeVenue] = useState('');
+  const [homeVenueLat, setHomeVenueLat] = useState<number | undefined>();
+  const [homeVenueLng, setHomeVenueLng] = useState<number | undefined>();
+  const [awayVenue, setAwayVenue] = useState('');
+  const [awayVenueLat, setAwayVenueLat] = useState<number | undefined>();
+  const [awayVenueLng, setAwayVenueLng] = useState<number | undefined>();
   const [destination, setDestination] = useState('');
 
   // Update current team when prop changes or modal opens
@@ -198,9 +220,13 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         id: team.id,
         name: team.name,
         logo: team.logo_url || team.avatar_url,
+        venue_address: team.venue_address,
+        venue_lat: team.venue_lat,
+        venue_lng: team.venue_lng,
+        venue_place_id: team.venue_place_id,
       }));
       
-      console.log('Loaded teams:', teamOptions.map(t => ({ name: t.name, hasLogo: !!t.logo })));
+      console.log('Loaded teams:', teamOptions.map(t => ({ name: t.name, hasLogo: !!t.logo, hasVenue: !!t.venue_address })));
       
       // Add some default teams if none exist
       if (teamOptions.length === 0) {
@@ -235,6 +261,28 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setLoadingTeams(false);
     }
   };
+
+  // Set home venue when current team changes or modal opens
+  useEffect(() => {
+    if (currentTeam && visible) {
+      // Find the team data to get venue information
+      const teamData = teams.find(t => t.name === currentTeam);
+      
+      if (teamData?.venue_address) {
+        // Use actual team venue from database
+        setHomeVenue(teamData.venue_address);
+        setHomeVenueLat(teamData.venue_lat || undefined);
+        setHomeVenueLng(teamData.venue_lng || undefined);
+      } else {
+        // Fallback to default venue based on team name
+        const defaultHomeVenue = `${currentTeam} Stadium`;
+        setHomeVenue(defaultHomeVenue);
+        // Leave coordinates undefined if no venue data
+        setHomeVenueLat(undefined);
+        setHomeVenueLng(undefined);
+      }
+    }
+  }, [currentTeam, visible, teams]);
 
   // Filter teams for opponent selection (exclude current team and filter by search)
   const getFilteredOpponentTeams = () => {
@@ -272,6 +320,10 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!opponent.trim()) {
         newErrors.opponent = 'Opponent name is required';
       }
+      // Away games require venue location
+      if (gameType === 'away' && !awayVenue.trim()) {
+        newErrors.awayVenue = 'Away venue location is required';
+      }
     } else {
       // Non-competitive events need event title
       if (!eventTitle.trim()) {
@@ -308,6 +360,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       isCompetitive,
       expectedAttendance: expectedAttendance ? parseInt(expectedAttendance, 10) : undefined,
       eventType: isCompetitive ? 'game' : eventType, // Use 'game' for competitive, selected type for non-competitive
+      description: eventDescription.trim() || undefined, // Add description field
       // Event type-specific fields
       donationGoal: donationGoal ? parseFloat(donationGoal) : undefined,
       watchLocation: watchLocation.trim() || undefined,
@@ -315,6 +368,16 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       watchLocationLng,
       watchLocationPlaceId,
       destination: destination.trim() || undefined,
+      // Game venue fields
+      homeVenue: homeVenue.trim() || undefined,
+      homeVenueLat,
+      homeVenueLng,
+      awayVenue: awayVenue.trim() || undefined,
+      awayVenueLat,
+      awayVenueLng,
+      mapsUrl: gameType === 'away' && awayVenueLat && awayVenueLng 
+        ? `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`
+        : undefined,
     };
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
@@ -375,6 +438,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     setEventType('game');
     setExpectedAttendance('');
     setEventTitle('');
+    setEventDescription('');
     setDonationGoal('');
     setWatchLocation('');
     setDestination('');
@@ -652,6 +716,31 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             </View>
           )}
 
+          {/* Event Description - Show for all events */}
+          <View style={styles.formSection}>
+            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description (Optional)</Text>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+                color: Colors[colorScheme].text,
+                minHeight: 80,
+                paddingTop: 12,
+                textAlignVertical: 'top',
+              }]}
+              placeholder="Add details about this event..."
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={eventDescription}
+              onChangeText={setEventDescription}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+            />
+            <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+              {eventDescription.length}/500 characters
+            </Text>
+          </View>
+
           {/* Opponent Team - Only show if competitive */}
           {isCompetitive && (
             <View style={styles.formSection}>
@@ -777,6 +866,82 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               </Pressable>
             </View>
           </View>
+          )}
+
+          {/* Venue Location - Show for competitive games */}
+          {isCompetitive && (
+            <View style={styles.formSection}>
+              <View style={styles.labelWithIcon}>
+                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>
+                  {gameType === 'home' ? 'Home Venue' : 'Away Venue'}
+                </Text>
+                {gameType === 'home' && (
+                  <View style={styles.lockedBadge}>
+                    <Ionicons name="lock-closed" size={12} color={Colors[colorScheme].mutedText} />
+                    <Text style={[styles.lockedText, { color: Colors[colorScheme].mutedText }]}>Locked</Text>
+                  </View>
+                )}
+              </View>
+              
+              {gameType === 'home' ? (
+                /* Home Game - Locked to team's location */
+                <View style={[
+                  styles.lockedLocationContainer,
+                  { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }
+                ]}>
+                  <View style={styles.locationIconRow}>
+                    <Ionicons 
+                      name="home" 
+                      size={20} 
+                      color={Colors[colorScheme].mutedText} 
+                    />
+                    <Text style={[styles.lockedLocationText, { color: Colors[colorScheme].mutedText }]}>
+                      {homeVenue || currentTeam + ' Stadium'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText, fontSize: 12, marginTop: 6 }]}>
+                    Home location is set from your team profile. To change it, update your team settings.
+                  </Text>
+                </View>
+              ) : (
+                /* Away Game - Editable with Google Maps */
+                <View>
+                  <LocationPicker
+                    value={awayVenue}
+                    onLocationSelect={(location) => {
+                      setAwayVenue(location.address);
+                      setAwayVenueLat(location.latitude);
+                      setAwayVenueLng(location.longitude);
+                    }}
+                    placeholder="Search for away venue location..."
+                  />
+                  {awayVenue && awayVenueLat && awayVenueLng && (
+                    <Pressable 
+                      style={[styles.mapsLinkButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+                      onPress={() => {
+                        const url = `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`;
+                        // Open in browser or maps app
+                        Alert.alert('Open in Maps', 'This will open Google Maps', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Open', onPress: () => console.log('Open maps:', url) }
+                        ]);
+                      }}
+                    >
+                      <Ionicons name="map" size={16} color={Colors[colorScheme].tint} />
+                      <Text style={[styles.mapsLinkText, { color: Colors[colorScheme].tint }]}>
+                        View on Google Maps
+                      </Text>
+                    </Pressable>
+                  )}
+                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                    Required for away games. Search for the venue or drop a pin on the map.
+                  </Text>
+                  {errors.awayVenue && (
+                    <Text style={[styles.errorText, { color: '#DC2626' }]}>{errors.awayVenue}</Text>
+                  )}
+                </View>
+              )}
+            </View>
           )}
 
           {/* Expected Attendance - Show for all events */}
@@ -1558,5 +1723,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 14,
+  },
+  labelWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  lockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+  },
+  lockedText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  lockedLocationContainer: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  locationIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  lockedLocationText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  mapsLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  mapsLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -227,7 +227,7 @@ export default function Step1Role() {
             onPress={onContinue} 
             disabled={saving}
             size="lg"
-            style={{ width: '100%' }}
+            style={{ width: '100%', maxWidth: 400, alignSelf: 'center' }}
           >
             {saving ? <ActivityIndicator color="white" /> : 'Continue'}
           </Button>

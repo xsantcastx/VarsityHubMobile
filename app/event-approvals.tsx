@@ -9,6 +9,7 @@ import {
     FlatList,
     Pressable,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     View
@@ -47,6 +48,7 @@ export default function EventApprovalsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   
+  const [sectionTab, setSectionTab] = useState<'team-hub' | 'create-event' | 'approvals' | 'organization'>('approvals');
   const [events, setEvents] = useState<PendingEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -252,38 +254,195 @@ export default function EventApprovalsScreen() {
   
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="checkmark-done-circle" size={64} color={Colors[colorScheme].mutedText} />
-      <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>All Caught Up!</Text>
-      <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
-        No pending events to review at this time.
+      <Text style={[styles.emptyTitle, { color: Colors[colorScheme].mutedText }]}>The approval queue is empty.</Text>
+      <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>
+        Submitted events will appear here.
       </Text>
     </View>
   );
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Event Approvals', headerShown: true }} />
+      <Stack.Screen options={{ title: 'Approvals', headerShown: true }} />
       
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+      {/* Header Section */}
+      <View style={styles.headerSection}>
+        <View style={[styles.iconContainer, { backgroundColor: '#F59E0B' }]}>
+          <Ionicons name="notifications" size={32} color="#fff" />
         </View>
-      ) : (
-        <FlatList
-          data={events}
-          renderItem={renderEventCard}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={renderEmpty}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={Colors[colorScheme].tint}
-            />
-          }
-        />
-      )}
+        <View style={styles.headerTextContainer}>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Approval Queue</Text>
+          <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+            Review events submitted by the community.
+          </Text>
+        </View>
+      </View>
+      
+      {/* Section Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.sectionTabBar, { borderBottomColor: Colors[colorScheme].border }]}
+        contentContainerStyle={styles.sectionTabContent}
+      >
+        <Pressable
+          style={[
+            styles.sectionTab,
+            sectionTab === 'team-hub' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
+          ]}
+          onPress={() => setSectionTab('team-hub')}
+        >
+          <Text style={[
+            styles.sectionTabLabel,
+            {
+              color: sectionTab === 'team-hub' ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+              fontWeight: sectionTab === 'team-hub' ? '600' : '400'
+            }
+          ]}>
+            Team Hub
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.sectionTab,
+            sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
+          ]}
+          onPress={() => router.push('/create-fan-event')}
+        >
+          <Text style={[
+            styles.sectionTabLabel,
+            {
+              color: sectionTab === 'create-event' ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+              fontWeight: sectionTab === 'create-event' ? '600' : '400'
+            }
+          ]}>
+            Create Event
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.sectionTab,
+            sectionTab === 'approvals' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
+          ]}
+          onPress={() => setSectionTab('approvals')}
+        >
+          <Text style={[
+            styles.sectionTabLabel,
+            {
+              color: sectionTab === 'approvals' ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+              fontWeight: sectionTab === 'approvals' ? '600' : '400'
+            }
+          ]}>
+            Approvals
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.sectionTab,
+            sectionTab === 'organization' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
+          ]}
+          onPress={() => setSectionTab('organization')}
+        >
+          <Text style={[
+            styles.sectionTabLabel,
+            {
+              color: sectionTab === 'organization' ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
+              fontWeight: sectionTab === 'organization' ? '600' : '400'
+            }
+          ]}>
+            Organization
+          </Text>
+        </Pressable>
+      </ScrollView>
+      
+      {/* Content based on selected tab */}
+      {sectionTab === 'approvals' ? (
+        loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+          </View>
+        ) : (
+          <FlatList
+            data={events}
+            renderItem={renderEventCard}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            ListEmptyComponent={renderEmpty}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors[colorScheme].tint}
+              />
+            }
+          />
+        )
+      ) : sectionTab === 'team-hub' ? (
+        <View style={styles.contentSection}>
+          <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View style={styles.sectionCardHeader}>
+              <View style={[styles.sectionIconContainer, { backgroundColor: '#3B82F6' }]}>
+                <Ionicons name="shield-checkmark" size={28} color="#fff" />
+              </View>
+              <View style={styles.sectionCardTextContainer}>
+                <Text style={[styles.sectionCardTitle, { color: Colors[colorScheme].text }]}>Team Management</Text>
+                <Text style={[styles.sectionCardSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  Create new teams and manage existing ones.
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.emptyStateBox, { borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
+                You haven't created your organization yet.
+              </Text>
+              <Text style={[styles.emptyStateSubtext, { color: Colors[colorScheme].mutedText }]}>
+                Set up your school or league page to get started.
+              </Text>
+              <Pressable
+                style={[styles.createButton, { backgroundColor: '#3B82F6' }]}
+                onPress={() => router.push('/create-team')}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles.createButtonText}>Create Organization</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : sectionTab === 'organization' ? (
+        <View style={styles.contentSection}>
+          <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            <View style={styles.sectionCardHeader}>
+              <View style={[styles.sectionIconContainer, { backgroundColor: '#8B5CF6' }]}>
+                <Ionicons name="business" size={28} color="#fff" />
+              </View>
+              <View style={styles.sectionCardTextContainer}>
+                <Text style={[styles.sectionCardTitle, { color: Colors[colorScheme].text }]}>Organizations</Text>
+                <Text style={[styles.sectionCardSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  View and manage your organizations.
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.emptyStateBox, { borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
+                No organizations found.
+              </Text>
+              <Text style={[styles.emptyStateSubtext, { color: Colors[colorScheme].mutedText }]}>
+                Create your first organization to get started.
+              </Text>
+              <Pressable
+                style={[styles.createButton, { backgroundColor: '#8B5CF6' }]}
+                onPress={() => router.push('/create-team')}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles.createButtonText}>Create Organization</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -291,6 +450,31 @@ export default function EventApprovalsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 12,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -385,15 +569,109 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
+    paddingHorizontal: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(128, 128, 128, 0.2)',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    margin: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 16,
+    fontSize: 16,
+    fontWeight: '400',
+    textAlign: 'center',
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
     textAlign: 'center',
+  },
+  sectionTabBar: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    backgroundColor: 'transparent',
+  },
+  sectionTabContent: {
+    paddingVertical: 2,
+    gap: 16,
+  },
+  sectionTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  sectionTabLabel: {
+    fontSize: 13,
+  },
+  contentSection: {
+    flex: 1,
+    padding: 0,
+  },
+  sectionCard: {
+    borderRadius: 0,
+    borderWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  sectionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    gap: 10,
+  },
+  sectionIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionCardTextContainer: {
+    flex: 1,
+  },
+  sectionCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  sectionCardSubtitle: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  emptyStateBox: {
+    padding: 16,
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  emptyStateSubtext: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  createButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

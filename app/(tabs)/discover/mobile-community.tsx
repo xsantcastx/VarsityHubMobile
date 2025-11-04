@@ -11,9 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Game, Post, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
+import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
-import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
@@ -90,7 +90,6 @@ export default function CommunityDiscoverScreen() {
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [sectionTab, setSectionTab] = useState<'events' | 'team-hub' | 'create-event' | 'approvals' | 'organization'>('events');
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -235,9 +234,9 @@ export default function CommunityDiscoverScreen() {
           ? `${data.currentTeam} vs ${data.opponent}`
           : `${data.currentTeam} Event`,
         date: gameDateTime.toISOString(),
-        description: data.isCompetitive
+        description: data.description || (data.isCompetitive
           ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
-          : `Event for ${data.currentTeam}`,
+          : `Event for ${data.currentTeam}`),
       };
 
       // Only add team fields if this is a competitive game
@@ -436,6 +435,14 @@ export default function CommunityDiscoverScreen() {
             <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
             <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
           </Pressable>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+            onPress={() => router.push('/event-approvals')}
+          >
+            <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
+          </Pressable>
         </ScrollView>
       </View>
 
@@ -586,120 +593,7 @@ export default function CommunityDiscoverScreen() {
   <View style={[styles.container, { paddingTop: 12 + insets.top, backgroundColor: Colors[colorScheme].background }]}>      
       <Stack.Screen options={{ title: 'Discover' }} />
       
-      {/* Section Tabs */}
-      <View style={[styles.sectionTabBar, { 
-        backgroundColor: Colors[colorScheme].surface,
-        borderBottomColor: Colors[colorScheme].border 
-      }]}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.sectionTabContent}
-        >
-          <Pressable
-            style={[
-              styles.sectionTab,
-              sectionTab === 'events' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => setSectionTab('events')}
-          >
-            <Ionicons 
-              name="calendar-outline" 
-              size={18} 
-              color={sectionTab === 'events' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-            />
-            <Text style={[
-              styles.sectionTabLabel,
-              { color: sectionTab === 'events' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
-            ]}>
-              Events
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.sectionTab,
-              sectionTab === 'team-hub' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => router.push('/manage-teams')}
-          >
-            <Ionicons 
-              name="shield-outline" 
-              size={18} 
-              color={sectionTab === 'team-hub' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-            />
-            <Text style={[
-              styles.sectionTabLabel,
-              { color: sectionTab === 'team-hub' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
-            ]}>
-              Team Hub
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.sectionTab,
-              sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => setCreateEventModalOpen(true)}
-          >
-            <Ionicons 
-              name="add-circle-outline" 
-              size={18} 
-              color={sectionTab === 'create-event' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-            />
-            <Text style={[
-              styles.sectionTabLabel,
-              { color: sectionTab === 'create-event' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
-            ]}>
-              Create Event
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.sectionTab,
-              sectionTab === 'approvals' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => router.push('/event-approvals')}
-          >
-            <Ionicons 
-              name="notifications-outline" 
-              size={18} 
-              color={sectionTab === 'approvals' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-            />
-            <Text style={[
-              styles.sectionTabLabel,
-              { color: sectionTab === 'approvals' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
-            ]}>
-              Approvals
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.sectionTab,
-              sectionTab === 'organization' && { borderBottomColor: Colors[colorScheme].tint, borderBottomWidth: 2 }
-            ]}
-            onPress={() => setSectionTab('organization')}
-          >
-            <Ionicons 
-              name="business-outline" 
-              size={18} 
-              color={sectionTab === 'organization' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-            />
-            <Text style={[
-              styles.sectionTabLabel,
-              { color: sectionTab === 'organization' ? Colors[colorScheme].tint : Colors[colorScheme].mutedText }
-            ]}>
-              Organization
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </View>
-      
-      {/* Section Content */}
-      {sectionTab === 'events' && viewMode === 'map' ? (
+      {viewMode === 'map' ? (
         /* Map View - Simplified without ListHeader */
         <View style={{ flex: 1 }}>
           {/* Just the search and toggle button */}
@@ -777,7 +671,7 @@ export default function CommunityDiscoverScreen() {
             );
           })()}
         </View>
-      ) : sectionTab === 'events' ? (
+      ) : (
         /* List View */
         <FlatList
           style={{ flex: 1 }}
@@ -821,38 +715,7 @@ export default function CommunityDiscoverScreen() {
           onRefresh={onRefresh}
           keyboardShouldPersistTaps="handled"
         />
-      ) : sectionTab === 'team-hub' ? (
-        <View style={[styles.center, { flex: 1 }]}>
-          <Ionicons name="people-outline" size={64} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.helper, { marginTop: 16 }]}>Team Hub - Coming Soon</Text>
-          <Text style={[styles.helper, { fontSize: 14 }]}>Manage your teams and players</Text>
-        </View>
-      ) : sectionTab === 'approvals' ? (
-        <View style={[styles.center, { flex: 1 }]}>
-          <Ionicons name="checkmark-circle-outline" size={64} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.helper, { marginTop: 16 }]}>Event Approvals</Text>
-          <Pressable 
-            onPress={() => router.push('/event-approvals')}
-            style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>View Pending Events</Text>
-          </Pressable>
-        </View>
-      ) : sectionTab === 'organization' ? (
-        <View style={[styles.center, { flex: 1 }]}>
-          <Ionicons name="business-outline" size={64} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.helper, { marginTop: 16 }]}>Organization</Text>
-          <Text style={[styles.helper, { fontSize: 14, textAlign: 'center', paddingHorizontal: 32 }]}>
-            Manage your organization, teams, and members
-          </Text>
-          <Pressable 
-            onPress={() => router.push('/create-team')}
-            style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].tint, paddingHorizontal: 24, paddingVertical: 12, marginTop: 16 }]}
-          >
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Create Team</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
         <GameVerticalFeedScreen

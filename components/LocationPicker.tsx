@@ -1,10 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore - No type declarations available
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 
 interface LocationPickerProps {
   value: string;
@@ -50,99 +48,6 @@ export default function LocationPicker({
     );
   }
 
-  if (showAutocomplete) {
-    return (
-      <View style={[styles.autocompleteContainer, { 
-        backgroundColor: Colors[colorScheme].surface,
-        borderColor: Colors[colorScheme].border,
-      }]}>
-        <GooglePlacesAutocomplete
-          placeholder={placeholder}
-          onPress={(data, details = null) => {
-            onLocationSelect({
-              address: data.description,
-              placeId: data.place_id,
-              latitude: details?.geometry?.location?.lat,
-              longitude: details?.geometry?.location?.lng,
-            });
-            setShowAutocomplete(false);
-          }}
-          query={{
-            key: apiKey,
-            language: 'en',
-          }}
-          fetchDetails={true}
-          enablePoweredByContainer={false}
-          onFail={(error) => {
-            console.error('Google Places error:', error);
-          }}
-          listViewDisplayed={false}
-          styles={{
-            textInput: {
-              backgroundColor: Colors[colorScheme].surface,
-              color: Colors[colorScheme].text,
-              fontSize: 16,
-              borderWidth: 1,
-              borderColor: Colors[colorScheme].border,
-              borderRadius: 12,
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-            },
-            listView: {
-              backgroundColor: Colors[colorScheme].surface,
-              borderRadius: 12,
-              marginTop: 8,
-            },
-            row: {
-              backgroundColor: Colors[colorScheme].surface,
-              padding: 13,
-              height: 56,
-            },
-            separator: {
-              height: StyleSheet.hairlineWidth,
-              backgroundColor: Colors[colorScheme].border,
-            },
-            description: {
-              color: Colors[colorScheme].text,
-            },
-            predefinedPlacesDescription: {
-              color: Colors[colorScheme].tint,
-            },
-          }}
-          textInputProps={{
-            placeholderTextColor: Colors[colorScheme].mutedText,
-            returnKeyType: 'search',
-            autoFocus: true,
-            onBlur: () => setShowAutocomplete(false),
-          }}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <Pressable
-        style={[styles.input, { 
-          backgroundColor: Colors[colorScheme].surface,
-          borderColor: error ? '#EF4444' : Colors[colorScheme].border,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }]}
-        onPress={() => setShowAutocomplete(true)}
-      >
-        <Text style={[{ 
-          color: value ? Colors[colorScheme].text : Colors[colorScheme].mutedText,
-          flex: 1,
-        }]}>
-          {value || placeholder}
-        </Text>
-        <Ionicons name="location-outline" size={20} color={Colors[colorScheme].mutedText} />
-      </Pressable>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({

@@ -69,16 +69,16 @@ function getVariantStyles(variant: Variant) {
   }
 }
 
-function getSizeStyles(size: Size) {
+function getSizeStyles(size: Size): { container: ViewStyle; text: TextStyle } {
   switch (size) {
     case 'sm':
-      return { container: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10 }, text: { fontSize: 14 } };
+      return { container: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 }, text: { fontSize: 14 } };
     case 'lg':
-      return { container: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14 }, text: { fontSize: 18 } };
+      return { container: { paddingVertical: 16, paddingHorizontal: 24, borderRadius: 12 }, text: { fontSize: 17, fontWeight: '600' as const } };
     case 'icon':
       return { container: { padding: 10, width: 44, height: 44, borderRadius: 999 }, text: { fontSize: 16 } };
     default:
-      return { container: {}, text: { fontSize: 16 } };
+      return { container: { paddingVertical: 12, paddingHorizontal: 16 }, text: { fontSize: 16 } };
   }
 }
 

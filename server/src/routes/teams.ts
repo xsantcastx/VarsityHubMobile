@@ -165,14 +165,12 @@ teamsRouter.get('/', async (req, res) => {
     city: (t as any).city || null,
     state: (t as any).state || null,
     league: (t as any).league || null,
-    sport: t.sport || null,
-    venue: (t as any).venue_place_id ? {
-      place_id: (t as any).venue_place_id,
-      lat: (t as any).venue_lat,
-      lng: (t as any).venue_lng,
-      address: (t as any).venue_address,
-      updated_at: (t as any).venue_updated_at,
-    } : null,
+    sport: (t as any).sport || null,
+    // Venue information for home games
+    venue_address: (t as any).venue_address || null,
+    venue_lat: (t as any).venue_lat || null,
+    venue_lng: (t as any).venue_lng || null,
+    venue_place_id: (t as any).venue_place_id || null,
   }));
   return res.json(list);
 });
