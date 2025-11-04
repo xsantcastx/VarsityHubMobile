@@ -18,6 +18,19 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
+const THEME_COLOR_GRADIENTS: { [key: string]: string[] } = {
+  '#3B82F6': ['#1e3a8a', '#3b82f6', '#60a5fa'], // VarsityHub Blue
+  '#DC2626': ['#7f1d1d', '#dc2626', '#ef4444'], // Championship Red
+  '#10B981': ['#065f46', '#10b981', '#34d399'], // Victory Green
+  '#F59E0B': ['#78350f', '#f59e0b', '#fbbf24'], // Gold Medal
+  '#8B5CF6': ['#4c1d95', '#8b5cf6', '#a78bfa'], // Royal Purple
+  '#6B7280': ['#1f2937', '#6b7280', '#9ca3af'], // Classic Gray
+};
+
+const getGradientForColor = (color: string): string[] => {
+  return THEME_COLOR_GRADIENTS[color] || THEME_COLOR_GRADIENTS['#3B82F6'];
+};
+
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
   if (!id) return null;
@@ -89,6 +102,7 @@ export default function ProfileScreen() {
   const rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
+  const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -155,6 +169,10 @@ export default function ProfileScreen() {
       const u: any = await User.me();
       if (u && !u._isNotModified) setMe(u ?? null);
       if (!u?.id) { setLoading(false); return; }
+
+      // Extract theme color from preferences
+      const themeColor = u?.preferences?.theme_color || '#3B82F6';
+      setUserThemeColor(themeColor);
 
       // Load organizations - get user's teams and extract their organizations
       try {
@@ -340,9 +358,9 @@ export default function ProfileScreen() {
     <>
       {/* Modern Sport-Inspired Header */}
       <View style={styles.headerContainer}>
-        {/* Background Gradient */}
+        {/* Background Gradient with User's Theme Color */}
         <LinearGradient
-          colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+          colors={getGradientForColor(userThemeColor) as any}
           style={styles.headerGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
