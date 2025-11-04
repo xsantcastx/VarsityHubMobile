@@ -66,25 +66,25 @@ export default function SafeZonePolicyScreen() {
             </Text>
           </View>
           <Text style={[styles.policyText, { color: theme.mutedText }]}>
-            Verified coaches and team staff can message their team members for coordination and support.
+            Verified coaches and staff members have special permissions to communicate with their team members:
           </Text>
           <View style={styles.bulletList}>
             <View style={styles.bulletRow}>
-              <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+              <Ionicons name="people" size={18} color="#F59E0B" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Coaches must complete verification process
+                Coaches are automatically placed in group chats with all team members
               </Text>
             </View>
             <View style={styles.bulletRow}>
-              <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+              <Ionicons name="shield-checkmark" size={18} color="#10B981" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Messaging limited to team-related communication
+                Group chats allow safe communication between coaches and verified team members
               </Text>
             </View>
             <View style={styles.bulletRow}>
-              <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+              <Ionicons name="person-add" size={18} color="#F59E0B" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Subject to monitoring and review
+                Parents can request to be added to team group chats for visibility
               </Text>
             </View>
           </View>
