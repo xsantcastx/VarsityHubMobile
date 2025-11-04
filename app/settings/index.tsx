@@ -317,6 +317,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     <SectionCard title="Legal">
                       <NavRow title="Privacy Policy" subtitle="How we protect your data" onPress={() => router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" subtitle="Rules and guidelines" onPress={() => router.push('/settings/terms-of-service')} />
+                      <NavRow title="Safe Zone Policy" subtitle="Messaging safety & protection" onPress={() => router.push('/settings/safe-zone-policy')} />
                       <NavRow title="View Core Values" onPress={() => router.push('/settings/core-values')} />
                       <NavRow title="Report Abuse" onPress={() => router.push('/report-abuse')} />
                       <NavRow title="DM Restrictions Summary" onPress={() => router.push('/dm-restrictions')} />

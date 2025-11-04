@@ -1,8 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
     Modal,
     Pressable,
@@ -13,23 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const SAFE_ZONE_KEY = 'hasSeenSafeZonePolicy';
-
 export default function CoreValuesScreen() {
   const colorScheme = useColorScheme();
   const [showSafeZoneModal, setShowSafeZoneModal] = useState(false);
 
-  useEffect(() => {
-    // Check if user has seen the Safe Zone Policy modal before
-    AsyncStorage.getItem(SAFE_ZONE_KEY).then((val) => {
-      if (!val) {
-        setShowSafeZoneModal(true);
-      }
-    });
-  }, []);
-
-  const handleCloseSafeZone = async () => {
-    await AsyncStorage.setItem(SAFE_ZONE_KEY, 'true');
+  const handleCloseSafeZone = () => {
     setShowSafeZoneModal(false);
   };
 
