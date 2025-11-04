@@ -371,8 +371,8 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
-      home_team: { select: { id: true, name: true, avatar_url: true } },
-      away_team: { select: { id: true, name: true, avatar_url: true } },
+      homeTeam: { select: { id: true, name: true, avatar_url: true } },
+      awayTeam: { select: { id: true, name: true, avatar_url: true } },
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
