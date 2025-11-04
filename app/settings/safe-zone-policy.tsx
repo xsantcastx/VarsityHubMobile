@@ -15,46 +15,48 @@ export default function SafeZonePolicyScreen() {
       <Stack.Screen options={{ title: 'Safe Zone Policy' }} />
       
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Ionicons name="shield-checkmark" size={56} color={theme.tint} />
-          <Text style={[styles.title, { color: theme.text }]}>Safe Zone Policy</Text>
-          <Text style={[styles.subtitle, { color: theme.mutedText }]}>
-            VarsityHub's commitment to user safety
+        {/* Mission Statement */}
+        <View style={[styles.missionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.missionHeader, { color: theme.text }]}>OUR MISSION</Text>
+          <Text style={[styles.missionText, { color: theme.mutedText }]}>
+            VarsityHub is dedicated to bringing communities together to empower athletes, coaches, parents, and fans that make local sports legendary.
           </Text>
         </View>
 
-        {/* DM Policy for Minors */}
+        {/* Messaging Policy */}
         <View style={[styles.policyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.policyHeader}>
             <Ionicons name="chatbubble-ellipses-outline" size={28} color="#DC2626" />
             <Text style={[styles.policyTitle, { color: theme.text }]}>
-              DM Policy for Minors
+              Messaging Policy
             </Text>
           </View>
           <Text style={[styles.policyText, { color: theme.mutedText }]}>
-            Users 18+ cannot directly message users under 18 for safety reasons.
+            To protect minors, our messaging system enforces age-based restrictions:
           </Text>
           <View style={styles.bulletList}>
             <View style={styles.bulletRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+              <Ionicons name="person-outline" size={18} color="#3B82F6" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Minors can message other minors safely
+                Users 17 & under: Can only send direct messages to others under 18
               </Text>
             </View>
             <View style={styles.bulletRow}>
-              <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+              <Ionicons name="people-outline" size={18} color="#10B981" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Adults can message other adults freely
+                Users 18+: Can only message other adults and verified coaches/staff members
               </Text>
             </View>
             <View style={styles.bulletRow}>
               <Ionicons name="close-circle" size={18} color="#DC2626" />
               <Text style={[styles.bulletText, { color: theme.mutedText }]}>
-                Adults cannot DM minors (exception: verified coaches)
+                Cross-age messaging: Blocked by default to prevent inappropriate contact
               </Text>
             </View>
           </View>
+          <Text style={[styles.policyFootnote, { color: theme.mutedText }]}>
+            These limits help maintain VarsityHub as a safe and respectful community.
+          </Text>
         </View>
 
         {/* Coach Exception */}
@@ -167,19 +169,23 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  header: {
+  missionCard: {
+    marginBottom: 24,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
-    marginBottom: 28,
   },
-  title: {
-    fontSize: 28,
+  missionHeader: {
+    fontSize: 16,
     fontWeight: '800',
-    marginTop: 16,
-    marginBottom: 8,
+    letterSpacing: 1.5,
+    marginBottom: 12,
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 15,
+  missionText: {
+    fontSize: 16,
+    lineHeight: 26,
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -204,6 +210,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 16,
+  },
+  policyFootnote: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   bulletList: {
     gap: 10,

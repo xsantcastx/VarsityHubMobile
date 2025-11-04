@@ -1,9 +1,7 @@
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import {
-    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -14,11 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CoreValuesScreen() {
   const colorScheme = useColorScheme();
-  const [showSafeZoneModal, setShowSafeZoneModal] = useState(false);
-
-  const handleCloseSafeZone = () => {
-    setShowSafeZoneModal(false);
-  };
+  const router = useRouter();
 
   const isDark = colorScheme === 'dark';
 
@@ -32,7 +26,7 @@ export default function CoreValuesScreen() {
           title: 'Core Values',
           headerRight: () => (
             <Pressable
-              onPress={() => setShowSafeZoneModal(true)}
+              onPress={() => router.push('/settings/safe-zone-policy')}
               style={styles.headerButton}
             >
               <Ionicons
@@ -200,160 +194,12 @@ export default function CoreValuesScreen() {
               backgroundColor: isDark ? '#3B82F6' : '#2563EB',
             },
           ]}
-          onPress={() => setShowSafeZoneModal(true)}
+          onPress={() => router.push('/settings/safe-zone-policy')}
         >
           <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
           <Text style={styles.safeZoneButtonText}>View Safe Zone Policy</Text>
         </Pressable>
       </ScrollView>
-
-      {/* Safe Zone Policy Modal */}
-      <Modal
-        visible={showSafeZoneModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCloseSafeZone}
-      >
-        <Pressable style={styles.modalOverlay} onPress={handleCloseSafeZone}>
-          <Pressable
-            style={[
-              styles.modalContent,
-              { backgroundColor: isDark ? '#1F2937' : '#FFFFFF' },
-            ]}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={styles.modalHeader}>
-              <Ionicons
-                name="shield-checkmark"
-                size={40}
-                color={isDark ? '#60A5FA' : '#3B82F6'}
-              />
-              <Text
-                style={[styles.modalTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}
-              >
-                Safe Zone Policy
-              </Text>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              {/* DM Policy for Minors */}
-              <View style={styles.policyItem}>
-                <View
-                  style={[
-                    styles.policyIcon,
-                    { backgroundColor: isDark ? '#374151' : '#F3F4F6' },
-                  ]}
-                >
-                  <Ionicons
-                    name="lock-closed"
-                    size={24}
-                    color={isDark ? '#60A5FA' : '#3B82F6'}
-                  />
-                </View>
-                <View style={styles.policyText}>
-                  <Text
-                    style={[
-                      styles.policyTitle,
-                      { color: isDark ? '#ECEDEE' : '#11181C' },
-                    ]}
-                  >
-                    DM Policy for Minors
-                  </Text>
-                  <Text
-                    style={[
-                      styles.policyDescription,
-                      { color: isDark ? '#D1D5DB' : '#6B7280' },
-                    ]}
-                  >
-                    Users 18 and older can only send direct messages to coaches and staff.
-                    This protects minors from unsolicited contact with adults.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Coach Exception */}
-              <View style={styles.policyItem}>
-                <View
-                  style={[
-                    styles.policyIcon,
-                    { backgroundColor: isDark ? '#374151' : '#F3F4F6' },
-                  ]}
-                >
-                  <Ionicons
-                    name="people"
-                    size={24}
-                    color={isDark ? '#34D399' : '#10B981'}
-                  />
-                </View>
-                <View style={styles.policyText}>
-                  <Text
-                    style={[
-                      styles.policyTitle,
-                      { color: isDark ? '#ECEDEE' : '#11181C' },
-                    ]}
-                  >
-                    Coach Exception
-                  </Text>
-                  <Text
-                    style={[
-                      styles.policyDescription,
-                      { color: isDark ? '#D1D5DB' : '#6B7280' },
-                    ]}
-                  >
-                    Verified coaches are automatically placed in group chats with their team
-                    members, allowing safe communication with players of all ages.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Anti-Bullying Reminder */}
-              <View style={styles.policyItem}>
-                <View
-                  style={[
-                    styles.policyIcon,
-                    { backgroundColor: isDark ? '#374151' : '#F3F4F6' },
-                  ]}
-                >
-                  <Ionicons
-                    name="hand-left"
-                    size={24}
-                    color={isDark ? '#F59E0B' : '#F59E0B'}
-                  />
-                </View>
-                <View style={styles.policyText}>
-                  <Text
-                    style={[
-                      styles.policyTitle,
-                      { color: isDark ? '#ECEDEE' : '#11181C' },
-                    ]}
-                  >
-                    Anti-Bullying Reminder
-                  </Text>
-                  <Text
-                    style={[
-                      styles.policyDescription,
-                      { color: isDark ? '#D1D5DB' : '#6B7280' },
-                    ]}
-                  >
-                    VarsityHub has a zero-tolerance policy for hate speech, harassment, or
-                    bullying. Users can block and report inappropriate behavior at any time.
-                  </Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <Pressable
-              style={[
-                styles.gotItButton,
-                { backgroundColor: isDark ? '#3B82F6' : '#2563EB' },
-              ]}
-              onPress={handleCloseSafeZone}
-            >
-              <Text style={styles.gotItButtonText}>Got it!</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -412,67 +258,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   safeZoneButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 500,
-    borderRadius: 16,
-    padding: 24,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    marginTop: 12,
-  },
-  modalScroll: {
-    marginBottom: 20,
-  },
-  policyItem: {
-    flexDirection: 'row',
-    marginBottom: 20,
-    gap: 12,
-  },
-  policyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  policyText: {
-    flex: 1,
-  },
-  policyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  policyDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  gotItButton: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  gotItButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
