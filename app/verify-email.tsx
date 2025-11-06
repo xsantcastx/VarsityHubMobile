@@ -19,6 +19,7 @@ export default function VerifyEmailScreen() {
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [isVerified, setIsVerified] = useState(false);
 
   // Load dev code from params if available
   useEffect(() => {
@@ -59,9 +60,34 @@ export default function VerifyEmailScreen() {
       console.log('[verify-email] Attempting to verify with code:', code.trim());
       const result = await User.verifyEmail(code.trim());
       console.log('[verify-email] Verification result:', result);
-      setInfo('✅ Email verified successfully! You can go back now.');
+      setInfo('✅ Email verified successfully!');
       setCode(''); // Clear the code input
-      // Don't auto-redirect - let user go back manually
+      setIsVerified(true);
+      
+      // After successful verification, check if user needs onboarding
+      try {
+        const userInfo = await User.me();
+        console.log('[verify-email] User info after verification:', userInfo);
+        
+        const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
+        
+        // Auto-redirect after 3 seconds, but user can click Continue earlier
+        setTimeout(() => {
+          if (needsOnboarding) {
+            console.log('[verify-email] Auto-redirecting to onboarding...');
+            router.replace('/onboarding/step-1-role');
+          } else {
+            console.log('[verify-email] Auto-redirecting to main app...');
+            router.replace('/(tabs)/feed' as any);
+          }
+        }, 3000); // Longer delay to let user see success and choose to continue manually
+        
+      } catch (userError) {
+        console.error('[verify-email] Failed to get user info, defaulting to onboarding:', userError);
+        setTimeout(() => {
+          router.replace('/onboarding/step-1-role');
+        }, 3000);
+      }
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
@@ -84,6 +110,23 @@ export default function VerifyEmailScreen() {
       setError(errorMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onContinue = async () => {
+    console.log('[verify-email] User clicked Continue, proceeding immediately...');
+    try {
+      const userInfo = await User.me();
+      const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
+      
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+      } else {
+        router.replace('/(tabs)/feed' as any);
+      }
+    } catch (userError) {
+      console.error('[verify-email] Failed to get user info:', userError);
+      router.replace('/onboarding/step-1-role');
     }
   };
 
@@ -131,20 +174,36 @@ export default function VerifyEmailScreen() {
         />
       </View>
       
-      <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
-        {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
-      </Button>
+      {isVerified ? (
+        <Button onPress={onContinue} style={styles.verifyButton}>
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
+        </Button>
+      ) : (
+        <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
+          {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+        </Button>
+      )}
       
-      <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
-        <Pressable onPress={onResend} disabled={loading}>
-          <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+      {!isVerified && (
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
+          <Pressable onPress={onResend} disabled={loading}>
+            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+          </Pressable>
+        </View>
+      )}
+      
+      {!isVerified && (
+        <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
+          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
         </Pressable>
-      </View>
+      )}
       
-      <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
-        <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
-      </Pressable>
+      {isVerified && (
+        <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
+          Automatically continuing in a few seconds...
+        </Text>
+      )}
     </SafeAreaView>
   );
 }
@@ -192,4 +251,5 @@ const styles = StyleSheet.create({
     marginBottom: 16 
   },
   devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
+  autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
 });

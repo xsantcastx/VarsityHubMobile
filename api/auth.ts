@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { httpGet, httpPost, setAuthToken, clearAuthToken, getAuthToken } from './http';
+import { httpGet, httpPost, httpPostLongTimeout, setAuthToken, clearAuthToken, getAuthToken } from './http';
 
 const TOKEN_KEY = 'vh_access_token';
 
@@ -29,7 +29,7 @@ export async function loadToken(): Promise<string | null> {
 
 export const auth = {
   async register(email: string, password: string, display_name?: string) {
-    const res = await httpPost('/auth/register', { email, password, display_name });
+    const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
     if ((res as any)?.access_token) await saveToken((res as any).access_token);
     return res;
   },

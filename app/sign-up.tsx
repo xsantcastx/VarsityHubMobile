@@ -21,12 +21,60 @@ export default function SignUpScreen() {
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const attemptRegistration = async (attempt: number = 1): Promise<any> => {
+    console.log(`[sign-up] Registration attempt ${attempt}/3`);
+    setRetryCount(attempt > 1 ? attempt : 0);
+    
+    try {
+      return await User.register(email, password, name || undefined);
+    } catch (e: any) {
+      console.log(`[sign-up] Attempt ${attempt} failed with error:`, e?.message);
+      
+      // Handle the race condition: if we get "Email already registered" on retry,
+      // it likely means the first attempt actually succeeded but we didn't get the response
+      if (attempt > 1 && e?.message?.includes('Email already registered')) {
+        console.log(`[sign-up] Detected race condition - user likely created in previous attempt. Attempting login...`);
+        try {
+          // Try to sign in with the same credentials
+          const loginResult = await User.loginViaEmailPassword(email, password);
+          console.log(`[sign-up] Successfully recovered from race condition via login:`, loginResult);
+          // Return the login result as if it was a successful registration
+          return loginResult;
+        } catch (loginError: any) {
+          console.error(`[sign-up] Recovery login failed:`, loginError?.message);
+          // If login fails, the user might not have been created after all
+          // Or there might be a password issue - throw a helpful error
+          throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
+        }
+      }
+      
+      // Only retry on timeout or network errors, not validation errors
+      const isRetryableError = e?.message?.includes('Request timeout') || 
+                              e?.message?.includes('Network request failed') ||
+                              e?.message?.includes('fetch');
+      
+      if (isRetryableError && attempt < 3) {
+        console.log(`[sign-up] Attempt ${attempt} failed, retrying...`);
+        setRetryCount(attempt);
+        // Wait a bit before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+        return attemptRegistration(attempt + 1);
+      } else {
+        throw e; // Re-throw if not retryable or max attempts reached
+      }
+    }
+  };
 
   const onSubmit = async () => {
     if (!email || !password) { setError('Please enter email and password'); return; }
-    setLoading(true); setError(null);
+    if (!email.includes('@') || !email.includes('.')) { setError('Please enter a valid email address'); return; }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    setLoading(true); setError(null); setRetryCount(0);
+    
     try {
-      const res: any = await User.register(email, password, name || undefined);
+      const res: any = await attemptRegistration();
       console.log('[sign-up] Registration response:', res);
       // After successful signup, redirect to email verification screen
       // Pass dev code if available for easier testing
@@ -36,8 +84,27 @@ export default function SignUpScreen() {
         router.replace('/verify-email');
       }
     } catch (e: any) {
-      console.error('[sign-up] Registration failed:', e);
-      setError(e?.message || 'Sign up failed');
+      console.error('[sign-up] Registration failed after all attempts:', e);
+      
+      // Handle specific error types with better messaging
+      let errorMessage = 'Sign up failed';
+      if (e?.message?.includes('Registration may have partially succeeded')) {
+        errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
+      } else if (e?.message?.includes('Email already registered')) {
+        errorMessage = 'This email is already registered. Try signing in instead.';
+      } else if (e?.message?.includes('Request timeout')) {
+        errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
+      } else if (e?.message?.includes('Network request failed')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (e?.message?.includes('password')) {
+        errorMessage = 'Password must be at least 8 characters and contain letters and numbers.';
+      } else if (e?.message?.includes('email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      setError(errorMessage);
     } finally { setLoading(false); }
   };
 
@@ -132,7 +199,14 @@ export default function SignUpScreen() {
           <Input placeholder="Password (min 8 chars)" value={password} onChangeText={setPassword} secureTextEntry />
           <View style={{ height: 12 }} />
           <Button onPress={onSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator /> : 'Sign Up'}
+            {loading ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="white" />
+                <Text style={{ color: 'white', marginLeft: 8, fontSize: 16 }}>
+                  {retryCount > 0 ? `Retrying... (${retryCount}/3)` : 'Creating account...'}
+                </Text>
+              </View>
+            ) : 'Sign Up'}
           </Button>
         </>
       )}

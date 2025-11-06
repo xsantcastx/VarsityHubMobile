@@ -69,7 +69,7 @@ export default function EventApprovalsScreen() {
         console.warn('Unable to fetch user data:', err);
       }
 
-      const response = await httpGet('/api/games?show_pending=true&approval_status=pending');
+      const response = await httpGet('/games?show_pending=true&approval_status=pending');
       if (response.ok) {
         const data = await response.json();
         // Filter only pending events
@@ -100,7 +100,7 @@ export default function EventApprovalsScreen() {
   const handleApprove = async (eventId: number) => {
     setProcessingId(eventId);
     try {
-      const response = await httpPut(`/api/games/${eventId}/approve`, {
+      const response = await httpPut(`/games/${eventId}/approve`, {
         approval_status: 'approved'
       });
       if (response.ok) {
@@ -130,7 +130,7 @@ export default function EventApprovalsScreen() {
           onPress: async () => {
             setProcessingId(eventId);
             try {
-              const response = await httpPut(`/api/games/${eventId}/approve`, {
+              const response = await httpPut(`/games/${eventId}/approve`, {
                 approval_status: 'rejected'
               });
               if (response.ok) {

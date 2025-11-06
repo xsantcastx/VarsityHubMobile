@@ -141,6 +141,11 @@ export default function CommunityDiscoverScreen() {
       try {
         user = await User.me();
         setMe(user);
+        console.log('[Discover] User loaded:', { 
+          role: user?.preferences?.role, 
+          userId: user?.id,
+          displayName: user?.display_name 
+        });
       } catch (err) {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
       }
@@ -417,10 +422,12 @@ export default function CommunityDiscoverScreen() {
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>
+          Quick Actions {__DEV__ && me?.preferences?.role && `(${me.preferences.role})`}
+        </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
-          {me?.role === 'coach' ? (
+          {me?.preferences?.role === 'coach' ? (
             <>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
@@ -447,7 +454,7 @@ export default function CommunityDiscoverScreen() {
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
               </Pressable>
             </>
-          ) : me?.role === 'rookie' ? (
+          ) : me?.preferences?.role === 'rookie' ? (
             <>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
@@ -793,7 +800,7 @@ export default function CommunityDiscoverScreen() {
         onSave={handleQuickGameSave}
         currentTeamName={me?.team?.name}
         currentTeamId={me?.team?.id}
-        userRole={me?.role || 'fan'}
+        userRole={me?.preferences?.role || 'fan'}
       />
     </View>
   );

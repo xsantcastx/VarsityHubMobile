@@ -74,6 +74,21 @@ export function useGoogleAuth() {
     [clients],
   );
 
+  const redirectUri = useMemo(() => {
+    if (shouldUseProxy && PROJECT_FULL_NAME) {
+      try {
+        return AuthSession.getRedirectUrl({ projectNameForProxy: PROJECT_FULL_NAME });
+      } catch (err) {
+        console.warn('[google-auth] Failed to derive proxy redirect URI', err);
+      }
+    }
+    return makeRedirectUri({
+      native: `${Application.applicationId}:/oauthredirect`,
+      scheme: process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile',
+      useProxy: false,
+    });
+  }, [shouldUseProxy]);
+
   const redirectOptions = useMemo(() => {
     if (shouldUseProxy && PROJECT_FULL_NAME) {
       return { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME };
@@ -82,17 +97,8 @@ export function useGoogleAuth() {
   }, [shouldUseProxy]);
 
   useEffect(() => {
-    let previewRedirectUri: string | undefined;
-    try {
-      previewRedirectUri = makeRedirectUri({
-        native: `${Application.applicationId}:/oauthredirect`,
-        ...redirectOptions,
-      });
-    } catch (err) {
-      previewRedirectUri = `error:${err instanceof Error ? err.message : String(err)}`;
-    }
     console.log('[google-auth]', {
-      redirectUri: previewRedirectUri,
+      redirectUri,
       shouldUseProxy,
       projectNameForProxy: shouldUseProxy ? PROJECT_FULL_NAME : null,
       appOwnership: Constants.appOwnership,
@@ -103,7 +109,7 @@ export function useGoogleAuth() {
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }
-  }, [redirectOptions, shouldUseProxy, proxyRequested]);
+  }, [redirectUri, shouldUseProxy, proxyRequested]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
@@ -112,6 +118,7 @@ export function useGoogleAuth() {
     if (isConfigured) {
       return {
         scopes: ['profile', 'email'],
+        redirectUri,
         androidClientId: clients.androidClientId || undefined,
         iosClientId: clients.iosClientId || undefined,
         webClientId: clients.webClientId || undefined,
@@ -123,13 +130,14 @@ export function useGoogleAuth() {
     // We won't actually use this to sign in (isConfigured check prevents it)
     return {
       scopes: ['profile', 'email'],
+      redirectUri,
       // Use fake but valid-looking client IDs for all platforms
       androidClientId: '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com',
       iosClientId: '000000000000-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.apps.googleusercontent.com',
       webClientId: '000000000000-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.apps.googleusercontent.com',
       clientId: '000000000000-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww.apps.googleusercontent.com',
     };
-  }, [isConfigured, clients]);
+  }, [isConfigured, clients, redirectUri]);
 
   // Always call useAuthRequest (React rules of hooks)
   const [request, , promptAsync] = Google.useAuthRequest(requestConfig, redirectOptions);

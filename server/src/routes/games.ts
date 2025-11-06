@@ -102,9 +102,18 @@ gamesRouter.get('/', async (req, res) => {
   
   // By default, only show approved games unless specifically requested otherwise
   const showPending = req.query.show_pending === 'true';
+  const approvalStatus = req.query.approval_status as string;
+  
+  // Build where clause
+  let whereClause: any = {};
+  if (approvalStatus && ['pending', 'approved', 'rejected'].includes(approvalStatus)) {
+    whereClause.approval_status = approvalStatus;
+  } else if (!showPending) {
+    whereClause.approval_status = 'approved';
+  }
   
   const games = await (prisma.game.findMany as any)({
-    where: showPending ? undefined : { approval_status: 'approved' },
+    where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy,
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },

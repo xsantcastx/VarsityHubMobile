@@ -22,7 +22,7 @@ function getBaseUrl(): string {
   return getApiBaseUrl();
 }
 
-async function request(path: string, options: RequestInit = {}): Promise<any> {
+async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000): Promise<any> {
   const base = getBaseUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
@@ -36,7 +36,7 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
 
   // Add timeout to prevent hanging requests
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(base + path, { 
@@ -88,6 +88,7 @@ export function httpGet(path: string, options: RequestInit = {}) {
   return request(path, { ...options, method: 'GET' });
 }
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }); }
+export function httpPostLongTimeout(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000); }
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
 export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }); }
 export function httpDelete(path: string, body?: any) {
