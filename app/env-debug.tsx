@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { getApiBaseUrl } from '../src/api/http';
-=======
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getApiBaseUrl } from '../api/http';
->>>>>>> release/v1.2.0
 
 export default function EnvDebugScreen() {
   const envVars = {
