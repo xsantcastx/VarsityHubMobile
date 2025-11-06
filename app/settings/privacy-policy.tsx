@@ -104,7 +104,7 @@ export default function PrivacyPolicyScreen() {
         {/* External Policy Link (when ready) */}
         <Pressable 
           style={[styles.externalLinkButton, { backgroundColor: theme.tint }]}
-          onPress={() => openExternalLink('https://varsityhub.com/privacy')}
+          onPress={() => openExternalLink('https://limeprod.com/VarsityHubPrivacy')}
         >
           <Text style={styles.externalLinkText}>View Full Policy on Web</Text>
           <Ionicons name="open-outline" size={18} color="#ffffff" />

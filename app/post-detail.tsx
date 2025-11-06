@@ -4,10 +4,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
+    FlatList,
     Modal,
     Platform,
     Pressable,
@@ -68,9 +69,21 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
 };
 
 export default function PostDetailScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  
+  // Parse params for multi-post navigation
+  const postIdsArray = params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
+  const initialIndex = params.index ? parseInt(params.index, 10) : 0;
+  
+  // State for current post in swipe sequence
+  const [currentPostIndex, setCurrentPostIndex] = useState(initialIndex);
+  const currentPostId = postIdsArray[currentPostIndex] || params.id;
+  
+  // FlatList ref for programmatic scrolling
+  const flatListRef = useRef<FlatList>(null);
+  
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -161,11 +174,12 @@ export default function PostDetailScreen() {
     loadUser();
   }, []);
 
-  const load = useCallback(async () => {
-    if (!id) return;
+  const load = useCallback(async (postId?: string) => {
+    const targetId = postId || currentPostId;
+    if (!targetId) return;
     setLoading(true);
     try {
-      const [p, c] = await Promise.all([PostApi.get(id), PostApi.comments(id)]);
+      const [p, c] = await Promise.all([PostApi.get(targetId), PostApi.comments(targetId)]);
       setPost(p);
       
       // Handle comments response - it returns { items, nextCursor }
@@ -193,17 +207,31 @@ export default function PostDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [currentPostId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  // Handle post change when swiping
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems && viewableItems.length > 0) {
+      const visibleIndex = viewableItems[0].index;
+      if (visibleIndex !== undefined && visibleIndex !== currentPostIndex) {
+        setCurrentPostIndex(visibleIndex);
+        const newPostId = postIdsArray[visibleIndex];
+        if (newPostId) {
+          load(newPostId);
+        }
+      }
+    }
+  }).current;
+
   const onUpvote = async () => {
-    if (!id || voting) return;
+    if (!currentPostId || voting) return;
     setVoting(true);
     try {
-      const r: any = await PostApi.toggleUpvote(id);
+      const r: any = await PostApi.toggleUpvote(currentPostId);
       // Update post upvote count and user's upvote status
       setPost((p: any) => ({
         ...(p || {}),
@@ -219,10 +247,10 @@ export default function PostDetailScreen() {
   };
 
   const onAddComment = async () => {
-    if (!id || !comment.trim()) return;
+    if (!currentPostId || !comment.trim()) return;
     setCommenting(true);
     try {
-      const created = await PostApi.addComment(id, comment.trim());
+      const created = await PostApi.addComment(currentPostId, comment.trim());
       setComments((arr) => [created, ...arr]);
       setComment('');
     } catch (error) {
@@ -255,7 +283,7 @@ export default function PostDetailScreen() {
       }
       
       // Add URL
-      const shareUrl = `https://varsityhub.com/post/${id}`;
+      const shareUrl = `https://varsityhub.com/post/${currentPostId}`;
       message += `\n\n${shareUrl}`;
       
       await Share.share({
@@ -281,7 +309,7 @@ export default function PostDetailScreen() {
         {
           text: 'Via VarsityHub DM',
           onPress: () => {
-            router.push(`/messages?sharePost=${id}`);
+            router.push(`/messages?sharePost=${currentPostId}`);
           }
         },
         {
@@ -332,7 +360,7 @@ export default function PostDetailScreen() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!id) return;
+    if (!currentPostId) return;
     Alert.alert(
       'Delete Comment',
       'Are you sure you want to delete this comment?',
@@ -343,7 +371,7 @@ export default function PostDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await PostApi.deleteComment(id, commentId);
+              await PostApi.deleteComment(currentPostId, commentId);
               setComments(prevComments => prevComments.filter(c => String(c.id) !== commentId));
               Alert.alert('Success', 'Comment deleted successfully');
             } catch (error: any) {
@@ -356,7 +384,7 @@ export default function PostDetailScreen() {
   };
 
   const handleDeletePost = async () => {
-    if (!id) return;
+    if (!currentPostId) return;
     Alert.alert(
       'Delete Post',
       'Are you sure you want to delete this post? This action cannot be undone.',
@@ -367,7 +395,7 @@ export default function PostDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await PostApi.delete(id);
+              await PostApi.delete(currentPostId);
               Alert.alert('Success', 'Post deleted successfully', [
                 { text: 'OK', onPress: () => router.back() }
               ]);
@@ -381,10 +409,10 @@ export default function PostDetailScreen() {
   };
 
   const handleEditComment = async () => {
-    if (!id || !editCommentId || !editCommentText.trim()) return;
+    if (!currentPostId || !editCommentId || !editCommentText.trim()) return;
     setUpdatingComment(true);
     try {
-      await PostApi.updateComment(id, editCommentId, editCommentText.trim());
+      await PostApi.updateComment(currentPostId, editCommentId, editCommentText.trim());
       setComments(prevComments => prevComments.map(c => 
         String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
       ));
@@ -398,11 +426,6 @@ export default function PostDetailScreen() {
     }
   };
 
-  const isImage = post?.media_url ? /\.(jpg|jpeg|png|gif|webp)$/i.test(post.media_url) : false;
-  const isVideo = post?.media_url ? /\.(mp4|mov|webm|m4v)$/i.test(post.media_url) : false;
-  const category = getSportCategory(post?.title, post?.content);
-  const hasMedia = !!post?.media_url;
-
   if (loading) {
     return <SkeletonLoader />;
   }
@@ -415,7 +438,7 @@ export default function PostDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={load}>
+          <Pressable style={styles.retryButton} onPress={() => load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
         </View>
@@ -425,34 +448,15 @@ export default function PostDetailScreen() {
 
   if (!post) return null;
 
-  return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
-      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
-      <Stack.Screen options={{ headerShown: false }} />
-      
-      {/* Custom Header */}
-      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
-        <View style={styles.headerActions}>
-          {/* Show delete button only if current user is the post author */}
-          {currentUser && post.author_id === currentUser.id && (
-            <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
-              <Ionicons name="trash-outline" size={22} color="#DC2626" />
-            </Pressable>
-          )}
-          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
-            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
-          <Pressable style={styles.headerActionButton} onPress={onShare}>
-            <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
-        </View>
-      </View>
+  const hasMultiplePosts = postIdsArray.length > 1;
+  const isImage = post.media_url && !post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+  const isVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+  const hasMedia = isImage || isVideo;
+  const category = getSportCategory(post.title, post.content);
 
-      <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
+  // Render single post content (reusable for both single and multi-post views)
+  const renderPostContent = () => (
+    <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
@@ -820,6 +824,78 @@ export default function PostDetailScreen() {
           )}
         </View>
       </ScrollView>
+  );
+
+  return (
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Custom Header */}
+      <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+        </Pressable>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Post Details</Text>
+          {hasMultiplePosts && (
+            <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+              {currentPostIndex + 1} of {postIdsArray.length}
+            </Text>
+          )}
+        </View>
+        <View style={styles.headerActions}>
+          {/* Show delete button only if current user is the post author */}
+          {currentUser && post.author_id === currentUser.id && (
+            <Pressable style={styles.headerActionButton} onPress={handleDeletePost}>
+              <Ionicons name="trash-outline" size={22} color="#DC2626" />
+            </Pressable>
+          )}
+          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
+            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Pressable style={styles.headerActionButton} onPress={onShare}>
+            <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Swipe Navigation Hint */}
+      {hasMultiplePosts && (
+        <View style={[styles.swipeHint, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
+          <Ionicons name="swap-horizontal" size={16} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.swipeHintText, { color: Colors[colorScheme].mutedText }]}>
+            Swipe left or right to view more posts
+          </Text>
+        </View>
+      )}
+
+      {/* Horizontal Swipe FlatList for Multiple Posts */}
+      {hasMultiplePosts ? (
+        <FlatList
+          ref={flatListRef}
+          data={postIdsArray}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item}
+          initialScrollIndex={initialIndex}
+          getItemLayout={(data, index) => ({
+            length: SCREEN_WIDTH,
+            offset: SCREEN_WIDTH * index,
+            index,
+          })}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          renderItem={() => (
+            <View style={{ width: SCREEN_WIDTH }}>
+              {renderPostContent()}
+            </View>
+          )}
+        />
+      ) : (
+        renderPostContent()
+      )}
 
       {/* Edit Comment Modal */}
       <Modal
@@ -951,9 +1027,19 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
@@ -966,6 +1052,21 @@ const styles = StyleSheet.create({
   shareButton: {
     padding: 8,
     borderRadius: 8,
+  },
+  
+  // Swipe Hint
+  swipeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    gap: 8,
+  },
+  swipeHintText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 
   // Content

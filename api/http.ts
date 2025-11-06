@@ -8,8 +8,9 @@ export function getAuthToken(): string | null { return tokenCache; }
 export function getApiBaseUrl(): string {
   // Expo packs env vars under process.env at runtime
   const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL) || '';
-  let url = envUrl || 'http://localhost:4000';
-  if (Platform.OS === 'android' && url.startsWith('http://localhost')) {
+  const defaultUrl = __DEV__ ? 'http://localhost:4000' : 'https://api-production-8ac3.up.railway.app';
+  let url = envUrl || defaultUrl;
+  if (__DEV__ && Platform.OS === 'android' && url.startsWith('http://localhost')) {
     url = url.replace('http://localhost', 'http://10.0.2.2');
   }
   const finalUrl = url.replace(/\/$/, '');

@@ -519,16 +519,23 @@ export default function ProfileScreen() {
         <View style={styles.filtersBar}>
           <View style={styles.segmentedRow}>
             {(['all','like','comment','save'] as const).map((t) => {
-              const label = t === 'all'
-                ? 'All'
+              const emoji = t === 'all'
+                ? '🗂️'
                 : t === 'like'
-                ? `Upvotes${counts ? ` (${counts.likes})` : ''}`
+                ? '⬆️'
                 : t === 'comment'
-                ? `Comments${counts ? ` (${counts.comments})` : ''}`
-                : `Saves${counts ? ` (${counts.saves})` : ''}`;
+                ? '💬'
+                : '🔖';
+              const count = t === 'all'
+                ? ''
+                : t === 'like'
+                ? counts ? ` ${counts.likes}` : ''
+                : t === 'comment'
+                ? counts ? ` ${counts.comments}` : ''
+                : counts ? ` ${counts.saves}` : '';
               return (
                 <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, { backgroundColor: theme.surface }, interType === t && [styles.segmentActive, { backgroundColor: theme.tint }]]}>
-                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{label}</Text>
+                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{emoji}{count}</Text>
                 </Pressable>
               );
             })}

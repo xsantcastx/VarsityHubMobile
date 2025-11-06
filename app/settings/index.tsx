@@ -383,6 +383,13 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                         ]);
                       }} />
                     </SectionCard>
+
+                    {/* Copyright Footer */}
+                    <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
+                        © 2025 LIME PRODUCTIONS. All rights reserved.
+                      </Text>
+                    </View>
                   </ScrollView>
                 </SafeAreaView>
               );

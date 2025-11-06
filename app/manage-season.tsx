@@ -22,7 +22,8 @@ interface Game {
   time: string;
   location: string;
   type: 'home' | 'away' | 'neutral';
-  status: 'upcoming' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'completed' | 'cancelled' | 'pending';
+  approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
   score?: {
@@ -286,18 +287,20 @@ export default function ManageSeasonScreen() {
     }
   ];
 
+  const pendingGames: Game[] = (games ?? []).filter(g => g.approval_status === 'pending' || g.status === 'pending');
+
   const upcomingGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return gameDate >= today && g.status === 'upcoming';
+    return gameDate >= today && g.status === 'upcoming' && g.approval_status !== 'pending';
   });
 
   const recentGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return gameDate < today || g.status === 'completed';
+    return (gameDate < today || g.status === 'completed') && g.approval_status !== 'pending';
   });
 
   // Load games on mount
@@ -402,6 +405,70 @@ export default function ManageSeasonScreen() {
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit', onPress: () => handleEditGame(game) },
         { label: 'Delete', isDestructive: true, onPress: () => handleDeleteGame(game) },
+      ],
+    });
+  };
+
+  const handleApproveGame = async (game: Game) => {
+    try {
+      // Update game approval status to approved
+      setGames(prevGames =>
+        prevGames.map(g =>
+          g.id === game.id ? { ...g, approval_status: 'approved', status: 'upcoming' } : g
+        )
+      );
+      
+      setActionModal({
+        visible: true,
+        title: '✅ Game Approved',
+        message: `${game.opponent || 'Game'} has been approved and will appear in upcoming games.`,
+        options: [{ label: 'OK', onPress: () => {} }],
+      });
+    } catch (error) {
+      console.error('Error approving game:', error);
+    }
+  };
+
+  const handleRejectGame = async (game: Game) => {
+    setActionModal({
+      visible: true,
+      title: 'Reject Game',
+      message: `Are you sure you want to reject "${game.opponent || 'this game'}"? This action cannot be undone.`,
+      options: [
+        { label: 'Cancel', onPress: () => {} },
+        {
+          label: 'Reject',
+          isDestructive: true,
+          onPress: async () => {
+            try {
+              // Remove from games list
+              setGames(prevGames => prevGames.filter(g => g.id !== game.id));
+              
+              setActionModal({
+                visible: true,
+                title: 'Game Rejected',
+                message: 'The game has been rejected and removed.',
+                options: [{ label: 'OK', onPress: () => {} }],
+              });
+            } catch (error) {
+              console.error('Error rejecting game:', error);
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const handlePendingGameAction = (game: Game) => {
+    setActionModal({
+      visible: true,
+      title: 'Pending Game',
+      message: `${game.opponent} - ${game.date}`,
+      options: [
+        { label: 'Cancel', onPress: () => {} },
+        { label: '✅ Approve', onPress: () => handleApproveGame(game) },
+        { label: 'Edit', onPress: () => handleEditGame(game) },
+        { label: '❌ Reject', isDestructive: true, onPress: () => handleRejectGame(game) },
       ],
     });
   };
@@ -910,10 +977,59 @@ export default function ManageSeasonScreen() {
       >
         {selectedTab === 'schedule' && (
           <View style={styles.tabContent}>
+            {/* Pending Approval Queue */}
+            {pendingGames.length > 0 && (
+              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: '#F59E0B', borderWidth: 2 }]}>
+                <View style={[styles.approvalHeader, { backgroundColor: colorScheme === 'dark' ? '#78350F' : '#FEF3C7', borderColor: '#F59E0B' }]}>
+                  <Ionicons name="time" size={24} color="#F59E0B" />
+                  <Text style={[styles.approvalTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+                    📋 Approval Queue ({pendingGames.length})
+                  </Text>
+                </View>
+                <Text style={[styles.approvalSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  Games waiting for approval before appearing publicly
+                </Text>
+                {pendingGames.map((game) => (
+                  <View key={game.id} style={[styles.pendingGameCard, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB', borderColor: Colors[colorScheme].border }]}>
+                    <GameCard
+                      game={{
+                        ...game,
+                        opponent_name: game.homeTeam && game.awayTeam 
+                          ? `${game.homeTeam} vs ${game.awayTeam}`
+                          : game.opponent,
+                        scheduled_date: game.date,
+                        scheduled_time: game.time,
+                        game_type: game.type,
+                      }}
+                      onPress={() => handlePendingGameAction(game)}
+                      showActions={false}
+                      style={{ marginBottom: 0 }}
+                    />
+                    <View style={styles.pendingActions}>
+                      <Pressable
+                        style={[styles.approveButton, { backgroundColor: '#10B981' }]}
+                        onPress={() => handleApproveGame(game)}
+                      >
+                        <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                        <Text style={styles.approveButtonText}>Approve</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.rejectButton, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }]}
+                        onPress={() => handleRejectGame(game)}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#EF4444" />
+                        <Text style={[styles.rejectButtonText, { color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626' }]}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Upcoming Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <SectionHeader 
-                title="Upcoming Games"
+                title="📅 Upcoming Games"
                 action={
                   <Pressable onPress={handleAddGame}>
                     <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
@@ -955,7 +1071,7 @@ export default function ManageSeasonScreen() {
             {/* Recent Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <SectionHeader 
-                title="Recent Games"
+                title="🏆 Recent Games"
                 style={{ paddingHorizontal: 0 }}
               />
               
@@ -1747,6 +1863,63 @@ const styles = StyleSheet.create({
   scheduleDate: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  approvalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  approvalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    flex: 1,
+  },
+  approvalSubtitle: {
+    fontSize: 14,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  pendingGameCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  approveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  approveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  rejectButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 
