@@ -1,10 +1,9 @@
+import * as Application from 'expo-application';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
-
 import { User } from '@/api/entities';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -23,11 +22,6 @@ try {
 }
 
 type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
-
-const selectAppScheme = () => {
-  const scheme = process.env.EXPO_PUBLIC_APP_SCHEME;
-  return typeof scheme === 'string' && scheme.length > 0 ? scheme : 'varsityhubmobile';
-};
 
 const googleClientConfig = () => {
   const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
@@ -80,31 +74,25 @@ export function useGoogleAuth() {
     [clients],
   );
 
-  const redirectUri = useMemo(() => {
+  const redirectOptions = useMemo(() => {
     if (shouldUseProxy && PROJECT_FULL_NAME) {
-      const proxyOptions = { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME };
-      const proxyUri =
-        typeof AuthSession.makeRedirectUri === 'function'
-          ? AuthSession.makeRedirectUri(proxyOptions)
-          : makeRedirectUri(proxyOptions);
-      if (proxyUri.startsWith('exp://')) {
-        const authUrl = AuthSession.getRedirectUrl(proxyOptions);
-        if (authUrl && authUrl.startsWith('https://')) {
-          return authUrl;
-        }
-      }
-      return proxyUri;
+      return { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME };
     }
-    return makeRedirectUri({
-      scheme: selectAppScheme(),
-      preferLocalhost: Platform.OS === 'web',
-      useProxy: false,
-    });
+    return { useProxy: false };
   }, [shouldUseProxy]);
 
   useEffect(() => {
+    let previewRedirectUri: string | undefined;
+    try {
+      previewRedirectUri = makeRedirectUri({
+        native: `${Application.applicationId}:/oauthredirect`,
+        ...redirectOptions,
+      });
+    } catch (err) {
+      previewRedirectUri = `error:${err instanceof Error ? err.message : String(err)}`;
+    }
     console.log('[google-auth]', {
-      redirectUri,
+      redirectUri: previewRedirectUri,
       shouldUseProxy,
       projectNameForProxy: shouldUseProxy ? PROJECT_FULL_NAME : null,
       appOwnership: Constants.appOwnership,
@@ -115,7 +103,7 @@ export function useGoogleAuth() {
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }
-  }, [redirectUri, shouldUseProxy, proxyRequested]);
+  }, [redirectOptions, shouldUseProxy, proxyRequested]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
@@ -124,9 +112,6 @@ export function useGoogleAuth() {
     if (isConfigured) {
       return {
         scopes: ['profile', 'email'],
-        redirectUri,
-        useProxy: shouldUseProxy,
-        projectNameForProxy: shouldUseProxy ? PROJECT_FULL_NAME : undefined,
         androidClientId: clients.androidClientId || undefined,
         iosClientId: clients.iosClientId || undefined,
         webClientId: clients.webClientId || undefined,
@@ -138,19 +123,16 @@ export function useGoogleAuth() {
     // We won't actually use this to sign in (isConfigured check prevents it)
     return {
       scopes: ['profile', 'email'],
-      redirectUri,
-      useProxy: shouldUseProxy,
-      projectNameForProxy: shouldUseProxy ? PROJECT_FULL_NAME : undefined,
       // Use fake but valid-looking client IDs for all platforms
       androidClientId: '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com',
       iosClientId: '000000000000-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.apps.googleusercontent.com',
       webClientId: '000000000000-zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.apps.googleusercontent.com',
       clientId: '000000000000-wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww.apps.googleusercontent.com',
     };
-  }, [isConfigured, redirectUri, clients, shouldUseProxy]);
+  }, [isConfigured, clients]);
 
   // Always call useAuthRequest (React rules of hooks)
-  const [request, , promptAsync] = Google.useAuthRequest(requestConfig);
+  const [request, , promptAsync] = Google.useAuthRequest(requestConfig, redirectOptions);
 
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     if (!isConfigured) {

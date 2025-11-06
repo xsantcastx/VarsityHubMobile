@@ -17,6 +17,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { httpGet, httpPut } from '@/api/http';
+// @ts-ignore JS exports
+import { Game, User } from '@/api/entities';
+import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 
 type PendingEvent = {
   id: number;
@@ -53,9 +56,19 @@ export default function EventApprovalsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
+  const [me, setMe] = useState<any>(null);
   
   const loadPendingEvents = async () => {
     try {
+      // Load user data for modal
+      try {
+        const user = await User.me();
+        setMe(user);
+      } catch (err) {
+        console.warn('Unable to fetch user data:', err);
+      }
+
       const response = await httpGet('/api/games?show_pending=true&approval_status=pending');
       if (response.ok) {
         const data = await response.json();
@@ -138,6 +151,100 @@ export default function EventApprovalsScreen() {
       ]
     );
   };
+
+  const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
+    try {
+      // Parse date and time
+      const [year, month, day] = data.date.split('-').map(Number);
+      const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!timeParts) throw new Error('Invalid time format');
+      let hours = parseInt(timeParts[1], 10);
+      const minutes = parseInt(timeParts[2], 10);
+      const isPM = timeParts[3].toUpperCase() === 'PM';
+      if (isPM && hours !== 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+      
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+
+      // Create game payload
+      const gamePayload: Record<string, any> = {
+        title: data.isCompetitive 
+          ? `${data.currentTeam} vs ${data.opponent}`
+          : `${data.currentTeam} Event`,
+        date: gameDateTime.toISOString(),
+        description: data.description || (data.isCompetitive
+          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
+          : `Event for ${data.currentTeam}`),
+      };
+
+      // Only add team fields if this is a competitive game
+      if (data.isCompetitive) {
+        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
+        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
+        
+        if (data.currentTeamId) gamePayload.home_team_id = data.type === 'home' ? data.currentTeamId : null;
+        if (data.opponentTeamId) {
+          gamePayload.away_team_id = data.type === 'home' ? data.opponentTeamId : data.currentTeamId;
+        } else if (data.opponent) {
+          gamePayload.away_team_name = data.opponent;
+        }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (data.currentTeamId) {
+          gamePayload.home_team_id = data.currentTeamId;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (data.expectedAttendance) {
+        gamePayload.expected_attendance = data.expectedAttendance;
+      }
+
+      // Add event type
+      if (data.eventType) {
+        gamePayload.event_type = data.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (data.donationGoal) {
+        gamePayload.donation_goal = data.donationGoal;
+      }
+      if (data.watchLocation) {
+        gamePayload.watch_location = data.watchLocation;
+        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
+        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
+        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
+      }
+      if (data.destination) {
+        gamePayload.destination = data.destination;
+      }
+
+      if (data.banner_url) {
+        gamePayload.banner_url = data.banner_url;
+        gamePayload.cover_image_url = data.banner_url;
+      } else if (data.cover_image_url) {
+        gamePayload.cover_image_url = data.cover_image_url;
+      }
+
+      if (data.appearance) {
+        gamePayload.appearance = data.appearance;
+      }
+
+      // Create game using the API
+      await Game.create(gamePayload);
+
+      setCreateEventModalOpen(false);
+      
+      // Refresh the events list
+      await loadPendingEvents();
+      
+      // Show success message
+      Alert.alert('Success', data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
+    } catch (error) {
+      console.error('Error adding quick game:', error);
+      Alert.alert('Error', `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, []);
   
   const renderEventCard = ({ item }: { item: PendingEvent }) => {
     const isProcessing = processingId === item.id;
@@ -308,7 +415,14 @@ export default function EventApprovalsScreen() {
             styles.sectionTab,
             sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
           ]}
-          onPress={() => router.push('/create-fan-event')}
+          onPress={() => {
+            // Role-based navigation
+            if (me?.role === 'coach') {
+              router.push('/manage-season');
+            } else {
+              setCreateEventModalOpen(true);
+            }
+          }}
         >
           <Text style={[
             styles.sectionTabLabel,
@@ -317,7 +431,7 @@ export default function EventApprovalsScreen() {
               fontWeight: sectionTab === 'create-event' ? '600' : '400'
             }
           ]}>
-            Create Event
+            {me?.role === 'coach' ? 'Team Schedule' : 'Add Event'}
           </Text>
         </Pressable>
 
@@ -443,6 +557,16 @@ export default function EventApprovalsScreen() {
           </View>
         </View>
       ) : null}
+
+      {/* Add Event Modal */}
+      <QuickAddGameModal
+        visible={createEventModalOpen}
+        onClose={() => setCreateEventModalOpen(false)}
+        onSave={handleQuickGameSave}
+        currentTeamName={me?.team?.name}
+        currentTeamId={me?.team?.id}
+        userRole={me?.role || 'fan'}
+      />
     </SafeAreaView>
   );
 }

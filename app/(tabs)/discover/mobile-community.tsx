@@ -419,30 +419,90 @@ export default function CommunityDiscoverScreen() {
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
         <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-          <Pressable 
-            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-            onPress={() => router.push('/manage-teams')}
-          >
-            <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
-            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-            onPress={() => router.push('/manage-season')}
-          >
-            <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
-            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
-            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
-          </Pressable>
-          <Pressable 
-            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-            onPress={() => router.push('/event-approvals')}
-          >
-            <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
-            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
-            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
-          </Pressable>
+          {/* Role-based actions */}
+          {me?.role === 'coach' ? (
+            <>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+                onPress={() => router.push('/manage-teams')}
+              >
+                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push('/manage-season')}
+              >
+                <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Manage games and season</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push('/event-approvals')}
+              >
+                <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
+              </Pressable>
+            </>
+          ) : me?.role === 'rookie' ? (
+            <>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+                onPress={() => setCreateEventModalOpen(true)}
+              >
+                <Ionicons name="add-circle" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Create Event</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Organize team meetups</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push(`/user-profile?id=${me.id}`)}
+              >
+                <Ionicons name="stats-chart" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Stats</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>View your performance</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push('/create-post')}
+              >
+                <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Highlight</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              {/* Fan actions */}
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+                onPress={() => setCreateEventModalOpen(true)}
+              >
+                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push('/create-post')}
+              >
+                <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
+              </Pressable>
+              <Pressable 
+                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+                onPress={() => router.push('/favorites')}
+              >
+                <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Teams you follow</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       </View>
 
@@ -733,6 +793,7 @@ export default function CommunityDiscoverScreen() {
         onSave={handleQuickGameSave}
         currentTeamName={me?.team?.name}
         currentTeamId={me?.team?.id}
+        userRole={me?.role || 'fan'}
       />
     </View>
   );

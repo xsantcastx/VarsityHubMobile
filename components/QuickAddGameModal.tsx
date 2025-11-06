@@ -31,6 +31,7 @@ interface QuickAddGameModalProps {
   onSave: (gameData: QuickGameData) => void;
   currentTeamName?: string; // Optional current team context
   currentTeamId?: string; // Current team ID for database relation
+  userRole?: 'fan' | 'rookie' | 'coach'; // User role to customize defaults
   initialData?: {
     id?: string;
     opponent: string;
@@ -96,7 +97,7 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline', description: 'Other event type' },
 ];
 
-export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, initialData }: QuickAddGameModalProps) {
+export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, userRole = 'fan', initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
   
@@ -128,7 +129,20 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   // New state for competitive toggle and attendance
   const [isCompetitive, setIsCompetitive] = useState(true); // Default to competitive game
   const [expectedAttendance, setExpectedAttendance] = useState('');
-  const [eventType, setEventType] = useState<EventType>('game'); // Default to game
+  // Set default event type based on user role
+  const getDefaultEventType = (role: string): EventType => {
+    switch (role) {
+      case 'coach':
+        return 'game';
+      case 'rookie':
+        return 'meeting';
+      case 'fan':
+      default:
+        return 'watch_party';
+    }
+  };
+  
+  const [eventType, setEventType] = useState<EventType>(getDefaultEventType(userRole));
   const [eventTitle, setEventTitle] = useState(''); // For non-competitive events
   const [eventDescription, setEventDescription] = useState(''); // Event description
   

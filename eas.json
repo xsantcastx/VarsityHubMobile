@@ -8,7 +8,12 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -20,7 +25,12 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -32,7 +42,12 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
         "resourceClass": "m-medium"
