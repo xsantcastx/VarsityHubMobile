@@ -1,5 +1,6 @@
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
+import { ReachMapPreview } from '@/components/ReachMapPreview';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -183,11 +184,9 @@ export default function SubmitAdScreen() {
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
               maxLength={10} 
             />
-            {zip.trim() && (
-              <Text style={styles.helperText}>
-                📍 Your ad will reach 20 miles around zip code {zip}
-              </Text>
-            )}
+
+            {/* Reach Map Preview - Shows advertisers exactly where their ad will appear */}
+            <ReachMapPreview zipCode={zip} radiusKm={15} />
 
             <Text style={styles.label}>Ad Banner *</Text>
             <BannerUpload 

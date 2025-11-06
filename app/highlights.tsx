@@ -14,7 +14,6 @@ import {
     Pressable,
     RefreshControl,
     ScrollView,
-    Share,
     StatusBar,
     StyleSheet,
     Text,
@@ -23,7 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Highlights, Post, User } from '@/api/entities';
+import { Event, Highlights, Team, User } from '@/api/entities';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -53,7 +52,6 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
       display_name: String(input.author.display_name || 'Anonymous'),
       avatar_url: input.author.avatar_url || undefined,
     } : undefined,
-    has_upvoted: typeof input.has_upvoted === 'boolean' ? input.has_upvoted : undefined,
     _count: input._count ? {
       comments: typeof input._count.comments === 'number' ? input._count.comments : 0
     } : undefined,
@@ -116,8 +114,6 @@ const HighlightCard = ({
   onAuthorPress,
   onTeamPress,
   onEventPress,
-  onToggleUpvote,
-  onShare,
   colorScheme 
 }: { 
   item: HighlightItem; 
@@ -130,8 +126,6 @@ const HighlightCard = ({
   onAuthorPress?: (authorId: string) => void;
   onTeamPress?: (teamId: string) => void;
   onEventPress?: (eventId: string) => void;
-  onToggleUpvote?: (item: HighlightItem) => void;
-  onShare?: (item: HighlightItem) => void;
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
@@ -140,12 +134,25 @@ const HighlightCard = ({
   
   // Calculate ranking for this item
   const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
-  const hasUpvoted = item.has_upvoted === true;
-  const upvoteColor = hasUpvoted ? '#1D4ED8' : '#2563EB';
+  
+  // Show numbered ranking for Trending (top 3) and Top (1-10)
+  const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
+  const rankNumber = index + 1;
   
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
+        {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 */}
+        {showNumberedRank && (
+          <View style={[
+            styles.numberBadge, 
+            { 
+              backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
+            }
+          ]}>
+            <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+          </View>
+        )}
         {/* Media Section */}
         <View style={styles.mediaSection}>
           {hasMedia ? (
@@ -236,17 +243,15 @@ const HighlightCard = ({
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable 
-              style={[styles.actionButton, hasUpvoted && styles.actionButtonActive]}
+              style={styles.actionButton}
               onPress={(e) => {
                 e.stopPropagation();
-                onToggleUpvote?.(item);
+                // Handle upvote action
+                Alert.alert('Upvote', 'Feature coming soon!');
               }}
-              accessibilityLabel={hasUpvoted ? 'Remove upvote' : 'Upvote highlight'}
             >
-              <Ionicons name={hasUpvoted ? 'arrow-up' : 'arrow-up-outline'} size={18} color={upvoteColor} />
-              <Text style={[styles.statText, styles.statTextUpvote, hasUpvoted && styles.statTextUpvoteActive]}>
-                {formatCount(item.upvotes_count || 0)}
-              </Text>
+              <Ionicons name="arrow-up" size={18} color="#2563EB" />
+              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
             <Pressable 
@@ -264,7 +269,8 @@ const HighlightCard = ({
               style={styles.actionButton}
               onPress={(e) => {
                 e.stopPropagation();
-                onShare?.(item);
+                // Handle share action
+                Alert.alert('Share', 'Share this highlight!');
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
@@ -302,6 +308,13 @@ export default function HighlightsScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | undefined>();
   const [activeTab, setActiveTab] = useState<TabType>('trending');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    teams: any[];
+    events: any[];
+    users: any[];
+    posts: HighlightItem[];
+  }>({ teams: [], events: [], users: [], posts: [] });
+  const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -368,63 +381,69 @@ export default function HighlightsScreen() {
     load();
   }, [load]);
 
-  const applyHighlightUpdate = useCallback((highlightId: string, changes: Partial<HighlightItem>) => {
-    const merge = (items: HighlightItem[]) =>
-      items.map((item) => (item.id === highlightId ? { ...item, ...changes } : item));
-    setHighlights((prev) => merge(prev));
-    setNationalTop((prev) => merge(prev));
-    setRanked((prev) => merge(prev));
-  }, []);
-
-  const handleToggleUpvote = useCallback(
-    async (highlight: HighlightItem) => {
-      try {
-        const result: any = await Post.toggleUpvote(highlight.id);
-        const hasUpvoted =
-          typeof result?.has_upvoted === 'boolean' ? result.has_upvoted : Boolean(result?.upvoted);
-        const nextCount =
-          typeof result?.upvotes_count === 'number'
-            ? result.upvotes_count
-            : typeof result?.count === 'number'
-            ? result.count
-            : highlight.upvotes_count || 0;
-        applyHighlightUpdate(highlight.id, {
-          has_upvoted: hasUpvoted,
-          upvotes_count: nextCount,
-        });
-      } catch (err: any) {
-        const message =
-          typeof err?.message === 'string' && err.message.length
-            ? err.message
-            : 'Unable to update your upvote right now.';
-        Alert.alert('Upvote failed', message);
-      }
-    },
-    [applyHighlightUpdate],
-  );
-
-  const handleShare = useCallback(async (highlight: HighlightItem) => {
-    try {
-      const parts: string[] = [];
-      if (highlight.title) parts.push(highlight.title);
-      else if (highlight.caption) parts.push(highlight.caption);
-      else parts.push('Check out this highlight on VarsityHub!');
-      if (highlight.media_url) {
-        parts.push(highlight.media_url);
-      }
-      parts.push('https://varsityhub.app');
-      await Share.share({ message: parts.join('\n\n') });
-    } catch (err: any) {
-      if (err?.message && err.message.toLowerCase().includes('aborted')) {
-        return;
-      }
-      const message =
-        typeof err?.message === 'string' && err.message.length
-          ? err.message
-          : 'Unable to share this highlight right now.';
-      Alert.alert('Share failed', message);
+  // Global search function for teams, events, users, and posts
+  const performGlobalSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults({ teams: [], events: [], users: [], posts: [] });
+      setSearching(false);
+      return;
     }
-  }, []);
+
+    setSearching(true);
+    try {
+      const [teamsRes, eventsRes, usersRes] = await Promise.all([
+        Team.list().catch(() => ({ items: [] })),
+        Event.filter({}).catch(() => ({ items: [] })),
+        User.listAll(query, 20).catch(() => ({ items: [] })),
+      ]);
+
+      const queryLower = query.toLowerCase();
+      
+      // Filter teams
+      const teams = (Array.isArray(teamsRes) ? teamsRes : teamsRes?.items || [])
+        .filter((t: any) => 
+          (t.name || '').toLowerCase().includes(queryLower) ||
+          (t.city || '').toLowerCase().includes(queryLower) ||
+          (t.school_name || '').toLowerCase().includes(queryLower)
+        )
+        .slice(0, 5);
+
+      // Filter events
+      const events = (Array.isArray(eventsRes) ? eventsRes : eventsRes?.items || [])
+        .filter((e: any) => 
+          (e.title || '').toLowerCase().includes(queryLower) ||
+          (e.description || '').toLowerCase().includes(queryLower)
+        )
+        .slice(0, 5);
+
+      // Users are already filtered by the API
+      const users = (Array.isArray(usersRes) ? usersRes : usersRes?.items || []).slice(0, 5);
+
+      // Filter posts
+      const posts = highlights.filter(item => {
+        const title = (item.title || '').toLowerCase();
+        const caption = (item.caption || '').toLowerCase();
+        const content = (item.content || '').toLowerCase();
+        const authorName = (item.author?.display_name || '').toLowerCase();
+        return title.includes(queryLower) || caption.includes(queryLower) || 
+               content.includes(queryLower) || authorName.includes(queryLower);
+      }).slice(0, 10);
+
+      setSearchResults({ teams, events, users, posts });
+    } catch (err) {
+      console.error('Search failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  }, [highlights]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performGlobalSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, performGlobalSearch]);
 
   const handleHighlightPress = useCallback((item: HighlightItem) => {
     // Navigate to post detail screen
@@ -449,21 +468,11 @@ export default function HighlightsScreen() {
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
     
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item => {
-        const title = (item.title || '').toLowerCase();
-        const caption = (item.caption || '').toLowerCase();
-        const content = (item.content || '').toLowerCase();
-        const authorName = (item.author?.display_name || '').toLowerCase();
-        return title.includes(query) || caption.includes(query) || content.includes(query) || authorName.includes(query);
-      });
-    }
+    // Don't filter by search query here - that's handled by search results view
     
     switch (activeTab) {
       case 'trending':
-        // TRENDING: Top 3 posts with highest engagement, then rest sorted by algorithm
+        // TRENDING: Top 3 posts first (numbered #1, #2, #3), then algorithm
         filtered.sort((a, b) => {
           // Calculate engagement score (upvotes + comments * 2)
           const aEngagement = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 2);
@@ -476,11 +485,11 @@ export default function HighlightsScreen() {
           return bScore - aScore;
         });
         
-        // Top 3 are pinned, rest follow algorithm
+        // Top 3 are explicitly shown first
         const top3 = filtered.slice(0, 3);
         const rest = filtered.slice(3);
         
-        // Sort rest by recency boost + engagement
+        // Sort rest by trending algorithm (recency boost + engagement)
         rest.sort((a, b) => {
           const aRecency = new Date(a.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
           const bRecency = new Date(b.created_at || 0).getTime() > Date.now() - 86400000 ? 5 : 0;
@@ -492,26 +501,25 @@ export default function HighlightsScreen() {
         return [...top3, ...rest];
         
       case 'recent':
-        // RECENT: Most recent posts nationwide, pure chronological
+        // RECENT: Most recent posts globally, pure chronological
         filtered.sort((a, b) => {
           const aTime = new Date(a.created_at || 0).getTime();
           const bTime = new Date(b.created_at || 0).getTime();
           return bTime - aTime; // Newest first
         });
-        break;
+        return filtered; // All posts, ordered by time
         
       case 'top':
-        // TOP: Top 10 posts with most interaction (upvotes + comments)
+        // TOP: Top 10 posts with most engagement, numbered #1-#10
         filtered.sort((a, b) => {
           const aInteraction = (a.upvotes_count || 0) + ((a._count?.comments || 0) * 1.5);
           const bInteraction = (b.upvotes_count || 0) + ((b._count?.comments || 0) * 1.5);
           return bInteraction - aInteraction;
         });
-        return filtered.slice(0, 10); // Top 10 only
+        return filtered.slice(0, 10); // Limit to top 10 only
     }
     
-    return filtered;
-  }, [highlights, activeTab, searchQuery]);
+  }, [highlights, activeTab]);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
@@ -525,8 +533,6 @@ export default function HighlightsScreen() {
       onAuthorPress={handleAuthorPress}
       onTeamPress={handleTeamPress}
       onEventPress={handleEventPress}
-      onToggleUpvote={handleToggleUpvote}
-      onShare={handleShare}
       colorScheme={colorScheme} 
     />
   );
@@ -620,7 +626,109 @@ export default function HighlightsScreen() {
         </ScrollView>
       </View>
 
-      {filteredHighlights.length === 0 ? (
+      {/* Show search results when searching */}
+      {searchQuery.trim() ? (
+        searching ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Searching...</Text>
+          </View>
+        ) : (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.searchResultsContainer}>
+            {/* Teams */}
+            {searchResults.teams.length > 0 && (
+              <View style={styles.searchSection}>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>🏫 Teams</Text>
+                {searchResults.teams.map((team: any) => (
+                  <Pressable
+                    key={team.id}
+                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                    onPress={() => router.push(`/team-profile?id=${team.id}`)}
+                  >
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
+                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                      {team.school_name || team.city || 'Team'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Events */}
+            {searchResults.events.length > 0 && (
+              <View style={styles.searchSection}>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>📅 Events</Text>
+                {searchResults.events.map((event: any) => (
+                  <Pressable
+                    key={event.id}
+                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                    onPress={() => router.push(`/event-detail?id=${event.id}`)}
+                  >
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
+                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                      {event.description || 'Event'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Users */}
+            {searchResults.users.length > 0 && (
+              <View style={styles.searchSection}>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>👤 Users</Text>
+                {searchResults.users.map((user: any) => (
+                  <Pressable
+                    key={user.id}
+                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                    onPress={() => router.push(`/profile?id=${user.id}`)}
+                  >
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
+                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                      @{user.username || user.email}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Posts */}
+            {searchResults.posts.length > 0 && (
+              <View style={styles.searchSection}>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>📝 Posts</Text>
+                {searchResults.posts.map((post, idx) => (
+                  <HighlightCard 
+                    key={post.id}
+                    item={post} 
+                    index={idx}
+                    currentTab={activeTab}
+                    nationalTop={nationalTop}
+                    ranked={ranked}
+                    userLocation={userLocation}
+                    onPress={handleHighlightPress}
+                    onAuthorPress={handleAuthorPress}
+                    onTeamPress={handleTeamPress}
+                    onEventPress={handleEventPress}
+                    colorScheme={colorScheme} 
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* No results */}
+            {searchResults.teams.length === 0 && searchResults.events.length === 0 && 
+             searchResults.users.length === 0 && searchResults.posts.length === 0 && (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
+                <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No results found</Text>
+                <Text style={[styles.emptySubtext, { color: Colors[colorScheme].tabIconDefault }]}>
+                  Try a different search term
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        )
+      ) : filteredHighlights.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="trophy-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
           <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No highlights available</Text>
@@ -960,19 +1068,60 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  actionButtonActive: {
-    backgroundColor: 'rgba(37, 99, 235, 0.18)',
-  },
   statText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
   },
-  statTextUpvote: {
-    color: '#2563EB',
-    fontWeight: '700',
+  numberBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
-  statTextUpvoteActive: {
-    color: '#1D4ED8',
+  numberBadgeText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  searchResultsContainer: {
+    padding: 16,
+  },
+  searchSection: {
+    marginBottom: 24,
+  },
+  searchSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  searchResultItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  searchResultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  searchResultSubtitle: {
+    fontSize: 14,
   },
 });

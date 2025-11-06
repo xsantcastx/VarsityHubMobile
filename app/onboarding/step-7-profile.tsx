@@ -1,5 +1,5 @@
 import { Input } from '@/components/ui/input';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -12,7 +12,7 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 const ALL_INTERESTS = ['Football','Basketball','Baseball','Soccer','Volleyball','Track & Field','Swimming','Hockey','Other'] as const;
 
@@ -107,7 +107,14 @@ export default function Step7Profile() {
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-8-interests');
+        // Fans and rookies skip to role-onboarding, coaches continue to interests
+        if (ob.role === 'fan' || ob.role === 'rookie') {
+          // Mark onboarding as complete for fans/rookies
+          await User.updatePreferences({ onboarding_completed: true });
+          router.replace('/role-onboarding');
+        } else {
+          router.push('/onboarding/step-8-interests');
+        }
       }
     } catch (e: any) { 
       Alert.alert('Failed to save profile', e?.message || 'Please try again'); 

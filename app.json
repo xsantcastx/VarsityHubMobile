@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "VarsityHub",
-    "slug": "varsityhubmobile",
+    "slug": "VarsityHubMobile",
     "owner": "xsantcastx",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,19 +24,11 @@
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
         "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
         "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map.",
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "varsityhubmobile",
-              "com.googleusercontent.apps.316424843313-ao1i3hse3j7jl1o5rn606lplnocf8nlv"
-            ]
-          }
-        ]
+        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
       },
-      "bundleIdentifier": "varsityhub.app",
+      "bundleIdentifier": "com.xsantcastx.varsityhub",
       "config": {
-        "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+        "googleMapsApiKey": ""
       }
     },
     "android": {
@@ -52,8 +44,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "package": "com.xsantcastx.varsityhub",
       "config": {
@@ -98,7 +89,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8f16d60a-0dbd-4222-a173-2cac29fe0a8f"
+        "projectId": "dd17922e-328b-42af-a083-95eab643113a"
       }
     }
   }

@@ -2,7 +2,7 @@ import React, { createContext, PropsWithChildren, useContext, useState } from 'r
 
 export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
-export type UserRole = 'fan' | 'coach';
+export type UserRole = 'fan' | 'rookie' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';
 export type Intent = 'find_local_games' | 'add_players' | 'follow';
 export type Interest = 'Football' | 'Basketball' | 'Baseball' | 'Soccer' | 'Volleyball' | 'Track & Field' | 'Swimming' | 'Hockey' | 'Other';
@@ -40,22 +40,30 @@ type Ctx = {
   state: OnboardingState; 
   setState: React.Dispatch<React.SetStateAction<OnboardingState>>;
   clearOnboarding: () => void;
+  progress: number;
+  setProgress: (progress: number) => void;
 };
 
 const OBContext = createContext<Ctx | null>(null);
 
 export function OBProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<OnboardingState>({});
+  const [progress, setProgress] = useState(0);
   
   const clearOnboarding = () => {
     setState({});
+    setProgress(0);
   };
   
-  return <OBContext.Provider value={{ state, setState, clearOnboarding }}>{children}</OBContext.Provider>;
+  return <OBContext.Provider value={{ state, setState, clearOnboarding, progress, setProgress }}>{children}</OBContext.Provider>;
 }
 
 export function useOnboarding() {
   const ctx = useContext(OBContext);
   if (!ctx) throw new Error('useOnboarding must be used within OBProvider');
   return ctx;
+}
+
+export function useOnboardingOptional() {
+  return useContext(OBContext);
 }

@@ -31,7 +31,15 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+.env.production
+.env.railway
+.env.railway.api
+server/.env
+server/.env.production
+server/.env.railway
+server/.env.railway.api
 
 # typescript
 *.tsbuildinfo

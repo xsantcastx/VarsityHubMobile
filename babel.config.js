@@ -10,7 +10,11 @@ module.exports = function (api) {
           '@/components': './components',
           '@/constants': './constants',
           '@/hooks': './hooks',
-          '@': './src',
+          '@/context': './context',
+          '@/api': './api',
+          '@/utils': './utils',
+          '@/config': './config',
+          '@/ui': './components/ui',
           // Shim problematic nested deps on Windows
           'is-arrayish': './shims/is-arrayish',
         }

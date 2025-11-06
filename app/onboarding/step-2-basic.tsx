@@ -1,8 +1,7 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
-import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -11,10 +10,10 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import { useFocusEffect } from '@react-navigation/native';
+import OnboardingLayout from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
-const zipRe = /^\d{5}$/;
 
 export default function Step2Basic() {
   const router = useRouter();
@@ -28,39 +27,36 @@ export default function Step2Basic() {
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
-  const [zipTouched, setZipTouched] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
-  const [email, setEmail] = useState('');
-  const [resendLoading, setResendLoading] = useState(false);
-  const [checkingVerification, setCheckingVerification] = useState(false);
-  const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  // Helper function to refresh email verification status
-  const refreshEmailVerification = useCallback(async () => {
-    try {
-      const me = await User.me();
-      setEmail(me?.email || '');
-      setEmailVerified(Boolean(me?.email_verified));
-      return me;
-    } catch (error) {
-      console.error('Failed to refresh email verification:', error);
-      return null;
-    }
-  }, []);
+  // Check email verification status when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const me: any = await User.me();
+          setEmailVerified(me?.email_verified ?? null);
+        } catch (error) {
+          console.error('Failed to check email verification:', error);
+        }
+      })();
+    }, [])
+  );
 
   useEffect(() => { 
     (async () => { 
-      const me = await refreshEmailVerification();
-      if (!me) return;
-      const displayName = me?.display_name || '';
-      if (displayName) {
+      try { 
+        const me: any = await User.me();
+        const displayName = me?.display_name || '';
         setUsername(displayName);
-        if (usernameRe.test(displayName)) {
+        setZip(me?.preferences?.zip_code || '');
+        
+        // Check username availability immediately if it exists
+        if (displayName && usernameRe.test(displayName)) {
           try {
             const r: any = await User.usernameAvailable(displayName);
             setAvailable(!!r?.available);
@@ -68,17 +64,9 @@ export default function Step2Basic() {
             setAvailable(null);
           }
         }
-      }
-      const initialZip = me?.preferences?.zip_code || '';
-      if (initialZip) setZip(initialZip);
+      } catch {} 
     })(); 
-  }, [refreshEmailVerification]);
-
-  useFocusEffect(
-    useCallback(() => {
-      refreshEmailVerification();
-    }, [refreshEmailVerification])
-  );
+  }, []);
   useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
     try { // eslint-disable-next-line no-console
       console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
@@ -113,10 +101,7 @@ export default function Step2Basic() {
   const usernameError = username.length > 0 && !usernameRe.test(username);
   const isCoach = ob.role === 'coach';
   const zipRequired = isCoach; // Zip code is mandatory for coaches
-  const normalizedZipValue = zip.trim();
-  const zipValid = zipRe.test(normalizedZipValue);
-  const baseContinueReady = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zipValid);
-  const canContinue = baseContinueReady;
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -134,72 +119,27 @@ export default function Step2Basic() {
     }
   };
 
-  const handleVerifyNow = () => {
-    router.push({ pathname: '/verify-email', params: { returnTo: '/onboarding/step-2-basic' } });
-  };
-
-  const handleResendVerification = async () => {
-    setResendLoading(true);
-    setVerificationError(null);
-    setVerificationInfo(null);
-    try {
-      const res: any = await User.requestVerification();
-      const message = res?.dev_verification_code
-        ? `Code sent! (dev: ${res.dev_verification_code})`
-        : 'Verification email sent. Please check your inbox.';
-      setVerificationInfo(message);
-    } catch (e: any) {
-      setVerificationError(e?.message || 'Failed to resend verification code. Try again shortly.');
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  const handleRefreshVerification = async () => {
-    setCheckingVerification(true);
-    await refreshEmailVerification();
-    setCheckingVerification(false);
-  };
-
   const onContinue = async () => {
-    if (!baseContinueReady) {
-      if (!zipValid) {
-        setZipTouched(true);
-      }
-      return;
-    }
+    if (!canContinue) return;
     setSaving(true);
     try {
-      const normalizedZip = normalizedZipValue;
-      setOB((prev) => ({ ...prev, display_name: username, affiliation, dob, zip_code: normalizedZip || null }));
+      setOB((prev) => ({ ...prev, display_name: username, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
       } catch (e) {}
-      await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: normalizedZip || undefined } });
-      const refreshed = await refreshEmailVerification();
-      const verified = Boolean(refreshed?.email_verified);
-      if (!verified) {
-        Alert.alert(
-          'Verify your email',
-          'Please verify your email before continuing.',
-          [
-            { text: 'Verify now', onPress: () => handleVerifyNow() },
-            { text: 'Close', style: 'cancel' },
-          ]
-        );
-        return;
-      }
-
-      // Navigate back to confirmation if we came from there, otherwise continue to next step
+      await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: zip || undefined } });
+      
+      // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
         setProgress(9); // step-10 confirmation
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        const role = ob.role;
-        if (role === 'fan') {
+        // Rookies skip plan/season/team steps and go straight to profile
+        if (ob.role === 'rookie') {
           setProgress(6); // step-7 profile
           router.push('/onboarding/step-7-profile');
         } else {
+          // Coaches continue to plan selection
           setProgress(2); // step-3 plan
           router.push('/onboarding/step-3-plan');
         }
@@ -217,6 +157,8 @@ export default function Step2Basic() {
       title="Basic Information"
       subtitle="We'll set up your account with a username and preferences"
       onBack={onBack}
+      emailVerified={emailVerified === null ? undefined : emailVerified}
+      onVerifyEmail={() => router.push('/verify-email')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -235,14 +177,17 @@ export default function Step2Basic() {
         <Text style={styles.success}>Available!</Text>
       ) : null}
 
-      <Text style={styles.label}>Affiliation</Text>
+      <Text style={styles.label}>Organization Type</Text>
+      <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
+        Select the type of organization you're affiliated with (optional)
+      </Text>
       <View style={styles.affiliationGrid}>
         {[
           { value: 'none', label: 'None', icon: '❌' },
           { value: 'university', label: 'University', icon: '🎓' },
           { value: 'high_school', label: 'High School', icon: '🏫' },
           { value: 'club', label: 'Club', icon: '⚽' },
-          { value: 'youth', label: 'Youth', icon: '👶' },
+          { value: 'youth', label: 'Youth Org', icon: '🏀' },
         ].map((option) => (
           <Pressable
             key={option.value}
@@ -251,6 +196,8 @@ export default function Step2Basic() {
               affiliation === option.value && styles.affiliationButtonSelected
             ]}
             onPress={() => setAffiliation(option.value as Affiliation)}
+            accessibilityLabel={`${option.label} affiliation`}
+            accessibilityRole="button"
           >
             <Text style={styles.affiliationIcon}>{option.icon}</Text>
             <Text style={[
@@ -344,83 +291,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: colorScheme === 'dark' ? '#f87171' : '#ef4444',
     marginTop: 4,
   },
-  verifyCard: {
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 24,
-    marginBottom: 8,
-  },
-  verifyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  verifyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  verifyDescription: {
-    fontSize: 14,
-    color: '#92400E',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  verifyActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  verifyPrimaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#1D4ED8',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  verifyPrimaryText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  verifySecondaryButton: {
-    borderWidth: 1,
-    borderColor: '#1D4ED8',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  verifySecondaryDisabled: {
-    opacity: 0.6,
-  },
-  verifySecondaryText: {
-    color: '#1D4ED8',
-    fontWeight: '600',
-  },
-  verifyRefreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  verifyRefreshText: {
-    color: '#1D4ED8',
-    fontWeight: '600',
-  },
-  verifyInfo: {
-    color: '#047857',
-    marginBottom: 8,
-  },
-  verifyError: {
-    color: '#B91C1C',
-    marginBottom: 8,
-  },
   success: {
     fontSize: 14,
     color: colorScheme === 'dark' ? '#4ade80' : '#22c55e',
@@ -430,6 +300,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 14,
     color: Colors[colorScheme].mutedText,
     marginTop: 4,
+  },
+  hint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   affiliationGrid: {
     flexDirection: 'row',

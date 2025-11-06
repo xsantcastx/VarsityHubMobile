@@ -22,7 +22,8 @@ interface Game {
   time: string;
   location: string;
   type: 'home' | 'away' | 'neutral';
-  status: 'upcoming' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'completed' | 'cancelled' | 'pending';
+  approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
   score?: {
@@ -286,18 +287,20 @@ export default function ManageSeasonScreen() {
     }
   ];
 
+  const pendingGames: Game[] = (games ?? []).filter(g => g.approval_status === 'pending' || g.status === 'pending');
+
   const upcomingGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return gameDate >= today && g.status === 'upcoming';
+    return gameDate >= today && g.status === 'upcoming' && g.approval_status !== 'pending';
   });
 
   const recentGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return gameDate < today || g.status === 'completed';
+    return (gameDate < today || g.status === 'completed') && g.approval_status !== 'pending';
   });
 
   // Load games on mount
@@ -406,56 +409,190 @@ export default function ManageSeasonScreen() {
     });
   };
 
+  const handleApproveGame = async (game: Game) => {
+    try {
+      // Update game approval status to approved
+      setGames(prevGames =>
+        prevGames.map(g =>
+          g.id === game.id ? { ...g, approval_status: 'approved', status: 'upcoming' } : g
+        )
+      );
+      
+      setActionModal({
+        visible: true,
+        title: '✅ Game Approved',
+        message: `${game.opponent || 'Game'} has been approved and will appear in upcoming games.`,
+        options: [{ label: 'OK', onPress: () => {} }],
+      });
+    } catch (error) {
+      console.error('Error approving game:', error);
+    }
+  };
+
+  const handleRejectGame = async (game: Game) => {
+    setActionModal({
+      visible: true,
+      title: 'Reject Game',
+      message: `Are you sure you want to reject "${game.opponent || 'this game'}"? This action cannot be undone.`,
+      options: [
+        { label: 'Cancel', onPress: () => {} },
+        {
+          label: 'Reject',
+          isDestructive: true,
+          onPress: async () => {
+            try {
+              // Remove from games list
+              setGames(prevGames => prevGames.filter(g => g.id !== game.id));
+              
+              setActionModal({
+                visible: true,
+                title: 'Game Rejected',
+                message: 'The game has been rejected and removed.',
+                options: [{ label: 'OK', onPress: () => {} }],
+              });
+            } catch (error) {
+              console.error('Error rejecting game:', error);
+            }
+          },
+        },
+      ],
+    });
+  };
+
+  const handlePendingGameAction = (game: Game) => {
+    setActionModal({
+      visible: true,
+      title: 'Pending Game',
+      message: `${game.opponent} - ${game.date}`,
+      options: [
+        { label: 'Cancel', onPress: () => {} },
+        { label: '✅ Approve', onPress: () => handleApproveGame(game) },
+        { label: 'Edit', onPress: () => handleEditGame(game) },
+        { label: '❌ Reject', isDestructive: true, onPress: () => handleRejectGame(game) },
+      ],
+    });
+  };
+
+  const sanitizeTeamId = (value?: string) => {
+    const trimmed = (value || '').trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  };
+
+  const parseDateParts = (date: string) => {
+    const [yearStr, monthStr, dayStr] = (date || '').split('-');
+    const year = parseInt(yearStr || '', 10);
+    const month = parseInt(monthStr || '', 10);
+    const day = parseInt(dayStr || '', 10);
+    return { year, month, day };
+  };
+
+  const parseMeridiemTime = (time: string) => {
+    const normalized = (time || '').replace(/\u202f/g, ' ').trim();
+    const match = normalized.match(/^(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?$/i);
+    if (!match) {
+      throw new Error('Invalid time format');
+    }
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2] ?? '0', 10);
+    const meridiem = (match[3] || '').toUpperCase();
+    if (meridiem === 'PM' && hours < 12) hours += 12;
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+    return { hours, minutes };
+  };
+
   const handleSaveQuickGame = async (gameData: QuickGameData) => {
     try {
       const isEditing = !!gameData.id;
       
-      // Convert 12-hour time to 24-hour format for ISO string
-      const convertTo24Hour = (time12h: string) => {
-        const [time, modifier] = time12h.split(' ');
-        let [hours, minutes] = time.split(':');
-        hours = hours.padStart(2, '0');
-        
-        if (hours === '12') {
-          hours = modifier === 'AM' ? '00' : '12';
-        } else if (modifier === 'PM') {
-          hours = String(parseInt(hours, 10) + 12).padStart(2, '0');
-        }
-        return `${hours}:${minutes || '00'}`;
-      };
-
-      // Create proper datetime for API - combine date and time properly
-      const time24h = convertTo24Hour(gameData.time);
-      const [year, month, day] = gameData.date.split('-');
-      const [hours, minutes] = time24h.split(':');
+      console.log('handleSaveQuickGame - Current team state:', currentTeam);
+      console.log('handleSaveQuickGame - Params teamId:', params.teamId);
+      console.log('handleSaveQuickGame - gameData:', gameData);
       
-      // Create date object more safely
-      const gameDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
+      const { year, month, day } = parseDateParts(gameData.date);
+      const { hours, minutes } = parseMeridiemTime(gameData.time);
+
+      if ([year, month, day, hours, minutes].some((val) => Number.isNaN(val))) {
+        throw new Error('Invalid date/time combination');
+      }
+
+      // Create the timestamp in UTC so the intended date/time is preserved server-side
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
       
       // Validate the date
       if (isNaN(gameDateTime.getTime())) {
         throw new Error('Invalid date/time combination');
       }
       
+      const homeTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.currentTeamId : gameData.opponentTeamId);
+      const awayTeamId = sanitizeTeamId(gameData.type === 'home' ? gameData.opponentTeamId : gameData.currentTeamId);
+
       // Create game data for API
-      const gamePayload: any = {
-        title: `${gameData.currentTeam} vs ${gameData.opponent}`,
-        home_team: gameData.type === 'home' ? gameData.currentTeam : gameData.opponent,
-        away_team: gameData.type === 'home' ? gameData.opponent : gameData.currentTeam,
+      const gamePayload: Record<string, any> = {
+        title: gameData.isCompetitive 
+          ? `${gameData.currentTeam} vs ${gameData.opponent}`
+          : `${gameData.currentTeam} Event`,
         date: gameDateTime.toISOString(),
-        location: gameData.type === 'home' ? 'Home Stadium' : 'Away Venue',
-        description: `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`,
+        description: gameData.isCompetitive
+          ? `${gameData.type === 'home' ? 'Home' : 'Away'} game: ${gameData.currentTeam} vs ${gameData.opponent}`
+          : `Event for ${gameData.currentTeam}`,
       };
+
+      // Only add team fields if this is a competitive game
+      if (gameData.isCompetitive) {
+        gamePayload.home_team = gameData.type === 'home' ? gameData.currentTeam : gameData.opponent;
+        gamePayload.away_team = gameData.type === 'home' ? gameData.opponent : gameData.currentTeam;
+        
+        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+        if (awayTeamId) {
+          gamePayload.away_team_id = awayTeamId;
+        } else if (gameData.opponent) {
+          gamePayload.away_team_name = gameData.opponent;
+        }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (gameData.currentTeamId) {
+          gamePayload.home_team_id = gameData.currentTeamId;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (gameData.expectedAttendance) {
+        gamePayload.expected_attendance = gameData.expectedAttendance;
+      }
+
+      // Add event type
+      if (gameData.eventType) {
+        gamePayload.event_type = gameData.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (gameData.donationGoal) {
+        gamePayload.donation_goal = gameData.donationGoal;
+      }
+      if (gameData.watchLocation) {
+        gamePayload.watch_location = gameData.watchLocation;
+        if (gameData.watchLocationLat) gamePayload.watch_location_lat = gameData.watchLocationLat;
+        if (gameData.watchLocationLng) gamePayload.watch_location_lng = gameData.watchLocationLng;
+        if (gameData.watchLocationPlaceId) gamePayload.watch_location_place_id = gameData.watchLocationPlaceId;
+      }
+      if (gameData.destination) {
+        gamePayload.destination = gameData.destination;
+      }
+
       // Include banner URL if provided by the QuickAdd modal
       if (gameData.banner_url) {
         gamePayload.banner_url = gameData.banner_url;
         gamePayload.cover_image_url = gameData.banner_url; // Also set cover_image_url to the same value
+      } else if (gameData.cover_image_url) {
+        gamePayload.cover_image_url = gameData.cover_image_url;
       }
       // Include appearance preset if provided
       if (gameData.appearance) {
         // Map to backend field - use `appearance` or `banner_style` depending on API
         gamePayload.appearance = gameData.appearance;
       }
+
+      console.log('Sending gamePayload to backend:', JSON.stringify(gamePayload, null, 2));
 
       // Save to backend API (create or update)
       const savedGame = isEditing 
@@ -499,14 +636,19 @@ export default function ManageSeasonScreen() {
       setShowQuickAddModal(false);
       setEditingGame(null);
       
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error adding quick game:', error);
+      console.error('Error status:', error?.status);
+      console.error('Error data:', error?.data);
+      console.error('Error message:', error?.message);
+      const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
+      const errorMsg = (error?.data?.error || error?.data?.message || error?.message || 'Unknown error') + details;
       setActionModal({
         visible: true,
         title: 'Error',
-        message: `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to add event: ${errorMsg}`,
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-      console.error('Error adding quick game:', error);
     }
   };
 
@@ -556,7 +698,7 @@ export default function ManageSeasonScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: 'Failed to add game. Please try again.',
+        message: 'Failed to add event. Please try again.',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       console.error('Error adding game:', error);
@@ -809,14 +951,14 @@ export default function ManageSeasonScreen() {
         </View>
       </View>
 
-      {/* Quick Actions - SIMPLIFIED: Add Game Only */}
+      {/* Quick Actions - SIMPLIFIED: Add Event Only */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
         <Pressable 
           style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
           onPress={handleAddGame}
         >
           <Ionicons name="add-outline" size={20} color="#fff" />
-          <Text style={styles.quickActionText}>Add Game</Text>
+          <Text style={styles.quickActionText}>Add Event</Text>
         </Pressable>
       </View>
 
@@ -835,10 +977,59 @@ export default function ManageSeasonScreen() {
       >
         {selectedTab === 'schedule' && (
           <View style={styles.tabContent}>
+            {/* Pending Approval Queue */}
+            {pendingGames.length > 0 && (
+              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: '#F59E0B', borderWidth: 2 }]}>
+                <View style={[styles.approvalHeader, { backgroundColor: colorScheme === 'dark' ? '#78350F' : '#FEF3C7', borderColor: '#F59E0B' }]}>
+                  <Ionicons name="time" size={24} color="#F59E0B" />
+                  <Text style={[styles.approvalTitle, { color: colorScheme === 'dark' ? '#FDE68A' : '#92400E' }]}>
+                    📋 Approval Queue ({pendingGames.length})
+                  </Text>
+                </View>
+                <Text style={[styles.approvalSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  Games waiting for approval before appearing publicly
+                </Text>
+                {pendingGames.map((game) => (
+                  <View key={game.id} style={[styles.pendingGameCard, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F9FAFB', borderColor: Colors[colorScheme].border }]}>
+                    <GameCard
+                      game={{
+                        ...game,
+                        opponent_name: game.homeTeam && game.awayTeam 
+                          ? `${game.homeTeam} vs ${game.awayTeam}`
+                          : game.opponent,
+                        scheduled_date: game.date,
+                        scheduled_time: game.time,
+                        game_type: game.type,
+                      }}
+                      onPress={() => handlePendingGameAction(game)}
+                      showActions={false}
+                      style={{ marginBottom: 0 }}
+                    />
+                    <View style={styles.pendingActions}>
+                      <Pressable
+                        style={[styles.approveButton, { backgroundColor: '#10B981' }]}
+                        onPress={() => handleApproveGame(game)}
+                      >
+                        <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
+                        <Text style={styles.approveButtonText}>Approve</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.rejectButton, { backgroundColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }]}
+                        onPress={() => handleRejectGame(game)}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#EF4444" />
+                        <Text style={[styles.rejectButtonText, { color: colorScheme === 'dark' ? '#FCA5A5' : '#DC2626' }]}>Reject</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Upcoming Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <SectionHeader 
-                title="Upcoming Games"
+                title="📅 Upcoming Games"
                 action={
                   <Pressable onPress={handleAddGame}>
                     <Ionicons name="add-circle-outline" size={24} color={Colors[colorScheme].tint} />
@@ -880,7 +1071,7 @@ export default function ManageSeasonScreen() {
             {/* Recent Games */}
             <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <SectionHeader 
-                title="Recent Games"
+                title="🏆 Recent Games"
                 style={{ paddingHorizontal: 0 }}
               />
               
@@ -1210,7 +1401,7 @@ export default function ManageSeasonScreen() {
         )}
       </ScrollView>
 
-      {/* Add Game Modal */}
+      {/* Add Event Modal */}
       <AddGameModal
         visible={showAddGameModal}
         onClose={() => setShowAddGameModal(false)}
@@ -1218,7 +1409,7 @@ export default function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
       />
 
-      {/* Quick Add Game Modal */}
+      {/* Quick Add Event Modal */}
       <QuickAddGameModal
         visible={showQuickAddModal}
         onClose={() => {
@@ -1227,6 +1418,7 @@ export default function ManageSeasonScreen() {
         }}
         onSave={handleSaveQuickGame}
         currentTeamName={currentTeam?.name || 'My Team'}
+        currentTeamId={currentTeam?.id || params.teamId || ''}
         initialData={editingGame ? {
           id: editingGame.id,
           opponent: editingGame.opponent,
@@ -1671,6 +1863,63 @@ const styles = StyleSheet.create({
   scheduleDate: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  approvalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  approvalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    flex: 1,
+  },
+  approvalSubtitle: {
+    fontSize: 14,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  pendingGameCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  pendingActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  approveButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  approveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  rejectButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 

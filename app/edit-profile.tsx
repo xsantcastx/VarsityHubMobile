@@ -19,6 +19,15 @@ const SPORTS_OPTIONS = [
   'Track & Field', 'Swimming', 'Hockey', 'Tennis', 'Golf', 'Wrestling', 'Other'
 ];
 
+const THEME_COLORS = [
+  { name: 'VarsityHub Blue', value: '#3B82F6', gradient: ['#1e3a8a', '#3b82f6', '#60a5fa'] },
+  { name: 'Championship Red', value: '#DC2626', gradient: ['#7f1d1d', '#dc2626', '#ef4444'] },
+  { name: 'Victory Green', value: '#10B981', gradient: ['#065f46', '#10b981', '#34d399'] },
+  { name: 'Gold Medal', value: '#F59E0B', gradient: ['#78350f', '#f59e0b', '#fbbf24'] },
+  { name: 'Royal Purple', value: '#8B5CF6', gradient: ['#4c1d95', '#8b5cf6', '#a78bfa'] },
+  { name: 'Classic Gray', value: '#6B7280', gradient: ['#1f2937', '#6b7280', '#9ca3af'] },
+];
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -38,6 +47,9 @@ export default function EditProfileScreen() {
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
+  
+  // Theme color
+  const [themeColor, setThemeColor] = useState<string>('#3B82F6'); // Default VarsityHub Blue
   
   // Team member fields
   const [position, setPosition] = useState('');
@@ -81,6 +93,9 @@ export default function EditProfileScreen() {
                        me?.sports_interests || 
                        [];
       setSportsInterests(Array.isArray(interests) ? interests : []);
+      
+      // Theme color from preferences
+      setThemeColor(prefs?.theme_color || '#3B82F6');
       
       // Team member fields from preferences
       setPosition(prefs?.position || me?.position || '');
@@ -266,6 +281,7 @@ export default function EditProfileScreen() {
       if (zipCode.trim()) preferences.zip_code = zipCode.trim();
       if (dateOfBirth) preferences.date_of_birth = formatDateForAPI(dateOfBirth);
       if (sportsInterests.length > 0) preferences.sports_interests = sportsInterests;
+      if (themeColor) preferences.theme_color = themeColor;
       if (position.trim()) preferences.position = position.trim();
       if (jerseyNumber.trim()) preferences.jersey_number = jerseyNumber.trim();
 
@@ -578,6 +594,65 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
+            {/* Theme Color Section */}
+            <View style={[styles.section, { 
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border,
+            }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <Ionicons name="color-palette-outline" size={20} color={Colors[colorScheme].tint} />
+                {' '}Profile Theme Color
+              </Text>
+              <Text style={[styles.sectionNote, { color: Colors[colorScheme].mutedText }]}>
+                Choose a color that represents you
+              </Text>
+              
+              <View style={styles.colorGrid}>
+                {THEME_COLORS.map((color) => (
+                  <Pressable
+                    key={color.value}
+                    style={[
+                      styles.colorOption,
+                      {
+                        borderColor: themeColor === color.value 
+                          ? color.value
+                          : Colors[colorScheme].border,
+                        borderWidth: themeColor === color.value ? 3 : 1,
+                      }
+                    ]}
+                    onPress={() => setThemeColor(color.value)}
+                  >
+                    <View style={[styles.colorSwatch, { backgroundColor: color.value }]}>
+                      {themeColor === color.value && (
+                        <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                      )}
+                    </View>
+                    <Text style={[
+                      styles.colorName,
+                      {
+                        color: Colors[colorScheme].text,
+                        fontWeight: themeColor === color.value ? '700' : '500',
+                      }
+                    ]}>
+                      {color.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              
+              <View style={[styles.colorPreview, { 
+                backgroundColor: Colors[colorScheme].surface,
+                borderColor: Colors[colorScheme].border,
+              }]}>
+                <Text style={[styles.colorPreviewLabel, { color: Colors[colorScheme].mutedText }]}>
+                  Preview:
+                </Text>
+                <View style={[styles.colorPreviewBox, { backgroundColor: themeColor }]}>
+                  <Text style={styles.colorPreviewText}>Your Profile</Text>
+                </View>
+              </View>
+            </View>
+
             {/* Team Member Section */}
             {isTeamMember && (
               <View style={[styles.section, { 
@@ -771,6 +846,67 @@ const styles = StyleSheet.create({
   selectedCount: {
     fontSize: 12,
     textAlign: 'center',
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  colorOption: {
+    width: '47%',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    alignItems: 'center',
+  },
+  colorSwatch: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  colorName: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  colorPreview: {
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  colorPreviewLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  colorPreviewBox: {
+    width: '100%',
+    height: 80,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  colorPreviewText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   saveSection: {
     marginTop: 8,

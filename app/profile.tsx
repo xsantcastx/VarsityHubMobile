@@ -1,4 +1,4 @@
-import { User } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -17,6 +17,19 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+
+const THEME_COLOR_GRADIENTS: { [key: string]: string[] } = {
+  '#3B82F6': ['#1e3a8a', '#3b82f6', '#60a5fa'], // VarsityHub Blue
+  '#DC2626': ['#7f1d1d', '#dc2626', '#ef4444'], // Championship Red
+  '#10B981': ['#065f46', '#10b981', '#34d399'], // Victory Green
+  '#F59E0B': ['#78350f', '#f59e0b', '#fbbf24'], // Gold Medal
+  '#8B5CF6': ['#4c1d95', '#8b5cf6', '#a78bfa'], // Royal Purple
+  '#6B7280': ['#1f2937', '#6b7280', '#9ca3af'], // Classic Gray
+};
+
+const getGradientForColor = (color: string): string[] => {
+  return THEME_COLOR_GRADIENTS[color] || THEME_COLOR_GRADIENTS['#3B82F6'];
+};
 
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
@@ -88,6 +101,8 @@ export default function ProfileScreen() {
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
   const rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -154,6 +169,67 @@ export default function ProfileScreen() {
       const u: any = await User.me();
       if (u && !u._isNotModified) setMe(u ?? null);
       if (!u?.id) { setLoading(false); return; }
+
+      // Extract theme color from preferences
+      const themeColor = u?.preferences?.theme_color || '#3B82F6';
+      setUserThemeColor(themeColor);
+
+      // Load organizations - get user's teams and extract their organizations
+      try {
+        const myTeams = await Team.list('', true); // mine=true
+        
+        if (Array.isArray(myTeams) && myTeams.length > 0) {
+          // Extract unique organization IDs from teams
+          const orgIds = new Set<string>();
+          const orgNames = new Set<string>();
+          
+          myTeams.forEach((team: any) => {
+            if (team.organization_id) {
+              orgIds.add(team.organization_id);
+            }
+            // Also try to extract organization from team name (e.g., "SHS Men's Soccer" -> "SHS")
+            if (team.name) {
+              const nameParts = String(team.name).split(/\s+/);
+              if (nameParts.length > 0) {
+                orgNames.add(nameParts[0]);
+              }
+            }
+          });
+
+          // Try to fetch by ID first
+          if (orgIds.size > 0) {
+            const orgPromises = Array.from(orgIds).map(id => 
+              Organization.get(id).catch(err => null)
+            );
+            
+            const orgsData = await Promise.all(orgPromises);
+            const validOrgs = orgsData.filter(org => org !== null);
+            
+            if (validOrgs.length > 0) {
+              setOrganizations(validOrgs);
+            }
+          }
+          
+          // If no orgs found by ID, try searching by name
+          if (orgIds.size === 0 && orgNames.size > 0) {
+            const searchPromises = Array.from(orgNames).map(name => 
+              Organization.list(name, 5).catch(err => [])
+            );
+            
+            const searchResults = await Promise.all(searchPromises);
+            const flatResults = searchResults.flat();
+            
+            // Deduplicate by ID
+            const uniqueOrgs = flatResults.filter((org: any, index: number, self: any[]) => 
+              org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
+            );
+            
+            setOrganizations(uniqueOrgs);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load organizations', err);
+      }
 
       // Load first page for active tab
       if (activeTab === 'posts') {
@@ -282,9 +358,9 @@ export default function ProfileScreen() {
     <>
       {/* Modern Sport-Inspired Header */}
       <View style={styles.headerContainer}>
-        {/* Background Gradient */}
+        {/* Background Gradient with User's Theme Color */}
         <LinearGradient
-          colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+          colors={getGradientForColor(userThemeColor) as any}
           style={styles.headerGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -389,6 +465,41 @@ export default function ProfileScreen() {
           </React.Fragment>
         ))}
       </View>
+
+      {/* Organizations Section */}
+      {organizations.length > 0 && (
+        <View style={[styles.organizationsSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.orgHeader}>
+            <Ionicons name="business-outline" size={20} color={theme.tint} />
+            <Text style={[styles.orgTitle, { color: theme.text }]}>Organizations</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orgList}>
+            {organizations.map((org) => (
+              <Pressable
+                key={org.id}
+                style={[styles.orgCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => router.push({ pathname: '/league', params: { id: org.id, name: org.name } })}
+              >
+                {org.avatar_url ? (
+                  <Image
+                    source={{ uri: org.avatar_url }}
+                    style={styles.orgLogo}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={[styles.orgLogoPlaceholder, { backgroundColor: theme.border }]}>
+                    <Ionicons name="shield-outline" size={20} color={theme.mutedText} />
+                  </View>
+                )}
+                <Text style={[styles.orgName, { color: theme.text }]} numberOfLines={2}>
+                  {org.display_name || org.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
           onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
@@ -408,16 +519,23 @@ export default function ProfileScreen() {
         <View style={styles.filtersBar}>
           <View style={styles.segmentedRow}>
             {(['all','like','comment','save'] as const).map((t) => {
-              const label = t === 'all'
-                ? 'All'
+              const emoji = t === 'all'
+                ? '🗂️'
                 : t === 'like'
-                ? `Upvotes${counts ? ` (${counts.likes})` : ''}`
+                ? '⬆️'
                 : t === 'comment'
-                ? `Comments${counts ? ` (${counts.comments})` : ''}`
-                : `Saves${counts ? ` (${counts.saves})` : ''}`;
+                ? '💬'
+                : '🔖';
+              const count = t === 'all'
+                ? ''
+                : t === 'like'
+                ? counts ? ` ${counts.likes}` : ''
+                : t === 'comment'
+                ? counts ? ` ${counts.comments}` : ''
+                : counts ? ` ${counts.saves}` : '';
               return (
                 <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, { backgroundColor: theme.surface }, interType === t && [styles.segmentActive, { backgroundColor: theme.tint }]]}>
-                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{label}</Text>
+                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{emoji}{count}</Text>
                 </Pressable>
               );
             })}
@@ -981,5 +1099,54 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  
+  // Organizations Section
+  organizationsSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  orgHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  orgTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  orgList: {
+    gap: 12,
+    paddingRight: 16,
+  },
+  orgCard: {
+    width: 100,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 8,
+  },
+  orgLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  orgLogoPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orgName: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });
 

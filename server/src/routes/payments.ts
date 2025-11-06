@@ -14,43 +14,22 @@ export const paymentsRouter = Router();
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
   
-  // Week block pricing: $10 for Mon-Thu week, $17.50 for Fri-Sun weekend
-  const weekdayBlockPrice = 1000; // $10.00 in cents for entire Mon-Thu block
-  const weekendBlockPrice = 1750; // $17.50 in cents for entire Fri-Sun block
+  // Weekly slot pricing: $8/week (Mon-Thu slot), $10/week (Fri-Sun slot)
+  const weekdayPrice = 800; // $8.00 per week in cents
+  const weekendPrice = 1000; // $10.00 per week in cents
+  let total = 0;
   
-  // Group dates by week
-  const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();
-  
-  for (const dateStr of isoDates) {
-    const date = new Date(dateStr + 'T00:00:00');
-    const day = date.getDay(); // 0 Sun .. 6 Sat
-    
-    // Find Monday of this week to use as key
-    const diff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(date);
-    monday.setDate(date.getDate() + diff);
-    const weekKey = monday.toISOString().split('T')[0];
-    
-    if (!weekMap.has(weekKey)) {
-      weekMap.set(weekKey, { hasWeekday: false, hasWeekend: false });
-    }
-    
-    const week = weekMap.get(weekKey)!;
+  for (const s of isoDates) {
+    const d = new Date(s + 'T00:00:00');
+    const day = d.getDay(); // 0 Sun .. 6 Sat
     
     // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
     // Fri=5, Sat=6, Sun=0 are weekend
     if (day >= 1 && day <= 4) {
-      week.hasWeekday = true;
+      total += weekdayPrice;
     } else {
-      week.hasWeekend = true;
+      total += weekendPrice;
     }
-  }
-  
-  // Calculate total: charge once per week block
-  let total = 0;
-  for (const week of weekMap.values()) {
-    if (week.hasWeekday) total += weekdayBlockPrice;
-    if (week.hasWeekend) total += weekendBlockPrice;
   }
   
   return total;
@@ -116,32 +95,26 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   }
   const priceIdRaw = membershipPriceIds[chosen];
   const normalizedPriceId = typeof priceIdRaw === 'string' ? priceIdRaw.trim() : '';
-  const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id', 'your-'];
+  const placeholderHints = ['price_xxx', 'price_yyy', 'your_price_id'];
   const isPlaceholder = normalizedPriceId.length === 0 || placeholderHints.some((hint) => normalizedPriceId.toLowerCase().includes(hint));
-  
-  // Validate that price ID exists in Stripe before using it
-  let hasValidPriceId = false;
-  if (/^price_/i.test(normalizedPriceId) && !isPlaceholder) {
-    try {
-      await stripe.prices.retrieve(normalizedPriceId);
-      hasValidPriceId = true;
-      console.log('[payments] Using valid Stripe price ID:', normalizedPriceId);
-    } catch (err) {
-      console.warn('[payments] Price ID not found in Stripe, using dynamic pricing:', normalizedPriceId);
-    }
+  const hasExplicitPriceId = /^price_/i.test(normalizedPriceId) && !isPlaceholder;
+  if (!hasExplicitPriceId && normalizedPriceId) {
+    console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
   }
 
-  const lineItems = hasValidPriceId
+  const lineItems = hasExplicitPriceId
     ? [{ price: normalizedPriceId, quantity: 1 }]
     : [{
         quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 7000 : 15000,
-          recurring: { interval: 'year' },
+          unit_amount: chosen === 'veteran' ? 150 : 1750, // Veteran: $1.50/month, Legend: $17.50/year
+          recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
-            description: chosen + ' membership (fallback price)',
+            description: chosen === 'veteran' 
+              ? 'Veteran plan - $1.50/month per team' 
+              : 'Legend plan - $17.50/year unlimited (fallback price)',
           },
         },
       }];
@@ -187,7 +160,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 7000 : 15000;
+  const amount = chosen === 'veteran' ? 150 : 1750; // $1.50 or $17.50
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',

@@ -1,4 +1,4 @@
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
@@ -8,7 +8,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 type Plan = 'rookie' | 'veteran' | 'legend';
 
@@ -39,27 +39,30 @@ const PLAN_OPTIONS: PlanOption[] = [
   {
     id: 'veteran',
     title: 'Veteran',
-    priceLabel: '$1.50 / month per extra team',
-    description: 'Manage multiple teams with advanced analytics and support.',
+    priceLabel: '$1.50 / month per team',
+    description: 'Manage multiple teams with flexible per-team pricing.',
     badge: 'Most Popular',
-    extraNote: 'Stripe handles secure billing so you can focus on your program.',
+    extraNote: 'Pay only for the teams you add beyond your first two. Stripe handles secure billing.',
     benefits: [
       'All Rookie features',
+      'Add unlimited teams',
       'Priority support',
-      'Add administrator per team added',
+      'Per-team administrators',
       '🏆 Trophy emblem',
     ],
   },
   {
     id: 'legend',
     title: 'Legend',
-    priceLabel: '$29.99 for full unlimited access',
-    description: 'Scale to multi-team organizations with custom branding.',
+    priceLabel: '$17.50 / year unlimited',
+    description: 'Best value for multi-team organizations and established programs.',
     benefits: [
       'All Veteran features',
-      'Unlimited teams/administrators',
+      'Unlimited teams included',
+      'Unlimited administrators',
       '🥇 Gold medal emblem',
       'Custom branding',
+      'Advanced analytics',
     ],
   },
 ];

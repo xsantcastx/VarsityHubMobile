@@ -13,21 +13,12 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ devCode?: string; returnTo?: string }>();
+  const params = useLocalSearchParams<{ devCode?: string }>();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
-
-  const returnTo = typeof params.returnTo === 'string' && params.returnTo.trim().length
-    ? params.returnTo
-    : null;
-
-  const navigateAfterVerification = () => {
-    const target = returnTo || '/onboarding/step-1-role';
-    router.replace(target as any);
-  };
 
   // Load dev code from params if available
   useEffect(() => {
@@ -68,11 +59,9 @@ export default function VerifyEmailScreen() {
       console.log('[verify-email] Attempting to verify with code:', code.trim());
       const result = await User.verifyEmail(code.trim());
       console.log('[verify-email] Verification result:', result);
-      setInfo('Email verified!');
-      // After verification, start onboarding from step 1 (role selection)
-      setTimeout(() => {
-        navigateAfterVerification();
-      }, 1000);
+      setInfo('✅ Email verified successfully! You can go back now.');
+      setCode(''); // Clear the code input
+      // Don't auto-redirect - let user go back manually
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';

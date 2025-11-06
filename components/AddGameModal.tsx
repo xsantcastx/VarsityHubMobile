@@ -1,23 +1,21 @@
-import AppearancePicker, { AppearancePreset } from '@/components/AppearancePicker';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
 import {
-    ActionSheetIOS,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
-import { Team } from '../src/api/entities';
 import ImageEditor from './ImageEditor';
 
 interface AddGameModalProps {
@@ -74,7 +72,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [appearance, setAppearance] = useState<AppearancePreset>('classic');
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
 
@@ -127,87 +124,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())
   );
 
-  // iOS ActionSheet handlers with enhanced UX
-  const showCurrentTeamPickerIOS = () => {
-    if (Platform.OS !== 'ios') {
-      setShowCurrentTeamPicker(true);
-      return;
-    }
-
-    // Sort teams alphabetically for easier finding
-    const sortedTeams = [...teams].sort((a, b) => a.name.localeCompare(b.name));
-    const teamNames = sortedTeams.map(t => t.name);
-    
-    // Add visual prefix to each team
-    const teamOptions = teamNames.map(name => `🏆 ${name}`);
-    
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: 'Select Your Team',
-        options: ['Cancel', ...teamOptions, '✏️ Type Custom Team'],
-        cancelButtonIndex: 0,
-        destructiveButtonIndex: undefined,
-        userInterfaceStyle: colorScheme === 'dark' ? 'dark' : 'light',
-      },
-      (buttonIndex) => {
-        if (buttonIndex === 0) return; // Cancel
-        
-        if (buttonIndex === teamOptions.length + 1) {
-          // User wants to type custom team - open the modal
-          setShowCurrentTeamPicker(true);
-        } else if (buttonIndex > 0) {
-          // Regular team selection
-          const selectedTeam = teamNames[buttonIndex - 1];
-          setFormData(prev => ({ ...prev, currentTeam: selectedTeam }));
-          if (errors.currentTeam) {
-            setErrors(prev => ({ ...prev, currentTeam: '' }));
-          }
-        }
-      }
-    );
-  };
-
-  const showOpponentPickerIOS = () => {
-    if (Platform.OS !== 'ios') {
-      setShowOpponentPicker(true);
-      return;
-    }
-
-    // Sort teams alphabetically and filter out current team
-    const sortedTeams = [...teams]
-      .filter(t => t.name !== formData.currentTeam)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const teamNames = sortedTeams.map(t => t.name);
-    
-    // Add visual prefix to each team
-    const teamOptions = teamNames.map(name => `🏈 ${name}`);
-    
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: 'Select Opponent Team',
-        options: ['Cancel', ...teamOptions, '✏️ Type Custom Team'],
-        cancelButtonIndex: 0,
-        destructiveButtonIndex: undefined,
-        userInterfaceStyle: colorScheme === 'dark' ? 'dark' : 'light',
-      },
-      (buttonIndex) => {
-        if (buttonIndex === 0) return; // Cancel
-        
-        if (buttonIndex === teamOptions.length + 1) {
-          // User wants to type custom team - open the modal
-          setShowOpponentPicker(true);
-        } else if (buttonIndex > 0) {
-          // Regular team selection
-          const selectedTeam = teamNames[buttonIndex - 1];
-          setFormData(prev => ({ ...prev, opponent: selectedTeam }));
-          if (errors.opponent) {
-            setErrors(prev => ({ ...prev, opponent: '' }));
-          }
-        }
-      }
-    );
-  };
-
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
     
@@ -235,8 +151,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     if (!validateForm()) {
       return;
     }
-    const payload = { ...formData, appearance } as any;
-    onSave(payload);
+    onSave(formData);
     resetForm();
     onClose();
   };
@@ -296,7 +211,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle={Platform.OS === 'ios' ? 'fullScreen' : 'pageSheet'}
+      presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
       <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -331,7 +246,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   alignItems: 'center',
                   justifyContent: 'space-between',
                 }]}
-                onPress={showCurrentTeamPickerIOS}
+                onPress={() => setShowCurrentTeamPicker(true)}
               >
                 <Text style={[{ color: formData.currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                   {formData.currentTeam || 'Select your team'}
@@ -352,7 +267,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                   alignItems: 'center',
                   justifyContent: 'space-between',
                 }]}
-                onPress={showOpponentPickerIOS}
+                onPress={() => setShowOpponentPicker(true)}
               >
                 <Text style={[{ color: formData.opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
                   {formData.opponent || 'Select opponent team'}
@@ -569,7 +484,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 rightName={formData.opponent}
                 height={140}
                 variant="compact"
-                appearance={appearance}
               />
               <Pressable style={{ marginTop: 8, alignSelf: 'flex-end' }} onPress={() => {
                 // Open editor with current preview (if team logos exist, we can't easily compose — open with left logo or null)
@@ -581,96 +495,27 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
               </Pressable>
             </View>
 
-            {/* Appearance picker */}
-            <View style={styles.formSection}>
-              <AppearancePicker value={appearance} onChange={setAppearance} />
-            </View>
-
           </View>
         </ScrollView>
 
-        {/* Date Picker - iOS needs Modal wrapper */}
-        {Platform.OS === 'ios' ? (
-          <Modal
-            visible={showDatePicker}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setShowDatePicker(false)}
-          >
-            <View style={styles.pickerOverlay}>
-              <View style={[styles.datePickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
-                <View style={styles.pickerHeader}>
-                  <Pressable onPress={() => setShowDatePicker(false)}>
-                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
-                  </Pressable>
-                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Date</Text>
-                  <Pressable onPress={() => setShowDatePicker(false)}>
-                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>Done</Text>
-                  </Pressable>
-                </View>
-                <DateTimePicker
-                  value={formData.date}
-                  mode="date"
-                  display="spinner"
-                  onChange={handleDateChange}
-                  minimumDate={new Date()}
-                  textColor={Colors[colorScheme].text}
-                  style={{ backgroundColor: Colors[colorScheme].background }}
-                />
-              </View>
-            </View>
-          </Modal>
-        ) : (
-          showDatePicker && (
-            <DateTimePicker
-              value={formData.date}
-              mode="date"
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )
+        {/* Date/Time Pickers */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={formData.date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            minimumDate={new Date()}
+          />
         )}
 
-        {/* Time Picker - iOS needs Modal wrapper */}
-        {Platform.OS === 'ios' ? (
-          <Modal
-            visible={showTimePicker}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setShowTimePicker(false)}
-          >
-            <View style={styles.pickerOverlay}>
-              <View style={[styles.datePickerContainer, { backgroundColor: Colors[colorScheme].background }]}>
-                <View style={styles.pickerHeader}>
-                  <Pressable onPress={() => setShowTimePicker(false)}>
-                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].text }]}>Cancel</Text>
-                  </Pressable>
-                  <Text style={[styles.pickerTitle, { color: Colors[colorScheme].text }]}>Select Time</Text>
-                  <Pressable onPress={() => setShowTimePicker(false)}>
-                    <Text style={[styles.pickerHeaderButton, { color: Colors[colorScheme].tint, fontWeight: '600' }]}>Done</Text>
-                  </Pressable>
-                </View>
-                <DateTimePicker
-                  value={formData.time}
-                  mode="time"
-                  display="spinner"
-                  onChange={handleTimeChange}
-                  textColor={Colors[colorScheme].text}
-                  style={{ backgroundColor: Colors[colorScheme].background }}
-                />
-              </View>
-            </View>
-          </Modal>
-        ) : (
-          showTimePicker && (
-            <DateTimePicker
-              value={formData.time}
-              mode="time"
-              display="default"
-              onChange={handleTimeChange}
-            />
-          )
+        {showTimePicker && (
+          <DateTimePicker
+            value={formData.time}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleTimeChange}
+          />
         )}
       </View>
     </Modal>
@@ -681,7 +526,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       try {
         const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
         const uploaded = await (await import('@/api/upload')).uploadFile(base, uri, 'edited-banner.png', 'image/png');
-        const url = uploaded?.path || uploaded?.url || null;
+        const url = uploaded?.url || uploaded?.path || null;
         if (url) {
           setFormData(prev => ({ ...prev, banner_url: url }));
         }
@@ -690,8 +535,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       }
     }} />
 
-    {/* Current Team Picker Modal - Android only, iOS uses ActionSheet */}
-    {Platform.OS === 'android' && (
+    {/* Current Team Picker Modal */}
     <Modal
       visible={showCurrentTeamPicker}
       transparent
@@ -769,10 +613,8 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
         </View>
       </View>
     </Modal>
-    )}
 
-    {/* Opponent Team Picker Modal - Android only, iOS uses ActionSheet */}
-    {Platform.OS === 'android' && (
+    {/* Opponent Team Picker Modal */}
     <Modal
       visible={showOpponentPicker}
       transparent
@@ -883,7 +725,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
         </View>
       </View>
     </Modal>
-    )}
     </>
   );
 }
@@ -983,11 +824,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
-  datePickerContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 20,
-  },
   pickerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1033,8 +869,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 18,
+    borderRadius: 16,
+    marginVertical: 8,
+    backgroundColor: '#f3f4f6',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    borderWidth: 0,
   },
   pickerItemText: {
     fontSize: 16,
@@ -1094,8 +938,8 @@ const styles = StyleSheet.create({
   },
   manualCoords: {
     marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
     borderRadius: 8,
   },
 });

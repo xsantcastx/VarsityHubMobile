@@ -113,27 +113,107 @@ export default function ManageTeamsSimpleScreen() {
         return;
       }
 
+      // Parse date and time to create ISO datetime
+      const [year, month, day] = data.date.split('-').map(Number);
+      const timeMatch = data.time.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/i);
+      if (!timeMatch) {
+        Alert.alert('Error', 'Invalid time format');
+        return;
+      }
+      
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2] || '0', 10);
+      const meridiem = timeMatch[3]?.toUpperCase();
+      
+      if (meridiem === 'PM' && hours !== 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      
+      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+      
+      // Determine home/away team IDs based on game type
+      const homeTeamId = data.type === 'home' ? (data.currentTeamId || team.id) : data.opponentTeamId;
+      const awayTeamId = data.type === 'home' ? data.opponentTeamId : (data.currentTeamId || team.id);
+
+      // Create game payload matching backend schema
+      const gamePayload: Record<string, any> = {
+        title: data.isCompetitive 
+          ? `${data.currentTeam} vs ${data.opponent}`
+          : `${data.currentTeam} Event`,
+        date: gameDateTime.toISOString(),
+        description: data.isCompetitive
+          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
+          : `Event for ${data.currentTeam}`,
+      };
+
+      // Only add team fields if this is a competitive game
+      if (data.isCompetitive) {
+        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
+        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
+        
+        if (homeTeamId) gamePayload.home_team_id = homeTeamId;
+        if (awayTeamId) {
+          gamePayload.away_team_id = awayTeamId;
+        } else if (data.opponent) {
+          gamePayload.away_team_name = data.opponent;
+        }
+      } else {
+        // For non-competitive events, still send home_team_id for approval workflow
+        if (data.currentTeamId) {
+          gamePayload.home_team_id = data.currentTeamId;
+        }
+      }
+
+      // Add expected attendance if provided
+      if (data.expectedAttendance) {
+        gamePayload.expected_attendance = data.expectedAttendance;
+      }
+
+      // Add event type
+      if (data.eventType) {
+        gamePayload.event_type = data.eventType;
+      }
+      
+      // Add event type-specific fields
+      if (data.donationGoal) {
+        gamePayload.donation_goal = data.donationGoal;
+      }
+      if (data.watchLocation) {
+        gamePayload.watch_location = data.watchLocation;
+        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
+        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
+        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
+      }
+      if (data.destination) {
+        gamePayload.destination = data.destination;
+      }
+
+      if (data.banner_url) {
+        gamePayload.banner_url = data.banner_url;
+        gamePayload.cover_image_url = data.banner_url;
+      } else if (data.cover_image_url) {
+        gamePayload.cover_image_url = data.cover_image_url;
+      }
+
+      if (data.appearance) {
+        gamePayload.appearance = data.appearance;
+      }
+
+      console.log('manage-teams sending gamePayload:', JSON.stringify(gamePayload, null, 2));
+
       // Create game using the API
-      const newGame = await GameApi.create({
-        team_id: team.id,
-        opponent: data.opponent,
-        game_date: data.date,
-        game_time: data.time,
-        home_away: data.type,
-        banner_url: data.banner_url,
-        cover_image_url: data.cover_image_url,
-        appearance: data.appearance,
-      });
+      const newGame = await GameApi.create(gamePayload);
 
       setShowQuickAddModal(false);
-      Alert.alert('Success', 'Game added successfully!', [
-        { text: 'OK', onPress: () => {} }
-      ]);
+      Alert.alert(
+        'Success', 
+        data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!', 
+        [{ text: 'OK', onPress: () => {} }]
+      );
     } catch (error) {
       console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',
-        `Failed to add game: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`,
         [{ text: 'OK' }]
       );
     }
@@ -168,14 +248,14 @@ export default function ManageTeamsSimpleScreen() {
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
           onPress={() => {
-            // Navigate to first team's add game, or show team selection if multiple teams
+            // Navigate to first team's add event, or show team selection if multiple teams
             if (activeTeams.length > 0) {
               router.push(`/manage-season?teamId=${activeTeams[0].id}`);
             }
           }}
         >
           <Ionicons name="basketball-outline" size={24} color="#fff" />
-          <Text style={styles.inlineActionText}>Add Game</Text>
+          <Text style={styles.inlineActionText}>Add Event</Text>
         </Pressable>
       </View>
 
@@ -191,8 +271,13 @@ export default function ManageTeamsSimpleScreen() {
           <Pressable 
             style={styles.leagueCard}
             onPress={() => {
-              // TODO: Navigate to organization page
-              console.log('Navigate to organization:', organization.id);
+              router.push({
+                pathname: '/league',
+                params: { 
+                  id: organization.id,
+                  name: organization.name 
+                }
+              });
             }}
           >
             <LinearGradient
@@ -301,14 +386,14 @@ export default function ManageTeamsSimpleScreen() {
             onPress={() => setShowQuickAddModal(true)}
           >
             <Ionicons name="calendar" size={32} color="#FFF" />
-            <Text style={styles.bigActionButtonText}>ADD GAME</Text>
+            <Text style={styles.bigActionButtonText}>ADD EVENT</Text>
           </Pressable>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Quick Add Game Modal */}
+      {/* Quick Add Event Modal */}
       <QuickAddGameModal
         visible={showQuickAddModal}
         onClose={() => setShowQuickAddModal(false)}
