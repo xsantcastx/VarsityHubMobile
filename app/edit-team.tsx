@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team } from '@/api/entities';
+import { Organization, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 
 export default function EditTeamScreen() {
@@ -21,6 +21,7 @@ export default function EditTeamScreen() {
   const [description, setDescription] = useState('');
   const [sport, setSport] = useState('');
   const [season, setSeason] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +47,21 @@ export default function EditTeamScreen() {
       setSport(teamData.sport || '');
       setSeason(teamData.season || '');
       setExistingLogoUrl(teamData.logo_url || teamData.avatar_url || null);
+      
+      const orgFromResponse = (teamData as any).organization;
+      if (orgFromResponse?.name) {
+        setOrganizationName(orgFromResponse.name);
+      } else if (teamData.organization_id) {
+        try {
+          const org = await Organization.get(teamData.organization_id);
+          setOrganizationName(org.name || '');
+        } catch (err) {
+          console.error('Failed to load organization:', err);
+          setOrganizationName('');
+        }
+      } else {
+        setOrganizationName('');
+      }
     } catch (error) {
       console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
@@ -132,21 +148,98 @@ export default function EditTeamScreen() {
         }
       }
       
-      const teamData = {
+      // Handle organization - find existing or create new
+      let organizationId: string | null | undefined = team?.organization_id ?? null; // Keep existing by default
+      const trimmedOrgName = organizationName.trim();
+      
+      if (trimmedOrgName) {
+        try {
+          console.log('[EditTeam] Searching for organization:', trimmedOrgName);
+          // Search for existing organization
+          const existingOrgs = await Organization.list(trimmedOrgName, 10);
+          console.log('[EditTeam] Search results:', JSON.stringify(existingOrgs));
+          
+          if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+            // Check for exact match (case-insensitive)
+            const exactMatch = existingOrgs.find((org: any) => 
+              org.name?.toLowerCase() === trimmedOrgName.toLowerCase()
+            );
+            
+            if (exactMatch) {
+              organizationId = exactMatch.id;
+              console.log('[EditTeam] Using exact match:', organizationId);
+            } else {
+              // Use first result if no exact match
+              organizationId = existingOrgs[0].id;
+              console.log('[EditTeam] Using first result:', organizationId);
+            }
+          } else {
+            // Create new organization if none found
+            try {
+              console.log('[EditTeam] Creating new organization');
+              const newOrg = await Organization.createOrganization({
+                name: trimmedOrgName,
+                description: `Organization for ${trimmedOrgName}`,
+              });
+              organizationId = newOrg.id;
+              console.log('[EditTeam] Created organization:', organizationId);
+            } catch (orgErr: any) {
+              console.error('[EditTeam] Failed to create organization:', orgErr);
+              console.error('[EditTeam] Error message:', orgErr?.message);
+              Alert.alert('Warning', `Could not create organization. Team will be updated without organization change.`);
+              // Continue without changing organization if creation fails
+            }
+          }
+        } catch (err: any) {
+          console.error('[EditTeam] Error handling organization:', err);
+          console.error('[EditTeam] Error message:', err?.message);
+          Alert.alert('Warning', `Error with organization. Team will be updated without organization change.`);
+          // Continue without changing organization if there's an error
+        }
+      } else {
+        organizationId = null;
+      }
+      
+      const teamData: Record<string, any> = {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
-        season: season || undefined,
-        logo_url: logoUrl || undefined,
+        // Note: season is stored as display text in team state but database uses season_start/season_end
+        // Don't send 'season' field - it doesn't exist in Team model
       };
+      if (logoUrl) {
+        teamData.logo_url = logoUrl;
+      }
+      // Always send organization fields when they change
+      if (organizationId !== undefined) {
+        teamData.organization_id = organizationId;
+      }
       
+      console.log('[EditTeam] Updating team with data:', JSON.stringify(teamData));
       await Team.update(params.id!, teamData);
+      console.log('[EditTeam] Team update successful');
+      setExistingLogoUrl(logoUrl || null);
+      setLogoUri(null);
+      if (organizationId !== undefined) {
+        setTeam((prev: any) => prev ? {
+          ...prev,
+          organization_id: organizationId,
+          organization: organizationId
+            ? { ...(prev.organization ?? {}), id: organizationId, name: trimmedOrgName }
+            : null,
+        } : prev);
+        setOrganizationName(organizationId ? trimmedOrgName : '');
+      }
       Alert.alert('Success!', 'Your team has been updated successfully.', [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (e: any) {
       console.error('Team update error:', e);
-      Alert.alert('Error', e?.message || 'Failed to update team. Please try again.');
+      console.error('Team update error status:', e?.status);
+      console.error('Team update error data:', e?.data);
+      console.error('Team update error message:', e?.message);
+      const errorMsg = e?.data?.error || e?.data?.message || e?.message || 'Failed to update team. Please try again.';
+      Alert.alert('Error', errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -261,6 +354,20 @@ export default function EditTeamScreen() {
               numberOfLines={3}
               maxLength={500}
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: Colors[colorScheme].text }]}>School / Organization</Text>
+            <TextInput
+              style={[styles.textInput, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              value={organizationName}
+              onChangeText={setOrganizationName}
+              placeholder="e.g., Duke, UNC, Stamford High School"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+            />
+            <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText }]}>
+              Link this team to a school or organization
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -508,6 +615,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  fieldHint: {
+    fontSize: 13,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });
 

@@ -1,22 +1,21 @@
-import AppearancePicker, { AppearancePreset } from '@/components/AppearancePicker';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
 import {
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
-import { Team } from '../src/api/entities';
 import ImageEditor from './ImageEditor';
 
 interface AddGameModalProps {
@@ -73,7 +72,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [appearance, setAppearance] = useState<AppearancePreset>('classic');
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
 
@@ -153,8 +151,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
     if (!validateForm()) {
       return;
     }
-    const payload = { ...formData, appearance } as any;
-    onSave(payload);
+    onSave(formData);
     resetForm();
     onClose();
   };
@@ -487,7 +484,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
                 rightName={formData.opponent}
                 height={140}
                 variant="compact"
-                appearance={appearance}
               />
               <Pressable style={{ marginTop: 8, alignSelf: 'flex-end' }} onPress={() => {
                 // Open editor with current preview (if team logos exist, we can't easily compose — open with left logo or null)
@@ -497,11 +493,6 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
               }}>
                 <Text style={{ color: Colors[colorScheme].tint, fontWeight: '700' }}>Edit Preview</Text>
               </Pressable>
-            </View>
-
-            {/* Appearance picker */}
-            <View style={styles.formSection}>
-              <AppearancePicker value={appearance} onChange={setAppearance} />
             </View>
 
           </View>

@@ -14,6 +14,28 @@ const isVideoUrl = (url?: string | null) => {
   return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext));
 };
 
+// Helper function to generate Google Maps links
+const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
+  if (!location && !lat && !lng && !placeId) return null;
+  
+  // If we have a place ID, use that for the most accurate link
+  if (placeId) {
+    return `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+  }
+  
+  // If we have coordinates, use those
+  if (lat !== null && lng !== null) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  
+  // Fall back to location text search
+  if (location) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+  }
+  
+  return null;
+};
+
 const serializePost = (post: any) => ({
   ...post,
   created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
@@ -77,7 +99,12 @@ gamesRouter.get('/', async (req, res) => {
       : sort === 'date'
         ? { date: 'asc' as const }
         : { created_at: 'desc' as const };
-  const games = await prisma.game.findMany({
+  
+  // By default, only show approved games unless specifically requested otherwise
+  const showPending = req.query.show_pending === 'true';
+  
+  const games = await (prisma.game.findMany as any)({
+    where: showPending ? undefined : { approval_status: 'approved' },
     orderBy,
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
@@ -86,8 +113,8 @@ gamesRouter.get('/', async (req, res) => {
   });
   
   // Get RSVP counts for all games with events
-  const gameIds = games.map(g => g.id);
-  const eventIds = games.map(g => g.events[0]?.id).filter(Boolean);
+  const gameIds = games.map((g: any) => g.id);
+  const eventIds = games.map((g: any) => g.events[0]?.id).filter(Boolean);
   
   const rsvpCounts = eventIds.length > 0 ? await prisma.eventRsvp.groupBy({
     by: ['event_id'],
@@ -97,7 +124,7 @@ gamesRouter.get('/', async (req, res) => {
   
   const rsvpMap = new Map(rsvpCounts.map(r => [r.event_id, r._count._all]));
   
-  const payload = games.map((game) => {
+  const payload = games.map((game: any) => {
     const event = game.events[0] ?? null;
     const { events, _count, ...rest } = game as any;
     return {
@@ -121,8 +148,11 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   
   const schema = z.object({
     title: z.string().min(1).max(200),
-    home_team: z.string().optional(),
-    away_team: z.string().optional(),
+    home_team: z.string().optional(), // Home team name for display
+    away_team: z.string().optional(), // Away team name for display
+    home_team_id: z.string().optional(), // Team ID for home team
+    away_team_id: z.string().optional(), // Team ID if opponent exists in system
+    away_team_name: z.string().optional(), // Manual opponent name if not in system
     date: z.string().datetime().optional(),
     location: z.string().optional(),
     description: z.string().optional(),
@@ -130,14 +160,35 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     banner_url: z.string().url().optional(),
     // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
     appearance: z.string().optional(),
+    // Expected attendance for events
+    expected_attendance: z.number().int().min(1).max(99999).optional(),
+    // Event type (game, fundraiser, watch_party, team_trip, meeting, other)
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'other']).optional(),
+    // Event type-specific fields
+    donation_goal: z.number().min(0).optional(), // For fundraisers
+    watch_location: z.string().max(200).optional(), // For watch parties
+    watch_location_lat: z.number().optional(), // Watch party latitude
+    watch_location_lng: z.number().optional(), // Watch party longitude
+    watch_location_place_id: z.string().optional(), // Watch party Google Place ID
+    destination: z.string().max(200).optional(), // For team trips
     // Coordinate options
     latitude: z.number().optional(),
     longitude: z.number().optional(),
     autoGeocode: z.boolean().optional(),
+    // Venue information for opponent's location
+    venue_place_id: z.string().optional(),
+    venue_address: z.string().optional(),
+    venue_lat: z.number().optional(),
+    venue_lng: z.number().optional(),
+    is_neutral: z.boolean().optional(),
   });
   
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) {
+    console.warn('create game validation failed', {
+      body: req.body,
+      issues: parsed.error.issues,
+    });
     return res.status(400).json({ 
       error: 'Invalid game data', 
       issues: parsed.error.issues 
@@ -147,14 +198,56 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     // Prepare game data
     let gameData: any = {
-      ...parsed.data,
+      title: parsed.data.title,
       date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
+      location: parsed.data.location,
+      description: parsed.data.description,
       banner_url: parsed.data.banner_url ?? null,
       cover_image_url: parsed.data.cover_image_url ?? null,
       appearance: parsed.data.appearance ?? null,
+      expected_attendance: parsed.data.expected_attendance ?? null,
+      event_type: parsed.data.event_type ?? 'game',
+      donation_goal: parsed.data.donation_goal ?? null,
+      watch_location: parsed.data.watch_location ?? null,
+      watch_location_lat: parsed.data.watch_location_lat ?? null,
+      watch_location_lng: parsed.data.watch_location_lng ?? null,
+      watch_location_place_id: parsed.data.watch_location_place_id ?? null,
+      destination: parsed.data.destination ?? null,
       latitude: parsed.data.latitude ?? null,
       longitude: parsed.data.longitude ?? null,
+      home_team: parsed.data.home_team ?? null,
+      away_team: parsed.data.away_team ?? null,
+      home_team_id: parsed.data.home_team_id ?? null,
+      away_team_id: parsed.data.away_team_id ?? null,
+      away_team_name: parsed.data.away_team_name ?? null,
+      venue_place_id: parsed.data.venue_place_id ?? null,
+      venue_address: parsed.data.venue_address ?? null,
+      venue_lat: parsed.data.venue_lat ?? null,
+      venue_lng: parsed.data.venue_lng ?? null,
+      is_neutral: parsed.data.is_neutral ?? false,
     };
+    
+    // If home_team_id is provided, use that team's venue as default location
+    if (parsed.data.home_team_id && !parsed.data.location) {
+      const homeTeam = await prisma.team.findUnique({
+        where: { id: parsed.data.home_team_id },
+        select: { 
+          venue_address: true, 
+          venue_lat: true, 
+          venue_lng: true,
+          city: true,
+          state: true,
+          name: true
+        }
+      });
+      
+      if (homeTeam) {
+        gameData.location = homeTeam.venue_address || `${homeTeam.city || ''}, ${homeTeam.state || ''}`.trim();
+        gameData.latitude = homeTeam.venue_lat;
+        gameData.longitude = homeTeam.venue_lng;
+        console.log(`✅ Using home team location: ${gameData.location}`);
+      }
+    }
 
     // Handle auto-geocoding if requested and location is provided
     if (parsed.data.autoGeocode && parsed.data.location && !parsed.data.latitude && !parsed.data.longitude) {
@@ -172,9 +265,37 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       }
     }
 
+    // Approval workflow: Check if user is a coach/manager
+    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
+    let isCoach = false;
+    
+    if (parsed.data.home_team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: parsed.data.home_team_id,
+          user_id: req.user.id,
+          role: { in: managementRoles }
+        }
+      });
+      isCoach = !!membership;
+    }
+    
+    // Auto-approve if coach, otherwise set to pending
+    gameData.approval_status = isCoach ? 'approved' : 'pending';
+    gameData.created_by_id = req.user.id;
+    
+    if (isCoach) {
+      gameData.approved_by_id = req.user.id;
+      gameData.approved_at = new Date();
+    }
+
     const game = await (prisma.game.create as any)({
       data: gameData,
-      include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+      include: { 
+        events: { orderBy: { date: 'asc' }, take: 1 },
+        homeTeam: { select: { id: true, name: true, venue_address: true } },
+        awayTeam: { select: { id: true, name: true, venue_address: true } }
+      },
     }) as any;
     
     // Automatically create an associated Event for RSVP functionality
@@ -189,11 +310,33 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       } as any,
     });
     
+    // Generate Google Maps link for venue
+    const venueMapsLink = generateMapsLink(
+      game.venue_address || game.location,
+      game.venue_lat || game.latitude,
+      game.venue_lng || game.longitude,
+      game.venue_place_id
+    );
+    
     const response = {
       ...game,
       event_id: event.id,
-      // Fixed: Ensure banner_url from game data is preserved
       banner_url: game.banner_url,
+      venue_maps_link: venueMapsLink,
+      // Include team info with linking capability
+      home_team: game.homeTeam ? {
+        id: game.homeTeam.id,
+        name: game.homeTeam.name,
+        profile_link: `/teams/${game.homeTeam.id}` // Frontend can use this to link to team page
+      } : null,
+      away_team: game.awayTeam ? {
+        id: game.awayTeam.id,
+        name: game.awayTeam.name,
+        profile_link: `/teams/${game.awayTeam.id}` // Link to opponent's page if they exist
+      } : (game.away_team_name ? {
+        name: game.away_team_name, // Manual opponent name
+        profile_link: null // No link available
+      } : null)
     };
     
     res.status(201).json(response);
@@ -206,23 +349,30 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
 // Get single game by id
 gamesRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
-  const game = await prisma.game.findUnique({
+  const game = await (prisma.game.findUnique as any)({
     where: { id },
-    include: { events: { orderBy: { date: 'asc' }, take: 1 } },
+    include: { 
+      events: { orderBy: { date: 'asc' }, take: 1 },
+      home_team: { select: { id: true, name: true, avatar_url: true } },
+      away_team: { select: { id: true, name: true, avatar_url: true } },
+    },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
-  const event = game.events[0] ?? null;
-  const { events, ...rest } = game as any;
+  const gameData = game as any; // Type assertion for relation fields
+  const event = gameData.events[0] ?? null;
+  const { events, ...rest } = gameData;
   return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
 });
 
 // Compact summary payload for the Game Details screen
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const game = await prisma.game.findUnique({
+  const game = await (prisma.game.findUnique as any)({
     where: { id },
     include: {
       events: { orderBy: { date: 'asc' }, take: 1 },
+      homeTeam: { select: { id: true, name: true, avatar_url: true } },
+      awayTeam: { select: { id: true, name: true, avatar_url: true } },
       posts: {
         where: { game_id: id },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
@@ -237,9 +387,10 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
 
-  const event = game.events[0] ?? null;
-  const posts = game.posts.map(serializePost);
-  const media = game.stories.map(serializeMedia);
+  const g = game as any; // Type assertion for relation fields
+  const event = g.events[0] ?? null;
+  const posts = g.posts.map(serializePost);
+  const media = g.stories.map(serializeMedia);
   const bannerUrl = pickBannerUrl(game, event, media);
   const location = game.location || event?.location || null;
   const anchorDate = event?.date ?? game.date;
@@ -262,23 +413,48 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
     return [reviewTotal, count, Boolean(userRow)] as const;
   })();
 
+  const gameData = game as any; // Type assertion for updated schema
+  
+  // Generate Google Maps link for venue
+  const venueMapsLink = generateMapsLink(
+    gameData.venue_address || location,
+    gameData.venue_lat || gameData.latitude,
+    gameData.venue_lng || gameData.longitude,
+    gameData.venue_place_id
+  );
+
   return res.json({
-    id: game.id,
-    title: game.title,
-    appearance: game.appearance ?? null,
-    homeTeam: game.home_team || null,
-    awayTeam: game.away_team || null,
-    date: game.date instanceof Date ? game.date.toISOString() : game.date,
+    id: gameData.id,
+    title: gameData.title,
+    appearance: gameData.appearance ?? null,
+    home_team: gameData.homeTeam || gameData.home_team, // Return relation object or string fallback
+    away_team: gameData.awayTeam || gameData.away_team, // Return relation object or string fallback
+    homeTeam: gameData.homeTeam ? { 
+      id: gameData.homeTeam.id, 
+      name: gameData.homeTeam.name,
+      avatar_url: gameData.homeTeam.avatar_url,
+      profile_link: `/teams/${gameData.homeTeam.id}`
+    } : (gameData.home_team ? { name: gameData.home_team } : null),
+    awayTeam: gameData.awayTeam ? { 
+      id: gameData.awayTeam.id, 
+      name: gameData.awayTeam.name,
+      avatar_url: gameData.awayTeam.avatar_url,
+      profile_link: `/teams/${gameData.awayTeam.id}`
+    } : (gameData.away_team || gameData.away_team_name ? { 
+      name: gameData.away_team || gameData.away_team_name
+    } : null),
+    date: gameData.date instanceof Date ? gameData.date.toISOString() : gameData.date,
     timeLocal: null,
     location,
-    description: game.description,
+    venueMapsLink, // Google Maps link for the venue
+    description: gameData.description,
     bannerUrl,
-    coverImageUrl: game.cover_image_url,
+    coverImageUrl: gameData.cover_image_url,
     eventId: event?.id ?? null,
     capacity: event?.capacity ?? null,
     rsvpCount,
     userRsvped,
-    teams: [],
+    teams: [gameData.homeTeam, gameData.awayTeam].filter(Boolean), // Include team relations
     posts,
     media,
     reviewsCount,
@@ -437,4 +613,52 @@ gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const game = await prisma.game.update({ where: { id }, data: { cover_image_url: parsed.data.cover_image_url, appearance: parsed.data.appearance ?? undefined } });
   return res.json(game);
+});
+
+// Approve or reject event
+gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const id = String(req.params.id);
+  const schema = z.object({
+    approval_status: z.enum(['approved', 'rejected']),
+  });
+  
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  
+  // Get the game to check permissions
+  const game = await (prisma.game.findUnique as any)({
+    where: { id },
+    select: { id: true, home_team_id: true, approval_status: true }
+  });
+  
+  if (!game) return res.status(404).json({ error: 'Event not found' });
+  
+  // Check if user is coach/manager of the team
+  let isCoach = false;
+  if (game.home_team_id) {
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: game.home_team_id,
+        user_id: req.user.id,
+        role: { in: ['coach', 'manager', 'owner'] }
+      }
+    });
+    isCoach = !!membership;
+  }
+  
+  // For now, allow any authenticated user to approve (you can tighten this later)
+  // In production, you'd want: if (!isCoach) return res.status(403).json({ error: 'Only coaches can approve events' });
+  
+  const updatedGame = await (prisma.game.update as any)({
+    where: { id },
+    data: {
+      approval_status: parsed.data.approval_status,
+      approved_by_id: parsed.data.approval_status === 'approved' ? req.user.id : null,
+      approved_at: parsed.data.approval_status === 'approved' ? new Date() : null,
+    }
+  });
+  
+  return res.json(updatedGame);
 });

@@ -1,0 +1,43 @@
+# Development files
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+.tsbuildinfo
+
+# Environment files (Railway will use environment variables)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.railway
+.env.railway.api
+
+# Uploads and temp files
+uploads/
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git
+.gitignore
+
+# Expo (not needed for server)
+.expo/
+
+# Test files
+**/*.test.ts
+**/*.spec.ts

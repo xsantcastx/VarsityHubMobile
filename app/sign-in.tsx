@@ -101,7 +101,7 @@ export default function SignInScreen() {
           <View style={styles.header}>
             <View style={[styles.logoContainer, { backgroundColor: palette.card, shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a' }]}>
               <Image
-                source={require('../assets/images/logo.png')}
+                source={require('../assets/images/logo.svg')}
                 style={styles.logo}
                 contentFit="contain"
               />

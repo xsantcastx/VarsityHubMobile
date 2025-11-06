@@ -28,11 +28,19 @@ model User {
   password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
   preferences                Json      @default("{}")
+  
+  // Subscription/Premium fields
+  subscription_tier          String    @default("free") // free | premium | pro
+  subscription_status        String    @default("active") // active | cancelled | expired
+  subscription_expires_at    DateTime?
+  stripe_customer_id         String?
+  max_teams                  Int       @default(2) // Free users get 2 teams
 
   // Relations
   memberships TeamMembership[]
   orgMemberships OrganizationMembership[]
   rsvps       EventRsvp[]
+  createdEvents Event[]
   stories     Story[]
   ads         Ad[]
   posts       Post[]
@@ -52,9 +60,22 @@ model User {
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
 
+  // Blocking
+  blocking BlockedUser[] @relation("blocker")
+  blockedBy BlockedUser[] @relation("blocked")
+
+  // Group Chats
+  createdGroupChats GroupChat[]
+  groupChatMemberships GroupChatMember[]
+  groupChatMessages GroupChatMessage[]
+
   // Notifications
   notifications   Notification[] @relation("notification_user")
   actions         Notification[] @relation("notification_actor")
+  
+  // Games (approval workflow)
+  createdGames    Game[] @relation("created_games")
+  approvedGames   Game[] @relation("approved_games")
 }
 
 model Game {
@@ -64,13 +85,51 @@ model Game {
   location        String?
   latitude        Float?
   longitude       Float?
+  
+  // New: Team relationships
+  home_team_id    String?
+  away_team_id    String?
+  homeTeam        Team?    @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
+  awayTeam        Team?    @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
+  
+  // Team names for display (backward compatibility)
   home_team       String?
   away_team       String?
+  away_team_name  String?
+  
+  // Venue information
+  venue_place_id  String?
+  venue_address   String?
+  venue_lat       Float?
+  venue_lng       Float?
+  is_neutral      Boolean  @default(false)
+  
   description     String?
   cover_image_url String?
   banner_url      String?
   // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
   appearance      String?
+  // Expected attendance for events (optional)
+  expected_attendance Int?
+  // Event type: game, fundraiser, watch_party, team_trip, meeting, other
+  event_type      String?  @default("game")
+  
+  // Event type-specific fields
+  donation_goal   Float?   // For fundraisers - target amount
+  watch_location  String?  // For watch parties - viewing location
+  watch_location_lat Float? // Watch party location latitude
+  watch_location_lng Float? // Watch party location longitude
+  watch_location_place_id String? // Google Places ID for watch location
+  destination     String?  // For team trips - destination city/venue
+  
+  // Approval workflow
+  approval_status String   @default("approved") // approved | pending | rejected
+  created_by_id   String?
+  created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
+  approved_by_id  String?
+  approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  approved_at     DateTime?
+  
   created_at      DateTime @default(now())
 
   // Back-relations
@@ -81,6 +140,8 @@ model Game {
 
   @@index([date])
   @@index([latitude, longitude])
+  @@index([home_team_id])
+  @@index([away_team_id])
 }
 
 model Post {
@@ -126,16 +187,33 @@ model Event {
   longitude  Float?
   banner_url String?
   game_id    String?
-  status     String   @default("draft")
+  status     String   @default("draft") // draft, approved, rejected, cancelled
   capacity   Int?
   created_at DateTime @default(now())
+  
+  // Fan event creation fields
+  creator_id      String?
+  creator_role    String?   // fan, coach, organizer
+  approval_status String    @default("pending") // pending, approved, rejected
+  event_type      String?   // game, watch_party, fundraiser, tryout, bbq, other
+  description     String?
+  linked_league   String?   // League/school name or ID
+  max_attendees   Int?
+  contact_info    String?
+  approved_by     String?   // User ID of approver
+  approved_at     DateTime?
+  rejected_reason String?
 
-  game  Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  rsvps EventRsvp[]
+  game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps   EventRsvp[]
 
   @@index([date])
   @@index([game_id])
   @@index([latitude, longitude])
+  @@index([creator_id])
+  @@index([approval_status])
+  @@index([event_type])
 }
 
 model Message {
@@ -156,6 +234,65 @@ model Message {
   @@index([sender_id, created_at])
   @@index([recipient_id, created_at])
   @@index([recipient_id, read])
+}
+
+model BlockedUser {
+  id         String   @id @default(cuid())
+  blocker_id String
+  blocked_id String
+  created_at DateTime @default(now())
+
+  blocker User @relation("blocker", fields: [blocker_id], references: [id], onDelete: Cascade)
+  blocked User @relation("blocked", fields: [blocked_id], references: [id], onDelete: Cascade)
+
+  @@unique([blocker_id, blocked_id])
+  @@index([blocker_id])
+  @@index([blocked_id])
+}
+
+model GroupChat {
+  id         String   @id @default(cuid())
+  name       String
+  team_id    String?
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  team       Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  creator    User               @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  members    GroupChatMember[]
+  messages   GroupChatMessage[]
+
+  @@index([team_id])
+  @@index([created_by])
+}
+
+model GroupChatMember {
+  id           String   @id @default(cuid())
+  chat_id      String
+  user_id      String
+  joined_at    DateTime @default(now())
+  last_read_at DateTime?
+
+  chat GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([chat_id, user_id])
+  @@index([user_id])
+}
+
+model GroupChatMessage {
+  id         String   @id @default(cuid())
+  chat_id    String
+  sender_id  String
+  content    String
+  created_at DateTime @default(now())
+
+  chat   GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade)
+  sender User      @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+
+  @@index([chat_id, created_at])
+  @@index([sender_id])
 }
 
 model Comment {
@@ -336,6 +473,7 @@ enum NotificationType {
   FOLLOW
   UPVOTE
   COMMENT
+  TEAM_INVITE
 }
 
 model Notification {
@@ -375,11 +513,33 @@ model Team {
   season_end  DateTime?
   organization_id String?
   status      String   @default("active")
+  
+  // Venue information
+  venue_place_id String?
+  venue_lat      Float?
+  venue_lng      Float?
+  venue_address  String?
+  venue_updated_at DateTime?
+  
+  // Additional metadata for search/disambiguation
+  city           String?
+  state          String?
+  league         String?
+  
   created_at  DateTime @default(now())
 
   organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
   memberships TeamMembership[]
   invites     TeamInvite[]
+  groupChats  GroupChat[]
+  
+  // Game relations
+  homeGames   Game[] @relation("home_games")
+  awayGames   Game[] @relation("away_games")
+  
+  @@index([name])
+  @@index([city, state])
+  @@index([sport])
 }
 
 model Organization {

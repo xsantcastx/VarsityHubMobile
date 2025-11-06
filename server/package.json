@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p .",
+    "build": "npx prisma generate && tsc -p .",
     "start": "node dist/index.js",
+    "postinstall": "npx prisma generate",
     "railway:deploy": "npx prisma generate && npm run build",
     "postdeploy": "npx prisma migrate deploy && npm run seed",
     "prisma:generate": "prisma generate",
@@ -32,6 +33,7 @@
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.1",
     "prisma": "^5.16.1",
+    "react-native-google-places-autocomplete": "^2.5.7",
     "react-native-maps": "1.20.1",
     "stripe": "^16.6.0",
     "zod": "^3.23.8"

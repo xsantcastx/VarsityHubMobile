@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team, User } from '@/api/entities';
+import { Organization, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Platform } from 'react-native';
 
@@ -162,7 +162,7 @@ export default function CreateTeamScreen() {
         if (userPlan === 'rookie' && teamCount >= 2) {
           Alert.alert(
             'Team Limit Reached',
-            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($29.99/year unlimited) to add more teams.',
+            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($17.50/year unlimited) to add more teams.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'View Plans', onPress: () => router.push('/billing') }
@@ -173,7 +173,7 @@ export default function CreateTeamScreen() {
         }
         
         if (userPlan === 'veteran') {
-          // Veteran plan: Show confirmation about per-team charge
+          // Veteran plan: Per-team monthly charge
           Alert.alert(
             'Add Team',
             `Adding a team will incur a charge of $1.50/month. You currently have ${teamCount} team${teamCount === 1 ? '' : 's'}.`,
@@ -216,13 +216,55 @@ export default function CreateTeamScreen() {
         }
       }
       
+      // Handle organization - find existing or create new
+      let organizationId: string | undefined = undefined;
+      
+      if (organizationName.trim()) {
+        try {
+          // Search for existing organization
+          const existingOrgs = await Organization.list(organizationName.trim(), 10);
+          
+          if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+            // Check for exact match (case-insensitive)
+            const exactMatch = existingOrgs.find((org: any) => 
+              org.name?.toLowerCase() === organizationName.trim().toLowerCase()
+            );
+            
+            if (exactMatch) {
+              organizationId = exactMatch.id;
+              console.log('[CreateTeam] Using existing organization:', exactMatch.name, exactMatch.id);
+            } else {
+              // Use first result if no exact match
+              organizationId = existingOrgs[0].id;
+              console.log('[CreateTeam] Using closest match organization:', existingOrgs[0].name, existingOrgs[0].id);
+            }
+          } else {
+            // Create new organization if none found
+            try {
+              const newOrg = await Organization.createOrganization({
+                name: organizationName.trim(),
+                description: `Organization for ${organizationName.trim()}`,
+              });
+              organizationId = newOrg.id;
+              console.log('[CreateTeam] Created new organization:', newOrg.name, newOrg.id);
+            } catch (orgErr) {
+              console.error('[CreateTeam] Failed to create organization:', orgErr);
+              // Continue without organization if creation fails
+            }
+          }
+        } catch (err) {
+          console.error('[CreateTeam] Error handling organization:', err);
+          // Continue without organization if there's an error
+        }
+      }
+      
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
         season: season || undefined,
         primary_color: teamColor || undefined,
-        organization_name: organizationName.trim() || undefined,
+        organization_id: organizationId, // Link to organization
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       

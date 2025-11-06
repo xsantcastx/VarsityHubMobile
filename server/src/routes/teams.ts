@@ -72,11 +72,41 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
   return res.json(list);
 });
 
+// Check team creation limits for current user
+teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(401).json({ error: 'User not found' });
+  
+  const ownedTeamsCount = await prisma.teamMembership.count({
+    where: {
+      user_id: req.user.id,
+      role: 'owner',
+      status: 'active'
+    }
+  });
+  
+  const maxTeams = (user as any).max_teams ?? 2;
+  const canCreateMore = ownedTeamsCount < maxTeams;
+  const subscriptionTier = (user as any).subscription_tier ?? 'free';
+  
+  return res.json({
+    owned_teams: ownedTeamsCount,
+    max_teams: maxTeams,
+    can_create_more: canCreateMore,
+    remaining: Math.max(0, maxTeams - ownedTeamsCount),
+    subscription_tier: subscriptionTier,
+    upgrade_required: !canCreateMore
+  });
+});
+
 // List teams with member counts; optional search q
 teamsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim().toLowerCase();
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
+  const directory = String((req.query as any).directory || '') === '1'; // Team directory search
   
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
@@ -85,7 +115,19 @@ teamsRouter.get('/', async (req, res) => {
   }
   
   let where: any = {};
-  if (q) where.name = { contains: q, mode: 'insensitive' };
+  
+  // Directory search: search across name, city, league, sport
+  if (directory && q) {
+    where.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { city: { contains: q, mode: 'insensitive' } },
+      { state: { contains: q, mode: 'insensitive' } },
+      { league: { contains: q, mode: 'insensitive' } },
+      { sport: { contains: q, mode: 'insensitive' } },
+    ];
+  } else if (q) {
+    where.name = { contains: q, mode: 'insensitive' };
+  }
   
   // Filter to only teams where the current user has management roles
   if (mine) {
@@ -111,16 +153,68 @@ teamsRouter.get('/', async (req, res) => {
     orderBy: { created_at: 'desc' },
     include: { _count: { select: { memberships: true } } },
   });
-  const list = rows.map((t) => ({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null }));
+  
+  const list = rows.map((t) => ({ 
+    id: t.id, 
+    name: t.name, 
+    description: t.description, 
+    status: t.status, 
+    members: (t as any)._count.memberships, 
+    logo_url: (t as any).logo_url || null, 
+    avatar_url: (t as any).avatar_url || null,
+    city: (t as any).city || null,
+    state: (t as any).state || null,
+    league: (t as any).league || null,
+    sport: (t as any).sport || null,
+    // Venue information for home games
+    venue_address: (t as any).venue_address || null,
+    venue_lat: (t as any).venue_lat || null,
+    venue_lng: (t as any).venue_lng || null,
+    venue_place_id: (t as any).venue_place_id || null,
+  }));
   return res.json(list);
 });
 
 // Team details with counts
 teamsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
-  const t = await prisma.team.findUnique({ where: { id }, include: { _count: { select: { memberships: true } } } });
+  const t = await prisma.team.findUnique({
+    where: { id },
+    include: {
+      _count: { select: { memberships: true } },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          sport: true,
+        },
+      },
+    },
+  });
   if (!t) return res.status(404).json({ error: 'Not found' });
-  return res.json({ id: t.id, name: t.name, description: t.description, status: t.status, members: (t as any)._count.memberships, logo_url: (t as any).logo_url || null, avatar_url: (t as any).avatar_url || null });
+  return res.json({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    status: t.status,
+    sport: t.sport,
+    season_start: t.season_start,
+    season_end: t.season_end,
+    organization_id: t.organization_id,
+    organization: t.organization
+      ? {
+          id: t.organization.id,
+          name: t.organization.name,
+          description: t.organization.description,
+          sport: t.organization.sport,
+        }
+      : null,
+    members: (t as any)._count.memberships,
+    logo_url: (t as any).logo_url || null,
+    avatar_url: (t as any).avatar_url || null,
+    created_at: t.created_at,
+  });
 });
 
 // Team members list
@@ -167,6 +261,28 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Check team ownership limit
+  const ownedTeamsCount = await prisma.teamMembership.count({
+    where: {
+      user_id: me.id,
+      role: 'owner',
+      status: 'active'
+    }
+  });
+  
+  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
+  
+  if (ownedTeamsCount >= maxTeams) {
+    return res.status(403).json({ 
+      error: 'Team limit reached',
+      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
+      owned_teams: ownedTeamsCount,
+      max_teams: maxTeams,
+      upgrade_required: true
+    });
+  }
+  
   const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
@@ -175,16 +291,28 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 // Update team (auth required). Only owners/admins can update.
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
 const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
-const updateSchema = z.object({ 
-  name: z.string().min(2).optional(), 
+const updateSchema = z.object({
+  name: z.string().min(2).optional(),
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
+  organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  league: z.string().max(100).optional(),
+  venue_place_id: z.string().optional(),
+  venue_lat: z.number().optional(),
+  venue_lng: z.number().optional(),
+  venue_address: z.string().optional(),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
+  console.log('[Teams PUT] Received update request:', JSON.stringify(req.body));
   const parsed = updateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
+    return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  }
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const teamId = String(req.params.id);
@@ -205,12 +333,63 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
+  if (parsed.data.organization_id !== undefined) {
+    updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
+  }
   if (parsed.data.logo_url !== undefined) updateData.logo_url = parsed.data.logo_url === '' ? null : parsed.data.logo_url;
   
+  // Venue fields
+  if (parsed.data.city !== undefined) updateData.city = parsed.data.city;
+  if (parsed.data.state !== undefined) updateData.state = parsed.data.state;
+  if (parsed.data.league !== undefined) updateData.league = parsed.data.league;
+  if (parsed.data.venue_place_id !== undefined) {
+    updateData.venue_place_id = parsed.data.venue_place_id;
+    updateData.venue_updated_at = new Date();
+  }
+  if (parsed.data.venue_lat !== undefined) updateData.venue_lat = parsed.data.venue_lat;
+  if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
+  if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
+  
+  console.log('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
+  
   try {
-  const updatedTeam = await prisma.team.update({ where: { id: teamId }, data: updateData as any });
-    // Return a compact team object including logo/avatar fields for client convenience
-    return res.json({ id: updatedTeam.id, name: updatedTeam.name, description: updatedTeam.description, sport: updatedTeam.sport, season_start: updatedTeam.season_start, season_end: updatedTeam.season_end, logo_url: (updatedTeam as any).logo_url || null, avatar_url: (updatedTeam as any).avatar_url || null, status: updatedTeam.status, created_at: updatedTeam.created_at });
+    const updatedTeam = await prisma.team.update({
+      where: { id: teamId },
+      data: updateData as any,
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            sport: true,
+          },
+        },
+      },
+    });
+    console.log('[Teams PUT] Update successful');
+    // Return a compact team object including organization and logo/avatar fields for client convenience
+    return res.json({
+      id: updatedTeam.id,
+      name: updatedTeam.name,
+      description: updatedTeam.description,
+      sport: updatedTeam.sport,
+      season_start: updatedTeam.season_start,
+      season_end: updatedTeam.season_end,
+      organization_id: updatedTeam.organization_id,
+      organization: updatedTeam.organization
+        ? {
+            id: updatedTeam.organization.id,
+            name: updatedTeam.organization.name,
+            description: updatedTeam.organization.description,
+            sport: updatedTeam.organization.sport,
+          }
+        : null,
+      logo_url: (updatedTeam as any).logo_url || null,
+      avatar_url: (updatedTeam as any).avatar_url || null,
+      status: updatedTeam.status,
+      created_at: updatedTeam.created_at,
+    });
   } catch (err: any) {
     console.error('Failed to update team', err?.message || err);
     // Handle common Prisma client runtime errors gracefully
@@ -277,6 +456,13 @@ const createTeamSchema = z.object({
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
   logo_url: z.string().optional(),
+  city: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
+  league: z.string().max(100).optional(),
+  venue_place_id: z.string().optional(),
+  venue_lat: z.number().optional(),
+  venue_lng: z.number().optional(),
+  venue_address: z.string().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -291,8 +477,34 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // Check team limit for free tier (Rookie plan)
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userPlan = prefs.plan || 'rookie';
+  const userRole = prefs.role || 'fan';
+  
+  // Rookie plan: max 2 teams as owner
+  if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+    const ownedTeamsCount = await prisma.teamMembership.count({
+      where: {
+        user_id: me.id,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    
+    if (ownedTeamsCount >= 2) {
+      return res.status(403).json({ 
+        error: 'Team limit reached',
+        message: "You've reached your free limit (2 teams). Upgrade to add more.",
+        code: 'TEAM_LIMIT_EXCEEDED',
+        limit: 2,
+        current: ownedTeamsCount,
+      });
+    }
+  }
   
   // Create team
   const team = await prisma.team.create({ 
@@ -304,6 +516,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       season_end: data.season_end ? new Date(data.season_end) : null,
       organization_id: data.organization_id,
       logo_url: data.logo_url,
+      city: data.city,
+      state: data.state,
+      league: data.league,
+      venue_place_id: data.venue_place_id,
+      venue_lat: data.venue_lat,
+      venue_lng: data.venue_lng,
+      venue_address: data.venue_address,
+      venue_updated_at: data.venue_place_id ? new Date() : null,
     }
   });
   
@@ -347,7 +567,33 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  
+  // Create the invite
   const invite = await prisma.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+  
+  // Find the invited user by email and create notification if they exist
+  const invitedUser = await prisma.user.findUnique({ where: { email } });
+  if (invitedUser) {
+    try {
+      await (prisma as any).notification.create({
+        data: {
+          user_id: invitedUser.id,
+          actor_id: req.user.id,
+          type: 'TEAM_INVITE',
+          meta: {
+            team_id: team.id,
+            team_name: team.name,
+            invite_id: invite.id,
+            role: role || 'member'
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to create team invite notification:', error);
+      // Continue even if notification fails
+    }
+  }
+  
   return res.status(201).json(invite);
 });
 
@@ -369,10 +615,77 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
   if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  const existingMembership = await prisma.teamMembership.findUnique({
+    where: {
+      team_id_user_id: {
+        team_id: invite.team_id,
+        user_id: user.id,
+      } as any,
+    },
+  });
+  const roleToApply = existingMembership?.role || invite.role;
   await prisma.$transaction([
-    prisma.teamMembership.upsert({ where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any, update: { role: invite.role, status: 'active' }, create: { team_id: invite.team_id, user_id: user.id, role: invite.role, status: 'active' } }),
+    prisma.teamMembership.upsert({
+      where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
+      update: { role: roleToApply, status: 'active' },
+      create: { team_id: invite.team_id, user_id: user.id, role: roleToApply, status: 'active' },
+    }),
     prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
   ]);
+
+  // Check if team group chat exists, if not create it
+  try {
+    let groupChat = await prisma.groupChat.findFirst({
+      where: { team_id: invite.team_id },
+    });
+
+    if (!groupChat) {
+      // Get team info
+      const team = await prisma.team.findUnique({ where: { id: invite.team_id } });
+      
+      // Get all active team members
+      const allMembers = await prisma.teamMembership.findMany({
+        where: { 
+          team_id: invite.team_id,
+          status: 'active'
+        },
+        select: { user_id: true },
+      });
+
+      // Create group chat with all members
+      groupChat = await prisma.groupChat.create({
+        data: {
+          name: `${team?.name || 'Team'} Chat`,
+          team_id: invite.team_id,
+          created_by: req.user.id,
+          members: {
+            create: allMembers.map(m => ({ user_id: m.user_id })),
+          },
+        },
+      });
+    } else {
+      // Add user to existing group chat if not already a member
+      const existingMember = await prisma.groupChatMember.findFirst({
+        where: {
+          chat_id: groupChat.id,
+          user_id: user.id,
+        },
+      });
+
+      if (!existingMember) {
+        await prisma.groupChatMember.create({
+          data: {
+            chat_id: groupChat.id,
+            user_id: user.id,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error managing group chat:', error);
+    // Don't fail the invite acceptance if group chat creation fails
+  }
+
   return res.json({ ok: true });
 });
 

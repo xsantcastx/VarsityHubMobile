@@ -2,12 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message as MessageApi, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { checkDMRestriction } from '@/utils/dmRestrictions';
 
 type MiniUser = { id: string; email?: string; display_name?: string; avatar_url?: string };
 type Msg = {
@@ -33,6 +34,7 @@ export default function MessageThreadScreen() {
   const [text, setText] = useState('');
   const flatRef = useRef<FlatList<Msg>>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +103,16 @@ export default function MessageThreadScreen() {
   const send = async () => {
     const content = text.trim();
     if (!content) return;
+    
+    // Check DM restrictions before sending
+    if (me && otherParticipant) {
+      const restriction = checkDMRestriction(me, otherParticipant);
+      if (!restriction.allowed && restriction.showWarning) {
+        setRestrictionModal({ show: true, message: restriction.warningMessage || 'Cannot send message' });
+        return;
+      }
+    }
+    
     setText('');
     try {
       // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
@@ -297,18 +309,116 @@ export default function MessageThreadScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
             <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
               <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety & Settings</Text>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/report-abuse'); }}>
+              <Pressable 
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
+                onPress={() => { 
+                  setSafetyOpen(false); 
+                  if (otherParticipant?.id) {
+                    router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
+                  } else {
+                    router.push('/report-abuse');
+                  }
+                }}
+              >
                 <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report conversation</Text>
+                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report user</Text>
               </Pressable>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/blocked-users'); }}>
-                <Ionicons name="person-remove-outline" size={20} color={Colors[colorScheme].text} />
-                <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Block user</Text>
+              <Pressable 
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
+                onPress={async () => {
+                  setSafetyOpen(false);
+                  if (!otherParticipant?.id) return;
+                  
+                  Alert.alert(
+                    'Block User',
+                    `Are you sure you want to block ${otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Block',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            // Call block API
+                            await User.block(otherParticipant.id);
+                            Alert.alert('User Blocked', 'This user can no longer send you messages.');
+                            router.back();
+                          } catch (error: any) {
+                            Alert.alert('Error', error.message || 'Failed to block user');
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Ionicons name="person-remove-outline" size={20} color="#EF4444" />
+                <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
               </Pressable>
               <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/dm-restrictions'); }}>
                 <Ionicons name="options-outline" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Message restrictions</Text>
               </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* DM Restriction Warning Modal */}
+        <Modal 
+          visible={restrictionModal.show} 
+          transparent 
+          animationType="fade" 
+          onRequestClose={() => setRestrictionModal({ show: false, message: '' })}
+        >
+          <Pressable 
+            style={styles.modalBackdrop} 
+            onPress={() => setRestrictionModal({ show: false, message: '' })}
+          >
+            <Pressable style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
+              <View style={styles.modalHeader}>
+                <Ionicons name="shield-checkmark" size={48} color="#DC2626" />
+                <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>
+                  Safe Zone Policy
+                </Text>
+              </View>
+              
+              <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
+                {restrictionModal.message}
+              </Text>
+              
+              <Pressable 
+                style={[styles.modalButton, { backgroundColor: Colors[colorScheme].tint }]}
+                onPress={() => setRestrictionModal({ show: false, message: '' })}
+              >
+                <Text style={styles.modalButtonText}>I Understand</Text>
+              </Pressable>
+              
+              <Pressable 
+                style={styles.modalLinkButton}
+                onPress={() => {
+                  setRestrictionModal({ show: false, message: '' });
+                  router.push('/settings/safe-zone-policy');
+                }}
+              >
+                <Text style={[styles.modalLinkText, { color: Colors[colorScheme].tint }]}>
+                  Learn More About Safe Zone Policy
+                </Text>
+              </Pressable>
+
+              {me?.role === 'coach' && !me?.is_verified && (
+                <Pressable 
+                  style={[styles.modalVerifyButton, { borderColor: Colors[colorScheme].tint }]}
+                  onPress={() => {
+                    setRestrictionModal({ show: false, message: '' });
+                    router.push('/help');
+                  }}
+                >
+                  <Ionicons name="shield-checkmark-outline" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.modalVerifyText, { color: Colors[colorScheme].tint }]}>
+                    Request Coach Verification
+                  </Text>
+                </Pressable>
+              )}
             </Pressable>
           </Pressable>
         </Modal>
@@ -487,5 +597,73 @@ const styles = StyleSheet.create({
   sheetText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  modalButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalLinkButton: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  modalLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modalVerifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginTop: 8,
+  },
+  modalVerifyText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

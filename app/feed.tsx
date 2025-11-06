@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Message, Notification as NotificationApi, User } from '@/api/entities';
@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
@@ -513,7 +514,7 @@ export default function FeedScreen() {
   // Insert sponsored ads into upcoming events feed (Instagram-style)
   const upcomingWithAds = useMemo(() => {
     const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
-    const adInterval = 8; // Show ad every 8 events (reduced frequency)
+    const adInterval = 8; // Show ad every 8 events
     const hasAds = sponsoredAds && sponsoredAds.length > 0;
     
     // If no events exist, show promotional ad card alone
@@ -522,19 +523,20 @@ export default function FeedScreen() {
       return result;
     }
     
-    // Always add a promotional card at the start if we have events
-    if (hasAds) {
-      const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-      result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-    } else {
-      result.push({ type: 'ad', ad: null });
-    }
-    
     upcomingEvents.forEach((event, index) => {
       result.push(event);
       
-      // Insert ad or promotional card after every adInterval events (starting from the first interval)
-      if ((index + 1) % adInterval === 0) {
+      // Insert first ad AFTER the first event (index 0)
+      if (index === 0) {
+        if (hasAds) {
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+        } else {
+          result.push({ type: 'ad', ad: null });
+        }
+      }
+      // Insert subsequent ads after every adInterval events (starting from the first interval)
+      else if ((index + 1) % adInterval === 0) {
         if (hasAds) {
           // Pick a random ad from available ads
           const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
@@ -585,6 +587,21 @@ export default function FeedScreen() {
     const digits = query.replace(/[^0-9]/g, '');
     setZipSuggestionsOpen(digits.length >= 2);
   }, [query]);
+
+  const openInstagram = useCallback(async () => {
+    const instagramUrl = 'https://instagram.com/varsityhub_';
+    try {
+      const canOpen = await Linking.canOpenURL(instagramUrl);
+      if (canOpen) {
+        await Linking.openURL(instagramUrl);
+      } else {
+        Alert.alert('Error', 'Unable to open Instagram. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error opening Instagram:', error);
+      Alert.alert('Error', 'Failed to open Instagram link.');
+    }
+  }, []);
 
   const userCountryCode = typeof me?.preferences?.country_code === 'string'
     ? String(me.preferences.country_code).toUpperCase()
@@ -708,21 +725,44 @@ export default function FeedScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <View style={{ flex: 1 }} />
-          <View style={styles.brandRow}>
-            <Image source={require('../assets/images/logo.png')} style={styles.logoImage} />
-            <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
-          </View>
+          {/* Notifications on LEFT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => setNotificationsMenuOpen(true)} 
+              onPress={() => { setActiveMenuTab('notifications'); setNotificationsMenuOpen(true); }} 
               style={styles.iconButton} 
               accessibilityRole="button" 
-              accessibilityLabel="Open notifications and messages"
+              accessibilityLabel="Open notifications"
             >
               <View>
-                <Ionicons name="apps-outline" size={24} color={Colors[colorScheme].text} />
-                {(hasUnreadAlerts || hasUnreadMessages) ? (
+                <Ionicons name="notifications-outline" size={24} color={Colors[colorScheme].text} />
+                {hasUnreadAlerts ? (
+                  <View style={styles.alertDot} />
+                ) : null}
+              </View>
+            </Pressable>
+          </View>
+          <View style={{ flex: 1 }} />
+          <Pressable 
+            style={styles.brandRow} 
+            onPress={openInstagram}
+            accessibilityRole="button"
+            accessibilityLabel="Open VarsityHub Instagram"
+          >
+            <Image source={require('../assets/images/logo.svg')} style={styles.logoImage} />
+            <Text style={[styles.brand, { color: Colors[colorScheme].text }]}>Varsity Hub</Text>
+          </Pressable>
+          <View style={{ flex: 1 }} />
+          {/* Messages on RIGHT */}
+          <View style={styles.headerActions}>
+            <Pressable 
+              onPress={() => router.push('/messages')} 
+              style={styles.iconButton} 
+              accessibilityRole="button" 
+              accessibilityLabel="Open messages"
+            >
+              <View>
+                <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
+                {hasUnreadMessages ? (
                   <View style={styles.alertDot} />
                 ) : null}
               </View>
@@ -741,34 +781,20 @@ export default function FeedScreen() {
           </Pressable>
         </View>
       )}
-      <View style={[styles.searchBox, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Ionicons name="search" size={20} color={Colors[colorScheme].mutedText} />
-        <TextInput
-          placeholder="Search by Zip Code..."
-          placeholderTextColor={Colors[colorScheme].mutedText}
-          value={query}
-          onChangeText={handleQueryChange}
-          onFocus={handleSearchFocus}
-          style={styles.searchInput}
-          returnKeyType="search"
-          onBlur={() => setZipSuggestionsOpen(false)}
-        />
-      </View>
-
-      {shouldShowZipSuggestions ? (
-        <View style={styles.zipSuggestionList}>
-          {zipSuggestions.map((entry) => (
-            <Pressable
-              key={entry.zip}
-              style={styles.zipSuggestionItem}
-              onPress={() => handleZipSelect(entry.zip)}
-            >
-              <Text style={styles.zipSuggestionZip}>{entry.zip}</Text>
-              <Text style={styles.zipSuggestionCount}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
+      {/* Maps Button - Navigate to nearby games/teams/events */}
+      <Pressable 
+        style={[styles.mapsButton, { backgroundColor: Colors[colorScheme].tint }]}
+        onPress={() => {
+          // Navigate to map view with nearby games
+          router.push('/league?view=map');
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="View nearby games on map"
+      >
+        <Ionicons name="map" size={24} color="#FFFFFF" />
+        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
+        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+      </Pressable>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
 
@@ -863,6 +889,7 @@ export default function FeedScreen() {
                     {adData.banner_url ? (
                       <BannerAd
                         bannerUrl={adData.banner_url}
+                        fitMode={adData.banner_fit_mode || 'fill'}
                         targetUrl={adData.target_url}
                         businessName={adData.business_name}
                         description={adData.description}
@@ -1187,6 +1214,8 @@ export default function FeedScreen() {
                         ? `${item.actor?.display_name || 'Someone'} upvoted your post`
                         : item.type === 'COMMENT'
                         ? `${item.actor?.display_name || 'Someone'} commented on your post`
+                        : item.type === 'TEAM_INVITE'
+                        ? `${item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
                         : 'Notification';
                       
                       return (
@@ -1210,10 +1239,11 @@ export default function FeedScreen() {
                             }
                             
                             setNotificationsMenuOpen(false);
-                            if (item.type === 'FOLLOW' && item.actor?.id) {
+                            // Always navigate to the actor's profile if available
+                            if (item.actor?.id) {
                               router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
-                            } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
-                              router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+                            } else if (item.type === 'TEAM_INVITE') {
+                              router.push('/team-invites');
                             }
                           }}
                         >
@@ -1373,6 +1403,27 @@ const styles = StyleSheet.create({
   brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F3F4F6', marginBottom: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   searchInput: { flex: 1, height: 44 },
+  mapsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    height: 56,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mapsButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
   gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
   masonryContainer: {
     flexDirection: 'row',

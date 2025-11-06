@@ -161,12 +161,15 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
     );
   }, [items, current, gameId, deleting, onDelete, onClose, goPrev, goNext]);
 
-  // Reset progress when current changes
+  // Reset progress when current changes and autoplay videos
   useEffect(() => {
     progress.stopAnimation();
     progress.setValue(0);
-    setPlaying(false);
-  }, [current, progress]);
+    const item = items[current];
+    const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
+    // Autoplay videos when story changes
+    setPlaying(isVideo);
+  }, [current, progress, items]);
 
   // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
   useEffect(() => {
@@ -297,18 +300,9 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
           collapsable={false}
         >
             {isVideo ? (
-              // start videos paused to avoid unexpected audio/looping; user can tap to play
+              // Videos autoplay when story opens - no controls, just video
               <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
-                <VideoPlayer uri={item.url} autoPlay={false} onEnd={goNext} nativeControls paused={!playing} style={{ width: '100%', height: '100%' }} />
-                {!playing ? (
-                  <Pressable onPress={() => setPlaying(true)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Play video">
-                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="play" size={28} color={Colors[colorScheme].text} />
-                    </View>
-                  </Pressable>
-                ) : (
-                  <Pressable onPress={() => setPlaying(false)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Pause video" />
-                )}
+                <VideoPlayer uri={item.url} autoPlay={true} onEnd={goNext} nativeControls={false} paused={paused} style={{ width: '100%', height: '100%' }} />
               </View>
             ) : (
               <Image
@@ -455,7 +449,6 @@ const openMaps = (location: string) => {
 
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
   const result = vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
-  console.log('pickBannerFromArrays:', { bannerUrl: vm.bannerUrl, coverImageUrl: vm.coverImageUrl, firstMediaUrl: media[0]?.url, result });
   return result;
 };
 
@@ -716,17 +709,19 @@ const GameDetailsScreen = () => {
 
   const loadGameById = useCallback(
     async (gameIdValue: string) => {
-      const summary: any = await Game.summary(gameIdValue).catch(() => null);
-      let gameRecord: any = null;
-      if (!summary) {
-        console.log('Loading game details for ID:', gameIdValue);
-        gameRecord = await Game.get(gameIdValue);
-        console.log('Loaded game record:', gameRecord);
-      }
-      const [postsData, mediaData] = await Promise.all([
-        Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
-        Game.media(gameIdValue).catch(() => summary?.media || []),
-      ]);
+      try {
+        const summary: any = await Game.summary(gameIdValue).catch(() => null);
+        let gameRecord: any = null;
+        if (!summary) {
+          gameRecord = await Game.get(gameIdValue).catch((err) => {
+            console.error('Error fetching game record:', err);
+            return null;
+          });
+        }
+        const [postsData, mediaData] = await Promise.all([
+          Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
+          Game.media(gameIdValue).catch(() => summary?.media || []),
+        ]);
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -758,8 +753,11 @@ const GameDetailsScreen = () => {
         teams = mapTeams(summary.teams);
         dateIso = ensureIso(summary.date);
         title = summary.title ?? '';
-        homeTeam = summary.homeTeam ?? summary.home_team ?? null;
-        awayTeam = summary.awayTeam ?? summary.away_team ?? null;
+        // Extract team names - handle both string and object formats
+        const summaryHome = summary.homeTeam ?? summary.home_team ?? null;
+        const summaryAway = summary.awayTeam ?? summary.away_team ?? null;
+        homeTeam = typeof summaryHome === 'string' ? summaryHome : (summaryHome as any)?.name || null;
+        awayTeam = typeof summaryAway === 'string' ? summaryAway : (summaryAway as any)?.name || null;
       }
 
       if (!summary && gameRecord) {
@@ -773,8 +771,31 @@ const GameDetailsScreen = () => {
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
         isPast = computeIsPast(dateIso);
-        homeTeam = gameRecord.home_team || null;
-        awayTeam = gameRecord.away_team || null;
+        // Extract team names - handle both string and object formats
+        homeTeam = typeof gameRecord.home_team === 'string' 
+          ? gameRecord.home_team 
+          : (gameRecord.home_team as any)?.name || null;
+        awayTeam = typeof gameRecord.away_team === 'string'
+          ? gameRecord.away_team
+          : (gameRecord.away_team as any)?.name || null;
+        
+        // Build teams array from homeTeam and awayTeam relations
+        const teamsArray: TeamInfo[] = [];
+        if (gameRecord.homeTeam && typeof gameRecord.homeTeam === 'object') {
+          teamsArray.push({
+            id: gameRecord.homeTeam.id,
+            name: gameRecord.homeTeam.name,
+            avatarUrl: (gameRecord.homeTeam as any).avatar_url || null,
+          });
+        }
+        if (gameRecord.awayTeam && typeof gameRecord.awayTeam === 'object') {
+          teamsArray.push({
+            id: gameRecord.awayTeam.id,
+            name: gameRecord.awayTeam.name,
+            avatarUrl: (gameRecord.awayTeam as any).avatar_url || null,
+          });
+        }
+        teams = teamsArray;
       }
 
       if (!title) title = 'Game';
@@ -822,10 +843,12 @@ const GameDetailsScreen = () => {
         isPast,
       };
 
-      console.log('Final game view model banner URL:', bannerCandidate);
-      console.log('Final game view model created');
       setVm(vmPayload);
       setActiveSection('overview');
+      } catch (error) {
+        console.error('Error in loadGameById:', error);
+        throw error; // Re-throw to be caught by outer try-catch
+      }
     },
     [],
   );
@@ -913,6 +936,7 @@ const GameDetailsScreen = () => {
               await loadGameById(vm.gameId);
               Alert.alert('Added', 'Story added to this game.');
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -948,6 +972,7 @@ const GameDetailsScreen = () => {
               await loadGameById(vm.gameId);
               Alert.alert('Added', 'Story added to this game.');
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -1377,6 +1402,18 @@ const renderVoteSection = () => {
         appearance={(vm as any)?.appearance || 'classic'}
         headerFade={headerOpacity}
         onVsPress={() => setVsModalOpen(true)}
+        onLeftPress={() => {
+          // Navigate to home team profile if team object exists
+          if (homeTeamObj?.id) {
+            router.push(`/team-profile?id=${homeTeamObj.id}`);
+          }
+        }}
+        onRightPress={() => {
+          // Navigate to away team profile if team object exists
+          if (awayTeamObj?.id) {
+            router.push(`/team-profile?id=${awayTeamObj.id}`);
+          }
+        }}
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
@@ -1384,15 +1421,9 @@ const renderVoteSection = () => {
       />
     ) : (
       bannerUrl ? (
-        <>
-          {console.log('Rendering banner image with URL:', bannerUrl)}
-          <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
-        </>
+        <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
       ) : (
-        <>
-          {console.log('No banner URL found, showing gradient placeholder')}
-          <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-        </>
+        <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
       )
     );
 
@@ -1489,38 +1520,89 @@ const renderVoteSection = () => {
   };
 
   const renderTeams = () => {
-    if (!vm?.teams?.length) {
+    // Extract organization name from team name (e.g., "SHS Men's Soccer" -> "SHS")
+    const getOrganizationFromTeamName = (teamName: string) => {
+      const parts = teamName.split(/\s+/);
+      if (parts.length > 1) {
+        // Check if first part looks like an abbreviation (SHS, NHS, etc.)
+        const firstPart = parts[0];
+        if (firstPart.length <= 5 && firstPart === firstPart.toUpperCase()) {
+          return firstPart;
+        }
+        // Otherwise use first word
+        return parts[0];
+      }
+      return teamName;
+    };
+
+    // If we have teams array with IDs, use that
+    if (vm?.teams?.length) {
       return (
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
-          {[0, 1].map((i) => (
-            <View key={i} style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, opacity: 0.7 }}>
-              <Ionicons name="people" size={32} color={Colors[colorScheme].mutedText} style={{ marginBottom: 8 }} />
-              <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>Team {i === 0 ? 'A' : 'B'}</Text>
-              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>No team linked</Text>
-            </View>
-          ))}
+          {vm.teams.slice(0, 2).map((team) => {
+            const orgName = getOrganizationFromTeamName(team.name);
+            
+            return (
+              <Pressable
+                key={team.id}
+                style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
+                onPress={() => router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+                accessibilityRole="button"
+                accessibilityLabel={`View ${team.name} team`}
+              >
+                {team.avatarUrl ? (
+                  <Image source={{ uri: team.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
+                ) : (
+                  <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
+                )}
+                <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4, textAlign: 'center' }}>{team.name}</Text>
+                <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap to view team</Text>
+              </Pressable>
+            );
+          })}
         </View>
       );
     }
+
+    // Otherwise use homeTeam and awayTeam strings if available
+    const homeTeam = vm?.homeTeam?.trim();
+    const awayTeam = vm?.awayTeam?.trim();
+    
+    if (!homeTeam && !awayTeam) {
+      return (
+        <View style={{ paddingVertical: 12 }}>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center' }}>No teams linked to this game yet.</Text>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center', fontSize: 12, marginTop: 4 }}>Teams can be added when editing the game.</Text>
+        </View>
+      );
+    }
+
+    const teams = [homeTeam, awayTeam].filter(Boolean);
+    
     return (
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
-        {vm.teams.slice(0, 2).map((team) => (
-          <Pressable
-            key={team.id}
-            style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
-            onPress={() => router.push({ pathname: '/team-viewer', params: { id: team.id } })}
-            accessibilityRole="button"
-            accessibilityLabel={`View team ${team.name}`}
-          >
-            {team.avatarUrl ? (
-              <Image source={{ uri: team.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
-            ) : (
-              <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
-            )}
-            <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>{team.name}</Text>
-            <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap for details</Text>
-          </Pressable>
-        ))}
+        {teams.map((teamName, index) => {
+          const orgName = getOrganizationFromTeamName(teamName!);
+          const teamLogo = getTeamLogo(teamName!);
+          
+          return (
+            <Pressable
+              key={index}
+              style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
+              onPress={() => router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${teamName} team`}
+            >
+              {teamLogo ? (
+                <Image source={{ uri: teamLogo }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
+              ) : (
+                <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
+              )}
+              <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4, textAlign: 'center' }}>{teamName}</Text>
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap to view team</Text>
+            </Pressable>
+          );
+        })}
       </View>
     );
   };
@@ -1638,6 +1720,12 @@ const renderVoteSection = () => {
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
 
+              {/* Teams Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Teams</Text>
+                {renderTeams()}
+              </View>
+
               {/* Removed the secondary stories grid section to avoid duplication. */}
 
               <View
@@ -1658,7 +1746,7 @@ const renderVoteSection = () => {
                 {postsCount > 0 && (
                   <View style={styles.postsGridContainer}>
                     <View style={styles.postsGrid}>
-                      {(vm?.posts || []).slice(0, 6).map((post: any, index: number) => {
+                      {(vm?.posts || []).map((post: any, index: number) => {
                         const thumb = post.media_url;
                         const isVideo = !!thumb && VIDEO_EXT.test(thumb);
                         const likes = post.upvotes_count ?? 0;
@@ -1710,15 +1798,6 @@ const renderVoteSection = () => {
                         );
                       })}
                     </View>
-                    {postsCount > 6 && (
-                      <Pressable
-                        style={styles.viewAllPostsBtn}
-                        onPress={() => setVerticalFeedOpen(true)}
-                      >
-                        <Text style={styles.viewAllPostsText}>View All {postsCount} Posts</Text>
-                        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tint} />
-                      </Pressable>
-                    )}
                   </View>
                 )}
 

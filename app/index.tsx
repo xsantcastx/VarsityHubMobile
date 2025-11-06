@@ -11,7 +11,12 @@ export default function Index() {
   useEffect(() => {
     (async () => {
       try {
-        const me: any = await User.me();
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        );
+        
+        const me: any = await Promise.race([User.me(), timeoutPromise]);
         
         if (me) {
           // User is logged in
@@ -28,7 +33,8 @@ export default function Index() {
           router.replace('/sign-in');
         }
       } catch (err: any) {
-        // Error getting user, go to sign in
+        // Error getting user or timeout, go to sign in
+        console.log('Error checking auth:', err.message);
         router.replace('/sign-in');
       }
     })();

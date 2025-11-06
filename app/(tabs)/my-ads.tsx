@@ -1,1 +1,1 @@
-export { default } from '../my-ads2';
+export { default } from '../my-ads';

@@ -20,7 +20,8 @@ export interface Game {
   location?: string;
   type?: 'home' | 'away' | 'neutral';
   game_type?: string;
-  status?: 'upcoming' | 'completed' | 'cancelled';
+  status?: 'upcoming' | 'completed' | 'cancelled' | 'pending';
+  approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string;
   cover_image_url?: string;
   home_score?: number | null;

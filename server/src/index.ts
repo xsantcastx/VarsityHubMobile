@@ -9,6 +9,7 @@ import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
 import { followsRouter } from './routes/follows.js';
 import { gamesRouter } from './routes/games.js';
+import { groupChatsRouter } from './routes/group-chats.js';
 import { highlightsRouter } from './routes/highlights.js';
 import { messagesRouter } from './routes/messages.js';
 import { notificationsRouter } from './routes/notifications.js';
@@ -107,6 +108,7 @@ app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);
 app.use('/events', apiLimiter, eventsRouter);
 app.use('/messages', noStore, apiLimiter, messagesRouter);
+app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
 app.use('/ads', adsRouter);

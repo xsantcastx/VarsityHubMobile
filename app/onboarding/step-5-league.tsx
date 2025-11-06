@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View, useColorScheme } from
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step5League() {
   const router = useRouter();

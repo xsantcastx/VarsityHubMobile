@@ -1,16 +1,17 @@
 import { Input } from '@/components/ui/input';
 import DateField from '@/ui/DateField';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import { useFocusEffect } from '@react-navigation/native';
+import OnboardingLayout from './components/OnboardingLayout';
 
 const usernameRe = /^[a-z0-9_.]{3,20}$/;
 
@@ -26,15 +27,30 @@ export default function Step2Basic() {
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
+  // Check email verification status when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const me: any = await User.me();
+          setEmailVerified(me?.email_verified ?? null);
+        } catch (error) {
+          console.error('Failed to check email verification:', error);
+        }
+      })();
+    }, [])
+  );
+
   useEffect(() => { 
     (async () => { 
       try { 
-        const me: any = await User.me(); 
+        const me: any = await User.me();
         const displayName = me?.display_name || '';
         setUsername(displayName);
         setZip(me?.preferences?.zip_code || '');
@@ -113,13 +129,20 @@ export default function Step2Basic() {
       } catch (e) {}
       await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
-      // Navigate back to confirmation if we came from there, otherwise continue to next step
+      // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
         setProgress(9); // step-10 confirmation
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(2); // step-3 plan
-        router.push('/onboarding/step-3-plan');
+        // Rookies skip plan/season/team steps and go straight to profile
+        if (ob.role === 'rookie') {
+          setProgress(6); // step-7 profile
+          router.push('/onboarding/step-7-profile');
+        } else {
+          // Coaches continue to plan selection
+          setProgress(2); // step-3 plan
+          router.push('/onboarding/step-3-plan');
+        }
       }
     } catch (e: any) { 
       Alert.alert('Failed to save', e?.message || 'Please try again'); 
@@ -134,6 +157,8 @@ export default function Step2Basic() {
       title="Basic Information"
       subtitle="We'll set up your account with a username and preferences"
       onBack={onBack}
+      emailVerified={emailVerified === null ? undefined : emailVerified}
+      onVerifyEmail={() => router.push('/verify-email')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -152,14 +177,17 @@ export default function Step2Basic() {
         <Text style={styles.success}>Available!</Text>
       ) : null}
 
-      <Text style={styles.label}>Affiliation</Text>
+      <Text style={styles.label}>Organization Type</Text>
+      <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
+        Select the type of organization you're affiliated with (optional)
+      </Text>
       <View style={styles.affiliationGrid}>
         {[
           { value: 'none', label: 'None', icon: '❌' },
           { value: 'university', label: 'University', icon: '🎓' },
           { value: 'high_school', label: 'High School', icon: '🏫' },
           { value: 'club', label: 'Club', icon: '⚽' },
-          { value: 'youth', label: 'Youth', icon: '👶' },
+          { value: 'youth', label: 'Youth Org', icon: '🏀' },
         ].map((option) => (
           <Pressable
             key={option.value}
@@ -168,6 +196,8 @@ export default function Step2Basic() {
               affiliation === option.value && styles.affiliationButtonSelected
             ]}
             onPress={() => setAffiliation(option.value as Affiliation)}
+            accessibilityLabel={`${option.label} affiliation`}
+            accessibilityRole="button"
           >
             <Text style={styles.affiliationIcon}>{option.icon}</Text>
             <Text style={[
@@ -270,6 +300,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 14,
     color: Colors[colorScheme].mutedText,
     marginTop: 4,
+  },
+  hint: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   affiliationGrid: {
     flexDirection: 'row',

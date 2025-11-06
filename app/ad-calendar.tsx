@@ -12,8 +12,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
-const weekdayRate = 10.00;  // Per single day (Mon-Thu)
-const weekendRate = 17.50;  // Per single day (Fri-Sun)
+const weekdayRate = 8.00;   // Per week (Mon-Thu slot)
+const weekendRate = 10.00;  // Per week (Fri-Sun slot)
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
@@ -32,15 +32,15 @@ function calculatePrice(selectedISO: Set<string>): number {
   if (selectedISO.size === 0) return 0;
   let total = 0;
   
-  // Calculate price per individual day
+  // Calculate price per weekly slot
   for (const d of selectedISO) {
     const dow = getDayOfWeek(d);
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($10)
-    // Fri=5, Sat=6, Sun=0 are weekend ($17.50)
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($8/week slot)
+    // Fri=5, Sat=6, Sun=0 are weekend ($10/week slot)
     if (dow >= 1 && dow <= 4) {
-      total += weekdayRate; // $10.00 per weekday
+      total += weekdayRate; // $8.00 per week (Mon-Thu slot)
     } else {
-      total += weekendRate; // $17.50 per weekend day
+      total += weekendRate; // $10.00 per week (Fri-Sun slot)
     }
   }
   
@@ -56,6 +56,8 @@ export default function AdCalendarScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [reserved, setReserved] = useState<Set<string>>(new Set());
+  const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 3/3 slots filled
+  const [dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
   const [promo, setPromo] = useState('');
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
@@ -66,6 +68,7 @@ export default function AdCalendarScreen() {
   const [showingAlternatives, setShowingAlternatives] = useState(false);
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
+  // AND load date availability to block fully booked dates
   React.useEffect(() => {
     let mounted = true;
     (async () => {
@@ -80,10 +83,13 @@ export default function AdCalendarScreen() {
         const dates = Array.isArray(res?.dates) ? res.dates : [];
         setReserved(new Set<string>(dates));
         
-        // Get tax rate from ad's zip code
+        // Get zip code and load availability
         if (res?.ad?.target_zip_code) {
-          setZipCode(res.ad.target_zip_code);
-          // Fetch tax info from server (optional, for now we'll calculate client-side)
+          const zip = res.ad.target_zip_code;
+          setZipCode(zip);
+          
+          // Load availability for next 8 weeks
+          await loadAvailability(zip);
         }
       } catch {
         if (mounted) setReserved(new Set());
@@ -91,6 +97,51 @@ export default function AdCalendarScreen() {
     })();
     return () => { mounted = false; };
   }, [adId]);
+
+  const loadAvailability = async (zip: string) => {
+    try {
+      const from = todayISO();
+      const to = maxDateISO();
+      
+      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const headers: any = { 'Content-Type': 'application/json' };
+      const token = getAuthToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+      
+      const r = await fetch(
+        `${base.replace(/\/$/, '')}/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`,
+        { method: 'GET', headers }
+      );
+      
+      if (!r.ok) {
+        console.warn('Failed to load availability:', r.status);
+        return;
+      }
+      
+      const data = await r.json();
+      
+      if (data?.availability) {
+        const fullDatesSet = new Set<string>();
+        const availabilityMap: Record<string, { slotsUsed: number; slotsRemaining: number }> = {};
+        
+        Object.entries(data.availability).forEach(([dateISO, info]: [string, any]) => {
+          availabilityMap[dateISO] = {
+            slotsUsed: info.slotsUsed || 0,
+            slotsRemaining: info.slotsRemaining || 0,
+          };
+          
+          if (!info.available || info.slotsRemaining <= 0) {
+            fullDatesSet.add(dateISO);
+          }
+        });
+        
+        setDateAvailability(availabilityMap);
+        setFullDates(fullDatesSet);
+      }
+    } catch (e) {
+      console.error('Error loading availability:', e);
+    }
+  };
 
   const price = useMemo(() => calculatePrice(selected), [selected]);
   const taxCents = useMemo(() => {
@@ -123,7 +174,7 @@ export default function AdCalendarScreen() {
       };
     }
     
-    // Mark reserved dates as disabled
+    // Mark reserved dates as disabled (user's own reservations)
     for (const d of reserved) {
       obj[d] = { 
         disabled: true, 
@@ -133,8 +184,33 @@ export default function AdCalendarScreen() {
       };
     }
     
+    // Mark fully booked dates (3/3 slots filled) - higher priority than reserved
+    for (const d of fullDates) {
+      // Don't override if user has already selected this date
+      if (!selected.has(d)) {
+        obj[d] = { 
+          disabled: true, 
+          disableTouchEvent: true,
+          textColor: '#9CA3AF',
+          customStyles: {
+            container: {
+              backgroundColor: '#F3F4F6',
+              borderWidth: 1,
+              borderColor: '#E5E7EB',
+            },
+            text: {
+              color: '#9CA3AF',
+              textDecorationLine: 'line-through',
+            },
+          },
+          marked: true,
+          dotColor: '#EF4444',
+        };
+      }
+    }
+    
     return obj;
-  }, [selected, reserved]);
+  }, [selected, reserved, fullDates]);
 
   const onDayPress = (day: DateData) => {
     const iso = day.dateString; // yyyy-MM-dd
@@ -150,6 +226,16 @@ export default function AdCalendarScreen() {
     // Prevent selection beyond 8 weeks
     if (iso > maxDate) {
       Alert.alert('Booking Limit', 'Ads can only be booked up to 8 weeks in advance to maintain predictable pricing.');
+      return;
+    }
+    
+    // Prevent selection of fully booked dates
+    if (fullDates.has(iso)) {
+      fetchAlternativeZips([iso]);
+      Alert.alert(
+        'Date Fully Booked', 
+        'This date already has 3/3 ad slots filled. Check below for nearby available zip codes or select a different date.'
+      );
       return;
     }
     
@@ -265,16 +351,30 @@ export default function AdCalendarScreen() {
                 try {
                   const result = await WebBrowser.openBrowserAsync(String(data.url));
                   
-                  // When browser closes, ALWAYS assume success and redirect
+                  // When browser closes, redirect to confirmation screen
                   console.log('[ad-calendar] Browser closed:', result.type);
                   
                   // Reset submitting state
                   setSubmitting(false);
                   
-                  // Always redirect to My Ads after browser closes
-                  // (whether they paid or not, they can check there)
-                  console.log('[ad-calendar] Redirecting to My Ads');
-                  router.replace('/(tabs)/my-ads');
+                  // Get ad details for confirmation screen
+                  const adData = await Advertisement.get(adId).catch(() => null);
+                  const businessName = adData?.business_name || 'Your Business';
+                  const datesText = sortedDates.length > 0 
+                    ? `${sortedDates.length} ${sortedDates.length === 1 ? 'day' : 'days'}`
+                    : 'selected dates';
+                  
+                  // Redirect to confirmation screen with ad details
+                  console.log('[ad-calendar] Redirecting to confirmation');
+                  router.replace({
+                    pathname: '/ad-confirmation',
+                    params: {
+                      ad_id: adId,
+                      businessName,
+                      selectedDates: datesText,
+                      totalAmount: `$${effective.toFixed(2)}`,
+                    }
+                  } as any);
                   
                 } catch (browserErr) {
                   console.error('Browser error:', browserErr);
@@ -395,11 +495,11 @@ export default function AdCalendarScreen() {
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/week</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/day</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/week</Text>
             </View>
           </View>
 
@@ -423,19 +523,52 @@ export default function AdCalendarScreen() {
             }}
           />
           <Text style={[styles.calendarHint, { color: Colors[colorScheme].mutedText }]}>Booking available up to 8 weeks in advance</Text>
+
+          {/* Ad Space Sharing Notice */}
+          <View style={[styles.noticeBox, { 
+            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F0F9FF',
+            borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE'
+          }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+              <Text style={{ fontSize: 20 }}>ℹ️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
+                  Ad Space Shared
+                </Text>
+                <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>
+                  Your ad will rotate with up to <Text style={{ fontWeight: '700' }}>3 other companies</Text> on selected dates. This ensures fair visibility and competitive pricing for all advertisers.
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Pricing</Text>
           <View style={styles.rowBetween}>
-            <Text style={{ color: Colors[colorScheme].text }}>Weekday Rate (Mon-Thu):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayRate.toFixed(2)}/day</Text>
+            <Text style={{ color: Colors[colorScheme].text }}>Weekday Slot (Mon-Thu):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayRate.toFixed(2)}/week</Text>
           </View>
           <View style={styles.rowBetween}>
-            <Text style={{ color: Colors[colorScheme].text }}>Weekend Rate (Fri-Sun):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendRate.toFixed(2)}/day</Text>
+            <Text style={{ color: Colors[colorScheme].text }}>Weekend Slot (Fri-Sun):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendRate.toFixed(2)}/week</Text>
           </View>
-          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each day is priced individually. Select multiple days to see your total.</Text>
+          <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each ad slot is priced per week. Select multiple dates to see your total.</Text>
+          
+          {/* Mid-week pricing notice */}
+          <View style={{ 
+            marginTop: 12, 
+            padding: 12, 
+            backgroundColor: Colors[colorScheme].surface,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: '#FCD34D',
+            borderLeftWidth: 4,
+          }}>
+            <Text style={{ fontSize: 13, color: Colors[colorScheme].text, lineHeight: 18 }}>
+              <Text style={{ fontWeight: '700' }}>💡 Pricing Note:</Text> Weekly slots apply to Mon–Thu (weekday) or Fri–Sun (weekend). Booking a date reserves your ad for that entire week's slot at the listed price.
+            </Text>
+          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
@@ -475,20 +608,53 @@ export default function AdCalendarScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
-          <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Campaign Summary</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Campaign Summary</Text>
+            {sortedDates.length > 0 && (
+              <View style={[styles.countBadge, { backgroundColor: Colors[colorScheme].tint }]}>
+                <Text style={styles.countBadgeText}>{sortedDates.length}</Text>
+              </View>
+            )}
+          </View>
           {sortedDates.length > 0 ? (
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>Selected Dates:</Text>
-              <View style={styles.badgeWrap}>
-                {sortedDates.map((iso) => (
-                  <View key={iso} style={[styles.badge, { backgroundColor: Colors[colorScheme].surface }]}>
-                    <Text style={[styles.badgeText, { color: Colors[colorScheme].text }]}>{format(new Date(iso + 'T00:00:00'), 'MMM d')}</Text>
-                  </View>
-                ))}
+            <View style={{ gap: 12 }}>
+              <View>
+                <Text style={[styles.bold, { color: Colors[colorScheme].text, marginBottom: 8 }]}>Selected Dates:</Text>
+                <View style={styles.badgeWrap}>
+                  {sortedDates.map((iso) => {
+                    const dow = getDayOfWeek(iso);
+                    const isWeekend = dow === 0 || dow === 5 || dow === 6;
+                    return (
+                      <View 
+                        key={iso} 
+                        style={[
+                          styles.dateBadge, 
+                          { 
+                            backgroundColor: isWeekend ? '#FED7AA' : '#BFDBFE',
+                            borderColor: isWeekend ? '#EA580C' : '#2563EB',
+                          }
+                        ]}
+                      >
+                        <Text style={[styles.dateBadgeText, { color: isWeekend ? '#7C2D12' : '#1E40AF' }]}>
+                          {format(new Date(iso + 'T00:00:00'), 'MMM d, yyyy')}
+                        </Text>
+                        <Text style={[styles.dateBadgeRate, { color: isWeekend ? '#9A3412' : '#1E3A8A' }]}>
+                          ${isWeekend ? weekendRate.toFixed(2) : weekdayRate.toFixed(2)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             </View>
           ) : (
-            <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Select dates on the calendar to see your summary.</Text>
+            <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>📅</Text>
+              <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>No dates selected</Text>
+              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, textAlign: 'center' }]}>
+                Tap on dates in the calendar above to build your campaign
+              </Text>
+            </View>
           )}
 
           <View style={[styles.sep, { backgroundColor: Colors[colorScheme].border }]} />
@@ -583,11 +749,63 @@ const styles = StyleSheet.create({
   badgeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999 },
   badgeText: { fontSize: 12, fontWeight: '600' },
+  dateBadge: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  dateBadgeRate: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  emptyState: {
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+  },
   legendContainer: { marginVertical: 8, gap: 6 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 16, height: 16, borderRadius: 8 },
   legendText: { fontSize: 13, fontWeight: '500' },
   calendarHint: { fontSize: 12, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
+  noticeBox: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  noticeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  noticeText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   payBtn: {
     marginTop: 12,
     height: 48,

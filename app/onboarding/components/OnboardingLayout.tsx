@@ -12,9 +12,11 @@ interface OnboardingLayoutProps {
   children: ReactNode;
   onBack?: () => void;
   showBackButton?: boolean;
+  emailVerified?: boolean;
+  onVerifyEmail?: () => void;
 }
 
-export function OnboardingLayout({
+export default function OnboardingLayout({
   step,
   totalSteps = 10,
   title,
@@ -22,6 +24,8 @@ export function OnboardingLayout({
   children,
   onBack,
   showBackButton = true,
+  emailVerified,
+  onVerifyEmail,
 }: OnboardingLayoutProps) {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -66,7 +70,15 @@ export function OnboardingLayout({
           Step {step}/{totalSteps}
         </Text>
         
-        <View style={styles.backButton} />
+        {/* Verify Email Button (right side) */}
+        {emailVerified === false && onVerifyEmail ? (
+          <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8}>
+            <Ionicons name="mail-outline" size={18} color="#EF4444" />
+            <Text style={styles.verifyButtonText}>Verify</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.backButton} />
+        )}
       </View>
 
       {/* Progress Bar */}
@@ -119,6 +131,22 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  verifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  verifyButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#EF4444',
   },
   stepIndicator: {
     fontSize: 14,

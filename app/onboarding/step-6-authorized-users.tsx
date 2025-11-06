@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import PrimaryButton from '@/ui/PrimaryButton';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-
 // @ts-ignore
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import OnboardingLayout from './components/OnboardingLayout';
 
 type TeamRole = 'Team Manager' | 'Assistant' | 'Coach' | 'Admin';
 

@@ -1,14 +1,15 @@
 import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import PrimaryButton from '@/ui/PrimaryButton';
+import Button from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { OnboardingLayout } from './components/OnboardingLayout';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import OnboardingLayout from './components/OnboardingLayout';
 
-type UserRole = 'fan' | 'coach';
+type UserRole = 'fan' | 'rookie' | 'coach';
 
 function RoleCard({ 
   title, 
@@ -91,11 +92,25 @@ export default function Step1Role() {
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (ob.role) setRole(ob.role);
   }, [ob.role]);
 
+  // Check email verification status on mount and when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const me: any = await User.me();
+          setEmailVerified(me?.email_verified ?? null);
+        } catch (error) {
+          console.error('Failed to check email verification:', error);
+        }
+      })();
+    }, [])
+  );
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
@@ -133,11 +148,15 @@ export default function Step1Role() {
       } else {
         // Route based on role selection for normal onboarding flow
         if (role === 'fan') {
-          // Fan gets light setup - skip to profile or interests
+          // Fan gets lightest setup - skip to profile
           setProgress(6); // step-7 (0-based)
           router.push('/onboarding/step-7-profile');
+        } else if (role === 'rookie') {
+          // Rookie (Player) gets medium setup - basic info + profile, no teams/subscriptions
+          setProgress(1); // step-2
+          router.push('/onboarding/step-2-basic');
         } else {
-          // Coach/Organizer gets full onboarding
+          // Coach/Organizer gets full onboarding with teams and subscriptions
           setProgress(1); // step-2
           router.push('/onboarding/step-2-basic');
         }
@@ -153,6 +172,8 @@ export default function Step1Role() {
       title="Choose Your Role"
       subtitle="Tell us how you'll be using VarsityHub to personalize your experience"
       showBackButton={false}
+      emailVerified={emailVerified === null ? undefined : emailVerified}
+      onVerifyEmail={() => router.push('/verify-email')}
     >
       <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
       
@@ -167,6 +188,21 @@ export default function Step1Role() {
           'Get game updates and highlights',
           'Connect with other fans',
           'Quick setup process'
+        ]}
+      />
+
+      <RoleCard
+        title="Rookie (Player)"
+        description="Join teams and play"
+        icon="basketball"
+        selected={role === 'rookie'}
+        onPress={() => setRole('rookie')}
+        features={[
+          'Join and play for teams',
+          'View personal and team stats',
+          'Get roster updates',
+          'Event notifications',
+          'Participate in team chat'
         ]}
       />
 
@@ -187,12 +223,14 @@ export default function Step1Role() {
 
       {role && (
         <View style={styles.continueContainer}>
-          <PrimaryButton 
-            label={saving ? 'Setting up...' : 'Continue'} 
+          <Button 
             onPress={onContinue} 
-            disabled={saving} 
-            loading={saving} 
-          />
+            disabled={saving}
+            size="lg"
+            style={{ width: '100%', maxWidth: 400, alignSelf: 'center' }}
+          >
+            {saving ? <ActivityIndicator color="white" /> : 'Continue'}
+          </Button>
         </View>
       )}
     </OnboardingLayout>

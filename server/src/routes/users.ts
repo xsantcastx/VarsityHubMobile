@@ -421,43 +421,30 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
     return res.json({ users: [] });
   }
 
-  // Search users I'm following or who follow me, plus exact username matches
+  // Search all users by username, display_name, or email
   const users = await prisma.user.findMany({
     where: {
       AND: [
         { banned: false },
         {
           OR: [
-            // Users I follow
-            {
-              id: {
-                in: await prisma.follows.findMany({
-                  where: { follower_id: currentUserId },
-                  select: { following_id: true }
-                }).then(follows => follows.map(f => f.following_id))
-              }
-            },
-            // Users who follow me
-            {
-              id: {
-                in: await prisma.follows.findMany({
-                  where: { following_id: currentUserId },
-                  select: { follower_id: true }
-                }).then(follows => follows.map(f => f.follower_id))
-              }
-            },
-            // Exact username matches (for discoverability)
-            { display_name: { contains: query, mode: 'insensitive' } }
+            // Search by username
+            { username: { contains: query, mode: 'insensitive' } },
+            // Search by display name
+            { display_name: { contains: query, mode: 'insensitive' } },
+            // Search by email (for team invites)
+            { email: { contains: query, mode: 'insensitive' } }
           ]
-        },
-        // Match query in display name
-        { display_name: { contains: query, mode: 'insensitive' } }
+        }
       ]
     },
     select: {
       id: true,
+      username: true,
       display_name: true,
+      email: true,
       avatar_url: true,
+      email_verified: true,
     },
     take: limit,
     orderBy: [
@@ -465,7 +452,17 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
     ]
   });
 
-  res.json({ users });
+  // Ensure all fields have safe defaults (no null values that will crash React Native)
+  const safeUsers = users.map(user => ({
+    id: user.id,
+    username: user.username || user.email?.split('@')[0] || 'user',
+    display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
+    email: user.email,
+    avatar_url: user.avatar_url,
+    email_verified: user.email_verified,
+  }));
+
+  res.json(safeUsers);
 });
 
 // Public profile: basic user info plus counts and is_following flag
@@ -506,4 +503,75 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     following_count,
     is_following: Boolean(rel),
   });
+});
+
+// Block a user
+usersRouter.post('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+  const blocker_id = req.user!.id;
+  const blocked_id = req.params.id;
+
+  if (blocker_id === blocked_id) {
+    return res.status(400).json({ error: 'Cannot block yourself' });
+  }
+
+  try {
+    await prisma.blockedUser.create({
+      data: {
+        blocker_id,
+        blocked_id,
+      },
+    });
+    return res.status(201).json({ success: true });
+  } catch (error: any) {
+    // Handle duplicate blocking
+    if (error.code === 'P2002') {
+      return res.status(200).json({ success: true, message: 'User already blocked' });
+    }
+    console.error('Block user error:', error);
+    return res.status(500).json({ error: 'Failed to block user' });
+  }
+});
+
+// Unblock a user
+usersRouter.delete('/:id/block', requireAuth as any, async (req: AuthedRequest, res) => {
+  const blocker_id = req.user!.id;
+  const blocked_id = req.params.id;
+
+  try {
+    await prisma.blockedUser.deleteMany({
+      where: {
+        blocker_id,
+        blocked_id,
+      },
+    });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Unblock user error:', error);
+    return res.status(500).json({ error: 'Failed to unblock user' });
+  }
+});
+
+// Get blocked users
+usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const blocks = await prisma.blockedUser.findMany({
+      where: { blocker_id: req.user!.id },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            display_name: true,
+            avatar_url: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return res.json(blocks.map(b => b.blocked));
+  } catch (error) {
+    console.error('Get blocked users error:', error);
+    return res.status(500).json({ error: 'Failed to get blocked users' });
+  }
 });
