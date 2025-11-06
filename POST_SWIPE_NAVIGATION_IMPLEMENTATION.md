@@ -20,7 +20,7 @@ router.push('/post-detail?id=123&postIds=123,456,789&index=0');
 **Parameters:**
 - `id` - The current post ID to display
 - `postIds` - Comma-separated list of post IDs (enables swipe navigation)
-- `index` - Current position in the array (0-based)
+- `index` - Current position in the array (0-based)q
 
 ### 2. Horizontal FlatList with Paging
 When multiple posts are provided:
