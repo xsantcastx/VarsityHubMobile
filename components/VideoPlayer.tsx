@@ -5,7 +5,7 @@ import { ViewStyle } from 'react-native';
 
 export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true, paused }: { uri: string; style?: ViewStyle; onEnd?: () => void; autoPlay?: boolean; nativeControls?: boolean; paused?: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
-    if (autoPlay) {
+    if (autoPlay && !paused) {
       try { p.play(); } catch {}
     }
   });
@@ -14,6 +14,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
     if (onEnd) onEnd();
   });
 
+  // Control playback based on paused prop
   React.useEffect(() => {
     if (!player) return;
     try {
@@ -22,8 +23,20 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
       } else if (autoPlay) {
         player.play();
       }
-    } catch {}
+    } catch (err) {
+      console.log('VideoPlayer playback control error:', err);
+    }
   }, [paused, player, autoPlay]);
+
+  // Restart video when autoPlay changes from false to true
+  React.useEffect(() => {
+    if (!player || !autoPlay || paused) return;
+    try {
+      player.replay();
+    } catch (err) {
+      console.log('VideoPlayer autoplay error:', err);
+    }
+  }, [autoPlay, player, paused]);
 
   return (
     <VideoView

@@ -7,6 +7,7 @@ export const User = {
   register: (email: string, password: string, display_name?: string) => auth.register(email, password, display_name),
   loginViaEmailPassword: (email: string, password: string) => auth.login(email, password),
   loginViaGoogle: (idToken: string) => auth.loginWithGoogle(idToken),
+  loginViaApple: (identityToken: string) => auth.loginWithApple(identityToken),
   logout: () => auth.logout(),
   updateMe: (data: any) => httpPut('/auth/me', data),
   patchMe: (data: any) => httpPatch('/me', data),
@@ -243,6 +244,17 @@ export const Organization = {
   myInvites: () => httpGet('/organizations/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/organizations/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  // Team join requests
+  requestToJoin: (organizationId: string, teamId: string, teamName: string, message?: string) => 
+    httpPost(`/organizations/${encodeURIComponent(organizationId)}/team-join-request`, { team_id: teamId, team_name: teamName, message }),
+  getJoinRequests: (organizationId: string, status?: 'pending' | 'approved' | 'rejected') => {
+    const params: string[] = [];
+    if (status) params.push('status=' + encodeURIComponent(status));
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet(`/organizations/${encodeURIComponent(organizationId)}/team-join-requests` + qs);
+  },
+  approveJoinRequest: (requestId: string) => httpPost(`/team-join-requests/${encodeURIComponent(requestId)}/approve`, {}),
+  rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/team-join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
 };
 
 export const Team = {

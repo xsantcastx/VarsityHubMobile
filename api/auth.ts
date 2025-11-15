@@ -1,6 +1,6 @@
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { httpGet, httpPost, httpPostLongTimeout, setAuthToken, clearAuthToken, getAuthToken } from './http';
+import { Platform } from 'react-native';
+import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
 
 const TOKEN_KEY = 'vh_access_token';
 
@@ -40,6 +40,11 @@ export const auth = {
   },
   async loginWithGoogle(idToken: string) {
     const res = await httpPost('/auth/google', { id_token: idToken });
+    if (res?.access_token) await saveToken(res.access_token);
+    return res;
+  },
+  async loginWithApple(identityToken: string) {
+    const res = await httpPost('/auth/apple', { identity_token: identityToken });
     if (res?.access_token) await saveToken(res.access_token);
     return res;
   },

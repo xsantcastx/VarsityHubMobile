@@ -132,7 +132,21 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Verify Email' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Verify Email',
+          headerShown: false,
+        }} 
+      />
+      
+      {/* Back Button */}
+      <Pressable 
+        onPress={() => router.back()} 
+        style={styles.backButton}
+        hitSlop={8}
+      >
+        <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+      </Pressable>
       
       {/* Header Icon */}
       <View style={styles.iconContainer}>
@@ -210,6 +224,15 @@ export default function VerifyEmailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, justifyContent: 'center' },
+  backButton: { 
+    position: 'absolute', 
+    top: 60, 
+    left: 20, 
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+  },
   iconContainer: { alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
   subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },

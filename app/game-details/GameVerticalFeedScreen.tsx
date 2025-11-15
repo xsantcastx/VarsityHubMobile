@@ -281,34 +281,36 @@ const FeedCard = memo(
           ) : (
             <View style={[styles.media, styles.textOnlyCard]}>
               <LinearGradient
-                colors={["#0b1120", "#020617"]}
+                colors={["#1e293b", "#0f172a"]}
                 style={StyleSheet.absoluteFillObject as any}
               />
-              <View style={styles.textOnlyBadge}>
-                <Ionicons name="text" size={14} color={Colors[colorScheme].text} />
-                <Text style={[styles.textOnlyBadgeText, { color: Colors[colorScheme].text }]}>TEXT POST</Text>
+              <View style={styles.textOnlyContent}>
+                <View style={styles.textOnlyHeader}>
+                  {post.author?.avatar_url ? (
+                    <FastImage source={{ uri: post.author.avatar_url }} style={styles.textOnlyAvatar} />
+                  ) : (
+                    <View style={[styles.textOnlyAvatar, styles.avatarFallback]}>
+                      <Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View style={styles.textOnlyAuthorInfo}>
+                    <Text style={styles.textOnlyAuthorName}>{authorLabel}</Text>
+                    <Text style={styles.textOnlyTimestamp}>
+                      {post.created_at ? new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.textOnlyCaption}>
+                  {post.caption || 'No content'}
+                </Text>
               </View>
-              <Text style={[styles.textOnlyCaption, { color: Colors[colorScheme].text }]} numberOfLines={6}>
-                {post.caption || 'No content'}
-              </Text>
             </View>
           )}
         </Pressable>
 
-        <View style={[styles.headerOverlay, { paddingTop: insets.top + 12 }]}>
-          <View style={styles.headerAvatar}>
-            {post.author?.avatar_url ? (
-              <FastImage source={{ uri: post.author.avatar_url }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}><Text style={styles.avatarFallbackText}>{authorLabel.charAt(0).toUpperCase()}</Text></View>
-            )}
-            <Text style={styles.authorName}>{authorLabel}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-          {post.caption ? <Text style={[styles.captionText, { color: Colors[colorScheme].text }]}>{post.caption}</Text> : null}
-          <Text style={styles.captionMeta}>{post.created_at ? new Date(post.created_at).toLocaleString() : ''}</Text>
+        <View style={[styles.captionOverlay, { paddingBottom: Math.max(insets.bottom + 12, 36) }]}>
+          <Text style={styles.authorNameBottom}>{authorLabel}</Text>
+          {post.caption ? <Text style={styles.captionText}>{post.caption}</Text> : null}
         </View>
 
         <View style={[styles.rail, { paddingBottom: Math.max(insets.bottom + 24, 96) }]}>
@@ -329,28 +331,28 @@ const FeedCard = memo(
           ) : null}
 
           <Pressable onPress={onToggleUpvote} style={styles.railBtn}>
-            <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={30} color={post.has_upvoted ? Colors[colorScheme].tint : Colors[colorScheme].text} />
-            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.upvotes_count}</Text>
+            <Ionicons name={post.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={36} color="#fff" />
+            <Text style={styles.railLabel}>{post.upvotes_count}</Text>
           </Pressable>
 
           <Pressable onPress={onOpenComments} style={styles.railBtn}>
-            <Ionicons name="chatbubble-ellipses-outline" size={30} color={Colors[colorScheme].text} />
-            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.comments_count}</Text>
+            <Ionicons name="chatbubble-ellipses-outline" size={36} color="#fff" />
+            <Text style={styles.railLabel}>{post.comments_count}</Text>
           </Pressable>
 
           <Pressable onPress={onSharePost} style={styles.railBtn}>
-            <Ionicons name="share-outline" size={28} color={Colors[colorScheme].text} />
-            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>Share</Text>
+            <Ionicons name="share-outline" size={34} color="#fff" />
+            <Text style={styles.railLabel}>Share</Text>
           </Pressable>
 
           <Pressable onPress={onToggleBookmark} style={styles.railBtn}>
-            <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={28} color={post.has_bookmarked ? Colors[colorScheme].tint : Colors[colorScheme].text} />
-            <Text style={[styles.railLabel, { color: Colors[colorScheme].text }]}>{post.bookmarks_count}</Text>
+            <Ionicons name={post.has_bookmarked ? 'bookmark' : 'bookmark-outline'} size={34} color="#fff" />
+            <Text style={styles.railLabel}>{post.bookmarks_count}</Text>
           </Pressable>
 
           {isAuthor && (
             <Pressable onPress={() => setShowOptionsMenu(true)} style={styles.railBtn}>
-              <Ionicons name="ellipsis-horizontal" size={28} color="#fff" />
+              <Ionicons name="ellipsis-horizontal" size={34} color="#fff" />
               <Text style={styles.railLabel}>Options</Text>
             </Pressable>
           )}
@@ -967,6 +969,21 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   const keyExtractor = useCallback((item: FeedPost) => item.id, []);
 
+  // Ensure we know who the current user is so we can correctly
+  // hide the follow button on our own posts and space the rail.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me: any = await User.me();
+        if (!cancelled && me) {
+          setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   if (!gameId && !usingInitial) {
     return (
       <View style={styles.emptyState}>
@@ -1013,15 +1030,21 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         }
       />
 
-      {showHeader ? (
+      {showHeader && !usingInitial ? (
         <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
           <Pressable style={styles.backBtn} onPress={handleBack}>
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+            <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
           <View style={styles.titleTextWrap}>
-            <Text style={[styles.titleText, { color: Colors[colorScheme].text }]}>{usingInitial ? (title || 'Posts') : (game?.title || 'Game')}</Text>
-            {!usingInitial && game?.date ? <Text style={[styles.titleSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>{new Date(game.date).toLocaleDateString()}</Text> : null}
+            <Text style={styles.titleText}>{game?.title || 'Game'}</Text>
+            {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
           </View>
+        </View>
+      ) : usingInitial ? (
+        <View style={[styles.titleOverlay, { paddingTop: insets.top + 12 }]}>
+          <Pressable style={styles.backBtn} onPress={handleBack}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </Pressable>
         </View>
       ) : null}
 
@@ -1092,21 +1115,52 @@ const styles = StyleSheet.create({
   media: { width: '100%', height: '100%' },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
   mediaFallbackText: { fontWeight: '700' },
-  textOnlyCard: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  textOnlyBadge: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  textOnlyCard: {
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  textOnlyContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 24,
+    padding: 24,
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  textOnlyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginBottom: 16,
   },
-  textOnlyBadgeText: { fontWeight: '800', fontSize: 11, marginLeft: 6 },
-  textOnlyCaption: { fontSize: 18, fontWeight: '700', textAlign: 'center', lineHeight: 26 },
+  textOnlyAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  textOnlyAuthorInfo: {
+    flex: 1,
+  },
+  textOnlyAuthorName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 2,
+  },
+  textOnlyTimestamp: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  textOnlyCaption: {
+    fontSize: 19,
+    fontWeight: '400',
+    color: '#f1f5f9',
+    lineHeight: 28,
+    letterSpacing: -0.2,
+  },
   headerOverlay: {
     position: 'absolute',
     left: 16,
@@ -1144,13 +1198,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 88,
-    bottom: 24,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.32)',
+    bottom: 12,
   },
-  captionText: { fontSize: 15, fontWeight: '600' },
-  captionMeta: { color: '#cbd5f5', fontSize: 12, marginTop: 6 },
+  authorNameBottom: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  captionText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   rail: {
     position: 'absolute',
     right: 16,
@@ -1158,7 +1225,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   railAvatarBtn: {
-    marginBottom: 18,
+    marginBottom: 28,
   },
   railAvatarImg: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1f2937' },
   railFollowPlus: {
@@ -1171,8 +1238,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#0f172a',
   },
-  railBtn: { alignItems: 'center', marginBottom: 18 },
-  railLabel: { color: '#fff', fontWeight: '600', marginTop: 4, fontSize: 13 },
+  railBtn: { alignItems: 'center', marginBottom: 24 },
+  railLabel: {
+    color: '#fff',
+    fontWeight: '800',
+    marginTop: 2,
+    fontSize: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   titleOverlay: {
     position: 'absolute',
     top: 0,
@@ -1199,8 +1274,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  titleText: { fontWeight: '800', fontSize: 16 },
-  titleSubtitle: { color: '#cbd5f5', marginTop: 2, fontSize: 12 },
+  titleText: {
+    fontWeight: '800',
+    fontSize: 16,
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  titleSubtitle: {
+    color: '#e5e7eb',
+    marginTop: 2,
+    fontSize: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyStateTitle: { color: '#fff', fontWeight: '800', fontSize: 18 },
   emptyStateCaption: { color: '#cbd5f5', marginTop: 8, textAlign: 'center' },

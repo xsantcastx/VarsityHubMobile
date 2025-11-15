@@ -4,6 +4,9 @@ import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
+import swaggerUi from 'swagger-ui-express';
+import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
+import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
@@ -32,6 +35,9 @@ import geocodingRouter from './routes/geocoding.js';
 import { paymentsRouter } from './routes/payments.js';
 
 const app = express();
+
+// Initialize Sentry for error tracking (must be before other middleware)
+initSentry(app);
 
 // Trust proxy headers from Railway (required for express-rate-limit and IP detection)
 app.set('trust proxy', true);
@@ -98,6 +104,15 @@ const apiLimiter = rateLimit({
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// API Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  swaggerOptions: {
+    persistAuthorization: true,
+  },
+}));
+console.log('📚 API documentation available at /api-docs');
+
 app.use('/auth', authLimiter, authRouter);
 app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
 app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
@@ -130,6 +145,10 @@ app.use('/promos', noStore, apiLimiter, promosRouter);
 const PORT = Number(process.env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
 const HOST: string = process.env.HOST || '0.0.0.0';
+
+// Add Sentry error handler (must be last)
+addSentryErrorHandler(app);
+
 app.listen(PORT, HOST, () => {
   console.log(`API listening on http://${HOST}:${PORT}`);
 });

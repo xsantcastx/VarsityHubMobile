@@ -19,8 +19,10 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -32,6 +34,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+  const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
 
   const onSubmit = async () => {
     if (!email || !password) {
@@ -105,6 +108,29 @@ export default function SignInScreen() {
     }
   };
 
+  const handleAppleLogin = async () => {
+    if (!appleReady || Platform.OS !== 'ios') {
+      setError('Apple sign in is not available.');
+      return;
+    }
+    setError(null);
+    try {
+      const response: any = await signInWithApple();
+      const account = response?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      router.replace('/(tabs)/feed' as any);
+    } catch (e: any) {
+      const message = e?.message || 'Apple sign in failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) return;
+      setError(message);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
@@ -119,9 +145,9 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={[styles.logoContainer, { backgroundColor: palette.card, shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a' }]}>
+            <View style={[styles.logoContainer, { backgroundColor: 'transparent', shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 }]}>
               <Image
-                source={require('../assets/images/logo.svg')}
+                source={require('../assets/images/no-background-logo.svg')}
                 style={styles.logo}
                 contentFit="contain"
               />
@@ -133,6 +159,22 @@ export default function SignInScreen() {
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
             {error ? (
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
+            ) : null}
+
+            {Platform.OS === 'ios' && appleReady ? (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={colorScheme === 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={12}
+                style={{ height: 44, width: '100%', marginBottom: 10 }}
+                onPress={handleAppleLogin}
+                disabled={appleLoading}
+              />
+            ) : Platform.OS === 'ios' ? (
+              <View style={[styles.appleFallbackButton, { backgroundColor: colorScheme === 'dark' ? '#111827' : '#000' }]} accessibilityRole="text">
+                <Ionicons name="logo-apple" size={20} color={colorScheme === 'dark' ? '#F9FAFB' : '#FFFFFF'} style={{ marginRight: 8 }} />
+                <Text style={[styles.appleFallbackText, { color: colorScheme === 'dark' ? '#F9FAFB' : '#FFFFFF' }]}>Sign in with Apple</Text>
+              </View>
             ) : null}
 
             {googleReady ? (
@@ -157,24 +199,16 @@ export default function SignInScreen() {
               >
                 <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
-                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
-                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
-                    Configure Google OAuth client IDs to enable one-tap login.
-                  </Text>
+                  <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
                 </View>
               </View>
             )}
 
-            <View style={styles.divider}>
-              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
-              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
-            </View>
-
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
               <Input
-                placeholder="name@school.edu"
+                placeholder="you@email.com"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -246,20 +280,23 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 168,
+    height: 132,
+    borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 8,
+    marginBottom: 28,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    shadowOpacity: 0,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 0,
+    elevation: 0,
   },
   logo: {
-    width: 88,
-    height: 88,
+    width: 168,
+    height: 120,
+    resizeMode: 'contain',
   },
   title: {
     fontSize: 24,
@@ -305,6 +342,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
+  },
+  appleFallbackButton: {
+    height: 44,
+    width: '100%',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  appleFallbackText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   googleButtonSubtext: {
     fontSize: 12,

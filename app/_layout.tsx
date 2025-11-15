@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
+import { ActivityIndicator, Alert, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -11,6 +11,49 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error to console in development
+    if (__DEV__) {
+      console.error('ErrorBoundary caught error:', error, errorInfo);
+    }
+    
+    // In production, you would log to Sentry:
+    // Sentry.captureException(error);
+    
+    Alert.alert(
+      'Something went wrong',
+      'Please restart the app. If the problem persists, contact support.',
+      [{ text: 'OK', onPress: () => this.setState({ hasError: false }) }]
+    );
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <ActivityIndicator size="large" />
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -80,42 +123,44 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="create-post" options={{ headerShown: false }} />
-            <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-            <Stack.Screen name="post-detail" options={{ headerShown: false }} />
-            <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-            <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-            <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-            <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
-            <Stack.Screen name="game-detail" options={{ headerShown: false }} />
-            <Stack.Screen name="highlights" options={{ headerShown: false }} />
-            <Stack.Screen name="messages" options={{ headerShown: false }} />
-            <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-            <Stack.Screen name="followers" options={{ headerShown: false }} />
-            <Stack.Screen name="following" options={{ headerShown: false }} />
-            <Stack.Screen name="create-team" options={{ headerShown: false }} />
-            <Stack.Screen name="edit-team" options={{ headerShown: false }} />
-            <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
-            <Stack.Screen name="my-team" options={{ headerShown: false }} />
-            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-            <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-            <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-            <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-            <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-            <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-        </NavigationThemeProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="create-post" options={{ headerShown: false }} />
+              <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+              <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+              <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+              <Stack.Screen name="team-profile" options={{ headerShown: false }} />
+              <Stack.Screen name="team-hub" options={{ headerShown: false }} />
+              <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
+              <Stack.Screen name="game-detail" options={{ headerShown: false }} />
+              <Stack.Screen name="highlights" options={{ headerShown: false }} />
+              <Stack.Screen name="messages" options={{ headerShown: false }} />
+              <Stack.Screen name="message-thread" options={{ headerShown: false }} />
+              <Stack.Screen name="followers" options={{ headerShown: false }} />
+              <Stack.Screen name="following" options={{ headerShown: false }} />
+              <Stack.Screen name="create-team" options={{ headerShown: false }} />
+              <Stack.Screen name="edit-team" options={{ headerShown: false }} />
+              <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
+              <Stack.Screen name="my-team" options={{ headerShown: false }} />
+              <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+              <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+              <Stack.Screen name="verify-email" options={{ headerShown: false }} />
+              <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+              <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+              <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+              <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+          </NavigationThemeProvider>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

@@ -4,16 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Advertisement, Event, Game, Highlights, Message, Notification as NotificationApi, User } from '@/api/entities';
+import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { normalizeMediaUrl } from '@/utils/media';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
+import * as Location from 'expo-location';
 
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
@@ -217,15 +217,11 @@ export default function FeedScreen() {
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
-  const [activeMenuTab, setActiveMenuTab] = useState<'notifications' | 'messages'>('notifications');
   
-  // State for notifications and messages in modal
+  // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
-  const [messagesList, setMessagesList] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -371,21 +367,6 @@ export default function FeedScreen() {
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
         } catch {}
       })();
-      // Check for unread messages when feed gains focus
-      (async () => {
-        try {
-          const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
-          if (result && !('_isNotModified' in result)) {
-            const msgs = Array.isArray(result) ? result : [];
-            const user = await User.me();
-            // Count unread messages (messages where I'm the recipient and read is false)
-            const unreadCount = msgs.filter((msg: any) => {
-              return msg.recipient_id === user.id && !msg.read;
-            }).length;
-            setHasUnreadMessages(unreadCount > 0);
-          }
-        } catch {}
-      })();
     }, [load]),
   );
 
@@ -397,81 +378,30 @@ export default function FeedScreen() {
         const page = await NotificationApi.listPage(null, 1, true);
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-        
-        // Also check messages
-        const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
-        if (result && !('_isNotModified' in result)) {
-          const msgs = Array.isArray(result) ? result : [];
-          const user = await User.me();
-          const unreadCount = msgs.filter((msg: any) => {
-            return msg.recipient_id === user.id && !msg.read;
-          }).length;
-          setHasUnreadMessages(unreadCount > 0);
-        }
       } catch {}
     };
     const id = setInterval(tick, 30000); // ~30s
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
-  // Load notifications and messages when modal opens OR when tab changes
+  // Load notifications when modal opens
   useEffect(() => {
-    if (!notificationsMenuOpen) {
-      // When modal closes, refresh unread counts
-      (async () => {
-        try {
-          const result = await (Message.list ? Message.list('-created_at', 50) : Message.filter({}, '-created_at'));
-          if (result && !('_isNotModified' in result)) {
-            const msgs = Array.isArray(result) ? result : [];
-            const user = await User.me();
-            const unreadCount = msgs.filter((msg: any) => {
-              return msg.recipient_id === user.id && !msg.read;
-            }).length;
-            setHasUnreadMessages(unreadCount > 0);
-          }
-        } catch {}
-      })();
-      return;
-    }
+    if (!notificationsMenuOpen) return;
     
     const loadModalData = async () => {
-      if (activeMenuTab === 'notifications') {
-        setLoadingNotifications(true);
-        try {
-          const page = await NotificationApi.listPage(null, 20, false);
-          setNotificationsList(Array.isArray(page.items) ? page.items : []);
-        } catch (e) {
-          console.error('Failed to load notifications', e);
-        } finally {
-          setLoadingNotifications(false);
-        }
-      } else {
-        setLoadingMessages(true);
-        try {
-          const result = await (Message.list
-            ? Message.list('-created_at', 20)
-            : Message.filter({}, '-created_at'));
-          setMessagesList(Array.isArray(result) && !('_isNotModified' in result) ? result : []);
-          
-          // Also update unread count
-          if (result && !('_isNotModified' in result)) {
-            const msgs = Array.isArray(result) ? result : [];
-            const user = await User.me();
-            const unreadCount = msgs.filter((msg: any) => {
-              return msg.recipient_id === user.id && !msg.read;
-            }).length;
-            setHasUnreadMessages(unreadCount > 0);
-          }
-        } catch (e) {
-          console.error('Failed to load messages', e);
-        } finally {
-          setLoadingMessages(false);
-        }
+      setLoadingNotifications(true);
+      try {
+        const page = await NotificationApi.listPage(null, 20, false);
+        setNotificationsList(Array.isArray(page.items) ? page.items : []);
+      } catch (e) {
+        console.error('Failed to load notifications', e);
+      } finally {
+        setLoadingNotifications(false);
       }
     };
     
     loadModalData();
-  }, [notificationsMenuOpen, activeMenuTab]);
+  }, [notificationsMenuOpen]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -732,7 +662,7 @@ export default function FeedScreen() {
           {/* Notifications on LEFT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => { setActiveMenuTab('notifications'); setNotificationsMenuOpen(true); }} 
+              onPress={() => setNotificationsMenuOpen(true)} 
               style={styles.iconButton} 
               accessibilityRole="button" 
               accessibilityLabel="Open notifications"
@@ -764,12 +694,7 @@ export default function FeedScreen() {
               accessibilityRole="button" 
               accessibilityLabel="Open messages"
             >
-              <View>
-                <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
-                {hasUnreadMessages ? (
-                  <View style={styles.alertDot} />
-                ) : null}
-              </View>
+              <Ionicons name="chatbubbles-outline" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           </View>
         </View>
@@ -788,9 +713,29 @@ export default function FeedScreen() {
       {/* Maps Button - Navigate to nearby games/teams/events */}
       <Pressable 
         style={[styles.mapsButton, { backgroundColor: Colors[colorScheme].tint }]}
-        onPress={() => {
-          // Navigate to map view with nearby games
-          router.push('/league?view=map');
+        onPress={async () => {
+          // Get user's current location and navigate to game map view
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const location = await Location.getCurrentPositionAsync({});
+              // Navigate to game map with current location
+              router.push({
+                pathname: '/game-map',
+                params: { 
+                  lat: location.coords.latitude.toString(),
+                  lng: location.coords.longitude.toString()
+                }
+              });
+            } else {
+              // Still navigate to map, it will request permission there
+              router.push('/game-map');
+            }
+          } catch (error) {
+            console.error('Error getting location:', error);
+            // Navigate anyway, map screen will handle location
+            router.push('/game-map');
+          }
         }}
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
@@ -1155,57 +1100,19 @@ export default function FeedScreen() {
             </Pressable>
           </View>
 
-          {/* Tabs */}
-          <View style={[styles.menuTabs, { borderBottomColor: Colors[colorScheme].border }]}>
-            <Pressable 
-              style={[styles.menuTab, activeMenuTab === 'notifications' && styles.menuTabActive]} 
-              onPress={() => setActiveMenuTab('notifications')}
-            >
-              <Ionicons 
-                name={activeMenuTab === 'notifications' ? 'notifications' : 'notifications-outline'} 
-                size={20} 
-                color={activeMenuTab === 'notifications' ? '#2563EB' : Colors[colorScheme].mutedText} 
-              />
-              <Text style={[
-                styles.menuTabText, 
-                { color: activeMenuTab === 'notifications' ? '#2563EB' : Colors[colorScheme].mutedText }
-              ]}>
-                Notifications
-              </Text>
-              {hasUnreadAlerts && <View style={styles.menuTabBadge} />}
-            </Pressable>
-            <Pressable 
-              style={[styles.menuTab, activeMenuTab === 'messages' && styles.menuTabActive]} 
-              onPress={() => setActiveMenuTab('messages')}
-            >
-              <Ionicons 
-                name={activeMenuTab === 'messages' ? 'chatbubbles' : 'chatbubbles-outline'} 
-                size={20} 
-                color={activeMenuTab === 'messages' ? '#2563EB' : Colors[colorScheme].mutedText} 
-              />
-              <Text style={[
-                styles.menuTabText, 
-                { color: activeMenuTab === 'messages' ? '#2563EB' : Colors[colorScheme].mutedText }
-              ]}>
-                Messages
-              </Text>
-              {hasUnreadMessages && <View style={styles.menuTabBadge} />}
-            </Pressable>
-          </View>
+          {/* No tabs needed - only showing notifications */}
 
           {/* Content */}
           <View style={{ flex: 1 }}>
-            {activeMenuTab === 'notifications' ? (
-              <View style={{ flex: 1 }}>
-                {loadingNotifications ? (
-                  <View style={styles.center}><ActivityIndicator /></View>
-                ) : notificationsList.length === 0 ? (
-                  <View style={{ padding: 24, alignItems: 'center' }}>
-                    <Ionicons name="notifications-off-outline" size={48} color={Colors[colorScheme].mutedText} />
-                    <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No notifications</Text>
-                  </View>
-                ) : (
-                  <FlatList
+            {loadingNotifications ? (
+              <View style={styles.center}><ActivityIndicator /></View>
+            ) : notificationsList.length === 0 ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Ionicons name="notifications-off-outline" size={48} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No notifications</Text>
+              </View>
+            ) : (
+              <FlatList
                     data={notificationsList}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
@@ -1270,90 +1177,6 @@ export default function FeedScreen() {
                   />
                 )}
               </View>
-            ) : (
-              <View style={{ flex: 1 }}>
-                {loadingMessages ? (
-                  <View style={styles.center}><ActivityIndicator /></View>
-                ) : messagesList.length === 0 ? (
-                  <View style={{ padding: 24, alignItems: 'center' }}>
-                    <Ionicons name="chatbubbles-outline" size={48} color={Colors[colorScheme].mutedText} />
-                    <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No messages</Text>
-                  </View>
-                ) : (
-                  <FlatList
-                    data={(() => {
-                      // Group messages by conversation
-                      const convMap = new Map<string, any>();
-                      messagesList.forEach(msg => {
-                        const mine = msg.sender_id === me?.id;
-                        const other = mine ? msg.recipient : msg.sender;
-                        if (!other?.id) return;
-                        
-                        const convKey = msg.conversation_id || `user-${other.id}`;
-                        if (!convMap.has(convKey)) {
-                          convMap.set(convKey, {
-                            id: convKey,
-                            other,
-                            lastMessage: msg,
-                            unreadCount: (!mine && !msg.read) ? 1 : 0,
-                          });
-                        } else {
-                          const conv = convMap.get(convKey)!;
-                          if (!mine && !msg.read) conv.unreadCount++;
-                          if (new Date(msg.created_at) > new Date(conv.lastMessage.created_at)) {
-                            conv.lastMessage = msg;
-                          }
-                        }
-                      });
-                      return Array.from(convMap.values()).sort((a, b) => 
-                        new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
-                      );
-                    })()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item: conv }) => {
-                      const hasUnread = conv.unreadCount > 0;
-                      return (
-                        <Pressable 
-                          style={[styles.listRow, hasUnread && styles.listRowUnread, { borderBottomColor: Colors[colorScheme].border }]}
-                          onPress={() => {
-                            setNotificationsMenuOpen(false);
-                            if (conv.lastMessage.conversation_id) {
-                              router.push(`/message-thread?conversation_id=${encodeURIComponent(conv.lastMessage.conversation_id)}`);
-                            } else {
-                              router.push(`/message-thread?with=${encodeURIComponent(conv.other.id)}`);
-                            }
-                          }}
-                        >
-                          <View style={styles.listAvatarWrap}>
-                            {conv.other.avatar_url ? (
-                              <Image source={{ uri: conv.other.avatar_url }} style={styles.listAvatar} />
-                            ) : (
-                              <View style={[styles.listAvatar, { backgroundColor: Colors[colorScheme].border }]}>
-                                <Ionicons name="person" size={20} color={Colors[colorScheme].mutedText} />
-                              </View>
-                            )}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
-                              {conv.other.display_name || conv.other.email || 'User'}
-                            </Text>
-                            <Text numberOfLines={1} style={[styles.listSubtitle, { color: Colors[colorScheme].mutedText }]}>
-                              {conv.lastMessage.content || 'Message'}
-                            </Text>
-                          </View>
-                          {hasUnread && (
-                            <View style={styles.unreadBadge}>
-                              <Text style={styles.unreadBadgeText}>{conv.unreadCount}</Text>
-                            </View>
-                          )}
-                        </Pressable>
-                      );
-                    }}
-                  />
-                )}
-              </View>
-            )}
-          </View>
         </View>
       </Modal>
 

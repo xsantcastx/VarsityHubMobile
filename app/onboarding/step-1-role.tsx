@@ -166,12 +166,24 @@ export default function Step1Role() {
     }
   };
 
+  const handleBack = async () => {
+    // Log out and return to sign-in
+    try {
+      await User.logout();
+      router.replace('/sign-in');
+    } catch (error) {
+      console.error('Failed to logout:', error);
+      router.replace('/sign-in');
+    }
+  };
+
   return (
     <OnboardingLayout
       step={1}
       title="Choose Your Role"
       subtitle="Tell us how you'll be using VarsityHub to personalize your experience"
-      showBackButton={false}
+      showBackButton={true}
+      onBackPress={handleBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
       onVerifyEmail={() => router.push('/verify-email')}
     >

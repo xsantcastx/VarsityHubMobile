@@ -11,6 +11,7 @@ interface OnboardingLayoutProps {
   subtitle?: string;
   children: ReactNode;
   onBack?: () => void;
+  onBackPress?: () => void;
   showBackButton?: boolean;
   emailVerified?: boolean;
   onVerifyEmail?: () => void;
@@ -23,6 +24,7 @@ export default function OnboardingLayout({
   subtitle,
   children,
   onBack,
+  onBackPress,
   showBackButton = true,
   emailVerified,
   onVerifyEmail,
@@ -33,7 +35,9 @@ export default function OnboardingLayout({
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {
-    if (onBack) {
+    if (onBackPress) {
+      onBackPress();
+    } else if (onBack) {
       onBack();
     } else if (router.canGoBack()) {
       router.back();
@@ -58,7 +62,7 @@ export default function OnboardingLayout({
     >
       {/* Header with progress */}
       <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border, paddingTop: insets.top + 12 }]}>
-        {showBackButton && step > 1 ? (
+        {showBackButton ? (
           <Pressable onPress={handleBack} style={styles.backButton} hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={colors.text} />
           </Pressable>

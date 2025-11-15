@@ -1,6 +1,7 @@
 import settings from '@/api/settings';
 import { BannerUpload } from '@/components/BannerUpload';
 import { ReachMapPreview } from '@/components/ReachMapPreview';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -37,14 +38,18 @@ export default function SubmitAdScreen() {
   const [busy, setBusy] = useState(false);
 
   const canSubmit = useMemo(() => {
-    // All fields mandatory except target URL
+    // Website link is required; description is optional
     if (!name.trim() || !email.trim() || !business.trim() || !zip.trim()) return false;
     if (!bannerUrl) return false; // Banner is mandatory
-    if (!desc.trim()) return false; // Description is mandatory
+    if (!targetUrl.trim()) return false; // Website link mandatory
     return true;
-  }, [name, email, business, zip, bannerUrl, desc]);
+  }, [name, email, business, zip, bannerUrl, targetUrl]);
 
-  const handleBannerChange = (uri: string, fitMode: 'letterbox' | 'fill' | 'stretch') => {
+  const handleBannerChange = (
+    uri: string,
+    fitMode: 'letterbox' | 'fill' | 'stretch',
+    _position?: { x: number; y: number }
+  ) => {
     setBannerUrl(uri);
     setBannerFitMode(fitMode);
   };
@@ -129,7 +134,17 @@ export default function SubmitAdScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Submit Ad', headerShown: true }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Submit Ad', 
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ padding: 8 }} accessibilityLabel="Go back">
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </Pressable>
+          ),
+        }} 
+      />
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -152,7 +167,7 @@ export default function SubmitAdScreen() {
             <TextInput 
               value={name} 
               onChangeText={setName} 
-              placeholder="John Smith" 
+              placeholder="Jane Doe" 
               style={styles.input} 
               autoCapitalize="words" 
             />
@@ -161,7 +176,7 @@ export default function SubmitAdScreen() {
             <TextInput 
               value={email} 
               onChangeText={setEmail} 
-              placeholder="you@example.com" 
+              placeholder="jane@business.com" 
               style={styles.input} 
               keyboardType="email-address" 
               autoCapitalize="none" 
@@ -171,7 +186,7 @@ export default function SubmitAdScreen() {
             <TextInput 
               value={business} 
               onChangeText={setBusiness} 
-              placeholder="Acme Pizza" 
+              placeholder="Downtown Pizza & Grill" 
               style={styles.input} 
             />
 
@@ -179,7 +194,7 @@ export default function SubmitAdScreen() {
             <TextInput 
               value={zip} 
               onChangeText={setZip} 
-              placeholder="12345" 
+              placeholder="90210" 
               style={styles.input} 
               keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'} 
               maxLength={10} 
@@ -199,7 +214,7 @@ export default function SubmitAdScreen() {
               <Text style={styles.muted}>Banner image is required for your ad</Text>
             )}
 
-            <Text style={styles.label}>Website Link (Optional)</Text>
+            <Text style={styles.label}>Website Link *</Text>
             <TextInput
               value={targetUrl}
               onChangeText={setTargetUrl}
@@ -215,7 +230,7 @@ export default function SubmitAdScreen() {
               </Text>
             )}
 
-            <Text style={styles.label}>Description *</Text>
+            <Text style={styles.label}>Description (Optional)</Text>
             <TextInput
               value={desc}
               onChangeText={setDesc}
@@ -225,9 +240,7 @@ export default function SubmitAdScreen() {
               numberOfLines={4}
               textAlignVertical="top"
             />
-            {!desc.trim() && (
-              <Text style={styles.muted}>Description is required</Text>
-            )}
+            {/* Description is optional */}
           </View>
 
           <Pressable 
@@ -293,6 +306,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, 
     backgroundColor: 'white',
     fontSize: 16,
+    letterSpacing: 0,
     color: '#111827',
   },
   textArea: {

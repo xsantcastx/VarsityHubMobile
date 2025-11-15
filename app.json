@@ -2,7 +2,7 @@
   "expo": {
     "name": "VarsityHub",
     "slug": "VarsityHubMobile",
-    "owner": "xsantcastx",
+    "owner": "lime_prod",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -27,6 +27,7 @@
         "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
       },
       "bundleIdentifier": "com.xsantcastx.varsityhub",
+      "usesAppleSignIn": true,
       "config": {
         "googleMapsApiKey": ""
       }
@@ -81,7 +82,8 @@
       "expo-web-browser",
       "expo-secure-store",
       "expo-font",
-      "expo-audio"
+      "expo-audio",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

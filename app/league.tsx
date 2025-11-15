@@ -187,6 +187,7 @@ export default function LeagueScreen() {
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
   const [events, setEvents] = useState<LeagueEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false); // TODO: Check actual admin status
 
   const loadLeague = useCallback(async () => {
     setLoading(true);
@@ -427,6 +428,22 @@ export default function LeagueScreen() {
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
 
+        {/* Admin: View Join Requests Button */}
+        {isAdmin && league?.id && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/organization-join-requests',
+                params: { organization_id: league.id, organization_name: league.name },
+              })
+            }
+            style={[styles.adminButton, { backgroundColor: theme.tint }]}
+          >
+            <Ionicons name="people" size={20} color="#fff" />
+            <Text style={styles.adminButtonText}>Team Requests</Text>
+          </Pressable>
+        )}
+
         <View style={[styles.card, styles.coverCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {league?.cover_url ? (
             <Image source={{ uri: league.cover_url }} style={styles.coverImage} contentFit="cover" />
@@ -595,6 +612,38 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
+  adminButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  adminButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+  },
+  coverCard: {
+    padding: 0,
+    height: 140,
+    overflow: 'hidden',
+  },
   coverImage: {
     width: '100%',
     height: '100%',
@@ -606,16 +655,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-  },
-  card: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-  },
-  coverCard: {
-    padding: 0,
-    height: 140,
-    overflow: 'hidden',
   },
   coverPlaceholder: {
     flex: 1,

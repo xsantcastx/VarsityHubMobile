@@ -396,10 +396,39 @@ export default function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       <View style={styles.calendarSection}>
         <Calendar
-          onDayPress={(day) => setSelectedDate(day.dateString)}
-          markedDates={{
-            [selectedDate]: { selected: true, selectedColor: Colors[colorScheme].tint }
+          onDayPress={(day) => {
+            setSelectedDate(day.dateString);
+            // Filter and show games for selected date
+            const gamesOnDate = games.filter(g => {
+              if (!g.date) return false;
+              const gameDate = new Date(g.date).toISOString().split('T')[0];
+              return gameDate === day.dateString;
+            });
+            if (gamesOnDate.length > 0) {
+              console.log(`${gamesOnDate.length} game(s) on ${day.dateString}`);
+            }
           }}
+          markedDates={useMemo(() => {
+            const marked: Record<string, any> = {};
+            // Mark all dates with events
+            games.forEach(game => {
+              if (game.date) {
+                const dateKey = new Date(game.date).toISOString().split('T')[0];
+                if (!marked[dateKey]) {
+                  marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
+                }
+              }
+            });
+            // Highlight selected date
+            if (selectedDate) {
+              marked[selectedDate] = {
+                ...marked[selectedDate],
+                selected: true,
+                selectedColor: Colors[colorScheme].tint,
+              };
+            }
+            return marked;
+          }, [games, selectedDate])}
           theme={{
             backgroundColor: Colors[colorScheme].background,
             calendarBackground: Colors[colorScheme].background,
@@ -417,6 +446,52 @@ export default function CommunityDiscoverScreen() {
           }}
         />
       </View>
+
+      {/* Games on Selected Date */}
+      {selectedDate && (() => {
+        const gamesOnDate = games.filter(g => {
+          if (!g.date) return false;
+          const gameDate = new Date(g.date).toISOString().split('T')[0];
+          return gameDate === selectedDate;
+        });
+        
+        if (gamesOnDate.length === 0) return null;
+
+        return (
+          <View style={[styles.selectedDateSection, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+            <Text style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}>
+              Events on {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </Text>
+            {gamesOnDate.map((game) => {
+              const labels = deriveTeamLabels(game);
+              const time = game.date ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'TBD';
+              return (
+                <Pressable
+                  key={game.id}
+                  style={[styles.dateGameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
+                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
+                >
+                  <View style={styles.dateGameTime}>
+                    <Ionicons name="time-outline" size={16} color={Colors[colorScheme].tint} />
+                    <Text style={[styles.dateGameTimeText, { color: Colors[colorScheme].tint }]}>{time}</Text>
+                  </View>
+                  <Text style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                    {game.title || `${labels.teamA} vs ${labels.teamB}`}
+                  </Text>
+                  {game.location && (
+                    <View style={styles.dateGameLocation}>
+                      <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
+                      <Text style={[styles.dateGameLocationText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                        {game.location}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+      })()}
 
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
 
@@ -918,5 +993,46 @@ const styles = StyleSheet.create({
   sectionTabLabel: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  // Selected Date Section
+  selectedDateSection: {
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  selectedDateTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  dateGameCard: {
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  dateGameTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  dateGameTimeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  dateGameTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  dateGameLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dateGameLocationText: {
+    fontSize: 12,
   },
 });

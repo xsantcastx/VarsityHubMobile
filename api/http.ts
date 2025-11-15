@@ -10,9 +10,16 @@ export function getApiBaseUrl(): string {
   const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL) || '';
   const defaultUrl = __DEV__ ? 'http://localhost:4000' : 'https://api-production-8ac3.up.railway.app';
   let url = envUrl || defaultUrl;
-  if (__DEV__ && Platform.OS === 'android' && url.startsWith('http://localhost')) {
-    url = url.replace('http://localhost', 'http://10.0.2.2');
+  
+  // Handle simulator networking
+  if (__DEV__ && url.startsWith('http://localhost:')) {
+    if (Platform.OS === 'android') {
+      // Android simulator uses 10.0.2.2 to reach host machine
+      url = url.replace('http://localhost', 'http://10.0.2.2');
+    }
+    // iOS simulator can use localhost directly to reach the host machine
   }
+  
   const finalUrl = url.replace(/\/$/, '');
   console.log('[API] Using base URL:', finalUrl);
   return finalUrl;

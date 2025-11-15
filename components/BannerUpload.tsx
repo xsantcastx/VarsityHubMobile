@@ -10,10 +10,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     Pressable,
     StyleSheet,
     Text,
@@ -22,9 +23,11 @@ import {
 
 type BannerFitMode = 'letterbox' | 'fill' | 'stretch';
 
+type BannerPosition = { x: number; y: number }; // percent 0-100
+
 interface BannerUploadProps {
   value?: string; // Current banner URL
-  onChange: (uri: string, fitMode: BannerFitMode) => void;
+  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition) => void;
   aspectRatio?: number; // Target aspect ratio (width/height), e.g., 16/9
   maxWidth?: number; // Max width for preview
   required?: boolean;
@@ -40,6 +43,13 @@ export function BannerUpload({
   const colorScheme = useColorScheme() ?? 'light';
   const [fitMode, setFitMode] = useState<BannerFitMode>('fill');
   const [uploading, setUploading] = useState(false);
+  const [position, setPosition] = useState<BannerPosition>({ x: 50, y: 50 });
+  const containerSize = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
+  const panStart = useRef<BannerPosition>({ x: 50, y: 50 });
+  const [showHint, setShowHint] = useState(false);
+  const hintOpacity = useRef(new Animated.Value(0)).current;
+
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
   const handlePickImage = async () => {
     try {
@@ -76,7 +86,7 @@ export function BannerUpload({
         }
 
         // Update with selected image
-        onChange(asset.uri, fitMode);
+        onChange(asset.uri, fitMode, position);
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -90,7 +100,7 @@ export function BannerUpload({
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => onChange('', fitMode),
+        onPress: () => onChange('', fitMode, position),
       },
     ]);
   };
@@ -98,7 +108,7 @@ export function BannerUpload({
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
     if (value) {
-      onChange(value, newMode);
+      onChange(value, newMode, position);
     }
   };
 
@@ -114,6 +124,19 @@ export function BannerUpload({
     }
   };
 
+  // Quick, minimal hint when Fill mode is active
+  useEffect(() => {
+    if (value && fitMode === 'fill') {
+      setShowHint(true);
+      hintOpacity.setValue(0);
+      Animated.sequence([
+        Animated.timing(hintOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(hintOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start(() => setShowHint(false));
+    }
+  }, [value, fitMode]);
+
   return (
     <View style={styles.container}>
       {/* Upload/Preview Area */}
@@ -127,6 +150,10 @@ export function BannerUpload({
             borderColor: Colors[colorScheme].border,
           },
         ]}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          containerSize.current = { width, height };
+        }}
       >
         {value ? (
           <>
@@ -134,7 +161,46 @@ export function BannerUpload({
               source={{ uri: value }}
               style={styles.previewImage}
               contentFit={getContentFit()}
+              contentPosition={
+                fitMode === 'fill' ? `${position.x}% ${position.y}%` : 'center'
+              }
             />
+            {/* Visual nudge hint */}
+            {showHint && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.hintPill,
+                  { opacity: hintOpacity },
+                ]}
+              >
+                <Ionicons name="hand-left-outline" size={16} color="#111827" />
+                <Text style={styles.hintText}>Drag to adjust</Text>
+              </Animated.View>
+            )}
+            {/* Drag overlay for reposition when Fill mode */}
+            {fitMode === 'fill' && (
+              <View
+                style={StyleSheet.absoluteFill}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onResponderGrant={() => {
+                  panStart.current = { ...position };
+                }}
+                onResponderMove={(e) => {
+                  const { locationX, locationY } = e.nativeEvent;
+                  const { width, height } = containerSize.current;
+                  if (!width || !height) return;
+                  // Convert location to percentage and clamp
+                  const xPct = clamp((locationX / width) * 100, 0, 100);
+                  const yPct = clamp((locationY / height) * 100, 0, 100);
+                  setPosition({ x: xPct, y: yPct });
+                }}
+                onResponderRelease={() => {
+                  if (value) onChange(value, fitMode, position);
+                }}
+              />
+            )}
             <Pressable style={styles.removeButton} onPress={handleRemove}>
               <Ionicons name="close-circle" size={28} color="#FFFFFF" />
             </Pressable>
@@ -215,6 +281,9 @@ export function BannerUpload({
           <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
             {getFitModeDescription(fitMode)}
           </Text>
+          {fitMode === 'fill' && (
+            <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>Drag image to reposition</Text>
+          )}
         </View>
       )}
 
@@ -366,5 +435,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  hintPill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 8,
+    alignSelf: 'center',
+    marginHorizontal: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 9999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  hintText: {
+    fontSize: 12,
+    color: '#111827',
+    fontWeight: '600',
   },
 });

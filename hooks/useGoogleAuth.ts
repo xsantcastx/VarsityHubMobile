@@ -1,10 +1,10 @@
+import { User } from '@/api/entities';
 import * as Application from 'expo-application';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { User } from '@/api/entities';
 
 WebBrowser.maybeCompleteAuthSession();
 const { makeRedirectUri } = AuthSession;
@@ -37,7 +37,7 @@ const googleClientConfig = () => {
 };
 
 const FORCE_PROXY_FLAG = process.env.EXPO_PUBLIC_GOOGLE_FORCE_PROXY === '1';
-const FALLBACK_PROJECT_FULL_NAME = '@xsantcastx/VarsityHubMobile';
+const FALLBACK_PROJECT_FULL_NAME = '@lime_prod/VarsityHubMobile';
 const expoConfig: any = Constants.expoConfig ?? {};
 const expoSlug: string | undefined = expoConfig.slug || expoConfig.name;
 const expoOwner: string | undefined = expoConfig.owner;
@@ -75,12 +75,12 @@ export function useGoogleAuth() {
   );
 
   const redirectUri = useMemo(() => {
-    if (shouldUseProxy && PROJECT_FULL_NAME) {
-      try {
+    try {
+      if (shouldUseProxy && PROJECT_FULL_NAME) {
         return AuthSession.getRedirectUrl({ projectNameForProxy: PROJECT_FULL_NAME });
-      } catch (err) {
-        console.warn('[google-auth] Failed to derive proxy redirect URI', err);
       }
+    } catch (err) {
+      console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
     return makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
@@ -91,9 +91,9 @@ export function useGoogleAuth() {
 
   const redirectOptions = useMemo(() => {
     if (shouldUseProxy && PROJECT_FULL_NAME) {
-      return { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME };
+      return { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME } as const;
     }
-    return { useProxy: false };
+    return { useProxy: false } as const;
   }, [shouldUseProxy]);
 
   useEffect(() => {

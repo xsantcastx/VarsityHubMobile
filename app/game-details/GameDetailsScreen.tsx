@@ -302,7 +302,15 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
             {isVideo ? (
               // Videos autoplay when story opens - no controls, just video
               <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
-                <VideoPlayer uri={item.url} autoPlay={true} onEnd={goNext} nativeControls={false} paused={paused} style={{ width: '100%', height: '100%' }} />
+                <VideoPlayer 
+                  key={item.id} 
+                  uri={item.url} 
+                  autoPlay={!paused} 
+                  onEnd={goNext} 
+                  nativeControls={false} 
+                  paused={paused} 
+                  style={{ width: '100%', height: '100%' }} 
+                />
               </View>
             ) : (
               <Image
@@ -1260,7 +1268,7 @@ const renderVoteSection = () => {
       : null
   );
   const caption = voteSummary
-    ? `${total} ${votesWord} � ${pickLabel ? `Your pick: ${pickLabel}` : "You haven't voted"}`
+    ? `${total} ${votesWord} ${pickLabel ? `• Your pick: ${pickLabel}` : "• You haven't voted"}`
     : 'Loading votes...';
   const showInlineCaption =
     caption !== 'Loading votes...' &&

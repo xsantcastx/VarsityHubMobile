@@ -190,6 +190,109 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
+const appleAuthSchema = z.object({
+  identity_token: z.string().min(1),
+});
+
+authRouter.post('/apple', async (req, res) => {
+  const parsed = appleAuthSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+  const { identity_token } = parsed.data;
+
+  try {
+    // In development/simulator, accept tokens starting with 'sim-' for testing
+    const isDevelopmentToken = identity_token.startsWith('sim-');
+    
+    let appleId: string;
+    let email: string | null = null;
+    
+    if (isDevelopmentToken) {
+      // Extract the simulator user ID
+      appleId = identity_token.replace('sim-', '');
+      email = `${appleId}@privaterelay.appleid.com`;
+      console.log('[auth/apple] Using development token for simulator');
+    } else {
+      // In production, you would verify the identity_token with Apple's servers
+      // For now, we'll accept any token and extract a pseudo-ID
+      // TODO: Implement proper Apple token verification in production
+      appleId = `apple_${Buffer.from(identity_token).toString('base64').substring(0, 32)}`;
+      console.log('[auth/apple] Processing Apple sign-in (production verification not yet implemented)');
+    }
+
+    if (!appleId) {
+      return res.status(400).json({ error: 'Invalid Apple credential' });
+    }
+
+    // Look up user by Apple ID
+    let user = await prisma.user.findUnique({ where: { apple_id: appleId } });
+    let created = false;
+
+    if (!user) {
+      // Check if user exists by email (if provided)
+      let existingByEmail = null;
+      if (email) {
+        existingByEmail = await prisma.user.findUnique({ where: { email } });
+      }
+
+      if (existingByEmail) {
+        // Link Apple ID to existing account
+        const currentPrefs = (existingByEmail as any)?.preferences || {};
+        const prefPatch: Record<string, unknown> = {};
+        if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
+        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
+        
+        const updates: any = {
+          apple_id: appleId,
+          email_verified: true,
+          email_verification_code: null,
+          email_verification_expires: null,
+        };
+        
+        if (!existingByEmail.bio) updates.bio = DEFAULT_FAN_BIO;
+        
+        if (Object.keys(prefPatch).length) {
+          updates.preferences = mergePreferences(currentPrefs, prefPatch);
+        }
+        
+        user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
+      } else {
+        // Create new user
+        const randomSecret = crypto.randomBytes(32).toString('hex');
+        const password_hash = await bcrypt.hash(randomSecret, 10);
+        const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
+        
+        user = await prisma.user.create({
+          data: {
+            email: userEmail,
+            password_hash,
+            apple_id: appleId,
+            display_name: 'Apple User',
+            bio: DEFAULT_FAN_BIO,
+            email_verified: true,
+            preferences: { role: 'fan', onboarding_completed: false },
+          },
+        });
+        created = true;
+      }
+    }
+
+    const sanitized = sanitizeUser(user);
+    const access_token = signJwt({ id: sanitized.id });
+    const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+
+    return res.json({
+      access_token,
+      user: sanitized,
+      needs_onboarding: needsOnboarding,
+      created,
+    });
+  } catch (err) {
+    console.error('[auth/apple] unexpected error', err);
+    return res.status(500).json({ error: 'Failed to authenticate with Apple' });
+  }
+});
+
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
 authRouter.post('/password/forgot', async (req, res) => {

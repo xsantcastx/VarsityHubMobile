@@ -28,19 +28,98 @@ function getDayOfWeek(dateISO: string): number {
   return new Date(dateISO + 'T00:00:00').getDay();
 }
 
+function getWeekSlotDates(dateISO: string): string[] {
+  // Returns all dates in the same week slot (Mon-Thu or Fri-Sun)
+  const date = new Date(dateISO + 'T00:00:00');
+  const dow = date.getDay();
+  const dates: string[] = [];
+  
+  if (dow >= 1 && dow <= 4) {
+    // Weekday slot: Mon-Thu
+    // Find Monday of this week
+    const daysFromMonday = dow - 1;
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - daysFromMonday);
+    
+    // Add Mon, Tue, Wed, Thu
+    for (let i = 0; i < 4; i++) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      dates.push(format(day, 'yyyy-MM-dd'));
+    }
+  } else {
+    // Weekend slot: Fri-Sun
+    let friday: Date;
+    
+    if (dow === 5) {
+      // Already Friday
+      friday = new Date(date);
+    } else if (dow === 6) {
+      // Saturday - go back 1 day to Friday
+      friday = new Date(date);
+      friday.setDate(date.getDate() - 1);
+    } else {
+      // Sunday (dow === 0) - go back 2 days to Friday
+      friday = new Date(date);
+      friday.setDate(date.getDate() - 2);
+    }
+    
+    // Add Fri, Sat, Sun
+    for (let i = 0; i < 3; i++) {
+      const day = new Date(friday);
+      day.setDate(friday.getDate() + i);
+      dates.push(format(day, 'yyyy-MM-dd'));
+    }
+  }
+  
+  return dates;
+}
+
+function getWeekIdentifier(dateISO: string): string {
+  // Returns a unique identifier for the week slot
+  // For weekdays (Mon-Thu): use the Monday's date
+  // For weekends (Fri-Sun): use the Friday's date
+  const date = new Date(dateISO + 'T00:00:00');
+  const dow = date.getDay();
+  
+  if (dow >= 1 && dow <= 4) {
+    // Weekday (Mon-Thu): find this week's Monday
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (dow - 1));
+    return `${format(monday, 'yyyy-MM-dd')}-weekday`;
+  } else {
+    // Weekend (Fri, Sat, Sun): find this week's Friday
+    let friday = new Date(date);
+    if (dow === 5) {
+      // Already Friday
+    } else if (dow === 6) {
+      // Saturday - go back 1 day
+      friday.setDate(date.getDate() - 1);
+    } else {
+      // Sunday (dow === 0) - go back 2 days
+      friday.setDate(date.getDate() - 2);
+    }
+    return `${format(friday, 'yyyy-MM-dd')}-weekend`;
+  }
+}
+
 function calculatePrice(selectedISO: Set<string>): number {
   if (selectedISO.size === 0) return 0;
-  let total = 0;
   
-  // Calculate price per weekly slot
+  // Group dates by their week slot (weekday vs weekend)
+  const weekSlots = new Set<string>();
+  
   for (const d of selectedISO) {
-    const dow = getDayOfWeek(d);
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($8/week slot)
-    // Fri=5, Sat=6, Sun=0 are weekend ($10/week slot)
-    if (dow >= 1 && dow <= 4) {
-      total += weekdayRate; // $8.00 per week (Mon-Thu slot)
+    weekSlots.add(getWeekIdentifier(d));
+  }
+  
+  // Calculate price: $8 per weekday week slot, $10 per weekend week slot
+  let total = 0;
+  for (const slot of weekSlots) {
+    if (slot.endsWith('-weekday')) {
+      total += weekdayRate; // $8.00 TOTAL for entire Mon-Thu week
     } else {
-      total += weekendRate; // $10.00 per week (Fri-Sun slot)
+      total += weekendRate; // $10.00 TOTAL for entire Fri-Sun weekend
     }
   }
   
@@ -163,28 +242,7 @@ export default function AdCalendarScreen() {
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
     
-    // Mark selected dates with weekday/weekend colors
-    for (const d of selected) {
-      const dow = getDayOfWeek(d);
-      const isWeekend = dow === 0 || dow === 5 || dow === 6; // Sun, Fri, Sat
-      obj[d] = { 
-        selected: true, 
-        selectedColor: isWeekend ? '#EA580C' : '#2563EB', // Orange for weekend, Blue for weekday
-        selectedTextColor: '#FFFFFF'
-      };
-    }
-    
-    // Mark reserved dates as disabled (user's own reservations)
-    for (const d of reserved) {
-      obj[d] = { 
-        disabled: true, 
-        disableTouchEvent: true,
-        dotColor: '#9CA3AF',
-        marked: true
-      };
-    }
-    
-    // Mark fully booked dates (3/3 slots filled) - higher priority than reserved
+    // PRIORITY 1: Mark fully booked dates (3/3 slots filled) - GREYED OUT
     for (const d of fullDates) {
       // Don't override if user has already selected this date
       if (!selected.has(d)) {
@@ -194,19 +252,68 @@ export default function AdCalendarScreen() {
           textColor: '#9CA3AF',
           customStyles: {
             container: {
-              backgroundColor: '#F3F4F6',
-              borderWidth: 1,
-              borderColor: '#E5E7EB',
+              backgroundColor: '#E5E7EB',
+              borderWidth: 2,
+              borderColor: '#9CA3AF',
             },
             text: {
-              color: '#9CA3AF',
+              color: '#6B7280',
               textDecorationLine: 'line-through',
+              fontWeight: '600',
             },
           },
           marked: true,
           dotColor: '#EF4444',
         };
       }
+    }
+    
+    // PRIORITY 2: Mark reserved dates as disabled (user's own reservations)
+    for (const d of reserved) {
+      if (!selected.has(d)) {
+        obj[d] = { 
+          disabled: true, 
+          disableTouchEvent: true,
+          textColor: '#9CA3AF',
+          dotColor: '#9CA3AF',
+          marked: true,
+          customStyles: {
+            container: {
+              backgroundColor: '#F9FAFB',
+              borderWidth: 1,
+              borderColor: '#D1D5DB',
+            },
+            text: {
+              color: '#9CA3AF',
+            },
+          },
+        };
+      }
+    }
+    
+    // PRIORITY 3: Mark selected dates with BRIGHT weekday/weekend colors - HIGHLIGHTED
+    for (const d of selected) {
+      const dow = getDayOfWeek(d);
+      const isWeekend = dow === 0 || dow === 5 || dow === 6; // Sun, Fri, Sat
+      obj[d] = { 
+        selected: true, 
+        selectedColor: isWeekend ? '#EA580C' : '#2563EB', // Bright Orange for weekend, Bright Blue for weekday
+        selectedTextColor: '#FFFFFF',
+        marked: true,
+        dotColor: '#FFFFFF',
+        customStyles: {
+          container: {
+            backgroundColor: isWeekend ? '#EA580C' : '#2563EB',
+            borderWidth: 3,
+            borderColor: isWeekend ? '#C2410C' : '#1D4ED8',
+            borderRadius: 8,
+          },
+          text: {
+            color: '#FFFFFF',
+            fontWeight: '700',
+          },
+        },
+      };
     }
     
     return obj;
@@ -247,7 +354,30 @@ export default function AdCalendarScreen() {
       return;
     }
     
-    setSelected(prev => toggleSet(prev, iso));
+    // Get all dates in this week slot (Mon-Thu or Fri-Sun)
+    const weekSlotDates = getWeekSlotDates(iso);
+    
+    // Check if ANY date in the week slot is already selected
+    const isAnySelected = weekSlotDates.some(d => selected.has(d));
+    
+    setSelected(prev => {
+      const next = new Set(prev);
+      
+      if (isAnySelected) {
+        // If any date in this week slot is selected, DESELECT the entire week slot
+        weekSlotDates.forEach(d => next.delete(d));
+      } else {
+        // Otherwise, SELECT the entire week slot (only if dates are available)
+        weekSlotDates.forEach(d => {
+          // Only add if not reserved or fully booked
+          if (!reserved.has(d) && !fullDates.has(d)) {
+            next.add(d);
+          }
+        });
+      }
+      
+      return next;
+    });
   };
 
   const applyPromo = async () => {
@@ -495,11 +625,11 @@ export default function AdCalendarScreen() {
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - ${weekdayRate.toFixed(2)}/week</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekday (Mon-Thu) - <Text style={{ fontWeight: '700' }}>${weekdayRate.toFixed(2)} total</Text></Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EA580C' }]} />
-              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - ${weekendRate.toFixed(2)}/week</Text>
+              <Text style={[styles.legendText, { color: Colors[colorScheme].text }]}>Weekend (Fri-Sun) - <Text style={{ fontWeight: '700' }}>${weekendRate.toFixed(2)} total</Text></Text>
             </View>
           </View>
 
@@ -524,19 +654,21 @@ export default function AdCalendarScreen() {
           />
           <Text style={[styles.calendarHint, { color: Colors[colorScheme].mutedText }]}>Booking available up to 8 weeks in advance</Text>
 
-          {/* Ad Space Sharing Notice */}
+          {/* Ad Space Sharing Notice - Prominent */}
           <View style={[styles.noticeBox, { 
-            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F0F9FF',
-            borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE'
+            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#DBEAFE',
+            borderColor: colorScheme === 'dark' ? '#3B82F6' : '#2563EB',
+            borderWidth: 2,
+            borderLeftWidth: 6,
           }]}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <Text style={{ fontSize: 20 }}>ℹ️</Text>
+              <Text style={{ fontSize: 24 }}>👥</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
-                  Ad Space Shared
+                <Text style={[styles.noticeTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF', fontSize: 16, marginBottom: 6 }]}>
+                  Ad Space Shared with 3 Companies
                 </Text>
-                <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF' }]}>
-                  Your ad will rotate with up to <Text style={{ fontWeight: '700' }}>3 other companies</Text> on selected dates. This ensures fair visibility and competitive pricing for all advertisers.
+                <Text style={[styles.noticeText, { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E40AF', lineHeight: 20 }]}>
+                  Your ad will rotate with up to <Text style={{ fontWeight: '800', fontSize: 15 }}>3 other companies</Text> on selected dates. This ensures fair visibility and competitive pricing for all advertisers.
                 </Text>
               </View>
             </View>
@@ -546,28 +678,62 @@ export default function AdCalendarScreen() {
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>
           <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>Pricing</Text>
           <View style={styles.rowBetween}>
-            <Text style={{ color: Colors[colorScheme].text }}>Weekday Slot (Mon-Thu):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekdayRate.toFixed(2)}/week</Text>
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekday Slot (Mon-Thu):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekdayRate.toFixed(2)}/week</Text>
           </View>
           <View style={styles.rowBetween}>
-            <Text style={{ color: Colors[colorScheme].text }}>Weekend Slot (Fri-Sun):</Text>
-            <Text style={[styles.bold, { color: Colors[colorScheme].text }]}>${weekendRate.toFixed(2)}/week</Text>
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 15 }}>Weekend Slot (Fri-Sun):</Text>
+            <Text style={[styles.bold, { color: Colors[colorScheme].text, fontSize: 17 }]}>${weekendRate.toFixed(2)}/week</Text>
           </View>
           <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each ad slot is priced per week. Select multiple dates to see your total.</Text>
           
-          {/* Mid-week pricing notice */}
+          {/* Weekly pricing explanation */}
           <View style={{ 
             marginTop: 12, 
-            padding: 12, 
-            backgroundColor: Colors[colorScheme].surface,
-            borderRadius: 8,
-            borderWidth: 1,
+            padding: 14, 
+            backgroundColor: '#FEF9C3',
+            borderRadius: 10,
+            borderWidth: 2,
             borderColor: '#FCD34D',
-            borderLeftWidth: 4,
+            borderLeftWidth: 6,
           }}>
-            <Text style={{ fontSize: 13, color: Colors[colorScheme].text, lineHeight: 18 }}>
-              <Text style={{ fontWeight: '700' }}>💡 Pricing Note:</Text> Weekly slots apply to Mon–Thu (weekday) or Fri–Sun (weekend). Booking a date reserves your ad for that entire week's slot at the listed price.
+            <Text style={{ fontSize: 14, color: '#713F12', lineHeight: 20, fontWeight: '600' }}>
+              💡 <Text style={{ fontWeight: '800' }}>Pricing Note:</Text> Weekly slots apply to Mon–Thu (weekday) or Fri–Sun (weekend). Booking a date reserves your ad for that <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>entire week's slot</Text> at the listed price.
             </Text>
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FDE68A' }}>
+              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
+                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Monday = ${weekdayRate.toFixed(2)} for Mon, Tue, Wed, Thu that week.
+              </Text>
+              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18, marginTop: 4 }}>
+                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Friday = ${weekendRate.toFixed(2)} for Fri, Sat, Sun that week.
+              </Text>
+            </View>
+          </View>
+
+          {/* IMPORTANT: Mid-week purchase notice */}
+          <View style={{ 
+            marginTop: 12, 
+            padding: 14, 
+            backgroundColor: '#FEE2E2',
+            borderRadius: 10,
+            borderWidth: 2,
+            borderColor: '#EF4444',
+            borderLeftWidth: 6,
+          }}>
+            <Text style={{ fontSize: 14, color: '#7F1D1D', lineHeight: 20, fontWeight: '700', marginBottom: 8 }}>
+              ⚠️ <Text style={{ fontWeight: '900', fontSize: 15 }}>IMPORTANT:</Text> Mid-Week Purchases
+            </Text>
+            <Text style={{ fontSize: 13, color: '#991B1B', lineHeight: 19 }}>
+              If you book ad space in the <Text style={{ fontWeight: '800' }}>middle of a week</Text> (e.g., Wednesday or Saturday), you will <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>still pay the full weekly rate</Text> for the remaining days in that week's slot.
+            </Text>
+            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FCA5A5' }}>
+              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17 }}>
+                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Wednesday = ${weekdayRate.toFixed(2)} for Wed + Thu only (not prorated).
+              </Text>
+              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17, marginTop: 3 }}>
+                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Saturday = ${weekendRate.toFixed(2)} for Sat + Sun only (not prorated).
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -619,31 +785,56 @@ export default function AdCalendarScreen() {
           {sortedDates.length > 0 ? (
             <View style={{ gap: 12 }}>
               <View>
-                <Text style={[styles.bold, { color: Colors[colorScheme].text, marginBottom: 8 }]}>Selected Dates:</Text>
+                <Text style={[styles.bold, { color: Colors[colorScheme].text, marginBottom: 8 }]}>Selected Week Slots:</Text>
                 <View style={styles.badgeWrap}>
-                  {sortedDates.map((iso) => {
-                    const dow = getDayOfWeek(iso);
-                    const isWeekend = dow === 0 || dow === 5 || dow === 6;
-                    return (
-                      <View 
-                        key={iso} 
-                        style={[
-                          styles.dateBadge, 
-                          { 
-                            backgroundColor: isWeekend ? '#FED7AA' : '#BFDBFE',
-                            borderColor: isWeekend ? '#EA580C' : '#2563EB',
-                          }
-                        ]}
-                      >
-                        <Text style={[styles.dateBadgeText, { color: isWeekend ? '#7C2D12' : '#1E40AF' }]}>
-                          {format(new Date(iso + 'T00:00:00'), 'MMM d, yyyy')}
-                        </Text>
-                        <Text style={[styles.dateBadgeRate, { color: isWeekend ? '#9A3412' : '#1E3A8A' }]}>
-                          ${isWeekend ? weekendRate.toFixed(2) : weekdayRate.toFixed(2)}
-                        </Text>
-                      </View>
-                    );
-                  })}
+                  {(() => {
+                    // Group dates by week slot identifier
+                    const weekSlots = new Map<string, string[]>();
+                    sortedDates.forEach((iso) => {
+                      const identifier = getWeekIdentifier(iso);
+                      if (!weekSlots.has(identifier)) {
+                        weekSlots.set(identifier, []);
+                      }
+                      weekSlots.get(identifier)!.push(iso);
+                    });
+
+                    // Display one badge per week slot
+                    return Array.from(weekSlots.entries()).map(([identifier, dates]) => {
+                      const firstDate = dates[0];
+                      const dow = getDayOfWeek(firstDate);
+                      const isWeekend = dow === 0 || dow === 5 || dow === 6;
+                      const rate = isWeekend ? weekendRate : weekdayRate;
+                      
+                      // Format date range for the week slot
+                      const sortedSlotDates = dates.sort();
+                      const firstDateObj = new Date(sortedSlotDates[0] + 'T00:00:00');
+                      const lastDateObj = new Date(sortedSlotDates[sortedSlotDates.length - 1] + 'T00:00:00');
+                      const dateRange = sortedSlotDates.length === 1 
+                        ? format(firstDateObj, 'MMM d, yyyy')
+                        : `${format(firstDateObj, 'MMM d')}-${format(lastDateObj, 'd, yyyy')}`;
+                      const slotLabel = isWeekend ? 'Fri-Sun' : 'Mon-Thu';
+
+                      return (
+                        <View 
+                          key={identifier} 
+                          style={[
+                            styles.dateBadge, 
+                            { 
+                              backgroundColor: isWeekend ? '#FED7AA' : '#BFDBFE',
+                              borderColor: isWeekend ? '#EA580C' : '#2563EB',
+                            }
+                          ]}
+                        >
+                          <Text style={[styles.dateBadgeText, { color: isWeekend ? '#7C2D12' : '#1E40AF' }]}>
+                            {dateRange} ({slotLabel})
+                          </Text>
+                          <Text style={[styles.dateBadgeRate, { color: isWeekend ? '#9A3412' : '#1E3A8A' }]}>
+                            ${rate.toFixed(2)} total
+                          </Text>
+                        </View>
+                      );
+                    });
+                  })()}
                 </View>
               </View>
             </View>

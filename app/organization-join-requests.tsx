@@ -1,0 +1,537 @@
+import { Organization } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+type JoinRequest = {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  team_id: string;
+  team_name: string;
+  message: string;
+  requester_id: string;
+  requester_name: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  approved_at?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+};
+
+export default function OrganizationJoinRequestsScreen() {
+  const colorScheme = useCustomColorScheme();
+  const theme = Colors[colorScheme];
+  const router = useRouter();
+  const params = useLocalSearchParams<{ organization_id: string; organization_name?: string }>();
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const [filter, setFilter] = useState<'pending' | 'all'>('pending');
+  const [error, setError] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const loadRequests = useCallback(async () => {
+    if (!params.organization_id) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const status = filter === 'pending' ? 'pending' : undefined;
+      const data = await Organization.getJoinRequests(params.organization_id, status);
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error('[OrganizationJoinRequests] Error loading requests:', err);
+      setError(err?.message || 'Failed to load join requests');
+    } finally {
+      setLoading(false);
+    }
+  }, [params.organization_id, filter]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRequests();
+    setRefreshing(false);
+  }, [loadRequests]);
+
+  useEffect(() => {
+    loadRequests();
+  }, [loadRequests]);
+
+  const handleApprove = async (request: JoinRequest) => {
+    Alert.alert(
+      'Approve Request',
+      `Allow "${request.team_name}" to join ${params.organization_name || 'this organization'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'default',
+          onPress: async () => {
+            setProcessingId(request.id);
+            try {
+              await Organization.approveJoinRequest(request.id);
+              Alert.alert('Success', `${request.team_name} has been added to your organization!`);
+              await loadRequests();
+            } catch (err: any) {
+              console.error('[OrganizationJoinRequests] Error approving request:', err);
+              Alert.alert('Error', err?.message || 'Failed to approve request');
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleReject = async (request: JoinRequest) => {
+    Alert.prompt(
+      'Reject Request',
+      `Reject "${request.team_name}"'s request to join? (Optional reason)`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async (reason?: string) => {
+            setProcessingId(request.id);
+            try {
+              await Organization.rejectJoinRequest(request.id, reason);
+              Alert.alert('Request Rejected', `${request.team_name} has been notified.`);
+              await loadRequests();
+            } catch (err: any) {
+              console.error('[OrganizationJoinRequests] Error rejecting request:', err);
+              Alert.alert('Error', err?.message || 'Failed to reject request');
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const pendingRequests = requests.filter((r) => r.status === 'pending');
+  const processedRequests = requests.filter((r) => r.status !== 'pending');
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <Stack.Screen
+        options={{
+          title: 'Team Join Requests',
+          headerShown: false,
+        }}
+      />
+
+      {/* Custom Header */}
+      <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </Pressable>
+        <View style={styles.headerTextContainer}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Team Requests</Text>
+          {params.organization_name && (
+            <Text style={[styles.headerSubtitle, { color: theme.mutedText }]} numberOfLines={1}>
+              {params.organization_name}
+            </Text>
+          )}
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={[styles.filterContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+        <Pressable
+          onPress={() => setFilter('pending')}
+          style={[
+            styles.filterButton,
+            { backgroundColor: filter === 'pending' ? theme.tint : 'transparent' },
+          ]}
+        >
+          <Text
+            style={[
+              styles.filterText,
+              { color: filter === 'pending' ? '#fff' : theme.text },
+            ]}
+          >
+            Pending {pendingRequests.length > 0 ? `(${pendingRequests.length})` : ''}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setFilter('all')}
+          style={[
+            styles.filterButton,
+            { backgroundColor: filter === 'all' ? theme.tint : 'transparent' },
+          ]}
+        >
+          <Text
+            style={[
+              styles.filterText,
+              { color: filter === 'all' ? '#fff' : theme.text },
+            ]}
+          >
+            All
+          </Text>
+        </Pressable>
+      </View>
+
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.tint} />
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} />
+          <Text style={[styles.errorText, { color: theme.text }]}>{error}</Text>
+          <Pressable onPress={loadRequests} style={[styles.retryButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.tint}
+              colors={[theme.tint]}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {requests.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="checkmark-circle-outline" size={64} color={theme.mutedText} />
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                {filter === 'pending' ? 'No Pending Requests' : 'No Requests Yet'}
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
+                {filter === 'pending'
+                  ? 'All caught up! New requests will appear here.'
+                  : 'Coaches can request to join your organization from their team page.'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.requestsList}>
+              {requests.map((request) => {
+                const isPending = request.status === 'pending';
+                const isProcessing = processingId === request.id;
+
+                return (
+                  <View
+                    key={request.id}
+                    style={[
+                      styles.requestCard,
+                      { backgroundColor: theme.card, borderColor: theme.border },
+                    ]}
+                  >
+                    {/* Team Info */}
+                    <View style={styles.requestHeader}>
+                      <View style={styles.requestHeaderText}>
+                        <Text style={[styles.teamName, { color: theme.text }]}>
+                          {request.team_name}
+                        </Text>
+                        <Text style={[styles.requesterName, { color: theme.mutedText }]}>
+                          by {request.requester_name}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              request.status === 'approved'
+                                ? '#10b981'
+                                : request.status === 'rejected'
+                                  ? '#ef4444'
+                                  : '#f59e0b',
+                          },
+                        ]}
+                      >
+                        <Text style={styles.statusText}>
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Message */}
+                    {request.message && (
+                      <View style={[styles.messageContainer, { backgroundColor: theme.surface }]}>
+                        <Text style={[styles.messageText, { color: theme.text }]}>
+                          "{request.message}"
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Rejection Reason */}
+                    {request.status === 'rejected' && request.rejection_reason && (
+                      <View style={[styles.rejectionContainer, { backgroundColor: '#fef2f2', borderColor: '#fee2e2' }]}>
+                        <Ionicons name="close-circle" size={16} color="#dc2626" />
+                        <Text style={[styles.rejectionText, { color: '#dc2626' }]}>
+                          {request.rejection_reason}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Timestamp */}
+                    <Text style={[styles.timestamp, { color: theme.mutedText }]}>
+                      {formatDate(request.created_at)}
+                    </Text>
+
+                    {/* Action Buttons (only for pending requests) */}
+                    {isPending && (
+                      <View style={styles.actionButtons}>
+                        <Pressable
+                          onPress={() => handleReject(request)}
+                          disabled={isProcessing}
+                          style={[styles.actionButton, styles.rejectButton, { borderColor: theme.border }]}
+                        >
+                          {isProcessing ? (
+                            <ActivityIndicator size="small" color="#dc2626" />
+                          ) : (
+                            <>
+                              <Ionicons name="close-circle-outline" size={20} color="#dc2626" />
+                              <Text style={[styles.rejectButtonText, { color: '#dc2626' }]}>Reject</Text>
+                            </>
+                          )}
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleApprove(request)}
+                          disabled={isProcessing}
+                          style={[styles.actionButton, styles.approveButton, { backgroundColor: theme.tint }]}
+                        >
+                          {isProcessing ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                              <Text style={styles.approveButtonText}>Approve</Text>
+                            </>
+                          )}
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    padding: 8,
+    gap: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  filterButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  content: {
+    padding: 16,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  requestsList: {
+    gap: 12,
+  },
+  requestCard: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    gap: 12,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  requestHeaderText: {
+    flex: 1,
+    gap: 4,
+  },
+  teamName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  requesterName: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  messageContainer: {
+    padding: 12,
+    borderRadius: 8,
+  },
+  messageText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    lineHeight: 20,
+  },
+  rejectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  rejectionText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  timestamp: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  rejectButton: {
+    borderWidth: 1,
+  },
+  rejectButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  approveButton: {
+    // backgroundColor set via theme.tint
+  },
+  approveButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});

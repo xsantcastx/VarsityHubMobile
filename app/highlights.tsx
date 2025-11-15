@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Event, Highlights, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -312,8 +312,9 @@ export default function HighlightsScreen() {
     teams: any[];
     events: any[];
     users: any[];
+    organizations: any[];
     posts: HighlightItem[];
-  }>({ teams: [], events: [], users: [], posts: [] });
+  }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
 
   const load = useCallback(async () => {
@@ -384,17 +385,18 @@ export default function HighlightsScreen() {
   // Global search function for teams, events, users, and posts
   const performGlobalSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
-      setSearchResults({ teams: [], events: [], users: [], posts: [] });
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
       setSearching(false);
       return;
     }
 
     setSearching(true);
     try {
-      const [teamsRes, eventsRes, usersRes] = await Promise.all([
+      const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
         Team.list().catch(() => ({ items: [] })),
         Event.filter({}).catch(() => ({ items: [] })),
         User.listAll(query, 20).catch(() => ({ items: [] })),
+        Organization.list().catch(() => ({ items: [] })),
       ]);
 
       const queryLower = query.toLowerCase();
@@ -419,6 +421,15 @@ export default function HighlightsScreen() {
       // Users are already filtered by the API
       const users = (Array.isArray(usersRes) ? usersRes : usersRes?.items || []).slice(0, 5);
 
+      // Filter organizations
+      const organizations = (Array.isArray(orgsRes) ? orgsRes : orgsRes?.items || [])
+        .filter((o: any) => 
+          (o.name || '').toLowerCase().includes(queryLower) ||
+          (o.description || '').toLowerCase().includes(queryLower) ||
+          (o.sport || '').toLowerCase().includes(queryLower)
+        )
+        .slice(0, 5);
+
       // Filter posts
       const posts = highlights.filter(item => {
         const title = (item.title || '').toLowerCase();
@@ -429,7 +440,7 @@ export default function HighlightsScreen() {
                content.includes(queryLower) || authorName.includes(queryLower);
       }).slice(0, 10);
 
-      setSearchResults({ teams, events, users, posts });
+      setSearchResults({ teams, events, users, organizations, posts });
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
@@ -692,6 +703,25 @@ export default function HighlightsScreen() {
               </View>
             )}
 
+            {/* Organizations */}
+            {searchResults.organizations.length > 0 && (
+              <View style={styles.searchSection}>
+                <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].text }]}>🏆 Organizations</Text>
+                {searchResults.organizations.map((org: any) => (
+                  <Pressable
+                    key={org.id}
+                    style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+                    onPress={() => router.push(`/league?id=${org.id}`)}
+                  >
+                    <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{org.name}</Text>
+                    <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
+                      {org.sport || 'Organization'} {org.description ? `• ${org.description}` : ''}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             {/* Posts */}
             {searchResults.posts.length > 0 && (
               <View style={styles.searchSection}>
@@ -717,7 +747,8 @@ export default function HighlightsScreen() {
 
             {/* No results */}
             {searchResults.teams.length === 0 && searchResults.events.length === 0 && 
-             searchResults.users.length === 0 && searchResults.posts.length === 0 && (
+             searchResults.users.length === 0 && searchResults.organizations.length === 0 && 
+             searchResults.posts.length === 0 && (
               <View style={styles.emptyContainer}>
                 <Ionicons name="search-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
                 <Text style={[styles.emptyText, { color: Colors[colorScheme].text }]}>No results found</Text>

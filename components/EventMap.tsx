@@ -19,7 +19,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 
 export interface EventMapData {
   id: string;
@@ -155,7 +155,7 @@ export default function EventMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        provider={Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE}
         initialRegion={region}
         region={region}
         onRegionChangeComplete={setRegion}
