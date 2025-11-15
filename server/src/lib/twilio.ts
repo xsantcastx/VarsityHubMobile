@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import type { Twilio } from 'twilio';
 
 // Initialize Twilio client
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -10,7 +11,7 @@ export const isTwilioConfigured = (): boolean => {
 };
 
 // Initialize Twilio client if configured
-let twilioClient: ReturnType<typeof twilio.Twilio> | null = null;
+let twilioClient: Twilio | null = null;
 
 if (isTwilioConfigured()) {
   twilioClient = twilio(accountSid, authToken);

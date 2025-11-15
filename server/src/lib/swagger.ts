@@ -1,3 +1,4 @@
+// @ts-ignore - swagger-jsdoc doesn't have proper types
 import swaggerJsdoc from 'swagger-jsdoc';
 
 const options = {

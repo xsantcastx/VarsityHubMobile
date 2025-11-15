@@ -32,6 +32,7 @@ import rateLimit from 'express-rate-limit';
 import adminRouter from './routes/admin.js';
 import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
+import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
 
 const app = express();
@@ -103,7 +104,7 @@ const apiLimiter = rateLimit({
   skip: () => isDev,
 });
 
-app.get('/health', (_req, res) => res.json({ ok: true }));
+app.use('/health', healthRouter);
 
 // API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
