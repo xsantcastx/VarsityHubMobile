@@ -203,12 +203,13 @@ export default function UserProfileScreen() {
                         user.preferences.plan.toLowerCase() === 'veteran' && S.veteranBadge,
                         user.preferences.plan.toLowerCase() === 'legend' && S.legendBadge
                       ]}>
-                        <Ionicons 
-                          name={user.preferences.plan.toLowerCase() === 'rookie' ? 'shield' : 
-                               user.preferences.plan.toLowerCase() === 'veteran' ? 'medal' : 'trophy'} 
-                          size={12} 
-                          color="#ffffff" 
-                        />
+                        {user.preferences.plan.toLowerCase() === 'veteran' ? (
+                          <Text style={{ fontSize: 12 }}>🏆</Text>
+                        ) : user.preferences.plan.toLowerCase() === 'legend' ? (
+                          <Text style={{ fontSize: 12 }}>🥇</Text>
+                        ) : (
+                          <Ionicons name="shield" size={12} color="#ffffff" />
+                        )}
                         <Text style={S.planBadgeText}>{user.preferences.plan.toUpperCase()}</Text>
                       </View>
                     )}

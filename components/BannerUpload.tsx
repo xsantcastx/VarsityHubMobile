@@ -162,7 +162,7 @@ export function BannerUpload({
               style={styles.previewImage}
               contentFit={getContentFit()}
               contentPosition={
-                fitMode === 'fill' ? `${position.x}% ${position.y}%` : 'center'
+                fitMode === 'fill' ? `${position.x}% ${position.y}%` as any : 'center'
               }
             />
             {/* Visual nudge hint */}

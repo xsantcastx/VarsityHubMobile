@@ -1,6 +1,6 @@
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
-import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -47,7 +47,7 @@ export default function Step8Interests() {
       
       // Save to backend
       await User.updatePreferences({ primary_intents: sel });
-      setProgress(8);
+      setProgress(7);
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');
@@ -58,7 +58,7 @@ export default function Step8Interests() {
 
   return (
     <OnboardingLayout
-      step={8}
+      step={7}
       title="What interests you most?"
       subtitle=""
     >

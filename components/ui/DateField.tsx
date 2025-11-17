@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '@/constants/Colors';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useState } from 'react';
+import { Modal, Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 interface DateFieldProps {
   label: string;
@@ -21,10 +21,14 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
     }
     if (selectedDate) {
       setDate(selectedDate);
-      // Format as YYYY-MM-DD
-      const formatted = selectedDate.toISOString().split('T')[0];
-      onChange(formatted);
     }
+  };
+
+  const handleConfirm = () => {
+    // Format as YYYY-MM-DD
+    const formatted = date.toISOString().split('T')[0];
+    onChange(formatted);
+    setShow(false);
   };
 
   const displayValue = value 
@@ -52,14 +56,52 @@ export default function DateField({ label, value, onChange, placeholder }: DateF
           {displayValue}
         </Text>
       </Pressable>
-      {show && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleChange}
-          maximumDate={new Date()}
-        />
+      
+      {Platform.OS === 'ios' ? (
+        <Modal
+          visible={show}
+          transparent={true}
+          animationType="slide"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: Colors[colorScheme].background }]}>
+              <View style={styles.modalHeader}>
+                <Pressable onPress={() => setShow(false)}>
+                  <Text style={styles.cancelButton}>Cancel</Text>
+                </Pressable>
+                <Text style={[styles.modalTitle, { color: Colors[colorScheme].text }]}>Select Date</Text>
+                <Pressable onPress={handleConfirm}>
+                  <Text style={styles.doneButton}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="spinner"
+                onChange={handleChange}
+                maximumDate={new Date()}
+                textColor={Colors[colorScheme].text}
+              />
+            </View>
+          </View>
+        </Modal>
+      ) : (
+        show && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShow(false);
+              if (selectedDate) {
+                setDate(selectedDate);
+                const formatted = selectedDate.toISOString().split('T')[0];
+                onChange(formatted);
+              }
+            }}
+            maximumDate={new Date()}
+          />
+        )
       )}
     </View>
   );
@@ -81,5 +123,37 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  doneButton: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB',
   },
 });

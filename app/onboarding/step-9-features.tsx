@@ -1,10 +1,9 @@
-import { Colors } from '@/constants/Colors';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
@@ -105,7 +104,7 @@ export default function Step9Features() {
       });
       
       // Save progress to AsyncStorage before navigation
-      setProgress(9);
+      setProgress(8);
       await AsyncStorage.setItem('@onboarding_progress', '9');
       
       router.replace('/onboarding/step-10-confirmation');
@@ -118,8 +117,8 @@ export default function Step9Features() {
 
   return (
     <OnboardingLayout
-      step={9}
-      title="Enable Features"
+      step={8}
+      title="Explore Features"
       subtitle="Configure your privacy and notification preferences"
     >
       <Stack.Screen options={{ headerShown: false }} />

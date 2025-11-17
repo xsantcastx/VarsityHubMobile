@@ -19,7 +19,7 @@ interface OnboardingLayoutProps {
 
 export default function OnboardingLayout({
   step,
-  totalSteps = 10,
+  totalSteps = 9,
   title,
   subtitle,
   children,
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   titleSection: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   title: {
     fontSize: 28,

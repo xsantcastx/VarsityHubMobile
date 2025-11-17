@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const gamesRouter = Router();
@@ -274,11 +275,19 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       }
     }
 
-    // Approval workflow: Check if user is a coach/manager
+    // Approval workflow: Check if user is a coach/manager OR if user is admin
     const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
     let isCoach = false;
     
-    if (parsed.data.home_team_id) {
+    // Check if user is super admin (can create events for ANY team)
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true },
+    });
+    const isAdmin = isEmailAdmin(currentUser?.email);
+    
+    if (parsed.data.home_team_id && !isAdmin) {
+      // Regular users must be a coach/manager of the team
       const membership = await prisma.teamMembership.findFirst({
         where: {
           team_id: parsed.data.home_team_id,
@@ -287,13 +296,17 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         }
       });
       isCoach = !!membership;
+    } else if (isAdmin) {
+      // Admin can create events for any team
+      isCoach = true;
+      console.log(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
     }
     
-    // Auto-approve if coach, otherwise set to pending
-    gameData.approval_status = isCoach ? 'approved' : 'pending';
+    // Auto-approve if coach/admin, otherwise set to pending
+    gameData.approval_status = (isCoach || isAdmin) ? 'approved' : 'pending';
     gameData.created_by_id = req.user.id;
     
-    if (isCoach) {
+    if (isCoach || isAdmin) {
       gameData.approved_by_id = req.user.id;
       gameData.approved_at = new Date();
     }

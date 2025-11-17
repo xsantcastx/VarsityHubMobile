@@ -1,11 +1,10 @@
 import { Input } from '@/components/ui/input';
-import { Colors } from '@/constants/Colors';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Colors } from '@/constants/Colors';
 import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
@@ -52,7 +51,7 @@ export default function Step5League() {
           }));
           
           // Auto-skip this step if team already exists
-          setProgress(5); // step-6
+          setProgress(4); // step-6
           if (returnToConfirmation) {
             router.replace('/onboarding/step-10-confirmation');
           } else {
@@ -75,7 +74,7 @@ export default function Step5League() {
             }));
             
             // Auto-skip this step if org already exists
-            setProgress(5); // step-6
+            setProgress(4); // step-6
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
@@ -95,7 +94,7 @@ export default function Step5League() {
   useEffect(() => {
     if (ob.team_name && !existingTeam) setTeamName(ob.team_name);
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
-    if (ob.affiliation === 'school') setOrgType('school');
+    if ((ob.affiliation as string) === 'school') setOrgType('school');
     else if (ob.affiliation) setOrgType('organization');
     
     // Check if team or organization already exists in onboarding state
@@ -170,10 +169,10 @@ export default function Step5League() {
       // If team/org already exists, just navigate to next step
       if (alreadyExists) {
         if (returnToConfirmation) {
-          setProgress(9);
+          setProgress(8);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(5); // step-6
+          setProgress(4); // step-6
           router.push('/onboarding/step-6-authorized-users');
         }
         return;
@@ -195,9 +194,7 @@ export default function Step5League() {
           name: orgName.trim(),
           description: desc,
         };
-        // include season and plan if present in onboarding state
-        if (ob.season_start) payload.season_start = ob.season_start;
-        if (ob.season_end) payload.season_end = ob.season_end;
+        // include plan if present in onboarding state
         if (ob.plan) payload.plan = ob.plan;
 
         const org = await Organization.createOrganization(payload);
@@ -216,10 +213,10 @@ export default function Step5League() {
       // If we created an entity and are ending onboarding here, just navigate to confirmation.
       // Final onboarding completion is handled in step-10 to ensure all IDs and fields are present.
       if (returnToConfirmation) {
-        setProgress(9);
+        setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(5); // step-6
+        setProgress(4); // step-6
         router.push('/onboarding/step-6-authorized-users');
       }
     } catch (e: any) { 
@@ -231,7 +228,7 @@ export default function Step5League() {
 
   return (
     <OnboardingLayout
-      step={5}
+      step={4}
       title={pageConfig.title}
       subtitle={pageConfig.subtitle}
     >
@@ -309,7 +306,7 @@ export default function Step5League() {
               options={[
                 { value: 'youth', label: 'Youth' },
                 { value: 'adult', label: 'Adult' }, 
-                { value: 'mixed', label: 'Mixed' }
+                { value: 'student-athlete', label: 'Student-Athlete' }
               ]}
             />
             <View style={{ height: 12 }} />
@@ -358,9 +355,9 @@ export default function Step5League() {
           <View style={styles.benefitsList}>
             {ob.plan === 'rookie' ? (
               <>
-                <Text style={styles.benefitItem}>- 1 team page</Text>
-                <Text style={styles.benefitItem}>- 1 authorized user</Text>
-                <Text style={styles.benefitItem}>- 6-month free trial</Text>
+                <Text style={styles.benefitItem}>- Access for two teams</Text>
+                <Text style={styles.benefitItem}>- Invite athletes</Text>
+                <Text style={styles.benefitItem}>- Assign one administrator for each team</Text>
               </>
             ) : ob.plan === 'veteran' ? (
               <>

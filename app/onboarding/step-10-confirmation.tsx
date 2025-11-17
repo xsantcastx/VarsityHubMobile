@@ -56,13 +56,6 @@ export default function Step10Confirmation() {
         description: 'Choose your subscription plan (coaches only)'
       },
       {
-        label: 'Season Set',
-        completed: !!(ob.season_start && ob.season_end),
-        required: isCoach, // Only required for coaches
-        route: '/onboarding/step-4-season',
-        description: 'Set your season dates (coaches only)'
-      },
-      {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
         required: isCoach, // Only required for coaches
@@ -183,10 +176,6 @@ export default function Step10Confirmation() {
         organization_name: ob.role === 'coach' ? ob.organization_name : undefined,
         sport: ob.role === 'coach' ? ob.sport : undefined,
         
-        // Season (ONLY for coaches)
-        season_start: ob.role === 'coach' ? ob.season_start : undefined,
-        season_end: ob.role === 'coach' ? ob.season_end : undefined,
-        
         // Authorized users (ONLY for coaches)
         authorized: ob.role === 'coach' ? ob.authorized : undefined,
         authorized_users: ob.role === 'coach' ? ob.authorized_users : undefined,
@@ -227,7 +216,7 @@ export default function Step10Confirmation() {
 
   return (
     <OnboardingLayout
-      step={10}
+      step={9}
       title="Almost Ready!"
       subtitle="Review your setup before completing onboarding"
       showBackButton={false}
@@ -327,7 +316,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryLabel}>Plan:</Text>
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
-                 ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
+                 ob.plan === 'veteran' ? 'Veteran ($2.50/month per team)' : 
                  ob.plan === 'legend' ? 'Legend ($17.50/year unlimited)' : 'Not selected'}
               </Text>
             </View>
@@ -354,14 +343,6 @@ export default function Step10Confirmation() {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Organization:</Text>
               <Text style={styles.summaryValue}>{ob.organization_name}</Text>
-            </View>
-          )}
-          {ob.season_start && ob.season_end && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Season:</Text>
-              <Text style={styles.summaryValue}>
-                {new Date(ob.season_start).toLocaleDateString()} - {new Date(ob.season_end).toLocaleDateString()}
-              </Text>
             </View>
           )}
         </View>

@@ -1,7 +1,7 @@
 import { User } from '@/api/entities';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { Platform } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 type AppleAuthResult = Awaited<ReturnType<typeof User.loginViaApple>>;
 
@@ -66,8 +66,26 @@ export function useAppleAuth() {
 
       console.log('[Apple Auth] Sending token to backend...');
       // Send token to your backend (mock accepts any non-empty string in dev)
-      const res: any = await User.loginViaApple(identityToken);
-      console.log('[Apple Auth] Backend response:', { hasToken: !!res?.access_token, needsOnboarding: res?.needs_onboarding });
+      // Retry logic for network issues
+      let res: any = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          res = await User.loginViaApple(identityToken);
+          console.log('[Apple Auth] Backend response:', { hasToken: !!res?.access_token, needsOnboarding: res?.needs_onboarding });
+          break;
+        } catch (networkErr: any) {
+          attempts++;
+          if (networkErr?.message?.includes('Network request failed') && attempts < maxAttempts) {
+            console.log(`[Apple Auth] Network error, retry ${attempts}/${maxAttempts}...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+          } else {
+            throw networkErr;
+          }
+        }
+      }
 
       if (res?.access_token) {
         return res;

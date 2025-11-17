@@ -159,12 +159,6 @@ export default function VerifyEmailScreen() {
         Enter the code below to complete your registration.
       </Text>
       
-      {/* Open Email App Button */}
-      <Pressable style={styles.emailButton} onPress={openEmailApp}>
-        <Ionicons name="mail-open-outline" size={20} color={Colors[colorScheme].tint} />
-        <Text style={[styles.emailButtonText, { color: Colors[colorScheme].tint }]}>Open Email App</Text>
-      </Pressable>
-      
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
       

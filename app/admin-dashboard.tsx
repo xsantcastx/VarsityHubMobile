@@ -285,6 +285,19 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
+                onPress={() => router.push('/admin-reports')}
+              >
+                <Ionicons name="alert-circle" size={28} color="#EF4444" />
+                <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+                  Abuse Reports
+                </Text>
+              </Pressable>
+
+              <Pressable 
+                style={[styles.actionButton, { 
+                  backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
+                  borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
+                }]}
                 onPress={() => router.push('/admin-activity-log')}
               >
                 <Ionicons name="list" size={28} color="#8B5CF6" />

@@ -103,7 +103,7 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(7);
+      setProgress(6);
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
@@ -125,7 +125,7 @@ export default function Step7Profile() {
 
   return (
     <OnboardingLayout
-      step={7}
+      step={6}
       title="Create Your Profile"
       subtitle="Add a profile picture, bio, and interests to help others connect with you"
     >

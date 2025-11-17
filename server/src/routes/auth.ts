@@ -7,6 +7,28 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
+// Simple in-memory rate limiting for auth endpoints
+const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
+const MAX_AUTH_ATTEMPTS = 5;
+const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkAuthRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const record = authRate.get(identifier);
+  
+  if (!record || now > record.resetAt) {
+    authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
+    return true;
+  }
+  
+  if (record.attempts >= MAX_AUTH_ATTEMPTS) {
+    return false;
+  }
+  
+  record.attempts++;
+  return true;
+}
+
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
 const DEFAULT_FAN_BIO = 'FAN TRYING TO SHOW THE MOST SCHOOL SPIRIT';
@@ -26,6 +48,7 @@ authRouter.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, password, display_name, role } = parsed.data;
+  const sanitizedEmail = email.trim().toLowerCase();
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return res.status(409).json({ error: 'Email already registered' });
   const password_hash = await bcrypt.hash(password, 10);
@@ -37,7 +60,7 @@ authRouter.post('/register', async (req, res) => {
   
   const user = await prisma.user.create({ 
     data: { 
-      email, 
+      email: sanitizedEmail, 
       password_hash, 
       display_name, 
       bio,
@@ -65,9 +88,16 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 
 authRouter.post('/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const sanitizedEmail = email.trim().toLowerCase();
+  
+  // Rate limiting
+  if (!checkAuthRateLimit(sanitizedEmail)) {
+    return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
+  }
+  
+  const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
   const ok = await bcrypt.compare(password, user.password_hash);
@@ -211,7 +241,7 @@ authRouter.post('/apple', async (req, res) => {
       // Extract the simulator user ID
       appleId = identity_token.replace('sim-', '');
       email = `${appleId}@privaterelay.appleid.com`;
-      console.log('[auth/apple] Using development token for simulator');
+      // Using development token for simulator
     } else {
       // In production, you would verify the identity_token with Apple's servers
       // For now, we'll accept any token and extract a pseudo-ID
@@ -723,7 +753,7 @@ async function sendPasswordResetEmail(to: string, code: string) {
   console.log(`[email] SMTP Config - Host: ${host}, Port: ${port}, User: ${user ? user.substring(0, 3) + '***' : 'undefined'}, From: ${from}`);
   
   if (!host || !user || !pass || !port) {
-    console.log(`[dev] Password reset code for ${to}: ${code}`);
+  // Password reset code sent via email - do not log sensitive data
     return;
   }
   

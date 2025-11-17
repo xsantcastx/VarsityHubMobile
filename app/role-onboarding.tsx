@@ -15,19 +15,42 @@ type OnboardingAction = {
   gradient: [string, string];
 };
 
+type AccountType = 'fan' | 'coach';
+type CoachTier = 'rookie' | 'veteran' | 'legend';
+
 export default function RoleOnboardingScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [coachTier, setCoachTier] = useState<CoachTier | null>(null);
   const [zipCode, setZipCode] = useState('');
   const [zipCodeProvided, setZipCodeProvided] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showAccountSelection, setShowAccountSelection] = useState(false);
+  const [showCoachTierSelection, setShowCoachTierSelection] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const me: any = await User.me();
-        setUserRole(me?.role || 'fan');
+        const userRole = me?.role;
+        const subscriptionTier = me?.subscription_tier;
+        
+        // Determine account type (fan or coach)
+        if (userRole === 'fan') {
+          setAccountType('fan');
+        } else if (userRole === 'coach') {
+          setAccountType('coach');
+          
+          // Determine coach tier based on subscription
+          if (subscriptionTier === 'pro') {
+            setCoachTier('legend');
+          } else if (subscriptionTier === 'premium') {
+            setCoachTier('veteran');
+          } else {
+            setCoachTier('rookie'); // free tier
+          }
+        }
         
         // Check if zip code is already provided
         const hasZip = me?.zip_code || me?.preferences?.zip_code;
@@ -35,8 +58,13 @@ export default function RoleOnboardingScreen() {
           setZipCode(hasZip);
           setZipCodeProvided(true);
         }
+        
+        // If no account type, show selection screen
+        if (!userRole) {
+          setShowAccountSelection(true);
+        }
       } catch {
-        setUserRole('fan');
+        setShowAccountSelection(true);
       }
     })();
   }, []);
@@ -71,100 +99,376 @@ export default function RoleOnboardingScreen() {
     }
   };
 
-  // Fan-specific actions (no "Add players")
+  const handleSelectAccountType = async (type: AccountType) => {
+    setAccountType(type);
+    setShowAccountSelection(false);
+    
+    // If coach, show tier selection
+    if (type === 'coach') {
+      setShowCoachTierSelection(true);
+    } else {
+      // If fan, save immediately
+      setSaving(true);
+      try {
+        await User.updatePreferences({ 
+          role: 'fan',
+          subscription_tier: 'free'
+        });
+      } catch (e: any) {
+        console.error('Failed to set account type', e);
+        Alert.alert('Error', 'Failed to set account type. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  const handleSelectCoachTier = async (tier: CoachTier) => {
+    setSaving(true);
+    try {
+      // Map coach tier to subscription tier
+      let subscriptionTier = 'free';
+      if (tier === 'rookie') subscriptionTier = 'free';
+      if (tier === 'veteran') subscriptionTier = 'premium';
+      if (tier === 'legend') subscriptionTier = 'pro';
+      
+      await User.updatePreferences({ 
+        role: 'coach',
+        subscription_tier: subscriptionTier 
+      });
+      
+      setCoachTier(tier);
+      setShowCoachTierSelection(false);
+    } catch (e: any) {
+      console.error('Failed to set coach tier', e);
+      Alert.alert('Error', 'Failed to set coach tier. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Fan-specific actions - consumption focused
   const fanActions: OnboardingAction[] = [
     {
+      icon: 'flame',
+      title: 'Discover Teams',
+      description: 'Find and follow your favorite high school teams',
+      route: '/favorites',
+      gradient: ['#ef4444', '#dc2626'],
+    },
+    {
       icon: 'flash',
-      title: 'View Moments',
-      description: 'Watch highlights and memorable plays from games',
+      title: 'Watch Highlights',
+      description: 'Never miss the best moments from every game',
       route: '/highlights',
       gradient: ['#3b82f6', '#2563eb'],
     },
     {
-      icon: 'create',
-      title: 'Post Reviews & Highlights',
-      description: 'Share your perspective and favorite game moments',
-      route: '/create-post',
+      icon: 'calendar',
+      title: 'Game Schedule',
+      description: 'See upcoming games and RSVP to attend',
+      route: '/feed',
       gradient: ['#8b5cf6', '#7c3aed'],
     },
     {
-      icon: 'heart',
-      title: 'Support Creators',
-      description: 'Engage with posts and help content reach more fans',
-      route: '/feed',
-      gradient: ['#ec4899', '#db2777'],
-    },
-    {
-      icon: 'shield',
-      title: 'Claim My Team',
-      description: 'Follow your team and never miss a game',
-      route: '/favorites',
+      icon: 'chatbubbles',
+      title: 'Connect & Share',
+      description: 'Post reviews, engage with other fans',
+      route: '/create-post',
       gradient: ['#10b981', '#059669'],
     },
   ];
 
-  // Rookie (Player) actions - active participation focused
+  // Rookie Coach actions - entry level (2 free teams)
   const rookieActions: OnboardingAction[] = [
     {
-      icon: 'people',
-      title: 'Join Teams',
-      description: 'Find and join teams to start playing',
-      route: '/my-team',
+      icon: 'add-circle',
+      title: 'Create Your Teams',
+      description: 'Set up your first 2 teams - completely free!',
+      route: '/create-team',
       gradient: ['#2563eb', '#1d4ed8'],
     },
     {
-      icon: 'calendar',
-      title: 'View Schedule',
-      description: 'Check your games and practice schedule',
-      route: '/feed',
+      icon: 'people',
+      title: 'Manage Roster',
+      description: 'Add players, assign roles, build your squad',
+      route: '/manage-teams',
       gradient: ['#7c3aed', '#6d28d9'],
     },
     {
-      icon: 'stats-chart',
-      title: 'Track Stats',
-      description: 'View your performance and team statistics',
-      route: '/highlights',
+      icon: 'calendar',
+      title: 'Schedule Games',
+      description: 'Create games and events for your teams',
+      route: '/my-team',
       gradient: ['#059669', '#047857'],
     },
     {
-      icon: 'chatbubbles',
-      title: 'Team Chat',
-      description: 'Stay connected with teammates and coaches',
-      route: '/messages',
+      icon: 'stats-chart',
+      title: 'Track Performance',
+      description: 'View stats, game results, and analytics',
+      route: '/season-stats',
       gradient: ['#dc2626', '#b91c1c'],
     },
   ];
 
-  if (!userRole) {
+  // Veteran Coach actions - paid tier ($2.50/team after first 2)
+  const veteranActions: OnboardingAction[] = [
+    {
+      icon: 'trophy',
+      title: 'Unlimited Teams',
+      description: 'Add as many teams as you need - $2.50/month each',
+      route: '/manage-teams',
+      gradient: ['#f59e0b', '#d97706'],
+    },
+    {
+      icon: 'people-circle',
+      title: 'Advanced Roster Tools',
+      description: 'Depth charts, positions, player stats tracking',
+      route: '/manage-teams',
+      gradient: ['#8b5cf6', '#7c3aed'],
+    },
+    {
+      icon: 'bar-chart',
+      title: 'Season Analytics',
+      description: 'Detailed performance metrics and reports',
+      route: '/season-stats',
+      gradient: ['#3b82f6', '#2563eb'],
+    },
+    {
+      icon: 'megaphone',
+      title: 'Team Promotion',
+      description: 'Boost visibility with featured posts',
+      route: '/my-ads',
+      gradient: ['#10b981', '#059669'],
+    },
+  ];
+
+  // Legend Coach actions - premium tier (unlimited everything)
+  const legendActions: OnboardingAction[] = [
+    {
+      icon: 'infinite',
+      title: 'Unlimited Teams',
+      description: 'Manage unlimited teams across all sports',
+      route: '/manage-teams',
+      gradient: ['#7c3aed', '#6d28d9'],
+    },
+    {
+      icon: 'people',
+      title: 'Unlimited Authorized Users',
+      description: 'Add assistant coaches and staff with full access',
+      route: '/manage-users',
+      gradient: ['#3b82f6', '#2563eb'],
+    },
+    {
+      icon: 'business',
+      title: 'Organization Management',
+      description: 'Manage entire athletic programs and departments',
+      route: '/manage-teams',
+      gradient: ['#10b981', '#059669'],
+    },
+    {
+      icon: 'shield-checkmark',
+      title: 'Priority Support',
+      description: 'Direct access to VarsityHub team for assistance',
+      route: '/help',
+      gradient: ['#ef4444', '#dc2626'],
+    },
+  ];
+
+  // STEP 1: Account Type Selection (Fan or Coach)
+  if (showAccountSelection) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Welcome' }} />
+        <Stack.Screen options={{ title: 'Choose Your Account', headerShown: false }} />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
+              Welcome to VarsityHub! 🏆
+            </Text>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              Are you a fan or a coach?
+            </Text>
+          </View>
+
+          {/* Fan Account */}
+          <Pressable
+            style={[styles.largeAccountCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            onPress={() => handleSelectAccountType('fan')}
+            disabled={saving}
+          >
+            <View style={[styles.largeAccountIcon, { backgroundColor: '#ef444420' }]}>
+              <Ionicons name="heart" size={48} color="#ef4444" />
+            </View>
+            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>Fan Account</Text>
+            <Text style={[styles.largeAccountPrice, { color: '#10b981' }]}>FREE FOREVER</Text>
+            <Text style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}>
+              Follow teams, watch highlights, RSVP to games, and stay connected with high school sports
+            </Text>
+            <Text style={[styles.accountUpgradeNote, { color: Colors[colorScheme].mutedText, marginTop: 8, fontSize: 12, fontStyle: 'italic' }]}>
+              *Fan accounts can be upgraded to athlete/staff upon coach approval
+            </Text>
+          </Pressable>
+
+          {/* Coach Account */}
+          <Pressable
+            style={[styles.largeAccountCard, { 
+              backgroundColor: Colors[colorScheme].card, 
+              borderColor: '#3b82f6',
+              borderWidth: 2,
+            }]}
+            onPress={() => handleSelectAccountType('coach')}
+            disabled={saving}
+          >
+            <View style={[styles.largeAccountIcon, { backgroundColor: '#3b82f620' }]}>
+              <Ionicons name="clipboard" size={48} color="#3b82f6" />
+            </View>
+            <Text style={[styles.largeAccountName, { color: Colors[colorScheme].text }]}>Coach Account</Text>
+            <Text style={[styles.largeAccountPrice, { color: '#3b82f6' }]}>STARTS FREE</Text>
+            <Text style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}>
+              Manage teams, schedule games, track stats, and build your program
+            </Text>
+          </Pressable>
+
+          {saving && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            </View>
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // Choose actions based on role
-  let actions: OnboardingAction[] = [];
-  let welcomeTitle = 'Welcome to Varsity Hub! 🎉';
-  
-  if (userRole === 'fan') {
-    actions = fanActions;
-    welcomeTitle = 'Welcome, Fan! 🎉';
-  } else if (userRole === 'rookie') {
-    actions = rookieActions;
-    welcomeTitle = 'Welcome, Rookie! 🏀';
+  // STEP 2: Coach Tier Selection (Rookie/Veteran/Legend)
+  if (showCoachTierSelection) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Choose Your Tier', headerShown: false }} />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Pressable onPress={() => {
+              setShowCoachTierSelection(false);
+              setShowAccountSelection(true);
+              setAccountType(null);
+            }}>
+              <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+            </Pressable>
+            <Text style={[styles.title, { color: Colors[colorScheme].text, marginTop: 16 }]}>
+              Choose Your Coach Tier 🏀
+            </Text>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+              Select the plan that fits your needs
+            </Text>
+          </View>
+
+          {/* Rookie Coach */}
+          <Pressable
+            style={[styles.accountTypeCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            onPress={() => handleSelectCoachTier('rookie')}
+            disabled={saving}
+          >
+            <View style={[styles.accountIconContainer, { backgroundColor: '#3b82f620' }]}>
+              <Ionicons name="ribbon" size={32} color="#3b82f6" />
+            </View>
+            <View style={styles.accountTypeInfo}>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Rookie Coach</Text>
+              <Text style={[styles.accountTypePrice, { color: '#10b981' }]}>FREE • 2 Teams Max</Text>
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Perfect for first-time coaches</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• First two teams free</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• (ex: Men's and Women's Soccer)</Text>
+                <Text style={[styles.bulletPoint, { color: Colors[colorScheme].mutedText }]}>• Create events including games, fundraisers, and watch parties</Text>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* Veteran Coach */}
+          <Pressable
+            style={[styles.accountTypeCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+            onPress={() => handleSelectCoachTier('veteran')}
+            disabled={saving}
+          >
+            <View style={[styles.accountIconContainer, { backgroundColor: '#f59e0b20' }]}>
+              <Ionicons name="trophy" size={32} color="#f59e0b" />
+            </View>
+            <View style={styles.accountTypeInfo}>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Veteran Coach</Text>
+              <Text style={[styles.accountTypePrice, { color: '#f59e0b' }]}>$2.50/month per team (after first 2)</Text>
+              <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
+                For coaches managing multiple teams. First 2 free, then $2.50/month each
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Legend Coach */}
+          <Pressable
+            style={[styles.accountTypeCard, { 
+              backgroundColor: Colors[colorScheme].card, 
+              borderColor: '#7c3aed',
+              borderWidth: 2,
+            }]}
+            onPress={() => handleSelectCoachTier('legend')}
+            disabled={saving}
+          >
+            <View style={[styles.accountIconContainer, { backgroundColor: '#7c3aed20' }]}>
+              <Ionicons name="infinite" size={32} color="#7c3aed" />
+            </View>
+            <View style={styles.accountTypeInfo}>
+              <View style={styles.legendBadge}>
+                <Text style={styles.legendBadgeText}>PREMIUM</Text>
+              </View>
+              <Text style={[styles.accountTypeName, { color: Colors[colorScheme].text }]}>Legend Coach</Text>
+              <Text style={[styles.accountTypePrice, { color: '#7c3aed' }]}>Contact for Pricing</Text>
+              <Text style={[styles.accountTypeDescription, { color: Colors[colorScheme].mutedText }]}>
+                Unlimited teams • Unlimited authorized users • Priority support
+              </Text>
+            </View>
+          </Pressable>
+
+          {saving && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
   }
 
-  if (actions.length === 0) {
-    // For coaches/admins, redirect to appropriate screen
-    useEffect(() => {
-      if (userRole === 'coach') {
-        router.replace('/manage-teams');
-      } else {
-        router.replace('/feed');
-      }
-    }, [userRole]);
-    return null;
+  if (!accountType || (accountType === 'coach' && !coachTier)) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
+        <Stack.Screen options={{ title: 'Welcome' }} />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Choose actions based on account type and tier
+  let actions: OnboardingAction[] = [];
+  let welcomeTitle = 'Welcome to VarsityHub! 🎉';
+  let welcomeSubtitle = '';
+  
+  if (accountType === 'fan') {
+    actions = fanActions;
+    welcomeTitle = 'Welcome, Fan! 🎉';
+    welcomeSubtitle = 'Discover teams, watch highlights, and never miss a moment';
+  } else if (accountType === 'coach') {
+    if (coachTier === 'rookie') {
+      actions = rookieActions;
+      welcomeTitle = 'Welcome, Rookie Coach! 🏀';
+      welcomeSubtitle = 'Manage up to 2 teams for free';
+    } else if (coachTier === 'veteran') {
+      actions = veteranActions;
+      welcomeTitle = 'Welcome, Veteran Coach! 🏆';
+      welcomeSubtitle = 'Unlimited teams at $2.50/month each (first 2 free)';
+    } else if (coachTier === 'legend') {
+      actions = legendActions;
+      welcomeTitle = 'Welcome, Legend Coach! ⚡';
+      welcomeSubtitle = 'Unlimited teams • Unlimited users • Priority support';
+    }
   }
 
   return (
@@ -176,7 +480,7 @@ export default function RoleOnboardingScreen() {
             {welcomeTitle}
           </Text>
           <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-            {zipCodeProvided ? "Here's what you can do on Varsity Hub" : 'First, tell us where you are'}
+            {zipCodeProvided ? welcomeSubtitle : 'First, tell us where you are'}
           </Text>
         </View>
 
@@ -370,5 +674,102 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountTypeCard: {
+    flexDirection: 'row',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 16,
+  },
+  accountIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountTypeInfo: {
+    flex: 1,
+  },
+  accountTypeName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  accountTypePrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  accountTypeDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  legendBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#7c3aed',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  legendBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  largeAccountCard: {
+    padding: 32,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  largeAccountIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  largeAccountName: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  largeAccountPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  largeAccountDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  bulletPoint: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
 });
-

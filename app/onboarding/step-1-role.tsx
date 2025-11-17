@@ -181,7 +181,7 @@ export default function Step1Role() {
     <OnboardingLayout
       step={1}
       title="Choose Your Role"
-      subtitle="Tell us how you'll be using VarsityHub to personalize your experience"
+      subtitle="Personalize your VarsityHub experience"
       showBackButton={true}
       onBackPress={handleBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
@@ -198,23 +198,24 @@ export default function Step1Role() {
         features={[
           'Follow your favorite teams',
           'Get game updates and highlights',
-          'Connect with other fans',
-          'Quick setup process'
+          'Pitch events for your community',
+          '*Fan accounts can be upgraded to athlete/staff*',
+          '- Upon coach approval'
         ]}
       />
 
       <RoleCard
-        title="Rookie (Player)"
-        description="Join teams and play"
+        title="Rookie"
+        description="Manage teams and organize events"
         icon="basketball"
         selected={role === 'rookie'}
         onPress={() => setRole('rookie')}
         features={[
-          'Join and play for teams',
-          'View personal and team stats',
-          'Get roster updates',
-          'Event notifications',
-          'Participate in team chat'
+          'Perfect for first-time coaches',
+          'First two teams free',
+          "Example: (Men's and Women's Soccer)",
+          'Create events including games, fundraisers, and watch parties',
+          'Invite players and staff'
         ]}
       />
 
@@ -225,11 +226,11 @@ export default function Step1Role() {
         selected={role === 'coach'}
         onPress={() => setRole('coach')}
         features={[
+          'Perfect for brands with an established audience',
           'Create and manage teams',
           'Organize games and events',
-          'Invite players and staff',
           'Full management tools',
-          'Communication features'
+          'Unlimited teams and authorized users'
         ]}
       />
 
@@ -239,9 +240,9 @@ export default function Step1Role() {
             onPress={onContinue} 
             disabled={saving}
             size="lg"
-            style={{ width: '100%', maxWidth: 400, alignSelf: 'center' }}
+            style={styles.continueButton}
           >
-            {saving ? <ActivityIndicator color="white" /> : 'Continue'}
+            {saving ? <ActivityIndicator color="white" /> : 'Continue →'}
           </Button>
         </View>
       )}
@@ -251,10 +252,10 @@ export default function Step1Role() {
 
 const styles = StyleSheet.create({
   card: { 
-    padding: 20, 
-    borderRadius: 16, 
+    padding: 14, 
+    borderRadius: 12, 
     borderWidth: 2, 
-    marginBottom: 16,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -287,8 +288,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   featuresList: {
-    gap: 10,
-    paddingTop: 4,
+    gap: 6,
+    paddingTop: 2,
   },
   featureItem: {
     flexDirection: 'row',
@@ -298,13 +299,24 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   featureText: {
-    fontSize: 15,
+    fontSize: 14,
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   continueContainer: {
-    marginTop: 32,
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  continueButton: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });
 

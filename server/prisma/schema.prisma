@@ -77,6 +77,9 @@ model User {
   // Games (approval workflow)
   createdGames    Game[] @relation("created_games")
   approvedGames   Game[] @relation("approved_games")
+  
+  // Abuse Reports
+  abuseReports    AbuseReport[]
 }
 
 model Game {
@@ -774,6 +777,30 @@ model AdminActivityLog {
   @@index([target_type])
   @@index([target_id])
   @@index([timestamp])
+}
+
+// ===========================
+// Abuse Reports
+// ===========================
+
+model AbuseReport {
+  id              String   @id @default(cuid())
+  reporter_id     String   // User who submitted the report
+  reporter_name   String
+  reporter_email  String
+  subject         String
+  message         String   @db.Text
+  status          String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
+  reviewed_by     String?  // Admin ID who reviewed
+  reviewed_at     DateTime?
+  resolution_note String?  @db.Text // Admin notes about resolution
+  created_at      DateTime @default(now())
+  
+  reporter        User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
+  
+  @@index([reporter_id])
+  @@index([status])
+  @@index([created_at])
 }
 
 

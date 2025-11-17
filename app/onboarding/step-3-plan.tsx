@@ -1,7 +1,5 @@
 import PrimaryButton from '@/components/ui/PrimaryButton';
-import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
@@ -30,24 +28,22 @@ const PLAN_OPTIONS: PlanOption[] = [
     description: 'Perfect for getting started with your first teams',
     extraNote: 'Upgrade any time to unlock more teams and organization management tools.',
     benefits: [
-      'Up to 2 teams',
-      'Invite players',
-      'Assign administrators',
+      'Access for two teams',
+      'Invite athletes',
+      'Assign one administrator for each team',
       'Share team experience',
     ],
   },
   {
     id: 'veteran',
     title: 'Veteran',
-    priceLabel: '$1.50 / month per team',
+    priceLabel: '$2.50 / month per team',
     description: 'Manage multiple teams with flexible per-team pricing.',
     badge: 'Most Popular',
     extraNote: 'Pay only for the teams you add beyond your first two. Stripe handles secure billing.',
     benefits: [
       'All Rookie features',
-      'Add unlimited teams',
-      'Priority support',
-      'Per-team administrators',
+      'Add up to two administrators per team',
       '🏆 Trophy emblem',
     ],
   },
@@ -61,8 +57,6 @@ const PLAN_OPTIONS: PlanOption[] = [
       'Unlimited teams included',
       'Unlimited administrators',
       '🥇 Gold medal emblem',
-      'Custom branding',
-      'Advanced analytics',
     ],
   },
 ];
@@ -125,7 +119,7 @@ export default function Step3Plan() {
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-4-season');
+      router.push('/onboarding/step-5-league');
     }
   };
 

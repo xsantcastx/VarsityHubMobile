@@ -162,14 +162,12 @@ export default function SignInScreen() {
             ) : null}
 
             {Platform.OS === 'ios' && appleReady ? (
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={colorScheme === 'dark' ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={12}
-                style={{ height: 44, width: '100%', marginBottom: 10 }}
-                onPress={handleAppleLogin}
-                disabled={appleLoading}
-              />
+                          <AppleAuthenticationButton
+              onPress={handleAppleSignIn}
+              buttonType={AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={8}
+              style={{ width: '100%', height: 50, marginBottom: 12 }}
             ) : Platform.OS === 'ios' ? (
               <View style={[styles.appleFallbackButton, { backgroundColor: colorScheme === 'dark' ? '#111827' : '#000' }]} accessibilityRole="text">
                 <Ionicons name="logo-apple" size={20} color={colorScheme === 'dark' ? '#F9FAFB' : '#FFFFFF'} style={{ marginRight: 8 }} />

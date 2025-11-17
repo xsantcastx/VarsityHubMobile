@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
-import DateField from '@/ui/DateField';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import DateField from '@/ui/DateField';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -167,9 +167,7 @@ export default function Step2Basic() {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
         try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
       }} />
-      {usernameError ? (
-        <Text style={styles.error}>Use 3–20: a–z 0–9 _ .</Text>
-      ) : checking ? (
+      {checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
       ) : available === false ? (
         <Text style={styles.error}>That username is taken</Text>
@@ -184,6 +182,7 @@ export default function Step2Basic() {
       <View style={styles.affiliationGrid}>
         {[
           { value: 'none', label: 'None', icon: '❌' },
+          { value: 'professional', label: 'Professional', icon: '🏟️' },
           { value: 'university', label: 'University', icon: '🎓' },
           { value: 'high_school', label: 'High School', icon: '🏫' },
           { value: 'club', label: 'Club', icon: '⚽' },
@@ -309,11 +308,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   affiliationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 8,
     marginBottom: 20,
   },
   affiliationButton: {
-    width: '30%',
+    width: '31%',
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderRadius: 12,

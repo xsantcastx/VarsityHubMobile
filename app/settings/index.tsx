@@ -168,7 +168,10 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     setEmail(me?.email || null);
                     
                     // Check if user is admin (email-based)
-                    const adminEmails = ['xsancastrillonx@hotmail.com']; // Could also fetch from API
+                    const adminEmails = (process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emilmancero@gmail.com')
+                      .split(',')
+                      .map(e => e.trim().toLowerCase())
+                      .filter(Boolean);
                     setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
                     
                     const serverPrefs = (me && me.preferences) || {};

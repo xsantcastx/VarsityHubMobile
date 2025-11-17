@@ -1,5 +1,5 @@
-import twilio from 'twilio';
 import type { Twilio } from 'twilio';
+import twilio from 'twilio';
 
 // Initialize Twilio client
 const accountSid = process.env.TWILIO_ACCOUNT_SID;

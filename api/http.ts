@@ -21,7 +21,7 @@ export function getApiBaseUrl(): string {
   }
   
   const finalUrl = url.replace(/\/$/, '');
-  console.log('[API] Using base URL:', finalUrl);
+  // API base URL configured
   return finalUrl;
 }
 
@@ -46,12 +46,14 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    // HTTP request initiated
     const res = await fetch(base + path, { 
       ...options, 
       headers,
       signal: controller.signal 
     });
     clearTimeout(timeoutId);
+    // HTTP response received
 
     // Handle 304 Not Modified: return a special object or null.
     // The caller can then decide whether to use cached data or ignore.
@@ -82,9 +84,17 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    console.error('[http] Request failed:', { url: base + path, error: error.message });
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
+      throw err;
+    }
+    // Add more context to network errors
+    if (error.message === 'Network request failed') {
+      const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
+      err.originalError = error;
+      err.status = 0;
       throw err;
     }
     throw error;

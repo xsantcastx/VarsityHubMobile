@@ -420,12 +420,13 @@ export default function ProfileScreen() {
                     formattedPlan.toLowerCase() === 'veteran' && styles.veteranBadge,
                     formattedPlan.toLowerCase() === 'legend' && styles.legendBadge
                   ]}>
-                    <Ionicons 
-                      name={formattedPlan.toLowerCase() === 'rookie' ? 'shield' : 
-                           formattedPlan.toLowerCase() === 'veteran' ? 'medal' : 'trophy'} 
-                      size={12} 
-                      color="#ffffff" 
-                    />
+                    {formattedPlan.toLowerCase() === 'veteran' ? (
+                      <Text style={{ fontSize: 12 }}>🏆</Text>
+                    ) : formattedPlan.toLowerCase() === 'legend' ? (
+                      <Text style={{ fontSize: 12 }}>🥇</Text>
+                    ) : (
+                      <Ionicons name="shield" size={12} color="#ffffff" />
+                    )}
                     <Text style={styles.planBadgeText}>{formattedPlan.toUpperCase()}</Text>
                   </View>
                 )}

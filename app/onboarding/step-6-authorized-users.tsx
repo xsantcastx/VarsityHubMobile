@@ -5,7 +5,6 @@ import Segmented from '@/ui/Segmented';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
@@ -121,10 +120,10 @@ export default function Step6AuthorizedUsers() {
   const onContinue = () => {
     setOB((prev) => ({ ...prev, authorized: list }));
     if (returnToConfirmation) {
-      setProgress(9);
+      setProgress(8);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(6);
+      setProgress(5);
       router.push('/onboarding/step-7-profile');
     }
   };
@@ -133,10 +132,10 @@ export default function Step6AuthorizedUsers() {
     if (isOptional) {
       setOB((prev) => ({ ...prev, authorized: [] }));
       if (returnToConfirmation) {
-        setProgress(9);
+        setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(6);
+        setProgress(5);
         router.push('/onboarding/step-7-profile');
       }
     }
@@ -144,7 +143,7 @@ export default function Step6AuthorizedUsers() {
 
   return (
     <OnboardingLayout
-      step={6}
+      step={5}
       title="Add Authorized Users"
       subtitle={planInfo.description}
     >
@@ -333,6 +332,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
     padding: 16,
     marginBottom: 20,
+    marginHorizontal: 'auto',
+    maxWidth: 600,
+    width: '100%',
+    alignSelf: 'center',
     borderWidth: 1,
     borderColor: Colors[colorScheme].border,
   },

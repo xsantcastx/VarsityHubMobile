@@ -1,8 +1,8 @@
-import type { Response, NextFunction } from 'express';
-import type { AuthedRequest } from './auth.js';
+import type { NextFunction, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
+import type { AuthedRequest } from './auth.js';
 
-function isEmailAdmin(email?: string | null): boolean {
+export function isEmailAdmin(email?: string | null): boolean {
   if (!email) return false;
   const raw = process.env.ADMIN_EMAILS || '';
   const list = raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
