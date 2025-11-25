@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../lib/load-env.js';
 
 // Setup environment for tests
 process.env.NODE_ENV = 'test';

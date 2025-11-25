@@ -1,5 +1,5 @@
 import cors from 'cors';
-import 'dotenv/config';
+import './lib/load-env.js';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
@@ -172,5 +172,4 @@ addSentryErrorHandler(app);
 app.listen(PORT, HOST, () => {
   console.log(`API listening on http://${HOST}:${PORT}`);
 });
-
 
