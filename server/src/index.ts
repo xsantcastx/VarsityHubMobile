@@ -35,6 +35,7 @@ import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
 import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
+import { testNotificationsRouter } from './routes/test-notifications.js';
 
 const app = express();
 
@@ -76,8 +77,18 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
 import expressPkg from 'express';
-app.post('/payments/webhook', expressPkg.raw({ type: 'application/json' }), (_req, _res, next) => next());
-app.use((req, res, next) => { if (req.originalUrl === '/payments/webhook') return next(); return expressPkg.json()(req, res, next); });
+
+// Special raw body parser for Stripe webhook
+app.use('/billing/webhooks/stripe', expressPkg.raw({ type: 'application/json' }));
+
+app.use((req, res, next) => { 
+  // For all other routes, use the standard JSON parser
+  if (req.originalUrl === '/billing/webhooks/stripe') {
+    return next(); 
+  }
+  return expressPkg.json()(req, res, next); 
+});
+
 app.use(authMiddleware);
 // Serve uploaded files
 app.use(
@@ -144,6 +155,12 @@ app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
 app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
+
+// Test endpoints (consider removing in production or adding auth)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/test-notifications', testNotificationsRouter);
+  console.log('📱 Test notification endpoints available at /test-notifications/*');
+}
 
 const PORT = Number(process.env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)

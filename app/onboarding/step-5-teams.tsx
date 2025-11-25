@@ -1,6 +1,6 @@
 import { User } from '@/api/entities';
-import { useOnboarding } from '@/context/OnboardingContext';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { useOnboarding } from '@/context/OnboardingContext';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,7 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import OnboardingLayout from './components/OnboardingLayout';
 
-export default function Step4Season() {
+export default function Step5Teams() {
   const router = useRouter();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
@@ -36,20 +36,20 @@ export default function Step4Season() {
     switch (ob.plan) {
       case 'rookie':
         return {
-          name: 'Rookie (Free Trial)',
-          description: '6-month free trial season',
+          name: 'Rookie (Free)',
+          description: 'First two teams free',
           color: '#16A34A'
         };
       case 'veteran':
         return {
-          name: 'Veteran ($70/year)',
-          description: '6-month subscription season',
+          name: 'Veteran ($2.50/month per team)',
+          description: 'Pay per team added',
           color: '#2563EB'
         };
       case 'legend':
         return {
-          name: 'Legend ($150/year)',
-          description: '6-month subscription season',
+          name: 'Legend ($19.99/year)',
+          description: 'Unlimited teams',
           color: '#7C3AED'
         };
       default:
@@ -83,14 +83,14 @@ export default function Step4Season() {
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-5-league');
+        router.push('/onboarding/step-6-league');
       }
     } catch (e: any) {
       console.error('Failed to save season:', e);
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-5-league');
+        router.push('/onboarding/step-6-league');
       }
     } finally {
       setSaving(false);
@@ -142,7 +142,7 @@ export default function Step4Season() {
 
   return (
     <OnboardingLayout
-      step={4}
+      step={5}
       title="Set Your Season"
       subtitle="Choose when your 6-month season begins"
     >

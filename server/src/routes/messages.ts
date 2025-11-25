@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -43,8 +44,27 @@ return res.json(msgs);
 const meId = req.user.id;
 
 if (conversation_id) {
+const accessCheck = await prisma.message.findFirst({
+where: {
+conversation_id,
+OR: [
+{ sender_id: meId },
+{ recipient_id: meId },
+],
+},
+select: { id: true },
+});
+if (!accessCheck) {
+return res.status(403).json({ error: 'Forbidden' });
+}
 const messages = await prisma.message.findMany({
-where: { conversation_id },
+where: {
+conversation_id,
+OR: [
+{ sender_id: meId },
+{ recipient_id: meId },
+],
+},
 orderBy,
 take: limit,
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
@@ -105,6 +125,50 @@ const pair = [meId, toId].sort();
 convId = `dm:${pair[0]}__${pair[1]}`;
 }
 
+// Prevent messaging if either user has blocked the other
+const block = await prisma.blockedUser.findFirst({
+where: {
+OR: [
+{ blocker_id: meId, blocked_id: toId! },
+{ blocker_id: toId!, blocked_id: meId },
+],
+},
+});
+if (block) {
+return res.status(403).json({ error: 'MESSAGE_BLOCKED', message: 'Messaging is disabled between these users.' });
+}
+
+ // AGE POLICY: Under-18 users may only message accounts they follow
+ try {
+   const me = await prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } });
+   const recipient = await prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } });
+   const senderDob = (me?.preferences as any)?.dob;
+   if (senderDob) {
+     const age = (() => {
+       const d = new Date(String(senderDob));
+       const now = new Date();
+       let a = now.getFullYear() - d.getFullYear();
+       const m = now.getMonth() - d.getMonth();
+       if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+       return a;
+     })();
+     if (age < 18) {
+       // Check follow relationship (minor must follow recipient)
+       const follows = await prisma.follows.findUnique({
+         where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+       });
+       if (!follows) {
+         return res.status(403).json({
+           error: 'AGE_POLICY_BLOCKED',
+           message: 'Users under 18 can only message accounts they follow.'
+         });
+       }
+     }
+   }
+ } catch (e) {
+   console.warn('[messages][age-policy] check failed', e);
+ }
+
 const created = await prisma.message.create({
 data: {
 conversation_id: convId!,
@@ -114,6 +178,19 @@ content
 },
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
+
+// Send push notification to recipient
+try {
+  await notifyNewMessage(
+    toId!,
+    meId,
+    created.sender?.display_name || 'Someone',
+    content
+  );
+} catch (e) {
+  console.error('Failed to send message notification:', e);
+}
+
 return res.status(201).json(created);
 });
 

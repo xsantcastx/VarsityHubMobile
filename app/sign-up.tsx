@@ -1,15 +1,21 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
+
+const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -19,9 +25,17 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+  const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
+  const { trackTap } = useAnalytics();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Log API base URL once for debugging stale env issues
+  useEffect(() => {
+    const base = getApiBaseUrl();
+    console.log('[sign-up] Runtime API base URL:', base);
+  }, []);
 
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     console.log(`[sign-up] Registration attempt ${attempt}/3`);
@@ -71,6 +85,7 @@ export default function SignUpScreen() {
     if (!email || !password) { setError('Please enter email and password'); return; }
     if (!email.includes('@') || !email.includes('.')) { setError('Please enter a valid email address'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    trackTap('auth_email_submit', { screen: 'sign_up' });
     setLoading(true); setError(null); setRetryCount(0);
     
     try {
@@ -115,6 +130,7 @@ export default function SignUpScreen() {
     }
     setError(null);
     try {
+      trackTap('auth_google_tap', { screen: 'sign_up' });
       const response: any = await signInWithGoogle();
       const account = response?.user || (await User.me());
       const prefs = account?.preferences || {};
@@ -134,9 +150,53 @@ export default function SignUpScreen() {
     }
   };
 
+  const handleAppleSignUp = async () => {
+    console.log('[sign-up] Apple button pressed, ready:', appleReady, 'platform:', Platform.OS);
+    if (Platform.OS !== 'ios') {
+      console.log('[sign-up] Apple sign in only available on iOS');
+      setError('Apple sign in is only available on iOS.');
+      return;
+    }
+    setError(null);
+    console.log('[sign-up] Starting Apple sign in...');
+    try {
+      trackTap('auth_apple_tap', { screen: 'sign_up' });
+      const response: any = await signInWithApple();
+      console.log('[sign-up] Apple sign in response:', response);
+      
+      // The response includes both access_token and user data
+      // Check needs_onboarding from the auth response directly
+      const needsOnboarding = response?.needs_onboarding === true;
+      console.log('[sign-up] Needs onboarding:', needsOnboarding);
+      
+      if (needsOnboarding) {
+        console.log('[sign-up] Redirecting to onboarding...');
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      
+      console.log('[sign-up] Redirecting to feed...');
+      router.replace('/(tabs)/feed' as any);
+    } catch (e: any) {
+      console.error('[sign-up] Apple sign up error:', e);
+      const message = e?.message || 'Apple sign up failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        console.log('[sign-up] User cancelled Apple sign in');
+        return;
+      }
+      setError(message);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Create Account' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Create Account',
+          headerShown: true,
+          headerBackTitle: 'Back'
+        }} 
+      />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
       
@@ -144,6 +204,17 @@ export default function SignUpScreen() {
 
       {!showEmailForm ? (
         <>
+          {/* Apple Sign Up Option (iOS only) */}
+          {Platform.OS === 'ios' ? (
+            <AppleAuthenticationButton
+              onPress={handleAppleSignUp}
+              buttonType={AppleAuthenticationButtonType.SIGN_UP}
+              buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={8}
+              style={{ width: '100%', height: 50, marginBottom: 8 }}
+            />
+          ) : null}
+
           {/* Google Sign Up Option */}
           {googleReady ? (
             <Pressable
@@ -182,7 +253,7 @@ export default function SignUpScreen() {
           {/* Email Sign Up Option */}
           <Button onPress={() => setShowEmailForm(true)} variant="outline">
             <Ionicons name="mail" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-            Sign up with Email
+            <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
       ) : (

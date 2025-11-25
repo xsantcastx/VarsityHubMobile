@@ -161,6 +161,7 @@ const createPostSchema = z
     // Accept any non-empty string to support data URIs or local uploads handled elsewhere
     media_url: z.string().trim().min(1).optional(),
     game_id: z.string().optional(),
+    event_id: z.string().optional(), // For event-specific posts
     location: locationSchema,
   })
   // Require at least content or media_url
@@ -170,6 +171,8 @@ const createPostSchema = z
   });
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
+import { verifyEventPostingPermission } from '../lib/geofencing.js';
+import { notifyPostInteraction } from '../lib/notifications.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -181,6 +184,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   const data = parsed.data;
+  
   // Normalize and enrich location
   let lat: number | null = null;
   let lng: number | null = null;
@@ -207,6 +211,27 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     } catch {}
   } else {
     country_code = preferCountry || null;
+  }
+
+  // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
+  // If this is an event-specific post, verify user is at the venue
+  if ((data as any).event_id) {
+    const verification = await verifyEventPostingPermission(
+      (data as any).event_id,
+      req.user.id,
+      lat,
+      lng
+    );
+
+    if (!verification.allowed) {
+      return res.status(403).json({
+        error: 'Location verification failed',
+        message: verification.reason,
+        distance: verification.distance,
+      });
+    }
+
+    console.log(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
   }
 
   const post = await prisma.post.create({
@@ -321,9 +346,22 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
     const post = await prisma.post.findUnique({ where: { id }, select: { author_id: true } });
     const recipient = post?.author_id;
     if (recipient && recipient !== req.user.id) {
-      await (prisma as any).notification.create({ data: { user_id: recipient, actor_id: req.user.id, type: 'COMMENT', post_id: id, comment_id: comment.id } });
+      await (prisma as any).notification.create({ 
+        data: { user_id: recipient, actor_id: req.user.id, type: 'COMMENT', post_id: id, comment_id: comment.id } 
+      });
+      
+      // Send push notification
+      await notifyPostInteraction(
+        recipient,
+        'comment',
+        req.user.id,
+        comment.author?.display_name || 'Someone',
+        id
+      );
     }
-  } catch {}
+  } catch (e) {
+    console.error('Failed to send comment notification:', e);
+  }
   res.status(201).json(comment);
 });
 
@@ -349,14 +387,37 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
     prisma.post.update({ where: { id: postId }, data: { upvotes_count: { increment: 1 } } }),
   ]);
   const { upvotes_count } = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { upvotes_count: true } });
+  
   // Notify post author (if not self)
   try {
-    const post = await prisma.post.findUnique({ where: { id: postId }, select: { author_id: true } });
+    const post = await prisma.post.findUnique({ 
+      where: { id: postId }, 
+      select: { 
+        author_id: true,
+        author: { select: { display_name: true } }
+      } 
+    });
     const recipient = post?.author_id;
     if (recipient && recipient !== userId) {
-      await (prisma as any).notification.create({ data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId } });
+      await (prisma as any).notification.create({ 
+        data: { user_id: recipient, actor_id: userId, type: 'UPVOTE', post_id: postId } 
+      });
+      
+      // Send push notification
+      const actor = await prisma.user.findUnique({ where: { id: userId }, select: { display_name: true } });
+      if (actor) {
+        await notifyPostInteraction(
+          recipient,
+          'like',
+          userId,
+          actor.display_name || 'Someone',
+          postId
+        );
+      }
     }
-  } catch {}
+  } catch (e) {
+    console.error('Failed to send upvote notification:', e);
+  }
   return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
 });
 

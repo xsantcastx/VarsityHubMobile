@@ -100,6 +100,20 @@ export default function ManageSeasonScreen() {
   const [games, setGames] = useState<Game[]>([]);
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
 
+  // Guard: restrict to coach role
+  useEffect(() => {
+    (async () => {
+      try {
+        // @ts-ignore JS exports
+        const { User } = await import('@/api/entities');
+        const me: any = await User.me();
+        if (me?.preferences?.role !== 'coach') {
+          router.replace('/(tabs)/feed');
+        }
+      } catch {}
+    })();
+  }, [router]);
+
   const loadTeam = useCallback(async () => {
     if (!params.teamId) return;
     try {
@@ -114,9 +128,24 @@ export default function ManageSeasonScreen() {
     try {
       setLoading(true);
       const backendGames = await GameAPI.list('-date');
+      const targetTeamId = params.teamId ? String(params.teamId) : null;
+      const relevantGames: any[] = Array.isArray(backendGames)
+        ? backendGames.filter((game: any) => {
+            if (!targetTeamId) return true;
+            const candidateIds = [
+              game.home_team_id,
+              game.away_team_id,
+              game.team_id,
+              ...(Array.isArray(game.teams) ? game.teams.map((t: any) => t?.id) : []),
+            ]
+              .filter(Boolean)
+              .map((id: any) => String(id));
+            return candidateIds.includes(targetTeamId);
+          })
+        : [];
       
       // Convert backend games to local Game format
-      const convertedGames: Game[] = backendGames.map((game: any) => {
+      const convertedGames: Game[] = relevantGames.map((game: any) => {
         const converted = {
           id: game.id,
           homeTeam: game.home_team || null,
@@ -154,7 +183,7 @@ export default function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [params.teamId]);
 
   // Load games on mount
   useEffect(() => {
@@ -1922,4 +1951,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

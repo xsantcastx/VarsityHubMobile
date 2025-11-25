@@ -30,7 +30,6 @@ export default function Step10Confirmation() {
   // Check completeness of onboarding
   const getCompletionStatus = () => {
     const isFan = ob.role === 'fan';
-    const isRookie = ob.role === 'rookie';
     const isCoach = ob.role === 'coach';
 
     const checks = [
@@ -39,7 +38,7 @@ export default function Step10Confirmation() {
         completed: !!ob.role,
         required: true,
         route: '/onboarding/step-1-role',
-        description: 'Choose your role: Fan, Rookie (Player), or Coach/Organizer'
+        description: 'Choose your role: Fan or Coach/Organizer'
       },
       {
         label: 'Basic Info',
@@ -51,7 +50,7 @@ export default function Step10Confirmation() {
       {
         label: 'Plan Selected',
         completed: !!ob.plan,
-        required: isCoach, // Only required for coaches, not fans or rookies
+        required: isCoach, // Only required for coaches
         route: '/onboarding/step-3-plan',
         description: 'Choose your subscription plan (coaches only)'
       },
@@ -166,19 +165,19 @@ export default function Step10Confirmation() {
         zip_code: ob.zip_code,
         
         // Plan and subscription (ONLY for coaches)
-        plan: ob.role === 'coach' ? ob.plan : undefined,
-        payment_pending: ob.role === 'coach' ? ob.payment_pending : undefined,
+        plan: isCoach ? ob.plan : undefined,
+        payment_pending: isCoach ? ob.payment_pending : undefined,
         
         // Team/Organization (ONLY for coaches)
-        team_id: ob.role === 'coach' ? ob.team_id : undefined,
-        team_name: ob.role === 'coach' ? ob.team_name : undefined,
-        organization_id: ob.role === 'coach' ? ob.organization_id : undefined,
-        organization_name: ob.role === 'coach' ? ob.organization_name : undefined,
-        sport: ob.role === 'coach' ? ob.sport : undefined,
+        team_id: isCoach ? ob.team_id : undefined,
+        team_name: isCoach ? ob.team_name : undefined,
+        organization_id: isCoach ? ob.organization_id : undefined,
+        organization_name: isCoach ? ob.organization_name : undefined,
+        sport: isCoach ? ob.sport : undefined,
         
         // Authorized users (ONLY for coaches)
-        authorized: ob.role === 'coach' ? ob.authorized : undefined,
-        authorized_users: ob.role === 'coach' ? ob.authorized_users : undefined,
+        authorized: isCoach ? ob.authorized : undefined,
+        authorized_users: isCoach ? ob.authorized_users : undefined,
         
         // Profile (ALL users)
         avatar_url: ob.avatar_url,
@@ -308,7 +307,7 @@ export default function Step10Confirmation() {
           <View style={styles.summaryItem}>
             <Text style={styles.summaryLabel}>Role:</Text>
             <Text style={styles.summaryValue}>
-              {ob.role === 'fan' ? 'Fan' : ob.role === 'rookie' ? 'Rookie (Player)' : 'Coach/Organizer'}
+              {ob.role === 'fan' ? 'Fan' : 'Coach/Organizer'}
             </Text>
           </View>
           {ob.role === 'coach' && (
@@ -317,7 +316,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
                  ob.plan === 'veteran' ? 'Veteran ($2.50/month per team)' : 
-                 ob.plan === 'legend' ? 'Legend ($17.50/year unlimited)' : 'Not selected'}
+                 ob.plan === 'legend' ? 'Legend ($19.99/year unlimited)' : 'Not selected'}
               </Text>
             </View>
           )}
@@ -325,12 +324,6 @@ export default function Step10Confirmation() {
             <View style={styles.summaryItem}>
               <Text style={styles.summaryLabel}>Subscription:</Text>
               <Text style={styles.summaryValue}>Free (No subscription needed)</Text>
-            </View>
-          )}
-          {ob.role === 'rookie' && (
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Subscription:</Text>
-              <Text style={styles.summaryValue}>Free (Players don't need subscriptions)</Text>
             </View>
           )}
           {ob.team_name && (

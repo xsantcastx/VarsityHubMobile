@@ -13,10 +13,10 @@ This document reflects the **actual Stripe product IDs and pricing** currently c
 - **Stripe Product ID:** N/A (No Stripe product needed)
 - **Limit:** First 2 teams free
 - **Description:** Encourage onboarding and early engagement without paywalls
-- **Backend Code:** 150 cents = $1.50/month (fallback - not used if Stripe Price ID exists)
+- **Backend Code:** N/A (no billing for Rookie)
 
 **Features:**
-- Up to 2 teams
+- First 2 teams free
 - Basic scheduling and roster management
 - Event creation
 - Photo/video sharing
@@ -28,53 +28,51 @@ After 2 teams, users must upgrade to Veteran or Legend to add more teams.
 ---
 
 ### Veteran Account
-- **Price:** $1.50/month **per team** (beyond first 2 free)
+- **Price:** $2.50/month **per team** (beyond first 2 free)
 - **Stripe Product ID:** `prod_TCjgM4tFKjUigv`
 - **Stripe Price ID:** `price_1SCd6HRuB2a0vFjp1QlboTEv` (from server/.env)
 - **Billing:** Monthly recurring per team
-- **Backend Code:** 150 cents = $1.50/month
+- **Backend Code:** 250 cents = $2.50/month
 
 **Pricing Model:**
 - First 2 teams: FREE (Rookie)
-- Team 3+: $1.50/month each
-- Example: 5 teams = 2 free + 3 paid = $4.50/month total
+- Team 3+: $2.50/month each
+- Example: 5 teams = 2 free + 3 paid = $7.50/month total
 
 **Features:**
 - All Rookie features
-- Unlimited teams (pay per team)
-- Priority support
-- Per-team administrators
+- Pay per team added
+- Up to 12 authorized users
 - 🏆 Blue shield badge on profile
 - Event scheduling tools
 - Parent communication
 
 **Limitations:**
-Each team beyond 2 incurs a $1.50/month charge.
+Each team beyond 2 incurs a $2.50/month charge.
 
 ---
 
 ### Legend Account
-- **Price:** $17.50/year (flat rate, unlimited)
+- **Price:** $19.99/year (flat rate, unlimited)
 - **Stripe Product ID:** `prod_TGw0PNT97OCrl8`
 - **Stripe Price ID:** `price_1SCd6IRuB2a0vFjpQOSdctN4` (from server/.env)
 - **Billing:** Annual recurring
-- **Backend Code:** 1750 cents = $17.50/year
+- **Backend Code:** 1999 cents = $19.99/year
 
 **Pricing Model:**
 - Unlimited teams for one annual fee
 - Best value for organizations with 3+ teams
 
 **Value Calculation:**
-- 3 teams on Veteran: $1.50 × 1 team = $1.50/month = $18/year
-- 3 teams on Legend: $17.50/year (saves $0.50 + gets premium features)
-- 10 teams on Veteran: $1.50 × 8 teams = $12/month = $144/year
-- 10 teams on Legend: $17.50/year (saves $126.50!)
+- 3 teams on Veteran: $2.50 × 1 team × 12 months = $30/year
+- 3 teams on Legend: $19.99/year (saves $10.01 + gets premium features)
+- 10 teams on Veteran: $2.50 × 8 teams × 12 months = $240/year
+- 10 teams on Legend: $19.99/year (saves $220.01!)
 
 **Features:**
 - All Veteran features
 - Unlimited teams included (no per-team charge)
-- Priority support (24hr response)
-- Unlimited administrators
+- Unlimited authorized users
 - 🥇 Gold trophy badge on profile
 - Advanced analytics dashboard
 - Custom branding options
@@ -118,8 +116,8 @@ Each team beyond 2 incurs a $1.50/month charge.
 | Tier / Product | Description | Price | Stripe Product ID | Stripe Price ID | Backend (cents) |
 |----------------|-------------|-------|-------------------|-----------------|-----------------|
 | **Rookie** | First two teams free | FREE | N/A | N/A | N/A |
-| **Veteran** | Per-team monthly subscription | $1.50/month per team | `prod_TCjgM4tFKjUigv` | `price_1SCd6HRuB2a0vFjp1QlboTEv` | 150 |
-| **Legend** | Annual unlimited subscription | $17.50/year | `prod_TGw0PNT97OCrl8` | `price_1SCd6IRuB2a0vFjpQOSdctN4` | 1750 |
+| **Veteran** | Per-team monthly subscription | $2.50/month per team | `prod_TCjgM4tFKjUigv` | `price_1SCd6HRuB2a0vFjp1QlboTEv` | 250 |
+| **Legend** | Annual unlimited subscription | $19.99/year | `prod_TGw0PNT97OCrl8` | `price_1SCd6IRuB2a0vFjpQOSdctN4` | 1999 |
 | **Ad (Mon–Thu)** | Weekday ad slot | $8/week | `prod_TJtJaRjlcRrFQM` | TBD | 800 |
 | **Ad (Fri–Sun)** | Weekend ad slot | $10/week | `prod_TJtKOftqpmv4Zp` | TBD | 1000 |
 
@@ -149,15 +147,15 @@ File: `server/src/routes/payments.ts`
 // Membership fallback (lines 103-116)
 price_data: {
   currency: 'usd',
-  unit_amount: chosen === 'veteran' ? 150 : 1750, // $1.50 or $17.50
+  unit_amount: chosen === 'veteran' ? 250 : 1999, // $2.50 or $19.99
   recurring: { 
     interval: chosen === 'veteran' ? 'month' : 'year' 
   },
   product_data: {
     name: 'Membership - ' + chosen,
     description: chosen === 'veteran' 
-      ? 'Veteran plan - $1.50/month per team' 
-      : 'Legend plan - $17.50/year unlimited (fallback price)',
+      ? 'Veteran plan - $2.50/month per team' 
+      : 'Legend plan - $19.99/year unlimited (fallback price)',
   },
 }
 ```
@@ -195,21 +193,21 @@ price_data: {
 
 ### Small Organization (3 teams)
 - **Rookie:** FREE (2 teams) → $0/year
-- **Veteran:** $1.50 × 1 team × 12 months = $18/year
-- **Legend:** $17.50/year
-- **Best Choice:** Legend (saves $0.50 + premium features)
+- **Veteran:** $2.50 × 1 team × 12 months = $30/year
+- **Legend:** $19.99/year
+- **Best Choice:** Legend (saves $10.01 + premium features)
 
 ### Medium Organization (5 teams)
 - **Rookie:** Not allowed (2 team limit)
-- **Veteran:** $1.50 × 3 teams × 12 months = $54/year
-- **Legend:** $17.50/year
-- **Best Choice:** Legend (saves $36.50!)
+- **Veteran:** $2.50 × 3 teams × 12 months = $90/year
+- **Legend:** $19.99/year
+- **Best Choice:** Legend (saves $70.01!)
 
 ### Large Organization (10 teams)
 - **Rookie:** Not allowed (2 team limit)
-- **Veteran:** $1.50 × 8 teams × 12 months = $144/year
-- **Legend:** $17.50/year
-- **Best Choice:** Legend (saves $126.50!)
+- **Veteran:** $2.50 × 8 teams × 12 months = $240/year
+- **Legend:** $19.99/year
+- **Best Choice:** Legend (saves $220.01!)
 
 **Insight:** Legend becomes dramatically more valuable with more teams, naturally driving enterprise customers to premium tier.
 
@@ -239,19 +237,19 @@ price_data: {
 
 ## 🧪 Testing Checklist
 
-### Veteran Plan ($1.50/month per team)
+### Veteran Plan ($2.50/month per team)
 - [ ] Rookie user with 2 teams sees upgrade prompt at 3rd team
 - [ ] Veteran signup uses Stripe Price ID: `price_1SCd6HRuB2a0vFjp1QlboTEv`
-- [ ] Stripe checkout shows $1.50/month recurring
-- [ ] After payment, user can add unlimited teams
-- [ ] Each team shows $1.50/month charge in Stripe dashboard
+- [ ] Stripe checkout shows $2.50/month recurring
+- [ ] After payment, user can add teams at $2.50/month each
+- [ ] Each team shows $2.50/month charge in Stripe dashboard
 - [ ] User can downgrade if they remove teams
 
-### Legend Plan ($17.50/year)
+### Legend Plan ($19.99/year)
 - [ ] Legend signup uses Stripe Price ID: `price_1SCd6IRuB2a0vFjpQOSdctN4`
-- [ ] Stripe checkout shows $17.50/year recurring
+- [ ] Stripe checkout shows $19.99/year recurring
 - [ ] After payment, user can add unlimited teams at no extra charge
-- [ ] Stripe dashboard shows single $17.50/year subscription (not per-team)
+- [ ] Stripe dashboard shows single $19.99/year subscription (not per-team)
 - [ ] User sees Gold badge and premium features
 
 ### Ad Slots

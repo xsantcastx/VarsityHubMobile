@@ -1,10 +1,12 @@
 import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '../api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Image,
@@ -19,7 +21,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
-import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
@@ -31,7 +32,7 @@ interface QuickAddGameModalProps {
   onSave: (gameData: QuickGameData) => void;
   currentTeamName?: string; // Optional current team context
   currentTeamId?: string; // Current team ID for database relation
-  userRole?: 'fan' | 'rookie' | 'coach'; // User role to customize defaults
+  userRole?: 'fan' | 'coach'; // User role to customize defaults
   initialData?: {
     id?: string;
     opponent: string;
@@ -100,10 +101,8 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
 export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, userRole = 'fan', initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const { teams: rawTeams, loading: loadingTeams } = useTeamOptions(true);
   
-  // Team state
-  const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [loadingTeams, setLoadingTeams] = useState(false);
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   
@@ -134,8 +133,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     switch (role) {
       case 'coach':
         return 'game';
-      case 'rookie':
-        return 'meeting';
       case 'fan':
       default:
         return 'watch_party';
@@ -219,62 +216,29 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
     }
   }, [initialData, visible]);
 
-  // Load teams when modal opens
-  useEffect(() => {
-    if (visible && teams.length === 0) {
-      loadTeams();
-    }
-  }, [visible]);
-
-  const loadTeams = async () => {
-    try {
-      setLoadingTeams(true);
-      const teamsData = await Team.list();
-      const teamOptions: TeamOption[] = teamsData.map((team: any) => ({
-        id: team.id,
-        name: team.name,
-        logo: team.logo_url || team.avatar_url,
-        venue_address: team.venue_address,
-        venue_lat: team.venue_lat,
-        venue_lng: team.venue_lng,
-        venue_place_id: team.venue_place_id,
-      }));
-      
-      console.log('Loaded teams:', teamOptions.map(t => ({ name: t.name, hasLogo: !!t.logo, hasVenue: !!t.venue_address })));
-      
-      // Add some default teams if none exist
-      if (teamOptions.length === 0) {
-        console.log('No teams found, adding defaults with sample logos');
-        teamOptions.push(
-          { id: 'my-team', name: currentTeamName || 'My Team', logo: 'https://via.placeholder.com/100/FF0000/FFFFFF?text=MT' },
-          { id: 'varsity-team', name: 'Varsity Team', logo: 'https://via.placeholder.com/100/0000FF/FFFFFF?text=VT' },
-          { id: 'home-team', name: 'Home Team', logo: 'https://via.placeholder.com/100/00FF00/FFFFFF?text=HT' },
-          { id: 'eagles', name: 'Eagles', logo: 'https://via.placeholder.com/100/FFA500/FFFFFF?text=E' },
-          { id: 'warriors', name: 'Warriors', logo: 'https://via.placeholder.com/100/800080/FFFFFF?text=W' },
-          { id: 'lions', name: 'Lions', logo: 'https://via.placeholder.com/100/FFD700/000000?text=L' },
-          { id: 'tigers', name: 'Tigers', logo: 'https://via.placeholder.com/100/FF8C00/FFFFFF?text=T' },
-          { id: 'bulldogs', name: 'Bulldogs', logo: 'https://via.placeholder.com/100/8B4513/FFFFFF?text=B' },
-        );
-      }
-      
-      setTeams(teamOptions);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-      // Add default teams on error
-      setTeams([
-        { id: 'my-team', name: currentTeamName || 'My Team' },
-        { id: 'varsity-team', name: 'Varsity Team' },
-        { id: 'home-team', name: 'Home Team' },
+  const teams: TeamOption[] = useMemo(() => {
+    if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
+      return [
+        { id: 'my-team', name: currentTeamName || 'My Team', logo: 'https://via.placeholder.com/100/FF0000/FFFFFF?text=MT' },
+        { id: 'varsity-team', name: 'Varsity Team', logo: 'https://via.placeholder.com/100/0000FF/FFFFFF?text=VT' },
+        { id: 'home-team', name: 'Home Team', logo: 'https://via.placeholder.com/100/00FF00/FFFFFF?text=HT' },
         { id: 'eagles', name: 'Eagles' },
         { id: 'warriors', name: 'Warriors' },
         { id: 'lions', name: 'Lions' },
         { id: 'tigers', name: 'Tigers' },
         { id: 'bulldogs', name: 'Bulldogs' },
-      ]);
-    } finally {
-      setLoadingTeams(false);
+      ];
     }
-  };
+    return rawTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name,
+      logo: team.logo_url || team.avatar_url,
+      venue_address: team.venue_address,
+      venue_lat: team.venue_lat,
+      venue_lng: team.venue_lng,
+      venue_place_id: team.venue_place_id,
+    }));
+  }, [currentTeamName, rawTeams]);
 
   // Set home venue when current team changes or modal opens
   useEffect(() => {
@@ -412,8 +376,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           try {
             setUploadingBanner(true);
             const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
-            const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-            const uploaded = await uploadFile(base, uri, 'match-banner.png', 'image/png');
+            const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
             const url = uploaded?.url || uploaded?.path || null;
             if (url) {
               finalData.banner_url = url;
@@ -514,10 +477,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const uploadCustomBanner = async (uri: string) => {
     setUploadingCustomBanner(true);
     try {
-      // Use the production Railway API URL directly
-      const base = 'https://api-production-8ac3.up.railway.app';
-      
-      const uploaded = await uploadFile(base, uri, 'custom-banner.jpg', 'image/jpeg');
+      // Upload using dynamic API base
+      const uploaded = await uploadFile(getApiBaseUrl(), uri, 'custom-banner.jpg', 'image/jpeg');
       
       const url = uploaded?.url || uploaded?.path;
       
@@ -1206,8 +1167,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setEditorVisible(false);
       setUploadingBanner(true);
       try {
-        const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-        const uploaded = await uploadFile(base, uri, 'edited-banner.png', 'image/png');
+        const uploaded = await uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
         const url = uploaded?.url || uploaded?.path || null;
         if (url) setBannerUrl(url);
       } catch (e) {

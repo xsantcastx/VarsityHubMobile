@@ -134,7 +134,7 @@ These determine **what features users can access** and **how they use the app**.
 
 ### Veteran
 - **Price:** $70/year ($7,000 cents in backend)
-- **Teams:** Unlimited teams ($1.50/month per extra team)
+- **Teams:** Pay per team added ($2.50/month per team)
 - **Features:** Priority support, advanced analytics
 - **Payment:** Stripe checkout required
 

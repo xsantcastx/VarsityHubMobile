@@ -1,43 +1,69 @@
-import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
+import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function BlockedUsersScreen() {
   const [loading, setLoading] = useState(true);
-  const [list, setList] = useState<string[]>([]);
+  const [list, setList] = useState<any[]>([]);
   const [email, setEmail] = useState('');
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      const arr = await settingsStore.getJson<string[]>(SETTINGS_KEYS.BLOCKED_USERS, []);
-      if (!mounted) return;
-      setList(Array.isArray(arr) ? arr : []);
+  const loadBlocked = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await User.blockedUsers();
+      setList(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error('Failed to load blocked users', err);
+      Alert.alert('Error', 'Unable to load blocked users right now.');
+    } finally {
       setLoading(false);
-    })();
-    return () => { mounted = false; };
+    }
   }, []);
 
-  const save = async (arr: string[]) => {
-    setList(arr);
-    await settingsStore.setJson(SETTINGS_KEYS.BLOCKED_USERS, arr);
-  };
+  useEffect(() => {
+    loadBlocked();
+  }, [loadBlocked]);
 
-  const add = async () => {
-    const e = email.trim().toLowerCase();
-    if (!e || !e.includes('@')) { Alert.alert('Enter a valid email'); return; }
-    if (list.includes(e)) { setEmail(''); return; }
-    await save([e, ...list]);
-    setEmail('');
-  };
+  const add = useCallback(async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@')) {
+      Alert.alert('Invalid email', 'Enter the email of the person you want to block.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const match = await User.lookupByEmail(trimmed);
+      if (!match?.id) {
+        Alert.alert('User not found', 'No account matches that email.');
+        return;
+      }
+      await User.block(match.id);
+      setEmail('');
+      await loadBlocked();
+      Alert.alert('Blocked', `${match.display_name || trimmed} cannot message you.`);
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.message || 'Unable to block user.';
+      Alert.alert('Error', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [email, loadBlocked]);
 
-  const remove = async (e: string) => {
-    await save(list.filter(x => x !== e));
-  };
+  const remove = useCallback(async (userId: string) => {
+    try {
+      setLoading(true);
+      await User.unblock(userId);
+      await loadBlocked();
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.message || 'Unable to unblock user.';
+      Alert.alert('Error', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadBlocked]);
 
   return (
     <View style={styles.container}>
@@ -46,8 +72,17 @@ export default function BlockedUsersScreen() {
       <Text style={styles.subtitle}>People you won’t receive messages from.</Text>
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-        <Input placeholder="user@example.com" value={email} onChangeText={setEmail} style={{ flex: 1 }} />
-  <Button onPress={add}><Text>Add</Text></Button>
+        <Input
+          placeholder="user@example.com"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={{ flex: 1 }}
+        />
+        <Button onPress={add} disabled={loading || !email.trim()}>
+          <Text>{loading ? '...' : 'Block'}</Text>
+        </Button>
       </View>
 
       {loading ? (
@@ -57,11 +92,16 @@ export default function BlockedUsersScreen() {
       ) : (
         <FlatList
           data={list}
-          keyExtractor={(e) => e}
+          keyExtractor={(user) => user.id}
           renderItem={({ item }) => (
             <View style={styles.row}>
-              <Text style={styles.email}>{item}</Text>
-              <Pressable onPress={() => remove(item)} style={styles.removeBtn}><Text style={styles.removeText}>Remove</Text></Pressable>
+              <View>
+                <Text style={styles.email}>{item.display_name || item.email}</Text>
+                <Text style={[styles.muted, { fontSize: 12 }]}>{item.email}</Text>
+              </View>
+              <Pressable onPress={() => remove(item.id)} style={styles.removeBtn}>
+                <Text style={styles.removeText}>Unblock</Text>
+              </Pressable>
             </View>
           )}
           ItemSeparatorComponent={() => <View style={{ height: 8 }} />}

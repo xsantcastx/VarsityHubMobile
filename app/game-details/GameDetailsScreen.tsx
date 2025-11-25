@@ -10,8 +10,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -461,7 +462,7 @@ const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
 };
 
 const GameDetailsScreen = () => {
-  const { id, eventId } = useLocalSearchParams<{ id?: string; eventId?: string }>();
+  const { id, teamId, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
@@ -546,7 +547,7 @@ const GameDetailsScreen = () => {
       try { numAnimA.removeListener(idA); } catch (e) {}
       try { numAnimB.removeListener(idB); } catch (e) {}
     };
-  }, [numAnimA, numAnimB]);
+  }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
   // Track if the stories viewer is open to avoid unnecessary re-renders that can cause flicker on some devices
   useEffect(() => {
@@ -909,6 +910,18 @@ const GameDetailsScreen = () => {
 
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
+
+    // Request permissions first
+    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'You need to grant camera and photo library permissions to add a story.'
+      );
+      return;
+    }
     
     // Show action sheet with camera first, then gallery
     Alert.alert(
@@ -930,12 +943,12 @@ const GameDetailsScreen = () => {
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
               
               const asset = result.assets[0];
-              const base =
-                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
-              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
-              const uploaded = await uploadFile(base, asset.uri, name, mime);
+              const base = getApiBaseUrl();
+              const uri = asset.uri;
+              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+
+              const uploaded = await uploadFile(base, uri, fileName, mimeType);
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
@@ -966,12 +979,12 @@ const GameDetailsScreen = () => {
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
               
               const asset = result.assets[0];
-              const base =
-                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
-              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
-              const uploaded = await uploadFile(base, asset.uri, name, mime);
+              const base = getApiBaseUrl();
+              const uri = asset.uri;
+              const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+              const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+              
+              const uploaded = await uploadFile(base, uri, fileName, mimeType);
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
@@ -1078,7 +1091,7 @@ const GameDetailsScreen = () => {
       Animated.timing(numAnimA, { toValue: targetA, duration: dur, useNativeDriver: false }),
       Animated.timing(numAnimB, { toValue: targetB, duration: dur, useNativeDriver: false }),
     ]).start();
-  }, [voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total, prefersReducedMotion]);
+  }, [numAnimA, numAnimB, pctAnimA, pctAnimB, prefersReducedMotion, voteAnimated.A, voteAnimated.B, voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total]);
 
   const onRefresh = useCallback(() => {
     load(true);
@@ -1131,7 +1144,10 @@ const GameDetailsScreen = () => {
     if (!vm) return;
     try {
       await Share.share({ message: `${vm.title} on VarsityHub`, url: bannerUrl ?? undefined });
-    } catch {}
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert('Error', 'Could not share at this time.');
+    }
   }, [vm, bannerUrl]);
 
   const onPressLocation = useCallback(() => {
@@ -1253,8 +1269,8 @@ const renderVoteSection = () => {
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
   const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
-  const leftLabel = `${teamALabel} � ${Math.round(pctA)}%`;
-  const rightLabel = `${teamBLabel} � ${Math.round(pctB)}%`;
+  const leftLabel = `${teamALabel} ${Math.round(pctA)}%`;
+  const rightLabel = `${teamBLabel} ${Math.round(pctB)}%`;
   const pressDisabled = Boolean(vm?.isPast) || voteBusy;
   const selectedTeam = summary.userVote ?? null;
   const showFloatLabelA = pctA < 12;
@@ -1385,10 +1401,7 @@ const renderVoteSection = () => {
   );
 };
 
-
-
-
-  const renderBanner = () => {
+const renderBanner = () => {
   // Prefer a full MatchBanner hero if both teams have logos available
   const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
   const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
@@ -1546,28 +1559,28 @@ const renderVoteSection = () => {
     // If we have teams array with IDs, use that
     if (vm?.teams?.length) {
       return (
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
-          {vm.teams.slice(0, 2).map((team) => {
-            const orgName = getOrganizationFromTeamName(team.name);
-            
-            return (
-              <Pressable
-                key={team.id}
-                style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
-                onPress={() => router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${team.name} team`}
-              >
-                {team.avatarUrl ? (
-                  <Image source={{ uri: team.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
-                ) : (
-                  <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
-                )}
-                <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4, textAlign: 'center' }}>{team.name}</Text>
-                <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap to view team</Text>
-              </Pressable>
-            );
-          })}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', gap: 10, marginVertical: 12 }}>
+          {vm.teams.slice(0, 2).map((team) => (
+            <Pressable
+              key={team.id}
+              style={({ pressed }) => [
+                styles.teamLinkButton,
+                { 
+                  backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].background,
+                  borderColor: Colors[colorScheme].border,
+                }
+              ]}
+              onPress={() => router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+            >
+              {team.avatarUrl ? (
+                <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
+              ) : (
+                <Ionicons name="people-outline" size={20} color={Colors[colorScheme].text} />
+              )}
+              <Text style={styles.teamLinkName} numberOfLines={1}>{team.name}</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+            </Pressable>
+          ))}
         </View>
       );
     }
@@ -1588,26 +1601,29 @@ const renderVoteSection = () => {
     const teams = [homeTeam, awayTeam].filter(Boolean);
     
     return (
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', gap: 10, marginVertical: 12 }}>
         {teams.map((teamName, index) => {
-          const orgName = getOrganizationFromTeamName(teamName!);
           const teamLogo = getTeamLogo(teamName!);
           
           return (
             <Pressable
               key={index}
-              style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
+              style={({ pressed }) => [
+                styles.teamLinkButton,
+                { 
+                  backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].background,
+                  borderColor: Colors[colorScheme].border,
+                }
+              ]}
               onPress={() => router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${teamName} team`}
             >
               {teamLogo ? (
-                <Image source={{ uri: teamLogo }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
+                <Image source={{ uri: teamLogo }} style={styles.teamLinkAvatar} contentFit="cover" />
               ) : (
-                <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
+                <Ionicons name="people-outline" size={20} color={Colors[colorScheme].text} />
               )}
-              <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4, textAlign: 'center' }}>{teamName}</Text>
-              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap to view team</Text>
+              <Text style={styles.teamLinkName} numberOfLines={1}>{teamName}</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
             </Pressable>
           );
         })}
@@ -1715,7 +1731,7 @@ const renderVoteSection = () => {
                   <Text style={styles.actionText}>Add Story</Text>
                 </Pressable>
               </View>
-              {/* Stories carousel (only stories section). Also anchor the Stories tab to this position. */}
+              {/* Stories carousel (only stories section). Also anchor the Stories tab to this position */}
               <View
                 onLayout={(e) => {
                   sectionOffsets.current.media = e.nativeEvent.layout.y;
@@ -1746,81 +1762,85 @@ const renderVoteSection = () => {
                   <Text style={styles.sectionTitle}>Posts</Text>
                   <Text style={styles.sectionSubtitle}>{postsSubtitle}</Text>
                 </View>
-                {postsCount ? null : (
-                  <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
-                )}
-
-                {/* Posts Grid View */}
-                {postsCount > 0 && (
-                  <View style={styles.postsGridContainer}>
+                {postsCount > 0 ? (
+                   <View style={styles.postsGridContainer}>
+                   <View style={styles.postsGrid}>
+                     {(vm?.posts || []).map((post: any, index: number) => {
+                       const thumb = post.media_url;
+                       const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                       const likes = post.upvotes_count ?? 0;
+                       const comments = post.comments_count ?? post._count?.comments ?? 0;
+                       return (
+                         <Pressable
+                           key={post.id || index}
+                           style={styles.gridItem}
+                           onPress={() => {
+                             router.push(`/post-detail?id=${post.id}`);
+                           }}
+                         >
+                           {thumb ? (
+                             <View style={styles.gridImageContainer}>
+                               <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                               <View style={styles.gridImageOverlay} />
+                             </View>
+                           ) : (
+                             <View style={[styles.gridImage, styles.gridImageFallback]}>
+                               <LinearGradient 
+                                 colors={["#667eea", "#764ba2", "#f093fb"]} 
+                                 style={StyleSheet.absoluteFillObject as any} 
+                                 start={{ x: 0, y: 0 }} 
+                                 end={{ x: 1, y: 1 }}
+                               />
+                               <View style={styles.textPostOverlay}>
+                                 <Text numberOfLines={4} style={styles.gridTextOnly}>
+                                   {String(post.caption || post.content || '').trim() || 'Post'}
+                                 </Text>
+                               </View>
+                             </View>
+                           )}
+                           {/* Counts overlay */}
+                           <View style={styles.gridCounts}>
+                             <View style={styles.gridCountItem}>
+                               <Ionicons name="arrow-up" size={12} color="#fff" />
+                               <Text style={styles.gridCountText}>{likes}</Text>
+                             </View>
+                             <View style={styles.gridCountItem}>
+                               <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                               <Text style={styles.gridCountText}>{comments}</Text>
+                             </View>
+                           </View>
+                           {/* Media type badge */}
+                           <View style={styles.gridIconBadge}>
+                             {isVideo ? (
+                               <Ionicons name="videocam-outline" size={16} color="#fff" />
+                             ) : (
+                               <Ionicons name="camera-outline" size={16} color="#fff" />
+                             )}
+                           </View>
+                         </Pressable>
+                       );
+                     })}
+                   </View>
+                 </View>
+                ) : (
+                  <View>
+                    <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
                     <View style={styles.postsGrid}>
-                      {(vm?.posts || []).map((post: any, index: number) => {
-                        const thumb = post.media_url;
-                        const isVideo = !!thumb && VIDEO_EXT.test(thumb);
-                        const likes = post.upvotes_count ?? 0;
-                        const comments = post.comments_count ?? post._count?.comments ?? 0;
-                        return (
-                          <Pressable
-                            key={post.id || index}
-                            style={styles.gridItem}
-                            onPress={() => {
-                              router.push(`/post-detail?id=${post.id}`);
-                            }}
-                          >
-                            {thumb ? (
-                              <View style={styles.gridImageContainer}>
-                                <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                                <View style={styles.gridImageOverlay} />
-                              </View>
-                            ) : (
-                              <View style={[styles.gridImage, styles.gridImageFallback]}>
-                                <LinearGradient 
-                                  colors={["#667eea", "#764ba2", "#f093fb"]} 
-                                  style={StyleSheet.absoluteFillObject as any} 
-                                  start={{ x: 0, y: 0 }} 
-                                  end={{ x: 1, y: 1 }}
-                                />
-                                <View style={styles.textPostOverlay}>
-                                  <Text numberOfLines={4} style={styles.gridTextOnly}>
-                                    {String(post.caption || post.content || '').trim() || 'Post'}
-                                  </Text>
-                                </View>
-                              </View>
-                            )}
-                            {/* Counts overlay */}
-                            <View style={styles.gridCounts}>
-                              <View style={styles.gridCountItem}>
-                                <Ionicons name="arrow-up" size={12} color="#fff" />
-                                <Text style={styles.gridCountText}>{likes}</Text>
-                              </View>
-                              <View style={styles.gridCountItem}>
-                                <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                                <Text style={styles.gridCountText}>{comments}</Text>
-                              </View>
-                            </View>
-                            {/* Media type badge */}
-                            <View style={styles.gridIconBadge}>
-                              <Ionicons name={thumb ? (isVideo ? 'videocam' : 'camera-outline') : 'text'} size={14} color="#fff" />
-                            </View>
-                          </Pressable>
-                        );
-                      })}
+                      {[1, 2, 3].map((i) => (
+                        <View key={i} style={[styles.gridItem, styles.gridItemEmpty]}>
+                          <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
+                        </View>
+                      ))}
                     </View>
                   </View>
                 )}
 
-                <View style={styles.verticalFeedActions}>
-                  <Pressable
-                    style={[styles.postCtaBtn, !vm?.gameId ? styles.postCtaBtnDisabled : null]}
-                    onPress={handleCreatePost}
-                    disabled={!vm?.gameId}
-                    accessibilityRole="button"
-                    accessibilityLabel="Create a new post for this game"
-                  >
-                    <Ionicons name="create-outline" size={16} color="#fff" />
-                    <Text style={styles.postCtaText}>Share a post</Text>
+                {postsCount > 0 && (
+                  <Pressable style={styles.viewAllButton} onPress={() => setVerticalFeedOpen(true)}>
+                    <Text style={styles.viewAllButtonText}>View All Posts</Text>
+                    <Ionicons name="arrow-forward" size={14} color={Colors[colorScheme].text} />
                   </Pressable>
-                </View>
+                )}
               </View>
             </>
           ) : null}
@@ -2258,6 +2278,35 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteFloatRight: { right: 28 },
   voteFloatText: { color: '#0f172a', fontWeight: '700', fontSize: 12, textAlign: 'center' },
 
+  teamLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 8,
+    borderRadius: 8,
+    marginVertical: 4,
+  },
+  teamLinkAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  teamLinkName: {
+    flex: 1,
+    fontWeight: '600',
+  },
+  viewAllButton: {
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  viewAllButtonText: {
+    fontWeight: '600',
+  },
+
   bannerTopRow: {
     position: 'absolute',
     left: 16,
@@ -2616,20 +2665,25 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     flexWrap: 'wrap',
     marginHorizontal: -1.5,
   },
-  gridItem: { 
+  gridItem: {
     width: '32%',
-    aspectRatio: 1, 
-    margin: '0.5%', 
-    borderRadius: 12, 
-    overflow: 'hidden', 
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: Colors[colorScheme].surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
+    marginBottom: '2%',
   },
-  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
+  gridItemEmpty: {
+    backgroundColor: Colors[colorScheme].surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors[colorScheme].border,
+  },
+  gridImageContainer: {
+    width: '100%',
+    height: '100%',
+  },
   gridImage: { width: '100%', height: '100%' },
   gridImageOverlay: {
     position: 'absolute',
@@ -2698,20 +2752,17 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
-    paddingVertical: 16,
-    marginTop: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors[colorScheme].border,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
   },
   viewAllPostsText: {
-    color: Colors[colorScheme].tint,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+    marginRight: 8,
   },
 });
-
-
 
 
 

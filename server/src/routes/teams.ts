@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { sendTeamInviteEmail } from '../lib/email.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -32,7 +33,10 @@ teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, re
   
   const rows = await prisma.team.findMany({
     where,
-    orderBy: { created_at: 'desc' },
+    orderBy: [
+      { organization: { name: 'asc' } },
+      { name: 'asc' }
+    ],
     include: { 
       _count: { select: { memberships: true } },
       memberships: {
@@ -452,6 +456,8 @@ const createTeamSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional(),
   sport: z.string().max(100).optional(),
+  club_type: z.enum(['sport', 'extracurricular']).optional(),
+  extracurricular_category: z.string().max(100).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
@@ -484,6 +490,26 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
   const userPlan = prefs.plan || 'rookie';
   const userRole = prefs.role || 'fan';
+
+  // Enforce coach role requirement for team creation
+  if (userRole !== 'coach') {
+    return res.status(403).json({
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create teams.',
+      code: 'COACH_ROLE_REQUIRED'
+    });
+  }
+  
+  // Legend tier restriction: Only Legend users can create extracurricular clubs
+  const clubType = data.club_type || 'sport';
+  if (clubType === 'extracurricular' && userPlan !== 'legend') {
+    return res.status(403).json({
+      error: 'Extracurricular clubs require Legend tier',
+      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      code: 'LEGEND_TIER_REQUIRED',
+      feature: 'extracurricular_clubs',
+    });
+  }
   
   // Rookie plan: max 2 teams as owner
   if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
@@ -506,12 +532,90 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     }
   }
   
+  // Veteran plan: verify subscription quantity matches team count
+  if (userPlan === 'veteran') {
+    const ownedTeamsCount = await prisma.teamMembership.count({
+      where: {
+        user_id: me.id,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    
+    const subscriptionId = prefs.subscription_id;
+    if (!subscriptionId) {
+      return res.status(403).json({
+        error: 'No active subscription',
+        message: 'Veteran plan requires an active subscription. Please update your billing settings.',
+        code: 'NO_ACTIVE_SUBSCRIPTION',
+      });
+    }
+    
+    // Check Stripe subscription quantity
+    try {
+      const stripe = await import('stripe');
+      const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
+      const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
+      
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        return res.status(403).json({
+          error: 'Subscription not active',
+          message: 'Your Veteran subscription is not active. Please update your billing settings.',
+          code: 'SUBSCRIPTION_NOT_ACTIVE',
+        });
+      }
+      
+      const subscriptionItem = subscription.items.data[0];
+      const paidQuantity = subscriptionItem?.quantity || 0;
+      
+      // User is trying to create team number (ownedTeamsCount + 1)
+      // They should have paid for at least that many teams
+      if (ownedTeamsCount >= paidQuantity) {
+        return res.status(403).json({
+          error: 'Team limit reached',
+          message: `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
+          code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
+          paid_quantity: paidQuantity,
+          current_teams: ownedTeamsCount,
+        });
+      }
+    } catch (err) {
+      console.error('[Teams] Failed to verify Veteran subscription:', err);
+      return res.status(500).json({
+        error: 'Subscription verification failed',
+        message: 'Unable to verify your subscription. Please try again or contact support.',
+      });
+    }
+  }
+  
   // Create team
+  // PLAN LIMITS: Enforce Rookie 2-team maximum (owned teams only)
+  try {
+    const userPrefs = me.preferences as any;
+    const userPlan = (userPrefs?.plan || userPrefs?.role === 'coach' && 'rookie') || 'rookie';
+    if (userPlan === 'rookie') {
+      const ownedCount = await prisma.teamMembership.count({
+        where: { user_id: me.id, role: 'owner' }
+      });
+      if (ownedCount >= 2) {
+        return res.status(403).json({
+          error: 'TEAM_LIMIT_REACHED',
+          message: 'Rookie plan allows a maximum of 2 teams. Upgrade to Veteran or Legend for more.',
+          limit: 2,
+          current: ownedCount
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[teams][rookie-limit] check failed', e);
+  }
   const team = await prisma.team.create({ 
     data: {
       name: data.name,
       description: data.description,
       sport: data.sport,
+      club_type: data.club_type || 'sport',
+      extracurricular_category: data.extracurricular_category,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
       organization_id: data.organization_id,
@@ -551,6 +655,20 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         data: invites,
         skipDuplicates: true,
       });
+        const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
+        await Promise.all(invites.map(async (inv) => {
+          try {
+            await sendTeamInviteEmail({
+              to: inv.email,
+              teamName: team.name,
+              organizationName: null,
+              role: inv.role,
+              inviterName: inviter?.display_name || 'Team Owner',
+            });
+          } catch {
+            /* ignore */
+          }
+        }));
     }
   }
   
@@ -567,9 +685,48 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  // PLAN LIMITS: Enforce authorized user caps
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const prefs = (user?.preferences || {}) as any;
+    const plan = prefs.plan || 'rookie';
+    let limit: number | null = null;
+    if (plan === 'rookie') limit = 1;
+    else if (plan === 'veteran') {
+      const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } });
+      limit = (teamCountTotal * 2) || 12; // fallback 12
+    }
+    // legend => unlimited
+    if (limit !== null) {
+      const inviteCount = await prisma.teamInvite.count({ where: { team_id: id, status: 'pending' } });
+      const memberCount = await prisma.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
+      const totalAuthorized = inviteCount + memberCount;
+      if (totalAuthorized >= limit) {
+        return res.status(403).json({
+          error: 'USER_LIMIT_REACHED',
+          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} (${plan === 'veteran' ? '2 per team' : 'Rookie max'}).`,
+          limit,
+          current: totalAuthorized
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[teams][invite-limit] check failed', e);
+  }
   
   // Create the invite
   const invite = await prisma.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+  // Send invite email (best effort)
+  const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
+  try {
+    await sendTeamInviteEmail({
+      to: email,
+      teamName: team.name,
+      organizationName: null,
+      role: role || 'member',
+      inviterName: inviter?.display_name || 'Team Owner',
+    });
+  } catch {}
   
   // Find the invited user by email and create notification if they exist
   const invitedUser = await prisma.user.findUnique({ where: { email } });

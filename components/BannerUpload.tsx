@@ -135,7 +135,7 @@ export function BannerUpload({
         Animated.timing(hintOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start(() => setShowHint(false));
     }
-  }, [value, fitMode]);
+  }, [fitMode, hintOpacity, value]);
 
   return (
     <View style={styles.container}>

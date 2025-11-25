@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team as TeamApi } from '@/api/entities';
+import { Team as TeamApi, User } from '@/api/entities';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 // @ts-ignore
 import { Game as GameApi } from '@/api/entities';
@@ -65,6 +65,22 @@ export default function ManageTeamsSimpleScreen() {
   useEffect(() => {
     loadTeams().finally(() => setLoading(false));
   }, [loadTeams]);
+
+  // Guard: redirect non-coach users away
+  useEffect(() => {
+    (async () => {
+      try {
+        const me: any = await User.me();
+        const role = me?.preferences?.role;
+        if (role !== 'coach') {
+          Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
+          router.replace('/(tabs)/feed');
+        }
+      } catch {
+        // silently ignore
+      }
+    })();
+  }, [router]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

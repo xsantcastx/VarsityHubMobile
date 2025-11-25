@@ -375,8 +375,8 @@ gamesRouter.get('/:id', async (req, res) => {
     where: { id },
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
-      home_team: { select: { id: true, name: true, avatar_url: true } },
-      away_team: { select: { id: true, name: true, avatar_url: true } },
+      homeTeam: { select: { id: true, name: true, avatar_url: true } },
+      awayTeam: { select: { id: true, name: true, avatar_url: true } },
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });

@@ -20,20 +20,19 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
+        tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : Colors[colorScheme ?? 'light'].tabIconDefault,
         headerShown: false,
         tabBarShowLabel: true,
         tabBarLabelStyle: { 
           fontSize: 12,
-          color: Colors[colorScheme ?? 'light'].text,
         },
         tabBarBackground: TabBarBackground,
         tabBarStyle: {
           height: Math.max(64, 56 + insets.bottom),
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
-          backgroundColor: Colors[colorScheme ?? 'light'].card,
-          borderTopColor: Colors[colorScheme ?? 'light'].border,
+          backgroundColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].card,
+          borderTopColor: colorScheme === 'dark' ? 'transparent' : Colors[colorScheme ?? 'light'].border,
           borderTopWidth: 1,
         },
       }}>

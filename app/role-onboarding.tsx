@@ -459,7 +459,7 @@ export default function RoleOnboardingScreen() {
     if (coachTier === 'rookie') {
       actions = rookieActions;
       welcomeTitle = 'Welcome, Rookie Coach! 🏀';
-      welcomeSubtitle = 'Manage up to 2 teams for free';
+      welcomeSubtitle = 'First two teams free';
     } else if (coachTier === 'veteran') {
       actions = veteranActions;
       welcomeTitle = 'Welcome, Veteran Coach! 🏆';

@@ -2,7 +2,7 @@
   "expo": {
     "name": "VarsityHub",
     "slug": "VarsityHubMobile",
-    "owner": "lime_prod",
+    "owner": "xsantcastx",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -34,11 +34,10 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -83,7 +82,8 @@
       "expo-secure-store",
       "expo-font",
       "expo-audio",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

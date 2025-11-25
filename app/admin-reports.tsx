@@ -13,6 +13,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../api/http';
 
 interface AbuseReport {
   id: string;
@@ -59,7 +60,7 @@ export default function AdminReportsScreen() {
     
     try {
       const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
+      const apiUrl = getApiBaseUrl();
       
       const [reportsRes, statsRes] = await Promise.all([
         fetch(`${apiUrl}/admin/reports?status=${filterStatus}`, {
@@ -122,7 +123,7 @@ export default function AdminReportsScreen() {
   const updateReportStatus = async (reportId: string, status: string, resolutionNote?: string) => {
     try {
       const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
+      const apiUrl = getApiBaseUrl();
       
       const response = await fetch(`${apiUrl}/admin/reports/${reportId}`, {
         method: 'PATCH',
@@ -152,7 +153,7 @@ export default function AdminReportsScreen() {
 
     try {
       const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
+      const apiUrl = getApiBaseUrl();
       
       const response = await fetch(`${apiUrl}/admin/reports/bulk-update`, {
         method: 'POST',
@@ -196,7 +197,7 @@ export default function AdminReportsScreen() {
           onPress: async () => {
             try {
               const token = await (await import('@/api/auth')).loadToken();
-              const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
+              const apiUrl = getApiBaseUrl();
               
               const response = await fetch(`${apiUrl}/admin/reports/bulk-delete`, {
                 method: 'POST',

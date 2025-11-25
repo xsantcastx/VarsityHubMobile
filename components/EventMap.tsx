@@ -48,12 +48,13 @@ export default function EventMap({
   const mapRef = useRef<MapView>(null);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const [showEmptyState, setShowEmptyState] = useState(true);
   const [region, setRegion] = useState<Region>(
     initialRegion || {
-      latitude: 37.78825, // Default to San Francisco
-      longitude: -122.4324,
-      latitudeDelta: 0.5,
-      longitudeDelta: 0.5,
+      latitude: 39.8, // Default to center of USA
+      longitude: -98.5,
+      latitudeDelta: 50, // Wide view to show entire USA
+      longitudeDelta: 50,
     }
   );
 
@@ -72,15 +73,8 @@ export default function EventMap({
           const location = await Location.getCurrentPositionAsync({});
           setUserLocation(location);
 
-          // Center map on user location if no initial region
-          if (!initialRegion) {
-            setRegion({
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
-            });
-          }
+          // Keep USA-wide view, don't auto-zoom to user location
+          // User can tap the location button if they want to zoom to their position
         }
       } catch (error) {
         console.error('Error getting location:', error);
@@ -241,13 +235,15 @@ export default function EventMap({
       )}
 
       {/* No Events Message */}
-      {eventsWithCoordinates.length === 0 && (
+      {eventsWithCoordinates.length === 0 && showEmptyState && (
         <View style={styles.noEventsContainer}>
-          <View
+          <TouchableOpacity
             style={[
               styles.noEventsCard,
               { backgroundColor: Colors[colorScheme].background },
             ]}
+            onPress={() => setShowEmptyState(false)}
+            activeOpacity={0.9}
           >
             <Ionicons
               name="calendar-outline"
@@ -262,7 +258,12 @@ export default function EventMap({
             >
               Events will appear here once they have location data
             </Text>
-          </View>
+            <Text
+              style={[styles.noEventsDismiss, { color: Colors[colorScheme].icon }]}
+            >
+              Tap to dismiss
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -358,10 +359,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
+    textAlign: 'center',
     marginBottom: 8,
   },
   noEventsDescription: {
     fontSize: 14,
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  noEventsDismiss: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 8,
   },
 });

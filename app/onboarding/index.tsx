@@ -8,11 +8,6 @@ export default function OnboardingIndex() {
   const { progress, state, isLoaded } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
   
-  // Log initial values
-  useEffect(() => {
-    console.log('[OnboardingIndex] Initial mount - Progress:', progress, 'isLoaded:', isLoaded, 'State keys:', Object.keys(state));
-  }, []);
-  
   useEffect(() => { 
     // Don't navigate until AsyncStorage has loaded
     if (!isLoaded || hasNavigated) {
@@ -40,7 +35,7 @@ export default function OnboardingIndex() {
     
     setHasNavigated(true);
     router.replace(targetRoute as any);
-  }, [progress, isLoaded, hasNavigated]);
+  }, [hasNavigated, isLoaded, progress, router, state]);
   
   // Show loading indicator while waiting for state to load
   return (
@@ -49,4 +44,3 @@ export default function OnboardingIndex() {
     </View>
   );
 }
-

@@ -78,9 +78,13 @@ export default function RootLayout() {
     }
   }, []);
 
+  const firstSegment = React.useMemo(() => {
+    return Array.isArray(segments) && segments.length ? String(segments[0]) : '';
+  }, [segments]);
+
   React.useEffect(() => {
     if (!navState?.key) return;
-    const first = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
+    const first = firstSegment;
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(first);
     (async () => {
@@ -112,7 +116,7 @@ export default function RootLayout() {
         // Don't redirect on other errors - let user stay where they are
       }
     })();
-  }, [navState?.key, Array.isArray(segments) ? segments.join('/') : '']);
+  }, [firstSegment, navState?.key, router]);
 
   if (!loaded || !navState?.key) {
     return (

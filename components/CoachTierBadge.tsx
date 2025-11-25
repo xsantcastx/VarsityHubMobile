@@ -165,10 +165,10 @@ function getTierBenefits(tier: CoachTier) {
   switch (tier) {
     case 'legend':
       return {
-        price: '$17.50/year',
+        price: '$19.99/year',
         description: 'Best value for established multi-team programs',
         features: [
-          'Unlimited teams included',
+          'Unlimited teams',
           'Priority support (24hr response)',
           'Unlimited administrators',
           'Gold trophy badge on profile',
@@ -180,7 +180,7 @@ function getTierBenefits(tier: CoachTier) {
       };
     case 'veteran':
       return {
-        price: '$1.50/month per team',
+        price: '$2.50/month per team',
         description: 'Flexible pay-per-team pricing as you grow',
         features: [
           'Add teams beyond first 2 free',
@@ -198,7 +198,7 @@ function getTierBenefits(tier: CoachTier) {
         price: 'Free',
         description: 'Perfect for getting started',
         features: [
-          'Up to 2 teams',
+          'First two teams free',
           'Basic scheduling',
           'Roster management',
           'Event creation',

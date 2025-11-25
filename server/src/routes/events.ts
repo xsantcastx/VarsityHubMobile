@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { cancelGameReminders, scheduleGameReminders } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -140,8 +141,12 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
         : !current;
   if (desired && !current) {
     await prisma.eventRsvp.create({ data: { event_id: id, user_id: me.id, user_email: me.email } });
+    // Schedule game reminder notifications (12h and 1h before)
+    await scheduleGameReminders(id, me.id);
   } else if (!desired && current) {
     await prisma.eventRsvp.delete({ where: { event_id_user_id: { event_id: id, user_id: me.id } } as any });
+    // Cancel scheduled reminders
+    await cancelGameReminders(id, me.id);
   }
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
   return res.json({ going: desired, attending: desired, count, capacity: event.capacity ?? null });

@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { getAuthToken } from '@/api/http';
+import { getAuthToken, getApiBaseUrl } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -182,7 +182,7 @@ export default function AdCalendarScreen() {
       const from = todayISO();
       const to = maxDateISO();
       
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const base = getApiBaseUrl();
       const headers: any = { 'Content-Type': 'application/json' };
       const token = getAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -385,7 +385,7 @@ export default function AdCalendarScreen() {
     setPromoBusy(true);
     try {
       const subtotalCents = Math.round(price * 100);
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const base = getApiBaseUrl();
       const headers: any = { 'Content-Type': 'application/json' };
       const token = getAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -407,7 +407,7 @@ export default function AdCalendarScreen() {
     if (!zipCode || dates.length === 0) return;
     
     try {
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const base = getApiBaseUrl();
       const headers: any = { 'Content-Type': 'application/json' };
       const token = getAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -453,7 +453,7 @@ export default function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const base = getApiBaseUrl();
       const headers: any = { 'Content-Type': 'application/json' };
       const token = getAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;

@@ -38,7 +38,7 @@ export default function Index() {
         router.replace('/sign-in');
       }
     })();
-  }, []);
+  }, [router]);
 
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>

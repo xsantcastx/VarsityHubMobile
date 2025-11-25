@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
+import ANIM_SPARKLE from '../../assets/animations/sparkle.json';
+import ANIM_SPARKLE_BETTER from '../../assets/animations/sparkle_better.json';
+
 // Dynamic Lottie wrapper - attempts to load lottie-react-native at runtime.
 export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 80, preset = 'sparkle', disabled = false }: { style?: any; onLoaded?: (loaded: boolean) => void; tintColor?: string; size?: number; preset?: 'classic' | 'sparkle' | 'sporty'; disabled?: boolean }) {
   const [LottieView, setLottieView] = useState<any>(null)
@@ -45,11 +48,7 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
 
   // pick asset based on preset. Only reference animation files that actually exist in the repo
   // to avoid Metro bundler resolution errors. If you add new JSON assets, update this map.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const ANIM_SPARKLE_BETTER = require('../../assets/animations/sparkle_better.json');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const ANIM_SPARKLE = require('../../assets/animations/sparkle.json');
-
+  
   let anim: any = ANIM_SPARKLE_BETTER;
   if (preset === 'sparkle') {
     anim = ANIM_SPARKLE_BETTER;

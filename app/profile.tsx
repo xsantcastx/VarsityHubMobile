@@ -14,6 +14,7 @@ import { Stack, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../api/http';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -104,11 +105,6 @@ export default function ProfileScreen() {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
 
-  // Vertical viewer state
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const _profileResetCount = useRef(0);
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
       try {
@@ -118,6 +114,40 @@ export default function ProfileScreen() {
     });
   }, []);
 
+  const refreshPosts = useCallback(async (userId: string) => {
+    if (postsLoading) return;
+    setPostsLoading(true);
+    try {
+      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
+      setIfDifferent(setPosts, page.items || []);
+      setPostsCursor(page.nextCursor || null);
+      setPostsHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, [postsLoading, sort, setIfDifferent]);
+
+  const refreshInteractions = useCallback(async (userId: string) => {
+    if (interLoading) return;
+    setInterLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: interType, sort });
+      setIfDifferent(setInteractions, page.items || []);
+      setInterCursor(page.nextCursor || null);
+      setInterHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setInterLoading(false);
+    }
+  }, [interLoading, interType, sort, setIfDifferent]);
+
+  // Vertical viewer state
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
+  const _profileResetCount = useRef(0);
+  
   const handleAvatarPress = async () => {
     setIsUploadingAvatar(true);
     try {
@@ -146,8 +176,7 @@ export default function ProfileScreen() {
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
       fd.append('file', { uri: manipulated.uri, name, type: 'image/jpeg' } as any);
       const token = await (await import('@/api/auth')).loadToken();
-      const baseUrl = String((process as any).env?.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
-      const resp = await fetch(`${baseUrl}/upload/avatar`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } as any : undefined, body: fd as any });
+      const resp = await fetch(`${getApiBaseUrl()}/upload/avatar`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } as any : undefined, body: fd as any });
       if (!resp.ok) throw new Error(await resp.text());
       const { url } = await resp.json();
       await User.updateMe({ avatar_url: url });
@@ -248,7 +277,7 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab, refreshInteractions, refreshPosts]);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
 
@@ -264,7 +293,7 @@ export default function ProfileScreen() {
       refreshInteractions(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+  }, [activeTab, me?.id]);
 
   // When interactions filters/sort change while on Interactions tab, refresh
   useEffect(() => {
@@ -273,7 +302,7 @@ export default function ProfileScreen() {
       refreshInteractions(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interType, sort]);
+  }, [interType, sort, me?.id]);
 
   // Refresh interactions when a new comment is created from the viewer
   useEffect(() => {
@@ -286,19 +315,6 @@ export default function ProfileScreen() {
     return () => { off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, me?.id]);
-
-  const refreshPosts = useCallback(async (userId: string) => {
-    setPostsLoading(true);
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
-      setPosts(page.items || []);
-      setPostsCursor(page.nextCursor || null);
-      setPostsHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setPostsLoading(false);
-    }
-  }, [sort]);
 
   const loadMorePosts = useCallback(async (userId: string) => {
     if (postsLoading || !postsHasMore) return;
@@ -313,19 +329,6 @@ export default function ProfileScreen() {
       setPostsLoading(false);
     }
   }, [postsCursor, postsHasMore, postsLoading, sort]);
-
-  const refreshInteractions = useCallback(async (userId: string) => {
-    setInterLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: interType });
-      setInteractions(page.items || []);
-      setInterCursor(page.nextCursor || null);
-      setInterHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setInterLoading(false);
-    }
-  }, [interType, sort]);
 
   const loadMoreInteractions = useCallback(async (userId: string) => {
     if (interLoading || !interHasMore) return;
@@ -559,7 +562,7 @@ export default function ProfileScreen() {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No posts yet</Text>
       <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-    <Button onPress={() => router.push('/create-post')}>Create Your First Post</Button>
+    <Button onPress={() => router.push('/create-post')}><Text>Create Your First Post</Text></Button>
     </View>
   );
 
@@ -614,7 +617,7 @@ export default function ProfileScreen() {
             const thumb = item.media_url;
             const isVideo = !!thumb && VIDEO_EXT.test(thumb);
             const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item._count?.comments ?? 0;
+            const comments = item.comments_count ?? item?._count?.comments ?? 0;
             return (
               <Pressable
                 style={styles.gridItem}
@@ -770,18 +773,18 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     paddingHorizontal: 20,
-    paddingTop: 20, // Safe area is handled by SafeAreaView
-    paddingBottom: 30,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   avatarSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   avatarContainer: {
     position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -793,12 +796,12 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
+    borderRadius: 36,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 46,
+    borderRadius: 36,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -808,7 +811,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 46,
+    borderRadius: 36,
   },
   settingsButtonTopRight: {
     position: 'absolute',
@@ -830,10 +833,10 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#ffffff',
     textAlign: 'center',
@@ -1150,4 +1153,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

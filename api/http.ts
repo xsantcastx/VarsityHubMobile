@@ -7,21 +7,35 @@ export function getAuthToken(): string | null { return tokenCache; }
 
 export function getApiBaseUrl(): string {
   // Expo packs env vars under process.env at runtime
-  const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL) || '';
-  const defaultUrl = __DEV__ ? 'http://localhost:4000' : 'https://api-production-8ac3.up.railway.app';
-  let url = envUrl || defaultUrl;
+  const env = (typeof process !== 'undefined' ? (process as any).env || {} : {}) as any;
+  const envUrl = (env && env.EXPO_PUBLIC_API_URL) || '';
+  const forceRemote = String(env?.EXPO_PUBLIC_FORCE_REMOTE_API || '').toLowerCase() === 'true';
+
+  // In development, use the env URL if provided, otherwise fall back to production
+  let url: string;
+  if (__DEV__ && !forceRemote) {
+    // Always use EXPO_PUBLIC_API_URL if provided (supports localhost, LAN IPs, etc.)
+    url = envUrl || 'http://localhost:4000';
+  } else {
+    const defaultUrl = 'https://api-production-8ac3.up.railway.app';
+    url = envUrl || defaultUrl;
+  }
   
-  // Handle simulator networking
-  if (__DEV__ && url.startsWith('http://localhost:')) {
+  // On iOS simulator, `localhost` will automatically resolve to the host machine.
+  // On Android, it needs to be explicitly mapped to `10.0.2.2`.
+  if (__DEV__ && url.startsWith('http://localhost')) {
     if (Platform.OS === 'android') {
       // Android simulator uses 10.0.2.2 to reach host machine
       url = url.replace('http://localhost', 'http://10.0.2.2');
     }
-    // iOS simulator can use localhost directly to reach the host machine
   }
   
   const finalUrl = url.replace(/\/$/, '');
-  // API base URL configured
+  if (__DEV__ && !('__VH_LOGGED_API_BASE' in (global as any))) {
+    (global as any).__VH_LOGGED_API_BASE = true;
+    // eslint-disable-next-line no-console
+    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS });
+  }
   return finalUrl;
 }
 
@@ -29,7 +43,7 @@ function getBaseUrl(): string {
   return getApiBaseUrl();
 }
 
-async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000): Promise<any> {
+async function request(path: string, options: RequestInit = {}, timeoutMs: number = 60000): Promise<any> {
   const base = getBaseUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
@@ -84,11 +98,11 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    console.error('[http] Request failed:', { url: base + path, error: error.message });
+    console.warn('[http] Request failed:', { url: base + path, error: error.message });
     if (error.name === 'AbortError') {
-      const err: any = new Error('Request timeout - server did not respond');
-      err.status = 408;
-      throw err;
+      // Don't re-throw AbortError, just return null to the caller.
+      // The caller should handle the null response gracefully.
+      return null;
     }
     // Add more context to network errors
     if (error.message === 'Network request failed') {

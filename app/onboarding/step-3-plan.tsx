@@ -1,4 +1,4 @@
-import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
@@ -12,88 +12,115 @@ type Plan = 'rookie' | 'veteran' | 'legend';
 
 type PlanOption = {
   id: Plan;
-  title: string;
-  priceLabel: string;
-  description: string;
-  badge?: string;
-  extraNote?: string;
-  benefits: string[];
+  name: string;
+  icon: 'people' | 'trophy' | 'medal';
+  price: string;
+  period: string;
+  priceId: string | null;
+  features: string[];
 };
 
-const PLAN_OPTIONS: PlanOption[] = [
+const PLAN_OPTIONS = [
   {
     id: 'rookie',
-    title: 'Rookie',
-    priceLabel: 'First two teams free',
-    description: 'Perfect for getting started with your first teams',
-    extraNote: 'Upgrade any time to unlock more teams and organization management tools.',
-    benefits: [
-      'Access for two teams',
-      'Invite athletes',
-      'Assign one administrator for each team',
-      'Share team experience',
+    name: 'Rookie',
+    icon: 'people' as const,
+    price: 'First two teams free',
+    period: '',
+    priceId: null,
+    features: [
+      'Entry-level access',
+      'First two teams free',
+      'Example: mens and womens soccer',
+      'Assign one extra administrator for each team',
     ],
   },
   {
     id: 'veteran',
-    title: 'Veteran',
-    priceLabel: '$2.50 / month per team',
-    description: 'Manage multiple teams with flexible per-team pricing.',
-    badge: 'Most Popular',
-    extraNote: 'Pay only for the teams you add beyond your first two. Stripe handles secure billing.',
-    benefits: [
-      'All Rookie features',
-      'Add up to two administrators per team',
-      '🏆 Trophy emblem',
+    name: 'Veteran',
+    icon: 'trophy' as const,
+    price: '$2.50',
+    period: '/ month per team added',
+    priceId: 'prod_RNLc2l1BdUdSn9',
+    features: [
+      'Everything in Rookie',
+      '$2.50/month per additional team (first 2 free)',
+      '2 authorized users per team',
     ],
   },
   {
     id: 'legend',
-    title: 'Legend',
-    priceLabel: '$17.50 / year unlimited',
-    description: 'Best value for multi-team organizations and established programs.',
-    benefits: [
-      'All Veteran features',
-      'Unlimited teams included',
-      'Unlimited administrators',
-      '🥇 Gold medal emblem',
+    name: 'Legend',
+    icon: 'medal' as const,
+    price: '$19.99',
+    period: '/ year',
+    priceId: 'prod_RNLdYADy7i6dB5',
+    features: [
+      'Everything in Veteran',
+      'Unlimited teams',
+      'Create extracurricular clubs - Theater, Chess, etc.',
     ],
   },
 ];
 
-function PlanCard({ option, selected, onPress }: { option: PlanOption; selected: boolean; onPress: () => void }) {
+function PlanCard({ option, selected, onPress, onContinue, saving }: { option: PlanOption; selected: boolean; onPress: () => void; onContinue?: () => void; saving?: boolean }) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
+  // Icon mapping - using Ionicons
+  const getIconName = (): any => {
+    switch (option.icon) {
+      case 'people':
+        return 'people';
+      case 'trophy':
+        return 'trophy';
+      case 'medal':
+        return 'medal';
+      default:
+        return 'people';
+    }
+  };
+  
   return (
-    <Pressable onPress={onPress} style={[
-      styles.card, 
-      selected && styles.cardSelected,
-      { borderColor: selected ? (isDark ? '#60A5FA' : '#111827') : (isDark ? '#374151' : '#E5E7EB') },
-      { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
-    ]}>
+    <View style={styles.cardWrapper}>
+      <Pressable onPress={onPress} style={[
+        styles.card, 
+        selected && styles.cardSelected,
+        selected && styles.cardWithButton,
+        { borderColor: selected ? (isDark ? '#60A5FA' : '#111827') : (isDark ? '#374151' : '#E5E7EB') },
+        { backgroundColor: selected ? (isDark ? '#1F2937' : '#FFFFFF') : (isDark ? '#111827' : '#F9FAFB') }
+      ]}>
       <View style={styles.cardHeader}>
-        <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.title}</Text>
-        {option.badge ? (
-          <Text style={[styles.badge, { 
-            color: isDark ? '#F9FAFB' : '#111827',
-            backgroundColor: isDark ? '#374151' : '#E5E7EB'
-          }]}>
-            {option.badge}
-          </Text>
-        ) : null}
+        <View style={styles.titleRow}>
+          <Ionicons name={getIconName()} size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+          <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
+        </View>
       </View>
-      <Text style={[styles.price, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.priceLabel}</Text>
-      <Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{option.description}</Text>
+      <Text style={[styles.price, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.price} <Text style={[styles.period, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>{option.period}</Text></Text>
       <View style={styles.benefitsList}>
-        {option.benefits.map((benefit) => (
+        {option.features.map((benefit) => (
           <Text key={benefit} style={[styles.benefitItem, { color: isDark ? '#34D399' : '#16A34A' }]}>{`- ${benefit}`}</Text>
         ))}
       </View>
-      {option.extraNote ? (
-        <Text style={[styles.extraNote, { color: isDark ? '#9CA3AF' : '#374151' }]}>{option.extraNote}</Text>
-      ) : null}
-    </Pressable>
+      </Pressable>
+      
+      {selected && onContinue && (
+        <Pressable 
+          onPress={onContinue}
+          disabled={saving}
+          style={styles.sideButton}
+        >
+          {saving ? (
+            <ActivityIndicator color="white" size="small" />
+          ) : (
+            <>
+              <Text style={styles.sideButtonText}>Continue</Text>
+              <Text style={styles.sideButtonArrow}>→</Text>
+            </>
+          )}
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -107,6 +134,10 @@ export default function Step3Plan() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
+  // Team count for Veteran plan
+  const [teamCount, setTeamCount] = useState<number>(3); // Minimum 3 teams for Veteran
+  const [showTeamCountModal, setShowTeamCountModal] = useState(false);
+  
   // Email verification states
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -119,7 +150,7 @@ export default function Step3Plan() {
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-5-league');
+      router.push('/onboarding/step-4-organization');
     }
   };
 
@@ -161,6 +192,13 @@ export default function Step3Plan() {
 
   const onContinue = async () => {
     if (!plan) return;
+    
+    // If Veteran plan and haven't confirmed team count yet, show modal
+    if (plan === 'veteran' && !showTeamCountModal) {
+      setShowTeamCountModal(true);
+      return;
+    }
+    
     setSaving(true);
     try {
       // Prevent duplicate subscriptions: check current user's saved plan first
@@ -206,7 +244,11 @@ export default function Step3Plan() {
       setOB((prev) => ({ ...prev, plan, payment_pending: true }));
 
       try {
-        const res: any = await Subscriptions.createCheckout(plan);
+        // Persist selected team count into onboarding state for downstream screens
+        if (plan === 'veteran') {
+          setOB((prev) => ({ ...prev, team_count_total: teamCount }));
+        }
+        const res: any = await Subscriptions.createCheckout(plan, plan === 'veteran' ? teamCount : undefined);
         if (res?.free) {
           // If marked as free, save the plan now
           try {
@@ -277,22 +319,18 @@ export default function Step3Plan() {
       subtitle="Select the plan that fits your needs"
     >
       <Stack.Screen options={{ headerShown: false }} />
-      {PLAN_OPTIONS.map((option) => (
-        <PlanCard
-          key={option.id}
-          option={option}
-          selected={plan === option.id}
-          onPress={() => handleSelectPlan(option.id)}
-        />
-      ))}
-      {plan ? (
-        <PrimaryButton
-          label={saving ? 'Saving...' : 'Continue'}
-          onPress={onContinue}
-          disabled={saving}
-          loading={saving}
-        />
-      ) : null}
+      <View style={styles.content}>
+        {PLAN_OPTIONS.map((option) => (
+          <PlanCard
+            key={option.id}
+            option={option}
+            selected={plan === option.id}
+            onPress={() => handleSelectPlan(option.id)}
+            onContinue={plan === option.id ? onContinue : undefined}
+            saving={saving}
+          />
+        ))}
+      </View>
 
       {/* Email Verification Modal */}
       <Modal
@@ -380,6 +418,82 @@ export default function Step3Plan() {
           </View>
         </View>
       </Modal>
+
+      {/* Team Count Modal for Veteran Plan */}
+      <Modal
+        visible={showTeamCountModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTeamCountModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : 'white' }]}>
+            <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>How Many Teams?</Text>
+            <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+              First 2 teams are always free. Veteran plan is $2.50/month for each additional team beyond the first two.
+            </Text>
+            
+            <View style={styles.teamCountSelector}>
+              <Pressable
+                style={[
+                  styles.teamCountButton,
+                  { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
+                ]}
+                onPress={() => setTeamCount(Math.max(3, teamCount - 1))}
+              >
+                <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>−</Text>
+              </Pressable>
+              
+              <View style={styles.teamCountDisplay}>
+                <Text style={[styles.teamCountNumber, { color: isDark ? '#F9FAFB' : '#111827' }]}>{teamCount}</Text>
+                <Text style={[styles.teamCountLabel, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>teams</Text>
+              </View>
+              
+              <Pressable
+                style={[
+                  styles.teamCountButton,
+                  { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
+                ]}
+                onPress={() => setTeamCount(teamCount + 1)}
+              >
+                <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>+</Text>
+              </Pressable>
+            </View>
+            
+            <View style={styles.pricingInfo}>
+              <Text style={[styles.pricingText, { color: isDark ? '#34D399' : '#16A34A' }]}>
+                ${((teamCount - 2) * 2.50).toFixed(2)}/month
+              </Text>
+              <Text style={[styles.pricingSubtext, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+                (2 free + {teamCount - 2} × $2.50)
+              </Text>
+            </View>
+            
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
+                onPress={() => {
+                  setShowTeamCountModal(false);
+                  onContinue();
+                }}
+              >
+                <Text style={styles.verifyButtonText}>Continue to Checkout</Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowTeamCountModal(false);
+                  setPlan(null);
+                  setOB((prev) => ({ ...prev, plan: null }));
+                }}
+              >
+                <Text style={[styles.cancelButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </OnboardingLayout>
   );
 }
@@ -387,11 +501,19 @@ export default function Step3Plan() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
+  cardWrapper: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
   card: {
+    flex: 1,
     padding: 16,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 12,
+  },
+  cardWithButton: {
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
   },
   cardSelected: {},
   cardHeader: {
@@ -399,6 +521,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 6,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cardTitle: { fontWeight: '800', fontSize: 16 },
   muted: { marginTop: 4 },
@@ -409,10 +536,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  price: { fontWeight: '700', marginBottom: 4 },
+  price: { fontWeight: '700', marginBottom: 4, fontSize: 18 },
+  period: { fontSize: 14, fontWeight: '400' },
   benefitsList: { marginTop: 8, gap: 4 },
   benefitItem: {},
   extraNote: { marginTop: 8, fontSize: 12 },
+  sideButton: {
+    width: 80,
+    backgroundColor: '#1E3A8A',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  sideButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  sideButtonArrow: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   
   // Modal styles
   modalOverlay: {
@@ -482,6 +636,55 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontWeight: '600',
+  },
+  
+  // Team Count Modal styles
+  teamCountSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    marginVertical: 20,
+  },
+  teamCountButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  teamCountButtonText: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  teamCountDisplay: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  teamCountNumber: {
+    fontSize: 36,
+    fontWeight: '800',
+  },
+  teamCountLabel: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  pricingInfo: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  pricingText: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  pricingSubtext: {
+    fontSize: 14,
+    marginTop: 4,
   },
 });
 

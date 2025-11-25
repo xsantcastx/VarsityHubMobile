@@ -44,7 +44,8 @@ export const auth = {
     return res;
   },
   async loginWithApple(identityToken: string) {
-    const res = await httpPost('/auth/apple', { identity_token: identityToken });
+    // Apple auth can be slow on real devices; allow longer timeout
+    const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
     if (res?.access_token) await saveToken(res.access_token);
     return res;
   },

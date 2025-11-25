@@ -152,6 +152,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                 zip_code: null,
               });
               const [plan, setPlan] = useState<string | null>(null);
+              const [role, setRole] = useState<string | null>(null);
               const [isAdmin, setIsAdmin] = useState(false);
 
               // Debounce timer refs for PATCH batching
@@ -185,6 +186,8 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                       zip_code: serverPrefs?.zip_code ?? null,
                     });
                     setPlan(serverPrefs?.plan ?? null);
+                    const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
+                    setRole(effectiveRole);
                   } catch (e: any) {
                     if (!mounted) return;
                     setError(e?.message || 'Failed to load settings');
@@ -242,17 +245,27 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
               };
 
               return (
-                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top']}>
-                  <Stack.Screen options={{ title: 'Settings' }} />
-                  <Text style={[styles.title, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>Settings</Text>
-                  {/* Quick Billing CTA */}
-                  <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                    <Pressable onPress={() => router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
-                      <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
-                    </Pressable>
-                  </View>
-                  {error ? <Text style={styles.error}>{error}</Text> : null}
-                  <ScrollView contentContainerStyle={{ paddingBottom: 28 }}>
+                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
+                  <Stack.Screen options={{ 
+                    title: 'Settings', 
+                    headerBackTitle: 'Back',
+                    headerShown: true,
+                  }} />
+                  <ScrollView 
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 28 }}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {error ? <Text style={styles.error}>{error}</Text> : null}
+                    
+                    {/* Quick Billing CTA (coaches only) */}
+                    {role === 'coach' && (
+                      <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
+                        <Pressable onPress={() => router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
+                          <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
+                        </Pressable>
+                      </View>
+                    )}
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
                       <NavRow title="Edit Username" onPress={() => router.push('/settings/edit-username')} />
@@ -317,10 +330,12 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                       <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => router.push('/my-ads')} />
                     </SectionCard>
 
-                    {/* Billing */}
-                    <SectionCard title="Billing">
-                      <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'Free (rookie)'} onPress={() => router.push('/settings/manage-subscription')} />
-                    </SectionCard>
+                    {/* Billing (coaches only) */}
+                    {role === 'coach' && (
+                      <SectionCard title="Billing">
+                        <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'No subscription'} onPress={() => router.push('/settings/manage-subscription')} />
+                      </SectionCard>
+                    )}
 
                     {/* Legal */}
                     <SectionCard title="Legal">

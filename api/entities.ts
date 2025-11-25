@@ -236,9 +236,10 @@ export const Organization = {
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/organizations' + qs);
   },
+  mine: () => httpGet('/organizations/mine'),
   get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
   members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
-  createOrganization: (data: { name: string; description?: string; sport?: string; season_start?: string; season_end?: string }) => httpPost('/organizations', data),
+  createOrganization: (data: { name: string; description?: string; sport?: string; season_start?: string; season_end?: string; org_type?: string; location?: string; zip_code?: string }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
   myInvites: () => httpGet('/organizations/invites/me'),
@@ -338,9 +339,11 @@ export const Support = {
 };
 
 export const Subscriptions = {
-  createCheckout: (plan: string) => httpPost('/payments/checkout', { plan }),
+  createCheckout: (plan: string, teamCount?: number) => httpPost('/payments/checkout', { plan, team_count: teamCount }),
   finalizeSession: (sessionId: string) => httpPost('/payments/finalize-session', { session_id: sessionId }),
   cancel: () => httpPost('/payments/subscription/cancel', {}),
+  updateQuantity: (teamCount: number) => httpPost('/payments/update-subscription-quantity', { team_count: teamCount }),
+  getSummary: () => httpGet('/payments/subscription/summary'),
 };
 
 

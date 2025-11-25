@@ -3,7 +3,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,7 +15,7 @@ export default function FollowersScreen() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  const loadFollowers = async (cursor?: string) => {
+  const loadFollowers = useCallback(async (cursor?: string) => {
     if (!id) return;
     setLoading(true);
     try {
@@ -27,11 +27,11 @@ export default function FollowersScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
     loadFollowers();
-  }, [id]);
+  }, [id, loadFollowers]);
 
   const handleFollow = async (userId: string, isFollowing: boolean) => {
     try {

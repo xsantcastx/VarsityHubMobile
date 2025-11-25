@@ -96,30 +96,10 @@ export default function GameMapScreen() {
             Loading nearby games...
           </Text>
         </View>
-      ) : events.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="location-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
-          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
-            No games found nearby
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
-            Try expanding your search area or check back later
-          </Text>
-        </View>
       ) : (
         <EventMap
           events={events}
           onEventPress={handleEventPress}
-          initialRegion={
-            userLocation
-              ? {
-                  latitude: userLocation.latitude,
-                  longitude: userLocation.longitude,
-                  latitudeDelta: 0.5,
-                  longitudeDelta: 0.5,
-                }
-              : undefined
-          }
           showUserLocation={true}
         />
       )}

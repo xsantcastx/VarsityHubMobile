@@ -8,6 +8,7 @@ import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
+import { getApiBaseUrl } from '../../api/http';
 
 export default function OnboardingFinish() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function OnboardingFinish() {
 
   const sendCode = async () => {
     setSending(true);
-    try { await fetch(String((process as any).env?.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '') + '/auth/verify/send', { method: 'POST', headers: { 'Cache-Control': 'no-store', 'If-None-Match': '' } }); setCooldown(30); }
+    try { await fetch(getApiBaseUrl() + '/auth/verify/send', { method: 'POST', headers: { 'Cache-Control': 'no-store', 'If-None-Match': '' } }); setCooldown(30); }
     catch (e: any) { Alert.alert('Failed to send', e?.message || 'Try again'); }
     finally { setSending(false); }
   };
