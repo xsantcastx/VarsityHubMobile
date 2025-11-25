@@ -29,6 +29,8 @@
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "expo": "~54.0.25",
+    "expo-apple-authentication": "~8.0.7",
     "expo-server-sdk": "^4.0.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
@@ -41,16 +43,15 @@
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.1",
     "prisma": "^5.16.1",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
     "react-native-google-places-autocomplete": "^2.5.7",
     "react-native-maps": "1.20.1",
     "stripe": "^16.6.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "twilio": "^4.10.1",
-    "zod": "^3.23.8",
-    "expo": "~54.0.25",
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
