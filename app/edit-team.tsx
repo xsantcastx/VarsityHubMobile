@@ -4,12 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '../api/http';
 
 export default function EditTeamScreen() {
   const router = useRouter();
@@ -31,15 +32,10 @@ export default function EditTeamScreen() {
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   const seasons = ['Spring 2025', 'Summer 2025', 'Fall 2025', 'Winter 2025/26'];
 
-  useEffect(() => {
-    if (params?.id) {
-      loadTeam();
-    }
-  }, [params?.id]);
-
-  const loadTeam = async () => {
+  const loadTeam = useCallback(async () => {
     try {
       setLoading(true);
+      if (!params.id) return;
       const teamData = await Team.get(params.id);
       setTeam(teamData);
       setName(teamData.name || '');
@@ -69,7 +65,13 @@ export default function EditTeamScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id, router]);
+
+  useEffect(() => {
+    if (params?.id) {
+      loadTeam();
+    }
+  }, [loadTeam, params?.id]);
 
   const pickImage = async () => {
     const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -137,9 +139,7 @@ export default function EditTeamScreen() {
       // Upload new logo if one was selected
       if (logoUri) {
         try {
-          const base = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-            (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-          const uploaded = await uploadFile(base, logoUri, 'team-logo.jpg', 'image/jpeg');
+          const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
         } catch (error) {
@@ -622,5 +622,4 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-
 

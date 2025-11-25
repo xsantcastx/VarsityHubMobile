@@ -1,4 +1,5 @@
 import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '../../api/http';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
@@ -25,11 +26,8 @@ export default function MatchBannerCapture({ leftImage, rightImage, leftName, ri
       // Capture banner as an image
       const uri = await captureRef(viewRef, { format: 'png', quality: 0.9 });
 
-      // Determine API base URL (match upload helper usage pattern)
-      const base = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-
-      // Upload image
-      const uploaded = await uploadFile(base, uri, 'match-banner.png', 'image/png');
+      // Upload image using centralized base URL
+      const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
       const bannerUrl = uploaded?.url || uploaded?.path;
       if (onUploaded && bannerUrl) onUploaded(bannerUrl);
       Alert.alert('Banner saved', 'Match banner uploaded successfully.');

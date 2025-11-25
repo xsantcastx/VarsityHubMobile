@@ -1,6 +1,8 @@
 import { httpPost } from '@/api/http';
+// @ts-ignore
+import { Subscriptions } from '@/api/entities';
 import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function BillingScreen() {
@@ -10,6 +12,46 @@ export default function BillingScreen() {
   const [preview, setPreview] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<any | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [showQtyEditor, setShowQtyEditor] = useState(false);
+  const [qty, setQty] = useState<string>('3');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoadingSummary(true);
+      try {
+        const s = await Subscriptions.getSummary();
+        setSummary(s);
+        if (s?.quantity) setQty(String(s.quantity));
+      } catch (e) {
+        // ignore
+      } finally {
+        setLoadingSummary(false);
+      }
+    };
+    load();
+  }, []);
+
+  const onUpdateQuantity = async () => {
+    const n = Number(qty);
+    if (!Number.isFinite(n) || n < 3) {
+      Alert.alert('Invalid quantity', 'Please enter 3 or higher.');
+      return;
+    }
+    try {
+      setBusy(true);
+      await Subscriptions.updateQuantity(n);
+      const s = await Subscriptions.getSummary();
+      setSummary(s);
+      setShowQtyEditor(false);
+      Alert.alert('Updated', `Subscription updated to ${n} teams ($${(n * 2.5).toFixed(2)}/month).`);
+    } catch (e: any) {
+      Alert.alert('Update failed', e?.message || 'Unable to update quantity.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   async function onApply() {
     if (!code.trim()) return;
@@ -43,6 +85,38 @@ export default function BillingScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Billing' }} />
+      {/* Veteran Plan Banner */}
+      {summary?.plan === 'veteran' && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerTitle}>Veteran Plan</Text>
+          <Text style={styles.bannerLine}>Paid teams: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
+          <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 2.5).toFixed(2)}</Text></Text>
+          {!!summary.current_period_end && (
+            <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
+          )}
+          {!showQtyEditor ? (
+            <Pressable style={styles.btnPrimary} onPress={() => setShowQtyEditor(true)}>
+              <Text style={styles.btnPrimaryText}>Update Quantity</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.qtyRow}>
+              <TextInput
+                keyboardType="number-pad"
+                value={qty}
+                onChangeText={setQty}
+                style={styles.qtyInput}
+                placeholder="Teams"
+              />
+              <Pressable style={styles.btnPrimary} onPress={onUpdateQuantity} disabled={busy}>
+                <Text style={styles.btnPrimaryText}>{busy ? '...' : 'Update'}</Text>
+              </Pressable>
+              <Pressable style={styles.btn} onPress={() => setShowQtyEditor(false)}>
+                <Text style={styles.btnText}>Cancel</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
       <Text style={styles.title}>Billing</Text>
       <Text style={styles.subtitle}>Demo subtotal: ${ (subtotalCents/100).toFixed(2) }</Text>
 
@@ -89,5 +163,12 @@ const styles = StyleSheet.create({
   previewLine: { color: '#111827' },
   btnPrimary: { backgroundColor: '#2563EB', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   btnPrimaryText: { color: 'white', fontWeight: '800' },
+  banner: { marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#F0FDF4' },
+  bannerTitle: { fontSize: 16, fontWeight: '800', color: '#065F46' },
+  bannerLine: { marginTop: 4, color: '#065F46' },
+  bannerHint: { marginTop: 6, color: '#047857', fontSize: 12 },
+  bold: { fontWeight: '800' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  qtyInput: { width: 80, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
 });
 

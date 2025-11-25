@@ -2,7 +2,8 @@ import React, { createContext, PropsWithChildren, useContext, useState } from 'r
 
 export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
-export type UserRole = 'fan' | 'rookie' | 'coach';
+// Rookie is a plan, not a role
+export type UserRole = 'fan' | 'coach';
 export type TeamRole = 'Team Manager' | 'Coach' | 'Admin';
 export type Intent = 'find_local_games' | 'add_players' | 'follow';
 export type Interest = 'Football' | 'Basketball' | 'Baseball' | 'Soccer' | 'Volleyball' | 'Track & Field' | 'Swimming' | 'Hockey' | 'Other';
@@ -17,6 +18,8 @@ export type OnboardingState = {
   zip_code?: string | null;
   plan?: Plan;
   payment_pending?: boolean;
+  // Total number of teams the user intends to manage (selected during plan purchase)
+  team_count_total?: number;
   team_id?: string;
   team_name?: string;
   organization_id?: string;
@@ -42,6 +45,7 @@ type Ctx = {
   clearOnboarding: () => void;
   progress: number;
   setProgress: (progress: number) => void;
+  isLoaded: boolean;
 };
 
 const OBContext = createContext<Ctx | null>(null);
@@ -49,13 +53,14 @@ const OBContext = createContext<Ctx | null>(null);
 export function OBProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<OnboardingState>({});
   const [progress, setProgress] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(true); // Set to true for now since we're not using AsyncStorage persistence
   
   const clearOnboarding = () => {
     setState({});
     setProgress(0);
   };
   
-  return <OBContext.Provider value={{ state, setState, clearOnboarding, progress, setProgress }}>{children}</OBContext.Provider>;
+  return <OBContext.Provider value={{ state, setState, clearOnboarding, progress, setProgress, isLoaded }}>{children}</OBContext.Provider>;
 }
 
 export function useOnboarding() {

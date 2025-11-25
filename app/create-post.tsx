@@ -322,7 +322,8 @@ export default function CreatePostScreen() {
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
       let finalMediaUrl = '';
       if (picked?.uri) {
-        const base = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
+        const { getApiBaseUrl } = await import('../api/http');
+        const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const res = await uploadFile(base, picked.uri, name, mime);

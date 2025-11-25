@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -16,42 +16,14 @@ export default function Step9Features() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [messagingAccepted, setMessagingAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
-
-  // Calculate user age for messaging policy
-  const userAge = useMemo(() => {
-    if (!ob.dob) return null;
-    const birthDate = new Date(ob.dob);
-    const today = new Date();
-    const age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      return age - 1;
-    }
-    return age;
-  }, [ob.dob]);
-
-  const isMinor = userAge !== null && userAge < 17;
-
-  // Messaging policy text based on age and role
-  const messagingPolicyText = useMemo(() => {
-    if (ob.role === 'coach') {
-      return 'As a coach/organizer, you can message all users. You agree to use messaging responsibly and in accordance with our community guidelines.';
-    } else if (isMinor) {
-      return 'As a minor (under 17), you can only message other minors. This helps ensure a safe environment for young athletes.';
-    } else {
-      return 'You can message all users on the platform. Please use messaging respectfully and follow our community guidelines.';
-    }
-  }, [ob.role, isMinor]);
 
   const enableLocation = async () => {
     if (locationEnabled) {
@@ -77,36 +49,49 @@ export default function Step9Features() {
   };
 
   const onContinue = async () => {
-    if (!messagingAccepted) {
-      Alert.alert(
-        'Messaging Policy Required',
-        'You must accept the messaging policy to continue using VarsityHub.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     setSaving(true);
     try {
       // Save to context
       setOB((prev) => ({ 
         ...prev, 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled,
-        messaging_policy_accepted: messagingAccepted
+        notifications_enabled: notificationsEnabled
       }));
       
       // Save to backend
       await User.updatePreferences({ 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled,
-        messaging_policy_accepted: messagingAccepted
+        notifications_enabled: notificationsEnabled
       });
       
-      // Save progress to AsyncStorage before navigation
+      // For fans, complete onboarding and go to feed
+      if (ob.role === 'fan') {
+        // Mark onboarding complete for fans
+        await User.completeOnboarding({
+          role: ob.role,
+          username: ob.username,
+          display_name: ob.display_name,
+          dob: ob.dob,
+          zip: ob.zip,
+          zip_code: ob.zip_code,
+          avatar_url: ob.avatar_url,
+          bio: ob.bio,
+          sports_interests: ob.sports_interests,
+          primary_intents: ob.primary_intents,
+          personalization_goals: ob.personalization_goals,
+          location_enabled: locationEnabled,
+          notifications_enabled: notificationsEnabled,
+          messaging_policy_accepted: true
+        });
+        
+        clearOnboarding();
+        router.replace('/(tabs)/feed');
+        return;
+      }
+      
+      // For coaches, go to confirmation page
       setProgress(8);
       await AsyncStorage.setItem('@onboarding_progress', '9');
-      
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
@@ -123,11 +108,11 @@ export default function Step9Features() {
     >
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Location Access */}
-      <View style={styles.featureCard}>
+      {/* Location Access - Player 1 Blue */}
+      <View style={[styles.featureCard, styles.blueCard]}>
           <View style={styles.featureHeader}>
-            <View style={styles.featureIconContainer}>
-              <Ionicons name="location" size={24} color={Colors[colorScheme].tint} />
+            <View style={[styles.featureIconContainer, styles.blueIconContainer]}>
+              <Ionicons name="location" size={24} color="#ffffff" />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Location Access</Text>
@@ -141,18 +126,18 @@ export default function Step9Features() {
               onValueChange={enableLocation}
               trackColor={{ 
                 false: Colors[colorScheme].border, 
-                true: Colors[colorScheme].tint 
+                true: '#3b82f6' 
               }}
               thumbColor={Colors[colorScheme].background}
             />
           </View>
         </View>
 
-        {/* Push Notifications */}
-        <View style={styles.featureCard}>
+        {/* Push Notifications - Player 2 Red */}
+        <View style={[styles.featureCard, styles.redCard]}>
           <View style={styles.featureHeader}>
-            <View style={styles.featureIconContainer}>
-              <Ionicons name="notifications" size={24} color={colorScheme === 'dark' ? '#4ade80' : '#059669'} />
+            <View style={[styles.featureIconContainer, styles.redIconContainer]}>
+              <Ionicons name="notifications" size={24} color="#ffffff" />
             </View>
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Push Notifications</Text>
@@ -166,68 +151,21 @@ export default function Step9Features() {
               onValueChange={setNotificationsEnabled}
               trackColor={{ 
                 false: Colors[colorScheme].border, 
-                true: colorScheme === 'dark' ? '#4ade80' : '#059669' 
+                true: '#ef4444' 
               }}
               thumbColor={Colors[colorScheme].background}
             />
           </View>
         </View>
 
-        {/* Messaging Policy */}
-        <View style={[styles.featureCard, styles.requiredCard]}>
-          <View style={styles.featureHeader}>
-            <View style={styles.featureIconContainer}>
-              <Ionicons name="chatbubble" size={24} color={colorScheme === 'dark' ? '#f87171' : '#DC2626'} />
-            </View>
-            <View style={styles.featureContent}>
-              <Text style={styles.featureTitle}>Messaging Policy</Text>
-              <Text style={styles.featureDescription}>
-                {messagingPolicyText}
-              </Text>
-              <Text style={styles.featureRequired}>(Required)</Text>
-            </View>
-          </View>
-          
-          <View style={styles.policyAgreement}>
-            <Pressable 
-              style={styles.checkboxContainer}
-              onPress={() => setMessagingAccepted(!messagingAccepted)}
-            >
-              <View style={[styles.checkbox, messagingAccepted && styles.checkboxChecked]}>
-                {messagingAccepted && (
-                  <Ionicons name="checkmark" size={16} color={Colors[colorScheme].background} />
-                )}
-              </View>
-              <Text style={styles.checkboxLabel}>
-                I understand and agree to the messaging policy
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Safety Notice for Minors */}
-        {isMinor && (
-          <View style={styles.safetyNotice}>
-            <Ionicons name="shield-checkmark" size={20} color={colorScheme === 'dark' ? '#4ade80' : '#059669'} />
-            <Text style={styles.safetyNoticeText}>
-              VarsityHub prioritizes the safety of young athletes with age-appropriate messaging restrictions.
-            </Text>
-          </View>
-        )}
-
         {/* Continue Button */}
         <View style={styles.continueSection}>
           <PrimaryButton 
             label={saving ? 'Saving Settings...' : 'Continue'} 
             onPress={onContinue} 
-            disabled={saving || !messagingAccepted} 
+            disabled={saving} 
             loading={saving} 
           />
-          {!messagingAccepted && (
-            <Text style={styles.helpText}>
-              You must accept the messaging policy to continue
-            </Text>
-          )}
         </View>
     </OnboardingLayout>
   );
@@ -258,11 +196,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   
   featureCard: {
     backgroundColor: Colors[colorScheme].surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors[colorScheme].border,
+  },
+  blueCard: {
+    borderColor: '#3b82f6',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)',
+  },
+  redCard: {
+    borderColor: '#ef4444',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)',
   },
   requiredCard: {
     borderColor: colorScheme === 'dark' ? '#fca5a5' : '#FCA5A5',
@@ -275,6 +221,17 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   featureIconContainer: {
     marginRight: 12,
     marginTop: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blueIconContainer: {
+    backgroundColor: '#3b82f6',
+  },
+  redIconContainer: {
+    backgroundColor: '#ef4444',
   },
   featureContent: {
     flex: 1,

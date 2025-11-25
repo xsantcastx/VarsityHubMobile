@@ -5,6 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../api/http';
 // @ts-ignore
 import { User } from '@/api/entities';
 
@@ -30,8 +31,7 @@ export default function AdminUserDetailScreen() {
 
   const onDownload = async () => {
     if (!id) return;
-    const base = (process as any)?.env?.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-    const url = base.replace(/\/$/, '') + `/users/${encodeURIComponent(String(id))}/export`;
+    const url = getApiBaseUrl() + `/users/${encodeURIComponent(String(id))}/export`;
     try { await WebBrowser.openBrowserAsync(url); } catch {}
   };
 

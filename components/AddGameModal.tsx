@@ -1,8 +1,9 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -14,9 +15,9 @@ import {
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Team } from '../api/entities';
 import MatchBanner from '../app/components/MatchBanner';
 import ImageEditor from './ImageEditor';
+import { getApiBaseUrl } from '../api/http';
 
 interface AddGameModalProps {
   visible: boolean;
@@ -49,10 +50,8 @@ type TeamOption = {
 export default function AddGameModal({ visible, onClose, onSave, currentTeamName }: AddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+  const { teams: rawTeams, loading: loadingTeams } = useTeamOptions(true);
   
-  // Team state
-  const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [loadingTeams, setLoadingTeams] = useState(false);
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
   const [opponentSearchQuery, setOpponentSearchQuery] = useState('');
@@ -75,54 +74,29 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
 
-  // Load teams when modal opens
-  useEffect(() => {
-    if (visible && teams.length === 0) {
-      loadTeams();
-    }
-  }, [visible]);
-
-  const loadTeams = async () => {
-    try {
-      setLoadingTeams(true);
-      const teamsData = await Team.list();
-      const teamOptions: TeamOption[] = teamsData.map((team: any) => ({
-        id: team.id,
-        name: team.name,
-        logo: team.logo_url || team.avatar_url,
-      }));
-      
-      // Add some default teams if none exist
-      if (teamOptions.length === 0) {
-        teamOptions.push(
-          { id: 'my-team', name: 'My Team' },
-          { id: 'varsity-team', name: 'Varsity Team' },
-          { id: 'home-team', name: 'Home Team' }
-        );
-      }
-      
-      setTeams(teamOptions);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-      // Add default teams on error
-      setTeams([
-        { id: 'my-team', name: 'My Team' },
+  const teams: TeamOption[] = useMemo(() => {
+    if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
+      return [
+        { id: 'my-team', name: currentTeamName || 'My Team' },
         { id: 'varsity-team', name: 'Varsity Team' },
-        { id: 'home-team', name: 'Home Team' }
-      ]);
-    } finally {
-      setLoadingTeams(false);
+        { id: 'home-team', name: 'Home Team' },
+      ];
     }
-  };
+    return rawTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name,
+      logo: team.logo_url || team.avatar_url,
+    }));
+  }, [currentTeamName, rawTeams]);
 
   // Filter teams based on search query
-  const filteredTeams = teams.filter(team => 
-    team.name.toLowerCase().includes(opponentSearchQuery.toLowerCase())
-  );
+  const filteredTeams = useMemo(() => (
+    teams.filter(team => team.name.toLowerCase().includes(opponentSearchQuery.toLowerCase()))
+  ), [opponentSearchQuery, teams]);
 
-  const filteredCurrentTeams = teams.filter(team =>
-    team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase())
-  );
+  const filteredCurrentTeams = useMemo(() => (
+    teams.filter(team => team.name.toLowerCase().includes(currentTeamSearchQuery.toLowerCase()))
+  ), [currentTeamSearchQuery, teams]);
 
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
@@ -524,8 +498,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
       setEditorVisible(false);
       // Upload edited image and set as cover or banner in formData
       try {
-        const base = (typeof process !== 'undefined' && process.env && (process.env.EXPO_PUBLIC_API_URL as any)) || (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-        const uploaded = await (await import('@/api/upload')).uploadFile(base, uri, 'edited-banner.png', 'image/png');
+        const uploaded = await (await import('@/api/upload')).uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
         const url = uploaded?.url || uploaded?.path || null;
         if (url) {
           setFormData(prev => ({ ...prev, banner_url: url }));

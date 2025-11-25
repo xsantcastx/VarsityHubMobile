@@ -1,7 +1,8 @@
 // API Configuration for VarsityHub
 // Handles both development and production environments
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api-production-8ac3.up.railway.app';
+import { getApiBaseUrl } from '../api/http';
+export const API_BASE_URL = getApiBaseUrl();
 
 export const API_TIMEOUT = 10000; // 10 seconds
 

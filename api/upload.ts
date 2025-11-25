@@ -1,20 +1,8 @@
-import { Platform } from 'react-native';
-import { getAuthToken } from './http';
+import { getAuthToken, getApiBaseUrl } from './http';
 
 function computeBase(provided?: string | null) {
-  // If caller provided a base, use it
   if (provided) return provided.replace(/\/$/, '');
-  
-  // Use the same logic as http.ts for consistency
-  const envUrl = (typeof process !== 'undefined' && (process as any).env && (process as any).env.EXPO_PUBLIC_API_URL) || '';
-  const defaultUrl = __DEV__ ? 'http://localhost:4000' : 'https://api-production-8ac3.up.railway.app';
-  let url = envUrl || defaultUrl;
-  
-  if (__DEV__ && Platform.OS === 'android' && url.startsWith('http://localhost')) {
-    url = url.replace('http://localhost', 'http://10.0.2.2');
-  }
-  
-  return url.replace(/\/$/, '');
+  return getApiBaseUrl();
 }
 
 export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string): Promise<any> {

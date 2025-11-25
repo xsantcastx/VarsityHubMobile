@@ -428,7 +428,7 @@ export default function CommunityDiscoverScreen() {
               };
             }
             return marked;
-          }, [games, selectedDate])}
+          }, [games, selectedDate, colorScheme])}
           theme={{
             backgroundColor: Colors[colorScheme].background,
             calendarBackground: Colors[colorScheme].background,
@@ -527,33 +527,6 @@ export default function CommunityDiscoverScreen() {
                 <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
                 <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
-              </Pressable>
-            </>
-          ) : me?.preferences?.role === 'rookie' ? (
-            <>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => setCreateEventModalOpen(true)}
-              >
-                <Ionicons name="add-circle" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Create Event</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Organize team meetups</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push(`/user-profile?id=${me.id}`)}
-              >
-                <Ionicons name="stats-chart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Stats</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>View your performance</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push('/create-post')}
-              >
-                <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Highlight</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
               </Pressable>
             </>
           ) : (

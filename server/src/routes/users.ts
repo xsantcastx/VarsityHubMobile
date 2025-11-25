@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { notifyNewFollower } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -314,8 +315,23 @@ usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, r
             type: 'FOLLOW' as any,
           },
         });
+        
+        // Send push notification
+        const follower = await prisma.user.findUnique({ 
+          where: { id: follower_id }, 
+          select: { display_name: true } 
+        });
+        if (follower) {
+          await notifyNewFollower(
+            following_id,
+            follower_id,
+            follower.display_name || 'Someone'
+          );
+        }
       }
-    } catch {}
+    } catch (e) {
+      console.error('Failed to send follow notification:', e);
+    }
     // Return is_following_author for caller
     res.status(201).json({ is_following_author: true });
   } catch (error) {

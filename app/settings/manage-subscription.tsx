@@ -137,7 +137,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
             // Paid plans (veteran/legend) - show cancel option
             <View style={{ marginTop: 12 }}>
               <Button onPress={onCancel} disabled={loading} variant="outline">
-                Cancel subscription
+                <Text>Cancel subscription</Text>
               </Button>
             </View>
           ) : (
@@ -145,9 +145,9 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
             <>
               <Text style={{ marginTop: 12 }}>Choose a plan to unlock organization features.</Text>
               <View style={{ height: 12 }} />
-              <Button onPress={() => onSubscribe('veteran')} disabled={loading}>Upgrade to Veteran</Button>
+              <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
               <View style={{ height: 8 }} />
-              <Button onPress={() => onSubscribe('legend')} disabled={loading}>Upgrade to Legend</Button>
+              <Button onPress={() => onSubscribe('legend')} disabled={loading}><Text>Upgrade to Legend</Text></Button>
             </>
           )}
         </View>

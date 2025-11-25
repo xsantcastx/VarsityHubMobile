@@ -13,6 +13,7 @@ import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import OnboardingLayout from './components/OnboardingLayout';
+import { getApiBaseUrl } from '../../api/http';
 
 const ALL_INTERESTS = ['Football','Basketball','Baseball','Soccer','Volleyball','Track & Field','Swimming','Hockey','Other'] as const;
 
@@ -34,7 +35,7 @@ export default function Step7Profile() {
     setAvatar(ob.avatar_url ?? null);
     setBio(ob.bio ?? '');
     setInterests(ob.sports_interests ?? []);
-  }, []);
+  }, [ob.avatar_url, ob.bio, ob.sports_interests]);
 
   const toggleInterest = (i: string) => {
     setInterests((prev) => {
@@ -72,8 +73,7 @@ export default function Step7Profile() {
       const fileName = (asset.fileName && String(asset.fileName).includes('.')) ? String(asset.fileName) : `avatar_${Date.now()}.jpg`;
       fd.append('file', { uri: manipulated.uri, name: fileName, type: 'image/jpeg' } as any);
       const token = await (await import('@/api/auth')).loadToken();
-      const baseUrl = String((process as any).env?.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
-      const resp = await fetch(`${baseUrl}/upload/avatar`, {
+      const resp = await fetch(`${getApiBaseUrl()}/upload/avatar`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: fd as any,
@@ -103,18 +103,12 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(6);
+      setProgress(6); // step-8 is index 6
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Fans and rookies skip to role-onboarding, coaches continue to interests
-        if (ob.role === 'fan' || ob.role === 'rookie') {
-          // Mark onboarding as complete for fans/rookies
-          await User.updatePreferences({ onboarding_completed: true });
-          router.replace('/role-onboarding');
-        } else {
-          router.push('/onboarding/step-8-interests');
-        }
+        // Continue to interests
+        router.push('/onboarding/step-8-interests');
       }
     } catch (e: any) { 
       Alert.alert('Failed to save profile', e?.message || 'Please try again'); 
@@ -174,7 +168,11 @@ export default function Step7Profile() {
         <Input 
           value={bio} 
           onChangeText={setBio} 
-          placeholder="e.g., Coach with 10+ years experience, passionate about developing young athletes" 
+          placeholder={
+            ob.role === 'fan' 
+              ? "e.g., Huge sports fan, love supporting local teams and catching Friday night games"
+              : "e.g., Coach with 10+ years experience, passionate about developing young athletes"
+          }
           multiline
           numberOfLines={3}
           style={styles.bioInput}
@@ -233,22 +231,22 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   // Avatar Section
   avatarSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 20,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#F3F4F6',
   },
   avatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -263,7 +261,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 48,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -275,8 +273,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   photoButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors[colorScheme].border,
@@ -285,26 +283,27 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   photoButtonText: {
     color: Colors[colorScheme].text,
     fontWeight: '600',
+    fontSize: 14,
   },
   
   // Section Styles
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
     color: Colors[colorScheme].text,
   },
   sectionDescription: {
     color: Colors[colorScheme].mutedText,
-    fontSize: 14,
-    marginBottom: 12,
-    lineHeight: 20,
+    fontSize: 13,
+    marginBottom: 10,
+    lineHeight: 18,
   },
   
   // Bio Section
   bioInput: {
-    marginBottom: 32,
-    minHeight: 80,
+    marginBottom: 24,
+    minHeight: 70,
     textAlignVertical: 'top',
   },
   
@@ -313,14 +312,14 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 32,
+    marginBottom: 20,
   },
   interestChip: {
     borderWidth: 1,
     borderColor: Colors[colorScheme].border,
     backgroundColor: Colors[colorScheme].surface,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     borderRadius: 20,
   },
   interestChipSelected: {
@@ -348,7 +347,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
 });
-
 
 
 

@@ -18,6 +18,7 @@ export default function PaymentSuccessScreen() {
   
   // Check if this is an ad payment (type=ad) or subscription payment
   const isAdPayment = params.type === 'ad';
+  const isSubscription = params.type === 'subscription';
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -41,10 +42,17 @@ export default function PaymentSuccessScreen() {
               router.replace('/(tabs)/my-ads');
             }, 2000);
           } else {
-            // For subscriptions, verify the payment was successful by checking user status
-            const me = await User.me();
-            if (me?.preferences?.payment_pending === false) {
-              setSessionVerified(true);
+            // For subscriptions, verify by checking user's plan and payment flag
+            try {
+              const me = await User.me();
+              const plan = me?.preferences?.plan;
+              const pending = me?.preferences?.payment_pending;
+              if ((plan === 'veteran' || plan === 'legend') && pending === false) {
+                setSessionVerified(true);
+              }
+            } catch (e) {
+              // If user fetch fails, allow manual continue
+              console.warn('[payment-success] User.me() failed during subscription verify');
             }
           }
         }
@@ -57,7 +65,7 @@ export default function PaymentSuccessScreen() {
     };
 
     verifyPayment();
-  }, [params.session_id, isAdPayment]);
+  }, [isAdPayment, params.session_id, router]);
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
@@ -69,6 +77,11 @@ export default function PaymentSuccessScreen() {
       console.log('[payment-success] Redirecting to /(tabs)/feed');
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }
+  };
+
+  const handleCreateTeam = () => {
+    console.log('[payment-success] Redirecting to /create-team');
+    router.replace('/create-team');
   };
 
   const handleRetryVerification = async () => {
@@ -131,7 +144,7 @@ export default function PaymentSuccessScreen() {
               <Text style={styles.successText}>
                 {isAdPayment 
                   ? 'Your ad payment has been processed successfully. Your ad reservation is now confirmed and will appear in "My Ads"!'
-                  : 'Your subscription has been activated. You can now access all premium features.'}
+                  : 'Your subscription has been activated. You can now create additional teams and access premium features.'}
               </Text>
               {isAdPayment && (
                 <View style={styles.infoBox}>
@@ -140,12 +153,29 @@ export default function PaymentSuccessScreen() {
                   <Text style={styles.infoText}>🚀 Your ad is being prepared</Text>
                 </View>
               )}
+              {isSubscription && (
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoText}>✅ Subscription active</Text>
+                  <Text style={styles.infoText}>👥 Per-team billing applied (Veteran)</Text>
+                  <Text style={styles.infoText}>🏆 Unlimited teams on Legend</Text>
+                </View>
+              )}
               <View style={styles.buttonContainer}>
                 <PrimaryButton 
                   label={isAdPayment ? "View My Ads" : "Continue to App"}
                   onPress={handleContinue}
                 />
               </View>
+              {isSubscription && (
+                <View style={styles.buttonContainer}>
+                  <Pressable 
+                    onPress={handleCreateTeam}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryButtonText}>Create a Team Now</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
           ) : (
             <View style={styles.pendingContainer}>

@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
@@ -15,9 +15,30 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
-import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
+import GameVerticalFeedScreen, { FeedPost, mapHighlightToFeedPost } from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
+
+const HighlightCard = ({ highlight, onPress }: { highlight: FeedPost, onPress: () => void }) => {
+  const colorScheme = useColorScheme() ?? 'light';
+  return (
+    <Pressable onPress={onPress} style={styles.highlightCard}>
+      <Image
+        source={{ uri: highlight.media_url }}
+        style={styles.highlightImage}
+        contentFit="cover"
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.8)']}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.highlightOverlay}>
+        <Ionicons name="play-circle" size={40} color="white" />
+      </View>
+      <Text style={styles.highlightCaption} numberOfLines={2}>{highlight.caption}</Text>
+    </Pressable>
+  );
+};
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
@@ -211,7 +232,7 @@ export default function FeedScreen() {
 
   const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
   const [zipSuggestionsOpen, setZipSuggestionsOpen] = useState(false);
-  const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
+  const [highlights, setHighlights] = useState<FeedPost[]>([]);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
   const [sponsoredIndex, setSponsoredIndex] = useState(0);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
@@ -264,7 +285,7 @@ export default function FeedScreen() {
       const todayISO = new Date().toISOString().slice(0, 10);
       const [gamesData, highlightsData, forFeedAds] = await Promise.all([
         Game.list('-date'),
-        Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
+        Highlights.fetch(countryCode ? { country: countryCode, limit: 40 } : { limit: 40 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
@@ -281,18 +302,22 @@ export default function FeedScreen() {
         normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       }
       
-      setGames(normalizedGames);
+      const allGames = [...normalizedGames];
+
+      setGames(allGames);
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
-      setZipDirectory(buildZipDirectory(normalizedGames));
+      setZipDirectory(buildZipDirectory(allGames));
       if (highlightsData) {
         const merged: any[] = [];
         if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
         if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
-        const firstWithMedia = merged.find((item) => typeof item?.media_url === 'string' && item.media_url);
-        setHighlightPreview(firstWithMedia || null);
+        
+        const mappedHighlights = merged.map(mapHighlightToFeedPost).filter(Boolean) as FeedPost[];
+        setHighlights(mappedHighlights);
+
       } else {
-        setHighlightPreview(null);
+        setHighlights([]);
       }
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
         const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
@@ -312,7 +337,7 @@ export default function FeedScreen() {
       setError('Unable to load games. Sign in may be required.');
       setGames([]);
       setZipDirectory([]);
-      setHighlightPreview(null);
+      setHighlights([]);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -485,43 +510,6 @@ export default function FeedScreen() {
     return result;
   }, [upcomingEvents, sponsoredAds]);
 
-  const verticalFeedTitle = 'All Highlights';
-  const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
-  const verticalFeedSubtitleText = highlightPreview?.title
-    ? `Featured: ${highlightPreview.title}`
-    : 'Tap to watch top plays from every game.';
-  const verticalFeedAuthorText = highlightPreview?.author?.display_name
-    ? `By ${highlightPreview.author.display_name}`
-    : null;
-
-  const zipSuggestions = useMemo(() => {
-    if (!zipSuggestionsOpen) return [] as ZipDirectoryEntry[];
-    const digits = query.replace(/[^0-9]/g, '');
-    if (digits.length < 2) return [] as ZipDirectoryEntry[];
-    return zipDirectory
-      .filter((entry) => entry.zip.startsWith(digits))
-      .slice(0, 6);
-  }, [zipSuggestionsOpen, query, zipDirectory]);
-
-  const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
-
-  const handleQueryChange = useCallback((value: string) => {
-    setQuery(value);
-    const digits = value.replace(/[^0-9]/g, '');
-    setZipSuggestionsOpen(digits.length >= 2);
-  }, []);
-
-  const handleZipSelect = useCallback((zip: string) => {
-    setQuery(zip);
-    setZipSuggestionsOpen(false);
-    Keyboard.dismiss();
-  }, []);
-
-  const handleSearchFocus = useCallback(() => {
-    const digits = query.replace(/[^0-9]/g, '');
-    setZipSuggestionsOpen(digits.length >= 2);
-  }, [query]);
-
   const openInstagram = useCallback(async () => {
     const instagramUrl = 'https://instagram.com/varsityhub_';
     try {
@@ -540,9 +528,15 @@ export default function FeedScreen() {
   const userCountryCode = typeof me?.preferences?.country_code === 'string'
     ? String(me.preferences.country_code).toUpperCase()
     : undefined;
+    
+  const handleSearchFocus = useCallback(() => {
+    const digits = query.replace(/[^0-9]/g, '');
+    setZipSuggestionsOpen(digits.length >= 2);
+  }, [query]);
 
-  const openVerticalFeed = useCallback(() => {
+  const openVerticalFeed = useCallback((startIndex: number) => {
     setActiveVerticalFeedGameId(null);
+    (global as any).__tempStartIndex = startIndex;
     setVerticalFeedModalVisible(true);
   }, []);
 
@@ -645,7 +639,7 @@ export default function FeedScreen() {
         </Pressable>
       );
     },
-    [onRefresh, router, voteSummaries],
+    [colorScheme, onRefresh, router, voteSummaries],
   );
 
   return (
@@ -1036,44 +1030,26 @@ export default function FeedScreen() {
         
         {/* Footer Content */}
         <View style={styles.gridFooter}>
-          {/* Removed static sponsored card - ads now appear in feed */}
+          {/* REMOVED static sponsored card - ads now appear in feed */}
 
-          <View style={styles.verticalFeedSection}>
-            <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
-            <Pressable
-              onPress={openVerticalFeed}
-              style={styles.verticalFeedCard}
-              accessibilityRole="button"
-              accessibilityLabel="Open highlights reel"
-            >
-              {verticalFeedPreviewImage ? (
-                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
-              ) : (
-                <LinearGradient
-                  colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
-                  style={styles.verticalFeedImage}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                />
-              )}
-              <LinearGradient
-                colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
-                style={styles.verticalFeedShade}
+          {highlights.length > 0 && (
+            <View style={styles.verticalFeedSection}>
+              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].text, marginBottom: 12 }]}>All Highlights</Text>
+              <FlatList
+                    horizontal
+                    data={highlights}
+                    renderItem={({ item: highlight, index }) => (
+                      <HighlightCard
+                        highlight={highlight}
+                        onPress={() => openVerticalFeed(index)}
+                      />
+                    )}
+                    keyExtractor={(item, index) => `${item.id}-${index}`}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 12, paddingRight: 16 }}
               />
-              <View style={styles.verticalFeedContent}>
-                <View style={styles.verticalFeedBadge}>
-                  <Ionicons name="play" size={18} color="#fff" />
-                </View>
-                <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
-                {verticalFeedAuthorText ? (
-                  <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
-                ) : null}
-                <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
-                  {verticalFeedSubtitleText}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
+            </View>
+          )}
 
           {loadingMore ? (
             <View style={styles.loadingMore}>
@@ -1186,11 +1162,12 @@ export default function FeedScreen() {
         presentationStyle="fullScreen"
         onRequestClose={closeVerticalFeed}
       >
-  <View style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}>
+        <View style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}>
           {verticalFeedModalVisible ? (
             <GameVerticalFeedScreen
-              key={activeVerticalFeedGameId || 'all-highlights'}
-              gameId={activeVerticalFeedGameId}
+              key={'all-highlights-feed'}
+              initialPosts={highlights}
+              startIndex={(global as any).__tempStartIndex ?? 0}
               onClose={closeVerticalFeed}
               countryCode={userCountryCode}
             />
@@ -1220,8 +1197,8 @@ const styles = StyleSheet.create({
   iconButton: { padding: 8, borderRadius: 8 },
   center: { paddingVertical: 24, alignItems: 'center' },
   error: { color: '#b91c1c', marginBottom: 8 },
-  muted: { color: '#6b7280' },
-  helper: { color: '#6b7280', marginBottom: 10 },
+  muted: { fontSize: 14 },
+  helper: { fontSize: 14, marginBottom: 10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brand: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
@@ -1246,9 +1223,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
-    flex: 1,
   },
-  gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
+  gridRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 4, marginBottom: 6 },
   masonryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1378,6 +1354,7 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
+    margin: 4,
     aspectRatio: 1,
     borderRadius: 18,
     overflow: 'hidden',
@@ -1453,14 +1430,32 @@ const styles = StyleSheet.create({
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
   verticalFeedSection: { marginTop: 32, marginBottom: 24 },
-  verticalFeedCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 220, aspectRatio: 1, justifyContent: 'flex-end' },
-  verticalFeedImage: { ...StyleSheet.absoluteFillObject },
-  verticalFeedShade: { ...StyleSheet.absoluteFillObject },
-  verticalFeedContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
-  verticalFeedBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)', shadowColor: '#0f172a', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
-  verticalFeedTitleText: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
-  verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
-  verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
+  // New styles for horizontal highlight cards
+  highlightCard: {
+    width: 150,
+    height: 250,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#333',
+  },
+  highlightImage: {
+    width: '100%',
+    height: '100%',
+  },
+  highlightOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  highlightCaption: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
   // Menu Modal Styles
@@ -1583,21 +1578,4 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#2563EB',
   },
-  unreadBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#2563EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  unreadBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
 });
-
-
-

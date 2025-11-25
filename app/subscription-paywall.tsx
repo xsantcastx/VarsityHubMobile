@@ -5,7 +5,7 @@
  * Allows coaches to select and upgrade their subscription
  */
 
-import { getAuthToken } from '@/api/http';
+import { getAuthToken, getApiBaseUrl } from '@/api/http';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -62,7 +62,7 @@ export default function SubscriptionPaywallScreen() {
     setLoading(true);
     try {
       // Call backend to create Stripe checkout session
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+      const base = getApiBaseUrl();
       const headers: any = { 'Content-Type': 'application/json' };
       const token = getAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;

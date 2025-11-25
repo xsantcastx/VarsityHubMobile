@@ -184,16 +184,16 @@ export default function UserProfileScreen() {
                     {user.role && (
                       <View style={[S.roleBadge, 
                         user.role === 'coach' && S.coachBadge,
-                        user.role === 'rookie' && S.playerBadge,
+                        (user.role === 'coach') && S.coachBadge,
                         user.role === 'fan' && S.fanBadge
                       ]}>
                         <Ionicons 
-                          name={user.role === 'coach' ? 'flag' : user.role === 'rookie' ? 'basketball' : 'heart'} 
+                          name={user.role === 'coach' ? 'flag' : 'heart'} 
                           size={12} 
                           color="#ffffff" 
                         />
                         <Text style={S.roleText}>
-                          {user.role === 'rookie' ? 'PLAYER' : user.role.toUpperCase()}
+                          {user.role.toUpperCase()}
                         </Text>
                       </View>
                     )}

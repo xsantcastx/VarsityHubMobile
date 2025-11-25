@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "android": {
+      "package": "com.lime_prod.varsityhubserver"
+    },
+    "ios": {
+      "bundleIdentifier": "com.lime-prod.varsityhubserver"
+    }
+  }
+}

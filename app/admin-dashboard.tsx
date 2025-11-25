@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../api/http';
 
 interface DashboardStats {
   totalUsers: number;
@@ -38,7 +39,7 @@ export default function AdminDashboardScreen() {
     
     try {
       const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
+      const apiUrl = getApiBaseUrl();
       
       const response = await fetch(`${apiUrl}/admin/dashboard`, {
         headers: {

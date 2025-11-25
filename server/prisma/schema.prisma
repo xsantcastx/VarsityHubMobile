@@ -40,6 +40,7 @@ model User {
   // Relations
   memberships TeamMembership[]
   orgMemberships OrganizationMembership[]
+  orgJoinRequests OrganizationJoinRequest[]
   rsvps       EventRsvp[]
   createdEvents Event[]
   stories     Story[]
@@ -513,6 +514,8 @@ model Team {
   logo_url    String?
   avatar_url  String?
   sport       String?
+  club_type   String   @default("sport") // "sport" or "extracurricular"
+  extracurricular_category String? // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
   season_start DateTime?
   season_end  DateTime?
   organization_id String?
@@ -551,6 +554,9 @@ model Organization {
   name        String
   description String?
   sport       String?
+  org_type    String?  // school | club | league | other
+  location    String?  // City, State format
+  zip_code    String?  // For nearby search
   season_start DateTime?
   season_end  DateTime?
   status      String   @default("active")
@@ -559,6 +565,29 @@ model Organization {
   teams       Team[]
   memberships OrganizationMembership[]
   invites     OrganizationInvite[]
+  joinRequests OrganizationJoinRequest[]
+  
+  @@unique([name, zip_code])
+  @@index([zip_code])
+  @@index([location])
+}
+
+model OrganizationJoinRequest {
+  id              String   @id @default(cuid())
+  organization_id String
+  user_id         String
+  status          String   @default("pending") // pending | approved | denied
+  message         String?  // Optional message from user
+  created_at      DateTime @default(now())
+  reviewed_at     DateTime?
+  reviewed_by     String?  // user_id of admin who reviewed
+  
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@unique([organization_id, user_id])
+  @@index([organization_id, status])
+  @@index([user_id, status])
 }
 
 model OrganizationMembership {
@@ -598,7 +627,7 @@ model TeamMembership {
   team_id String
   user_id String
 
-  role       String   @default("member") // owner | manager | member
+  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
   status     String   @default("active") // active | invited | archived
   created_at DateTime @default(now())
 
@@ -613,7 +642,7 @@ model TeamInvite {
   id         String   @id @default(cuid())
   team_id    String
   email      String
-  role       String   @default("member") // owner | manager | member
+  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
   status     String   @default("pending") // pending | accepted | declined | revoked
   created_at DateTime @default(now())
 

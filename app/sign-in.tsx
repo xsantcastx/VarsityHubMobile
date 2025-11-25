@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -16,13 +16,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+
+const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -35,12 +39,18 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
+  const { trackTap } = useAnalytics();
+
+  useEffect(() => {
+    console.log('[sign-in] Runtime API base URL:', getApiBaseUrl());
+  }, []);
 
   const onSubmit = async () => {
     if (!email || !password) {
       setError('Please enter email and password');
       return;
     }
+    trackTap('auth_email_submit', { screen: 'sign_in' });
     setLoading(true);
     setError(null);
     try {
@@ -89,6 +99,7 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
+      trackTap('auth_google_tap', { screen: 'sign_in' });
       const response: any = await signInWithGoogle();
       const account = response?.user || (await User.me());
       const prefs = account?.preferences || {};
@@ -109,20 +120,24 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
-    if (!appleReady || Platform.OS !== 'ios') {
-      setError('Apple sign in is not available.');
+    if (Platform.OS !== 'ios') {
+      setError('Apple sign in is only available on iOS.');
       return;
     }
     setError(null);
     try {
+      trackTap('auth_apple_tap', { screen: 'sign_in' });
       const response: any = await signInWithApple();
-      const account = response?.user || (await User.me());
-      const prefs = account?.preferences || {};
-      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      
+      // The response includes both access_token and user data
+      // Check needs_onboarding from the auth response directly
+      const needsOnboarding = response?.needs_onboarding === true;
+      
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');
         return;
       }
+      
       router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';
@@ -161,18 +176,14 @@ export default function SignInScreen() {
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
             ) : null}
 
-            {Platform.OS === 'ios' && appleReady ? (
-                          <AppleAuthenticationButton
-              onPress={handleAppleSignIn}
-              buttonType={AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={8}
-              style={{ width: '100%', height: 50, marginBottom: 12 }}
-            ) : Platform.OS === 'ios' ? (
-              <View style={[styles.appleFallbackButton, { backgroundColor: colorScheme === 'dark' ? '#111827' : '#000' }]} accessibilityRole="text">
-                <Ionicons name="logo-apple" size={20} color={colorScheme === 'dark' ? '#F9FAFB' : '#FFFFFF'} style={{ marginRight: 8 }} />
-                <Text style={[styles.appleFallbackText, { color: colorScheme === 'dark' ? '#F9FAFB' : '#FFFFFF' }]}>Sign in with Apple</Text>
-              </View>
+            {Platform.OS === 'ios' ? (
+              <AppleAuthenticationButton
+                onPress={handleAppleLogin}
+                buttonType={AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={8}
+                style={{ width: '100%', height: 50, marginBottom: 8 }}
+              />
             ) : null}
 
             {googleReady ? (
@@ -411,8 +422,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
 
 
 

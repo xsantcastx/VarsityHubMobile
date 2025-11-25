@@ -10,6 +10,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Sc
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
+import { getApiBaseUrl } from '../api/http';
 import settings from '@/api/settings';
 
 export default function EditAdScreen() {
@@ -78,8 +79,7 @@ export default function EditAdScreen() {
     try {
       setUploading(true);
       const manipulated = await ImageManipulator.manipulateAsync(a.uri, [{ resize: { width: 1200 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
-      const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
-      const up = await uploadFile(base, manipulated.uri, a.fileName || 'banner.jpg', 'image/jpeg');
+      const up = await uploadFile(getApiBaseUrl(), manipulated.uri, a.fileName || 'banner.jpg', 'image/jpeg');
       setBannerUrl(up?.url || up?.path || null);
     } catch (e: any) {
       Alert.alert('Upload failed', e?.message || 'Please try again.');

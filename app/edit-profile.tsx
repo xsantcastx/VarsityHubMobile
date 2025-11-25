@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '../api/http';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -227,8 +228,7 @@ export default function EditProfileScreen() {
       );
 
       // Upload to server
-      const baseUrl = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) || 'https://api-production-8ac3.up.railway.app';
-      const uploadResult = await uploadFile(baseUrl, manipulatedImage.uri, 'avatar.jpg', 'image/jpeg');
+      const uploadResult = await uploadFile(getApiBaseUrl(), manipulatedImage.uri, 'avatar.jpg', 'image/jpeg');
       
       if (uploadResult?.url) {
         setAvatarUrl(uploadResult.url);

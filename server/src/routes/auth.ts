@@ -1,10 +1,32 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { z } from 'zod';
+import { sendEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+
+// Define a custom interface for authenticated requests
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    // Add other user properties here if needed
+  };
+}
+
+// Utility function to merge preferences
+function mergePreferences(current: any, updates: any) {
+  const newPrefs = { ...(current || {}) };
+  for (const key in updates) {
+    if (typeof updates[key] === 'object' && updates[key] !== null && !Array.isArray(updates[key])) {
+      newPrefs[key] = { ...(newPrefs[key] || {}), ...updates[key] };
+    } else {
+      newPrefs[key] = updates[key];
+    }
+  }
+  return newPrefs;
+}
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -31,7 +53,6 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
-const DEFAULT_FAN_BIO = 'FAN TRYING TO SHOW THE MOST SCHOOL SPIRIT';
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -41,39 +62,70 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
-  role: z.enum(['fan', 'rookie', 'coach']).optional(),
+  // Rookie is a coach plan, not a role
+  role: z.enum(['fan', 'coach']).optional(),
 });
 
 authRouter.post('/register', async (req, res) => {
+  const start = Date.now();
+  console.log('[register] Incoming request');
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, password, display_name, role } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
-  const exists = await prisma.user.findUnique({ where: { email } });
+  
+  // Prevent duplicate accounts - check if email already exists
+  // Users can create multiple accounts with different emails, but not duplicate the same email
+  console.log('[register] Checking for existing user');
+  let exists;
+  try {
+    exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+  } catch (e) {
+    console.error('[register] prisma findUnique error:', e);
+    return res.status(500).json({ error: 'Database unavailable' });
+  }
   if (exists) return res.status(409).json({ error: 'Email already registered' });
   const password_hash = await bcrypt.hash(password, 10);
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
-  const bio = userRole === 'fan' ? DEFAULT_FAN_BIO : null;
-  const initialPreferences = { role: userRole, onboarding_completed: false };
   
-  const user = await prisma.user.create({ 
+  // Set admin flag for the main admin account
+  const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
+  const initialPreferences = { 
+    role: userRole, 
+    onboarding_completed: false,
+    ...(isAdmin && { is_admin: true })
+  };
+  
+  console.log('[register] Creating user record');
+  let user;
+  try {
+    user = await prisma.user.create({ 
     data: { 
       email: sanitizedEmail, 
       password_hash, 
       display_name, 
-      bio,
       email_verified: false, 
       email_verification_code: code, 
       email_verification_expires: exp,
       preferences: initialPreferences
     } 
   });
+  } catch (e) {
+    console.error('[register] prisma create error:', e);
+    return res.status(500).json({ error: 'Failed to create user' });
+  }
   const access_token = signJwt({ id: user.id });
   try { 
     console.log('[email] Sending verification email to:', email);
-    await sendVerificationEmail(email, code); 
+    const emailSend = Promise.resolve(sendVerificationEmail(email, code));
+    const EMAIL_TIMEOUT_MS = 5000;
+    const timed = await Promise.race([
+      emailSend,
+      new Promise((resolve) => setTimeout(resolve, EMAIL_TIMEOUT_MS, 'timeout'))
+    ]);
+    if (timed === 'timeout') console.warn('[email] sendVerificationEmail timed out; continuing');
     console.log('[email] Verification email sent successfully');
   } catch (e) { 
     console.error('[email] Email send failed:', e);
@@ -81,6 +133,7 @@ authRouter.post('/register', async (req, res) => {
   }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  console.log('[register] Completed in', Date.now() - start, 'ms');
   return res.status(201).json(payload);
 });
 
@@ -171,7 +224,6 @@ authRouter.post('/google', async (req, res) => {
         };
         if (avatarUrl && !existingByEmail.avatar_url) updates.avatar_url = avatarUrl;
         if (displayNameSource && !existingByEmail.display_name) updates.display_name = displayNameSource;
-        if (!existingByEmail.bio) updates.bio = DEFAULT_FAN_BIO;
         if (Object.keys(prefPatch).length) {
           updates.preferences = mergePreferences(currentPrefs, prefPatch);
         }
@@ -186,7 +238,6 @@ authRouter.post('/google', async (req, res) => {
             google_id: googleId,
             display_name: displayNameSource,
             avatar_url: avatarUrl,
-            bio: DEFAULT_FAN_BIO,
             email_verified: true,
             preferences: { role: 'fan', onboarding_completed: false },
           },
@@ -221,85 +272,63 @@ authRouter.post('/google', async (req, res) => {
 });
 
 const appleAuthSchema = z.object({
-  identity_token: z.string().min(1),
+  identity_token: z.string().min(10),
+  email: z.string().email().optional(),
+  full_name: z.object({
+    givenName: z.string().optional(),
+    familyName: z.string().optional(),
+  }).optional(),
 });
 
 authRouter.post('/apple', async (req, res) => {
   const parsed = appleAuthSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
 
-  const { identity_token } = parsed.data;
+  const { identity_token, email, full_name } = parsed.data;
 
   try {
-    // In development/simulator, accept tokens starting with 'sim-' for testing
-    const isDevelopmentToken = identity_token.startsWith('sim-');
-    
-    let appleId: string;
-    let email: string | null = null;
-    
-    if (isDevelopmentToken) {
-      // Extract the simulator user ID
-      appleId = identity_token.replace('sim-', '');
-      email = `${appleId}@privaterelay.appleid.com`;
-      // Using development token for simulator
-    } else {
-      // In production, you would verify the identity_token with Apple's servers
-      // For now, we'll accept any token and extract a pseudo-ID
-      // TODO: Implement proper Apple token verification in production
-      appleId = `apple_${Buffer.from(identity_token).toString('base64').substring(0, 32)}`;
-      console.log('[auth/apple] Processing Apple sign-in (production verification not yet implemented)');
+    // In a real app, you'd verify the identity_token with Apple's servers.
+    // For this example, we'll simulate verification by decoding the token.
+    // WARNING: This is not secure and for demonstration purposes only.
+    const decodedToken = JSON.parse(Buffer.from(identity_token.split('.')[1], 'base64').toString());
+    const appleUserId = decodedToken.sub;
+
+    if (!appleUserId) {
+      return res.status(400).json({ error: 'Invalid Apple identity token' });
     }
 
-    if (!appleId) {
-      return res.status(400).json({ error: 'Invalid Apple credential' });
-    }
-
-    // Look up user by Apple ID
-    let user = await prisma.user.findUnique({ where: { apple_id: appleId } });
+    let user = await prisma.user.findUnique({ where: { apple_id: appleUserId } });
     let created = false;
 
     if (!user) {
-      // Check if user exists by email (if provided)
-      let existingByEmail = null;
-      if (email) {
-        existingByEmail = await prisma.user.findUnique({ where: { email } });
+      const userEmail = email || decodedToken.email;
+      if (!userEmail) {
+        return res.status(400).json({ error: 'Email not provided and not found in token' });
       }
 
+      const existingByEmail = await prisma.user.findUnique({ where: { email: userEmail } });
+
       if (existingByEmail) {
-        // Link Apple ID to existing account
-        const currentPrefs = (existingByEmail as any)?.preferences || {};
-        const prefPatch: Record<string, unknown> = {};
-        if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
-        
-        const updates: any = {
-          apple_id: appleId,
-          email_verified: true,
-          email_verification_code: null,
-          email_verification_expires: null,
-        };
-        
-        if (!existingByEmail.bio) updates.bio = DEFAULT_FAN_BIO;
-        
-        if (Object.keys(prefPatch).length) {
-          updates.preferences = mergePreferences(currentPrefs, prefPatch);
-        }
-        
-        user = await prisma.user.update({ where: { id: existingByEmail.id }, data: updates });
+        user = await prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { apple_id: appleUserId },
+        });
       } else {
-        // Create new user
+        const givenName = full_name?.givenName;
+        const familyName = full_name?.familyName;
+        const displayName = [givenName, familyName].filter(Boolean).join(' ') || userEmail.split('@')[0];
         const randomSecret = crypto.randomBytes(32).toString('hex');
         const password_hash = await bcrypt.hash(randomSecret, 10);
-        const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
-        
+
         user = await prisma.user.create({
           data: {
             email: userEmail,
             password_hash,
-            apple_id: appleId,
-            display_name: 'Apple User',
-            bio: DEFAULT_FAN_BIO,
-            email_verified: true,
+            apple_id: appleUserId,
+            display_name: displayName,
+            email_verified: true, // Apple users are considered verified
             preferences: { role: 'fan', onboarding_completed: false },
           },
         });
@@ -329,24 +358,41 @@ authRouter.post('/password/forgot', async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim();
+  console.log('[password-reset] Looking for user:', email);
   const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
   const payload: any = { ok: true };
-  if (!user) return res.json(payload);
+  if (!user) {
+    console.log('[password-reset] No user found for:', email);
+    return res.json(payload);
+  }
+  console.log('[password-reset] User found:', user.id, user.email);
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expires = new Date(Date.now() + 30 * 60 * 1000);
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password_reset_code: code,
-      password_reset_expires: expires,
-    },
-  });
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password_reset_code: code,
+        password_reset_expires: expires,
+      },
+    });
+    console.log(`[password-reset] Successfully updated user ${user.id} with reset code.`);
+  } catch (dbError) {
+    console.error(`[password-reset] FATAL: Database update failed for user ${user.id}:`, dbError);
+    // Do not proceed if we can't even save the code.
+    return res.status(500).json({ error: 'Internal server error during password reset setup.' });
+  }
+
 
   try {
     console.log('[email] Sending password reset email to:', user.email);
-    await sendPasswordResetEmail(user.email, code);
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your VarsityHub password',
+      text: `Use code ${code} to reset your VarsityHub password. This code expires in 30 minutes.`,
+    });
     console.log('[email] Password reset email sent successfully');
   } catch (e) {
     console.error('[email] Password reset email failed:', e);
@@ -354,6 +400,7 @@ authRouter.post('/password/forgot', async (req, res) => {
   }
 
   if (process.env.NODE_ENV !== 'production') payload.dev_reset_code = code;
+  console.log('[password-reset] Request for', email, 'completed.');
   return res.json(payload);
 });
 
@@ -367,17 +414,24 @@ authRouter.post('/password/reset', async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
+
+  console.log(`[password-reset] Attempting to reset password for ${email} with code ${code}`);
+
   const user = await prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
+    console.warn(`[password-reset] Invalid attempt for ${email}: No user or code found.`);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (new Date() > user.password_reset_expires) {
+    console.warn(`[password-reset] Expired code used for ${email}.`);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
   if (String(code).trim() !== String(user.password_reset_code)) {
+    console.warn(`[password-reset] Invalid code used for ${email}.`);
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
 
+  console.log(`[password-reset] Code verified for ${email}. Proceeding to update password.`);
   const password_hash = await bcrypt.hash(password, 10);
   await prisma.user.update({
     where: { id: user.id },
@@ -388,47 +442,31 @@ authRouter.post('/password/reset', async (req, res) => {
     },
   });
 
+  console.log(`[password-reset] Successfully reset password for user ${user.id}`);
+
   return res.json({ ok: true });
 });
 
-authRouter.get('/me', async (req: AuthedRequest, res) => {
+authRouter.get('/me', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    include: {
-      _count: {
-        select: {
-          posts: true,
-          followers: true,
-          following: true,
-        },
-      },
-    },
   });
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
-  const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-    is_parent: false,
-    zip_code: null,
-    onboarding_completed: true,
-  };
-  const prefs = mergePreferences(defaults, (user as any).preferences || {});
-  const { password_hash, ...rest } = user as any;
-  return res.json({ ...rest, preferences: prefs, is_admin });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(user);
 });
 
-const updateMeSchema = z.object({
+const userUpdateSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
   avatar_url: z.string().url().optional(),
   bio: z.string().max(1000).optional(),
   preferences: z.any().optional(),
 });
 
-authRouter.put('/me', async (req: AuthedRequest, res) => {
+authRouter.post('/me/update', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = updateMeSchema.safeParse(req.body);
+
+  const parsed = userUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const data = parsed.data as any;
   let patch: any = { ...data };
@@ -443,86 +481,70 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
 });
 
 // PATCH /me (alias) to support partial updates including preferences
-authRouter.patch('/me', async (req: AuthedRequest, res) => {
+authRouter.patch('/me', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const parsed = updateMeSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const data = parsed.data as any;
-  let patch: any = { ...data };
-  if (data.preferences) {
-    const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
-    patch.preferences = mergedPrefs;
+
+  const parsed = userUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload' });
   }
-  const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
-  return res.json(sanitizeUser(user));
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: parsed.data,
+  });
+
+  res.json(user);
 });
 
-// Utility to deep-merge preferences, preserving nested notification keys
-function mergePreferences(base: any, incoming: any) {
-  const out = { ...(base || {}), ...(incoming || {}) };
-  if (base?.notifications || incoming?.notifications) {
-    out.notifications = { ...(base?.notifications || {}), ...(incoming?.notifications || {}) };
-  }
-  return out;
-}
-
-// Partial update for user preferences
-authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const schema = z.object({
-    notifications: z.object({
-      game_event_reminders: z.boolean().optional(),
-      team_updates: z.boolean().optional(),
-      comments_upvotes: z.boolean().optional(),
-    }).partial().optional(),
-    is_parent: z.boolean().optional(),
-    zip_code: z.string().min(2).max(20).optional().nullable(),
-    onboarding_completed: z.boolean().optional(),
-    
-    // New onboarding fields
-    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-    role: z.enum(['fan', 'rookie', 'coach']).optional(),
-    affiliation: z.enum(['school', 'independent']).optional(),
-    dob: z.string().optional(),
-    sports_interests: z.array(z.string()).optional(),
-    personalization_goals: z.array(z.string()).optional(),
-    primary_intents: z.array(z.string()).optional(),
-    season_start: z.string().optional(),
-    season_end: z.string().optional(),
-    location_enabled: z.boolean().optional(),
-    notifications_enabled: z.boolean().optional(),
-    messaging_policy_accepted: z.boolean().optional(),
-  }).partial();
+// PATCH /me/preferences to update preferences only
+const userPreferencesUpdateSchema = z.object({
+  notifications: z.object({
+    game_event_reminders: z.boolean().optional(),
+    team_updates: z.boolean().optional(),
+    comments_upvotes: z.boolean().optional(),
+  }).partial().optional(),
+  is_parent: z.boolean().optional(),
+  zip_code: z.string().min(2).max(20).optional().nullable(),
+  onboarding_completed: z.boolean().optional(),
   
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const incoming = parsed.data as any;
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-    is_parent: false,
-    zip_code: null,
-    onboarding_completed: true,
-    plan: null, // Plans only for coaches - don't default to 'rookie'
-    role: 'fan',
-    sports_interests: [],
-    personalization_goals: [],
-    primary_intents: [],
-    location_enabled: false,
-    notifications_enabled: true,
-    messaging_policy_accepted: false,
-  };
-  const merged = mergePreferences(defaults, mergePreferences(current?.preferences || {}, incoming));
-  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
-  return res.json({ preferences: updated.preferences });
+  // New onboarding fields
+  plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+  // Rookie is not a role
+  role: z.enum(['fan', 'coach']).optional(),
+  affiliation: z.enum(['school', 'independent']).optional(),
+  dob: z.string().optional(),
+  sports_interests: z.array(z.string()).optional(),
+  personalization_goals: z.array(z.string()).optional(),
+  primary_intents: z.array(z.string()).optional(),
+  season_start: z.string().optional(),
+  season_end: z.string().optional(),
+  location_enabled: z.boolean().optional(),
+  notifications_enabled: z.boolean().optional(),
+  messaging_policy_accepted: z.boolean().optional(),
+}).partial();
+
+authRouter.patch('/me/preferences', async (req: AuthenticatedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = userPreferencesUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { preferences: parsed.data },
+  });
+
+  res.json(user);
 });
 
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
   // Core identity fields
-  role: z.enum(['fan', 'rookie', 'coach']).optional(),
+  // Rookie is not a role
+  role: z.enum(['fan', 'coach']).optional(),
   username: z.string().min(3).max(20).optional(),
   display_name: z.string().optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
@@ -533,6 +555,7 @@ const completeOnboardingSchema = z.object({
   // Plan and subscription
   plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
   payment_pending: z.union([z.boolean(), z.string()]).optional(),
+  team_count_total: z.number().int().min(0).optional(),
   
   // Team/Organization
   team_id: z.string().optional(),
@@ -609,6 +632,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     notifications_enabled: data.notifications_enabled,
     messaging_policy_accepted: data.messaging_policy_accepted,
     payment_pending: data.payment_pending,
+    team_count_total: data.team_count_total,
   };
   
   // Clean up undefined values
@@ -620,7 +644,13 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   // Get current preferences and merge
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const merged = mergePreferences(current?.preferences || {}, preferencesUpdate);
+  const currentPrefs = current?.preferences;
+  // Normalize any legacy 'rookie' role values to 'coach' during merge
+  const normalizedCurrent = (typeof currentPrefs === 'object' && currentPrefs !== null && !Array.isArray(currentPrefs) ? { ...currentPrefs } : {}) as any;
+  if (normalizedCurrent && normalizedCurrent.role === 'rookie') {
+    normalizedCurrent.role = 'coach';
+  }
+  const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
   updateData.preferences = merged;
   
   // Update user
@@ -736,11 +766,6 @@ async function sendVerificationEmail(to: string, code: string) {
     throw error;
   }
 }
-
-
-
-
-
 
 async function sendPasswordResetEmail(to: string, code: string) {
   console.log(`[email] Starting sendPasswordResetEmail for ${to}`);

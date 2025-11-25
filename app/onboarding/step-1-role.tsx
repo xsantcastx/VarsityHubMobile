@@ -1,7 +1,6 @@
 import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import Button from '@/components/ui/button';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
 
-type UserRole = 'fan' | 'rookie' | 'coach';
+type UserRole = 'fan' | 'coach';
 
 function RoleCard({ 
   title, 
@@ -17,14 +16,18 @@ function RoleCard({
   icon, 
   selected, 
   onPress, 
-  features 
+  features,
+  onContinue,
+  saving
 }: { 
   title: string; 
   description: string; 
   icon: string; 
   selected?: boolean; 
   onPress: () => void; 
-  features: string[]; 
+  features: string[];
+  onContinue?: () => void;
+  saving?: boolean;
 }) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -39,17 +42,19 @@ function RoleCard({
   };
 
   return (
-    <Pressable 
-      onPress={onPress} 
-      style={[
-        styles.card, 
-        { 
-          backgroundColor: colors.cardBg,
-          borderColor: colors.cardBorder,
-        },
-        selected && styles.cardSelected
-      ]}
-    >
+    <View style={styles.cardWrapper}>
+      <Pressable 
+        onPress={onPress} 
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: colors.cardBg,
+            borderColor: colors.cardBorder,
+          },
+          selected && styles.cardSelected,
+          selected && styles.cardWithButton
+        ]}
+      >
       <View style={styles.cardHeader}>
         <Ionicons 
           name={icon as any} 
@@ -82,7 +87,25 @@ function RoleCard({
           </View>
         ))}
       </View>
-    </Pressable>
+      </Pressable>
+
+      {selected && onContinue && (
+        <Pressable 
+          onPress={onContinue}
+          disabled={saving}
+          style={styles.sideButton}
+        >
+          {saving ? (
+            <ActivityIndicator color="white" size="small" />
+          ) : (
+            <>
+              <Text style={styles.sideButtonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color="white" />
+            </>
+          )}
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -149,15 +172,11 @@ export default function Step1Role() {
         // Route based on role selection for normal onboarding flow
         if (role === 'fan') {
           // Fan gets lightest setup - skip to profile
-          setProgress(6); // step-7 (0-based)
+          setProgress(5); // step-7 is index 5
           router.push('/onboarding/step-7-profile');
-        } else if (role === 'rookie') {
-          // Rookie (Player) gets medium setup - basic info + profile, no teams/subscriptions
-          setProgress(1); // step-2
-          router.push('/onboarding/step-2-basic');
         } else {
           // Coach/Organizer gets full onboarding with teams and subscriptions
-          setProgress(1); // step-2
+          setProgress(1); // step-2 is index 1
           router.push('/onboarding/step-2-basic');
         }
       }
@@ -195,29 +214,18 @@ export default function Step1Role() {
         icon="heart"
         selected={role === 'fan'}
         onPress={() => setRole('fan')}
+        onContinue={onContinue}
+        saving={saving}
         features={[
           'Follow your favorite teams',
           'Get game updates and highlights',
-          'Pitch events for your community',
+          'Pitch events to your community',
           '*Fan accounts can be upgraded to athlete/staff*',
           '- Upon coach approval'
         ]}
       />
 
-      <RoleCard
-        title="Rookie"
-        description="Manage teams and organize events"
-        icon="basketball"
-        selected={role === 'rookie'}
-        onPress={() => setRole('rookie')}
-        features={[
-          'Perfect for first-time coaches',
-          'First two teams free',
-          "Example: (Men's and Women's Soccer)",
-          'Create events including games, fundraisers, and watch parties',
-          'Invite players and staff'
-        ]}
-      />
+      {/* Rookie plan is selected later; not a separate role */}
 
       <RoleCard
         title="Coach / Organizer"
@@ -225,42 +233,40 @@ export default function Step1Role() {
         icon="trophy"
         selected={role === 'coach'}
         onPress={() => setRole('coach')}
+        onContinue={onContinue}
+        saving={saving}
         features={[
-          'Perfect for brands with an established audience',
+          'First two teams free',
           'Create and manage teams',
-          'Organize games and events',
-          'Full management tools',
-          'Unlimited teams and authorized users'
+          'Host games, fundraisers, watch parties, and other events',
+          'Organize seasons, rosters, and schedules',
         ]}
       />
-
-      {role && (
-        <View style={styles.continueContainer}>
-          <Button 
-            onPress={onContinue} 
-            disabled={saving}
-            size="lg"
-            style={styles.continueButton}
-          >
-            {saving ? <ActivityIndicator color="white" /> : 'Continue →'}
-          </Button>
-        </View>
-      )}
     </OnboardingLayout>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    flexDirection: 'row',
+    marginBottom: 14,
+  },
   card: { 
-    padding: 14, 
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     borderRadius: 12, 
     borderWidth: 2, 
-    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    minHeight: 260,
+  },
+  cardWithButton: {
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
   },
   cardSelected: { 
     borderWidth: 3,
@@ -303,20 +309,28 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
-  continueContainer: {
-    marginTop: 16,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  continueButton: {
-    width: '100%',
-    maxWidth: 400,
-    alignSelf: 'center',
+  sideButton: {
+    width: 80,
+    backgroundColor: '#1E3A8A',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 6,
+  },
+  sideButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    writingDirection: 'ltr',
+    transform: [{ rotate: '0deg' }],
+    textAlign: 'center',
   },
 });
 

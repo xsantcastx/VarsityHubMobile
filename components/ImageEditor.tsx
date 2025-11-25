@@ -115,7 +115,7 @@ function MeasuredImage({ uri, onSize, maxW = 300, maxH = 240 }: { uri: string; o
     let mounted = true;
     Image.getSize(uri, (w,h)=> { if (mounted) { setSize({w,h}); onSize(w,h); } }, (e) => { console.warn('getSize failed', e); });
     return () => { mounted = false; };
-  },[uri]);
+  },[onSize, uri]);
 
   if (!size) {
     return <View style={{ width: maxW, height: maxH, alignItems: 'center', justifyContent: 'center' }}><Text>Loading…</Text></View>;

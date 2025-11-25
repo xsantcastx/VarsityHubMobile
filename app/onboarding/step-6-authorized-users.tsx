@@ -1,18 +1,24 @@
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
-import Segmented from '@/ui/Segmented';
+// Segmented replaced by wheel picker for roles
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useColorScheme, Modal } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 // @ts-ignore
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
+import { httpPost } from '@/api/http';
 
-type TeamRole = 'Team Manager' | 'Assistant' | 'Coach' | 'Admin';
+type TeamRole =
+  | 'Coach'
+  | 'Manager'
+  | 'Assistant'
+  | 'Equipment'
+  | 'Health and Wellness';
 
 export default function Step6AuthorizedUsers() {
   const router = useRouter();
@@ -22,11 +28,45 @@ export default function Step6AuthorizedUsers() {
   const colorScheme = useColorScheme() ?? 'light';
   const [email, setEmail] = useState('');
   const [assignTeam, setAssignTeam] = useState('');
-  const [role, setRole] = useState<TeamRole>('Team Manager');
+  const [role, setRole] = useState<TeamRole>('Coach');
+  const [showRolePicker, setShowRolePicker] = useState(false);
   const [list, setList] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+  const roleLabels: Record<TeamRole, string> = useMemo(() => ({
+    Coach: 'Coach',
+    Manager: 'Manager',
+    Assistant: 'Assistant',
+    Equipment: 'Equipment',
+    'Health and Wellness': 'Health and Wellness',
+  }), []);
+
+  const mapRoleToBackend = (r: TeamRole, target: 'team' | 'org'): string => {
+    if (target === 'team') {
+      switch (r) {
+        case 'Manager':
+          return 'manager';
+        case 'Coach':
+          return 'coach';
+        case 'Assistant':
+          return 'assistant_coach';
+        case 'Equipment':
+          return 'equipment';
+        case 'Health and Wellness':
+          return 'health_wellness';
+        default:
+          return 'member';
+      }
+    }
+    // Organization roles are simpler: owner | manager | member
+    switch (r) {
+      case 'Manager':
+        return 'manager';
+      default:
+        return 'member';
+    }
+  };
 
   useEffect(() => {
     if (Array.isArray(ob.authorized) && ob.authorized.length) {
@@ -34,39 +74,41 @@ export default function Step6AuthorizedUsers() {
     }
   }, [ob.authorized]);
 
-  // Get plan limits and information
+  // Get plan limits and information (dynamic based on plan and selected team count)
   const planInfo = useMemo(() => {
+    const totalTeams = typeof ob.team_count_total === 'number' && ob.team_count_total > 0 ? ob.team_count_total : undefined;
+    const veteranLimit = totalTeams ? totalTeams * 2 : 12; // fallback to 12 if not provided
     switch (ob.plan) {
       case 'rookie':
         return {
           name: 'Rookie',
           maxUsers: 1,
-          description: 'Add 1 Assistant to help manage your team',
-          allowedRoles: ['Assistant'] as TeamRole[]
+          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
+          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
       case 'veteran':
         return {
           name: 'Veteran', 
-          maxUsers: 12,
-          description: 'Add up to 12 authorized users to manage your organization',
-          allowedRoles: ['Team Manager', 'Assistant', 'Coach', 'Admin'] as TeamRole[]
+          maxUsers: veteranLimit,
+          description: `Add up to ${veteranLimit} authorized users (2 per team) to manage your organization`,
+          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
       case 'legend':
         return {
           name: 'Legend',
           maxUsers: Infinity,
           description: 'Add unlimited authorized users to manage your organization',
-          allowedRoles: ['Team Manager', 'Assistant', 'Coach', 'Admin'] as TeamRole[]
+          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
       default:
         return {
           name: 'Plan',
           maxUsers: 1,
-          description: 'Add users to help manage your organization',
-          allowedRoles: ['Assistant'] as TeamRole[]
+          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your organization',
+          allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
     }
-  }, [ob.plan]);
+  }, [ob.plan, ob.team_count_total]);
 
   const canAddMore = list.length < planInfo.maxUsers;
   const isOptional = true; // Allow skipping add-users on all plans for now
@@ -89,29 +131,41 @@ export default function Step6AuthorizedUsers() {
       return;
     }
     
-    const team_id = ob.team_id || ob.organization_id;
-    if (!team_id) { 
-      Alert.alert('Missing Organization', 'Please create your organization first.'); 
+    const targetId = ob.plan === 'rookie' ? ob.team_id : ob.organization_id;
+    if (!targetId) { 
+      Alert.alert('Missing Organization', 'Please create your organization first or select an organization you manage.'); 
       return; 
     }
     
     setAdding(true);
     try {
-      const newUser = {
-        email: e,
-        role,
-        assign_team: assignTeam.trim() || undefined,
-        type: 'pending'
-      };
-      
-      // For now, just add to list - actual invite sending can be done later
+      // Call backend to create an invite (organization for Veteran/Legend, team for Rookie)
+      if (ob.plan === 'rookie' && ob.team_id) {
+        await httpPost(`/teams/${ob.team_id}/invite`, { email: e, role: mapRoleToBackend(role, 'team') });
+      } else if (ob.organization_id) {
+        await httpPost(`/organizations/${ob.organization_id}/invite`, { email: e, role: mapRoleToBackend(role, 'org') });
+      }
+
+      const newUser = { email: e, role, assign_team: assignTeam.trim() || undefined, type: 'invited' };
       setList([newUser, ...list]);
       setEmail(''); 
       setAssignTeam('');
       setRole(planInfo.allowedRoles[0]);
       
+      Alert.alert('Invite Sent', `${e} has been invited.`);
     } catch (e: any) {
-      Alert.alert('Failed to add user', e?.message || 'Please try again');
+      const msg = e?.data?.error || e?.message || 'Please try again';
+      if ((e?.status === 403) && /permission/i.test(String(msg))) {
+        Alert.alert(
+          'Need Admin Access',
+          'You are not an administrator for this organization. Go back and create a new organization page or select one you manage.',
+          [
+            { text: 'OK' }
+          ]
+        );
+      } else {
+        Alert.alert('Failed to add user', msg);
+      }
     } finally { 
       setAdding(false); 
     }
@@ -202,21 +256,46 @@ export default function Step6AuthorizedUsers() {
             )}
 
             <Text style={styles.label}>Role</Text>
-            <Segmented
-              value={role}
-              onChange={(v) => setRole(v as TeamRole)}
-              options={planInfo.allowedRoles.map(r => ({ value: r, label: r }))}
-            />
+            <Pressable
+              style={[styles.selectField, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}
+              onPress={() => setShowRolePicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Select role"
+            >
+              <Text style={styles.selectFieldText}>{roleLabels[role] || role}</Text>
+              <Ionicons name="chevron-down" size={18} color={Colors[colorScheme].mutedText} />
+            </Pressable>
             <View style={{ height: 12 }} />
 
-            <Button 
-              onPress={addUser} 
+            <PrimaryButton 
+              label={adding ? 'Adding…' : 'Add User'}
+              onPress={addUser}
               disabled={adding || !email.trim()}
-            >
-              <Text style={{ color: Colors[colorScheme].text }}>{adding ? 'Adding…' : 'Add User'}</Text>
-            </Button>
+            />
           </View>
         )}
+
+        {/* Role Wheel Picker Modal */}
+        <Modal visible={showRolePicker} animationType="fade" transparent onRequestClose={() => setShowRolePicker(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowRolePicker(false)}>
+            <View
+              style={[styles.modalSheet, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+              accessibilityViewIsModal
+            >
+              <Text style={styles.modalTitle}>Select Role</Text>
+              <Picker selectedValue={role} onValueChange={(val) => setRole(val as TeamRole)}>
+                {planInfo.allowedRoles.map((opt) => (
+                  <Picker.Item key={opt} label={roleLabels[opt]} value={opt} />
+                ))}
+              </Picker>
+              <View style={styles.modalActions}>
+                <Pressable style={styles.modalButton} onPress={() => setShowRolePicker(false)}>
+                  <Text style={styles.modalButtonText}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* Added Users List */}
         {list.length > 0 && (
@@ -249,25 +328,14 @@ export default function Step6AuthorizedUsers() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          {list.length > 0 ? (
-            <PrimaryButton 
-              label="Continue" 
-              onPress={onContinue}
-            />
-          ) : (
-            <View style={styles.optionalActions}>
-              <Button 
-                variant="outline" 
-                onPress={skipStep}
-                style={styles.skipButton}
-              >
-                <Text style={{ color: Colors[colorScheme].text }}>Skip for Now</Text>
-              </Button>
-              <PrimaryButton 
-                label="Continue" 
-                onPress={onContinue}
-              />
-            </View>
+          <PrimaryButton 
+            label={list.length > 0 ? 'Continue' : 'Continue'} 
+            onPress={onContinue}
+          />
+          {list.length === 0 && (
+            <Pressable onPress={skipStep} accessibilityRole="button" style={styles.skipLink}>
+              <Text style={styles.skipLinkText}>Skip for now</Text>
+            </Pressable>
           )}
         </View>
     </OnboardingLayout>
@@ -345,6 +413,20 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginBottom: 12,
     color: Colors[colorScheme].text,
   },
+  selectField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  selectFieldText: {
+    color: Colors[colorScheme].text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
   
   usersList: {
     marginBottom: 20,
@@ -397,16 +479,58 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 6,
     backgroundColor: colorScheme === 'dark' ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
   },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderWidth: 1,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontWeight: '700',
+    fontSize: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    color: Colors[colorScheme].text,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+  },
+  modalButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#3B82F6',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontWeight: '700',
+  },
   
   actionButtons: {
-    marginTop: 16,
+    marginTop: 24,
+    alignItems: 'center',
+    width: '100%',
+    alignSelf: 'center'
   },
-  optionalActions: {
-    flexDirection: 'row',
-    gap: 12,
+  skipLink: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
-  skipButton: {
-    flex: 1,
+  skipLinkText: {
+    color: Colors[colorScheme].mutedText,
+    fontSize: 14,
+    textDecorationLine: 'underline'
   },
   noUsersMessage: {
     color: Colors[colorScheme].mutedText,

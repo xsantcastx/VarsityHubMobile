@@ -125,7 +125,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       sparkleLoop.stop();
       rLoop.stop();
     };
-  }, [reduceMotionEnabled, vsAnim, sparkleAnim, rightAnim]);
+  }, [hero, reduceMotionEnabled, vsAnim, sparkleAnim, rightAnim]);
 
   const scale = reduceMotionEnabled ? 1 : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.96 : 0.98, hero ? 1.12 : 1.06] });
   const glow = reduceMotionEnabled ? 1 : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.7 : 0.6, 1] });

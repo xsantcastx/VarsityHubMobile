@@ -335,9 +335,9 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
   });
 
   // Price logic: charge per week block
-  // Mon-Thu = $10 per week block, Fri-Sun = $17.50 per weekend block
-  const weekdayBlockPrice = 10.00;
-  const weekendBlockPrice = 17.50;
+  // Mon-Thu = $8 per week block, Fri-Sun = $10 per week block
+  const weekdayBlockPrice = 8.00;
+  const weekendBlockPrice = 10.00;
   
   // Group dates by week
   const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();

@@ -7,20 +7,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../utils/uploadUtils';
-// Modal state for replacing Alert.alert
-const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
-
-function showModal(title: string, message?: string, options?: any[]) {
-  setModal({
-    title,
-    message,
-    options: options || [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
-  });
-}
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
@@ -92,6 +82,9 @@ export default function TeamChatScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   
+  // Modal state for replacing Alert.alert
+  const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -158,6 +151,15 @@ export default function TeamChatScreen() {
       return [];
     }
   }, [STORAGE_KEY]);
+
+  // Helper to show modal dialogs
+  const showModal = useCallback((title: string, message?: string, options?: any[]) => {
+    setModal({
+      title,
+      message,
+      options: options || [{ label: 'OK', onPress: () => {}, color: '#2563eb' }],
+    });
+  }, []);
 
   const saveFiles = useCallback(async (filesList: any[]) => {
     try {
@@ -256,7 +258,7 @@ export default function TeamChatScreen() {
   }, []);
 
   // Mock files data
-  const mockFiles = [
+  const mockFiles = useMemo(() => [
     {
       id: '1',
       name: 'Team_Roster_2024.pdf',
@@ -284,10 +286,10 @@ export default function TeamChatScreen() {
       uploadedAt: '2025-09-23T11:45:00Z',
       url: 'https://example.com/photo.jpg',
     },
-  ];
+  ], []);
 
   // Mock messages data
-  const mockMessages: ChatMessage[] = [
+  const mockMessages: ChatMessage[] = useMemo(() => [
     {
       id: '1',
       content: "Great practice today everyone! Don't forget we have the game against Warriors this Saturday at 7 PM.",
@@ -341,7 +343,7 @@ export default function TeamChatScreen() {
         { emoji: '🙏', count: 2, users: ['2', '5'] },
       ],
     },
-  ];
+  ], []);
 
   useEffect(() => {
     let mounted = true;
@@ -396,7 +398,7 @@ export default function TeamChatScreen() {
       }
     })();
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, loadFiles, loadMessages, mockMessages, saveMessages]);
 
   // Start/stop typing animations based on typing users
   useEffect(() => {
@@ -468,7 +470,7 @@ export default function TeamChatScreen() {
     } finally {
       setSending(false);
     }
-  }, [newMessage, sending, replyingTo]);
+  }, [animateNewMessage, newMessage, replyingTo, saveMessages, sending, showModal]);
 
   const addReaction = useCallback((messageId: string, emoji: string) => {
     setMessages(prev => prev.map(message => {
@@ -604,7 +606,7 @@ export default function TeamChatScreen() {
     } catch (error) {
   showModal('Error', 'Failed to pick image');
     }
-  }, []);
+  }, [sendImageMessage, showModal]);
 
   const takePhoto = useCallback(async () => {
     try {
@@ -619,7 +621,7 @@ export default function TeamChatScreen() {
     } catch (error) {
   showModal('Error', 'Failed to take photo');
     }
-  }, []);
+  }, [sendImageMessage, showModal]);
 
   const sendImageMessage = useCallback(async (imageAsset: ImagePicker.ImagePickerAsset) => {
     try {
@@ -725,7 +727,7 @@ export default function TeamChatScreen() {
       
   showModal('Error', 'Failed to upload image to server');
     }
-  }, [replyingTo, animateNewMessage, saveMessages]);
+  }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
   const showImageOptions = useCallback(() => {
     setShowImageOptionsMenu(true);
@@ -744,7 +746,7 @@ export default function TeamChatScreen() {
     } catch (error) {
   showModal('Error', 'Failed to save image to gallery');
     }
-  }, []);
+  }, [showModal, showToast]);
 
   const closeImageViewer = useCallback(() => {
     setImageViewerVisible(false);
@@ -755,7 +757,7 @@ export default function TeamChatScreen() {
   const startRecording = useCallback(async () => {
   showModal('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
     return;
-  }, []);
+  }, [showModal]);
 
   const stopRecording = useCallback(async () => {
     if (!recording) return;
@@ -784,7 +786,7 @@ export default function TeamChatScreen() {
       setIsRecording(false);
       setRecordingDuration(0);
     }
-  }, [recording]);
+  }, [recording, sendVoiceMessage, showModal]);
 
   const sendVoiceMessage = useCallback(async (uri: string, duration: number) => {
     try {
@@ -835,7 +837,7 @@ export default function TeamChatScreen() {
     } catch (error) {
   showModal('Error', 'Failed to send voice message');
     }
-  }, [replyingTo, animateNewMessage, saveMessages]);
+  }, [animateNewMessage, replyingTo, saveMessages, showModal]);
 
   // Voice playback functions
   const playVoiceMessage = useCallback(async (messageId: string, uri: string) => {
@@ -892,7 +894,7 @@ export default function TeamChatScreen() {
     } catch (error) {
   showModal('Error', 'Failed to play voice message');
     }
-  }, [playingAudio, soundObjects]);
+  }, [playingAudio, showModal, soundObjects]);
 
   const formatDuration = useCallback((milliseconds: number) => {
     const seconds = Math.floor(milliseconds / 1000);
@@ -914,18 +916,8 @@ export default function TeamChatScreen() {
       }
     } catch (error) {
   showModal('Error', 'Failed to pick document');
-  {/* CustomActionModal for all dialogs */}
-  {modal && (
-    <CustomActionModal
-      visible={!!modal}
-      title={modal.title}
-      message={modal.message}
-      options={modal.options}
-      onClose={() => setModal(null)}
-    />
-  )}
     }
-  }, []);
+  }, [sendFileMessage, showModal]);
 
   const sendFileMessage = useCallback(async (fileAsset: any) => {
     try {
@@ -1041,7 +1033,7 @@ export default function TeamChatScreen() {
   showModal('Error', 'Failed to upload file to server');
   showModal('Error', 'Failed to upload file to server');
     }
-  }, [replyingTo, animateNewMessage, saveMessages]);
+  }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
   const handleFileUpload = useCallback(async (type: 'media' | 'document') => {
     try {
@@ -1186,7 +1178,7 @@ export default function TeamChatScreen() {
       console.error('Error opening file:', error);
     showModal('Error', 'Unable to open file');
     }
-  }, [showToast]);
+  }, [showModal]);
 
   const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
     const isAnnouncement = item.type === 'announcement';
@@ -2055,6 +2047,16 @@ export default function TeamChatScreen() {
           />
           <Text style={styles.toastText}>{toastMessage}</Text>
         </Animated.View>
+      )}
+
+      {modal && (
+        <CustomActionModal
+          visible
+          title={modal.title}
+          message={modal.message}
+          options={modal.options}
+          onClose={() => setModal(null)}
+        />
       )}
       
     </KeyboardAvoidingView>

@@ -4,12 +4,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization, Team, User } from '@/api/entities';
+import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import { getApiBaseUrl } from '../api/http';
 import { Platform } from 'react-native';
 
 export default function CreateTeamScreen() {
@@ -151,35 +153,87 @@ export default function CreateTeamScreen() {
         setSubmitting(false); 
         return; 
       }
+      // Guard: Only coaches may create teams
+      const role = user?.preferences?.role;
+      if (role !== 'coach') {
+        Alert.alert('Access Restricted', 'Only coach accounts can create teams.');
+        setSubmitting(false);
+        return;
+      }
       
       // Check plan tier limits
-      const userRole = user?.preferences?.role;
+      const userRole = user?.preferences?.role; // Already guaranteed coach above
       const userPlan = user?.preferences?.plan || 'rookie'; // Default to rookie if not set
       const teamCount = user?._count?.teams || 0;
       
       // Only enforce limits for coaches
       if (userRole === 'coach') {
         if (userPlan === 'rookie' && teamCount >= 2) {
+          const newTeamCount = teamCount + 1;
           Alert.alert(
-            'Team Limit Reached',
-            'You have reached the maximum of 2 teams on the Rookie plan. Upgrade to Veteran ($1.50/month per team) or Legend ($17.50/year unlimited) to add more teams.',
+            'Upgrade Required',
+            `First two teams are free on the Rookie plan. Adding this team requires upgrading to the Veteran plan at $${(newTeamCount * 2.5).toFixed(2)}/month (${newTeamCount} teams × $2.50).`,
             [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'View Plans', onPress: () => router.push('/billing') }
+              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
+              {
+                text: 'Upgrade & Continue',
+                onPress: async () => {
+                  try {
+                    // Start Veteran checkout with correct team quantity
+                    // @ts-ignore
+                    const { Subscriptions, User } = await import('@/api/entities');
+                    const res: any = await Subscriptions.createCheckout('veteran', newTeamCount);
+                    if (res?.url) {
+                      await WebBrowser.openBrowserAsync(String(res.url));
+                    }
+                    // After returning, check if plan updated
+                    try {
+                      const me: any = await User.me();
+                      const updatedPlan = me?.preferences?.plan ?? 'rookie';
+                      if (updatedPlan === 'veteran') {
+                        await proceedWithTeamCreation(me);
+                        return;
+                      }
+                    } catch {}
+                    Alert.alert(
+                      'Complete Payment',
+                      'We could not confirm your upgrade yet. If you completed payment, please try creating your team again. Otherwise, finish checkout and retry.'
+                    );
+                    setSubmitting(false);
+                  } catch (err: any) {
+                    console.error('Upgrade to Veteran failed:', err);
+                    Alert.alert('Error', err?.message || 'Failed to start upgrade checkout. Please try again.');
+                    setSubmitting(false);
+                  }
+                }
+              }
             ]
           );
-          setSubmitting(false);
           return;
         }
         
         if (userPlan === 'veteran') {
-          // Veteran plan: Per-team monthly charge
+          // Veteran plan: Per-team monthly charge - update subscription quantity
+          const newTeamCount = teamCount + 1;
           Alert.alert(
             'Add Team',
-            `Adding a team will incur a charge of $1.50/month. You currently have ${teamCount} team${teamCount === 1 ? '' : 's'}.`,
+            `Adding this team will increase your monthly charge to $${(newTeamCount * 2.50).toFixed(2)}/month (${newTeamCount} teams × $2.50). Your subscription will be updated automatically.`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-              { text: 'Continue', onPress: () => proceedWithTeamCreation(user) }
+              { 
+                text: 'Continue', 
+                onPress: async () => {
+                  try {
+                    // Update subscription quantity before creating the team
+                    await Subscriptions.updateQuantity(newTeamCount);
+                    await proceedWithTeamCreation(user);
+                  } catch (err: any) {
+                    console.error('Failed to update subscription:', err);
+                    Alert.alert('Error', err?.message || 'Failed to update subscription. Please try again or contact support.');
+                    setSubmitting(false);
+                  }
+                }
+              }
             ]
           );
           return; // Wait for user confirmation
@@ -205,9 +259,7 @@ export default function CreateTeamScreen() {
       // Upload logo if one was selected
       if (logoUri) {
         try {
-          const base = (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-            (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-          const uploaded = await uploadFile(base, logoUri, 'team-logo.jpg', 'image/jpeg');
+          const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
         } catch (error) {

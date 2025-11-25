@@ -3,32 +3,10 @@
  */
 
 import { Platform } from 'react-native';
+import { getApiBaseUrl } from '../api/http';
 
-// Configure server URL based on environment
-const getServerUrl = () => {
-  // Prefer explicit runtime configuration from Expo (recommended for devices)
-  // The EXPO_PUBLIC_API_URL is set in your environment when running Expo.
-  // Fall back to common emulator/localhost addresses.
-  try {
-    const envBase = (typeof process !== 'undefined' && (process.env as any)?.EXPO_PUBLIC_API_URL) || (global as any)?.EXPO_PUBLIC_API_URL;
-    if (envBase) return envBase;
-  } catch (e) {
-    // ignore
-  }
-
-  if (Platform.OS === 'android') {
-    // Android emulator default loopback
-    return 'http://10.0.2.2:4000';
-  }
-  if (Platform.OS === 'ios') {
-    // iOS simulator can use localhost
-    return 'http://localhost:4000';
-  }
-  // Default for web or unknown
-  return 'http://localhost:4000';
-};
-
-const SERVER_URL = getServerUrl();
+// Centralized server URL (uses android localhost remap internally)
+const SERVER_URL = getApiBaseUrl();
 
 export interface UploadResponse {
   url: string;

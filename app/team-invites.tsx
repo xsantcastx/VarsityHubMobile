@@ -2,12 +2,13 @@ import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 import { Button } from '@/components/ui/button';
+import { useTeamInvites } from '@/hooks/useTeamInvites';
 
 type Invite = { id: string; role?: string; team?: { id: string; name?: string } };
 
@@ -15,26 +16,12 @@ export default function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [invites, setInvites] = useState<Invite[]>([]);
-
-  const load = async () => {
-    setLoading(true); setError(null);
-    try {
-      const list: any[] = await TeamApi.myInvites();
-      setInvites(Array.isArray(list) ? list : []);
-    } catch (e: any) {
-      setError('Failed to load invites');
-    } finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, []);
+  const { invites, loading, error, refresh } = useTeamInvites<Invite>();
 
   const accept = async (id: string, teamId?: string) => {
     try { 
       await TeamApi.acceptInvite(id); 
-      await load(); 
+      await refresh(); 
       // Show success and option to view team
       if (teamId) {
         setModal({
@@ -59,7 +46,7 @@ export default function TeamInvitesScreen() {
   const decline = async (id: string) => {
     try {
       await TeamApi.declineInvite(id);
-      await load();
+      await refresh();
     } catch {
       setModal({
         title: 'Error',
@@ -118,4 +105,3 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   name: { fontWeight: '700' },
 });
-

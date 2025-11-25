@@ -2,22 +2,23 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { Type } from '@/ui/tokens';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, useColorScheme } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type Intent = 'find_local_games' | 'view_moments' | 'post_reviews' | 'support_creators' | 'claim_team' | 'follow';
 
-const OPTIONS: { key: Intent; label: string; route?: string }[] = [
-  { key: 'find_local_games', label: 'Find Local Games', route: '/(tabs)/discover' },
-  { key: 'view_moments', label: 'View Moments', route: '/highlights' },
-  { key: 'post_reviews', label: 'Post Reviews and Highlights', route: '/create-post' },
-  { key: 'support_creators', label: 'Support Local Creators', route: '/(tabs)/discover' },
-  { key: 'claim_team', label: 'Claim My Team', route: '/create-team' },
-  { key: 'follow', label: 'Follow Teams/Players', route: '/(tabs)/discover' },
+const OPTIONS: { key: Intent; label: string; icon: keyof typeof Ionicons.glyphMap; color: string; route?: string }[] = [
+  { key: 'find_local_games', label: 'Find Local Games', icon: 'map', color: '#3b82f6', route: '/(tabs)/discover' },
+  { key: 'view_moments', label: 'View Moments', icon: 'play-circle', color: '#8b5cf6', route: '/highlights' },
+  { key: 'post_reviews', label: 'Post Reviews and Highlights', icon: 'create', color: '#f59e0b', route: '/create-post' },
+  { key: 'support_creators', label: 'Support Local Creators', icon: 'heart', color: '#ec4899', route: '/(tabs)/discover' },
+  { key: 'claim_team', label: 'Claim My Team', icon: 'trophy', color: '#10b981', route: '/create-team' },
+  { key: 'follow', label: 'Follow Teams/Players', icon: 'people', color: '#06b6d4', route: '/(tabs)/discover' },
 ];
 
 export default function Step8Interests() {
@@ -34,7 +35,7 @@ export default function Step8Interests() {
     if (ob.primary_intents && Array.isArray(ob.primary_intents)) {
       setSel(ob.primary_intents as Intent[]);
     }
-  }, []);
+  }, [ob.primary_intents]);
 
   const toggle = (k: Intent) => setSel((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
 
@@ -47,7 +48,7 @@ export default function Step8Interests() {
       
       // Save to backend
       await User.updatePreferences({ primary_intents: sel });
-      setProgress(7);
+      setProgress(7); // step-9 is index 7
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');
@@ -60,12 +61,31 @@ export default function Step8Interests() {
     <OnboardingLayout
       step={7}
       title="What interests you most?"
-      subtitle=""
+      subtitle="Select the features you'd like to explore"
     >
       <Stack.Screen options={{ headerShown: false }} />
       {OPTIONS.map((o) => (
-        <Pressable key={o.key} onPress={() => toggle(o.key)} style={[styles.row, sel.includes(o.key) && styles.rowSelected]}>
-          <Text style={[styles.rowTitle, sel.includes(o.key) && { color: Colors[colorScheme].background }]}>{o.label}</Text>
+        <Pressable 
+          key={o.key} 
+          onPress={() => toggle(o.key)} 
+          style={[styles.card, sel.includes(o.key) && styles.cardSelected]}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: o.color + '20' }]}>
+            <Ionicons name={o.icon} size={28} color={o.color} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={[
+              styles.cardTitle, 
+              sel.includes(o.key) && { color: Colors[colorScheme].tint }
+            ]}>
+              {o.label}
+            </Text>
+          </View>
+          {sel.includes(o.key) && (
+            <View style={styles.checkmark}>
+              <Ionicons name="checkmark-circle" size={24} color={Colors[colorScheme].tint} />
+            </View>
+          )}
         </Pressable>
       ))}
       <PrimaryButton label={saving ? 'Saving…' : 'Continue'} onPress={onFinish} disabled={!sel.length || saving} loading={saving} />
@@ -84,20 +104,38 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginBottom: 12, 
     textAlign: 'center' 
   },
-  row: { 
+  card: { 
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16, 
-    borderRadius: 12, 
-    borderWidth: StyleSheet.hairlineWidth, 
+    borderRadius: 16, 
+    borderWidth: 2, 
     borderColor: Colors[colorScheme].border, 
     backgroundColor: Colors[colorScheme].surface, 
-    marginBottom: 12 
+    marginBottom: 12,
+    minHeight: 72
   },
-  rowSelected: { 
-    backgroundColor: Colors[colorScheme].text, 
-    borderColor: Colors[colorScheme].text 
+  cardSelected: { 
+    backgroundColor: Colors[colorScheme].tint + '15',
+    borderColor: Colors[colorScheme].tint
   },
-  rowTitle: { 
-    fontWeight: '700',
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  cardContent: {
+    flex: 1
+  },
+  cardTitle: { 
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors[colorScheme].text
   },
+  checkmark: {
+    marginLeft: 8
+  }
 });

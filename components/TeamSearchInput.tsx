@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -15,7 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team } from '@/api/entities';
+// Team entities are returned via useTeamOptions hook
 
 interface TeamOption {
   id: string;
@@ -62,56 +63,43 @@ export default function TeamSearchInput({
   const [showPicker, setShowPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { teams: rawTeams, loading, refresh } = useTeamOptions(false);
   const [selectedTeam, setSelectedTeam] = useState<TeamOption | null>(null);
+
+  // Map API payload to TeamOption shape
+  useEffect(() => {
+    if (!Array.isArray(rawTeams)) {
+      setTeams([]);
+      return;
+    }
+    const mapped: TeamOption[] = rawTeams.map((team: any) => ({
+      id: String(team.id),
+      name: team.name || 'Team',
+      logo_url: team.logo_url || team.avatar_url,
+      city: team.city || team.school_city || null,
+      state: team.state || team.school_state || null,
+      league: team.league || null,
+      sport: team.sport || null,
+      venue: team.venue || null,
+    }));
+    setTeams(mapped);
+  }, [rawTeams]);
 
   // Load teams when picker opens
   useEffect(() => {
     if (showPicker && teams.length === 0) {
-      loadTeams();
+      refresh().catch(() => {});
     }
-  }, [showPicker]);
+  }, [refresh, showPicker, teams.length]);
 
   // Debounced search
   useEffect(() => {
     if (!showPicker) return;
     const timer = setTimeout(() => {
-      if (searchQuery.length > 0) {
-        searchTeams(searchQuery);
-      } else {
-        loadTeams();
-      }
+      refresh(searchQuery.length > 0 ? searchQuery : undefined).catch(() => {});
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, showPicker]);
-
-  const loadTeams = async () => {
-    try {
-      setLoading(true);
-      // Team.list expects query string, will update API to support object params
-      const response = await Team.list();
-      setTeams(response || []);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-      setTeams([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const searchTeams = async (query: string) => {
-    try {
-      setLoading(true);
-      // Will need to update Team.list API to accept search params
-      const response = await Team.list(query);
-      setTeams(response || []);
-    } catch (error) {
-      console.error('Error searching teams:', error);
-      setTeams([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [refresh, searchQuery, showPicker]);
 
   const handleSelect = (team: TeamOption) => {
     setSelectedTeam(team);
@@ -141,7 +129,7 @@ export default function TeamSearchInput({
 
   const handleViewTeamPage = () => {
     if (selectedTeam && selectedTeam.id !== 'manual') {
-      router.push(`/team/${selectedTeam.id}` as any);
+      router.push(`/team-profile?id=${selectedTeam.id}`);
     }
   };
 

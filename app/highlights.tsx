@@ -692,7 +692,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={user.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => router.push(`/profile?id=${user.id}`)}
+                    onPress={() => router.push(`/user-profile?id=${user.id}`)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

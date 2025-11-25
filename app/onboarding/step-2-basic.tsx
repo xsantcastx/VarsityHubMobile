@@ -13,7 +13,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
 
-const usernameRe = /^[a-z0-9_.]{3,20}$/;
+// Allow spaces temporarily so prefilled Apple display names don't block progress; we normalize to underscores.
+const usernameRe = /^[a-z0-9_. ]{3,20}$/;
 
 export default function Step2Basic() {
   const router = useRouter();
@@ -52,7 +53,9 @@ export default function Step2Basic() {
       try { 
         const me: any = await User.me();
         const displayName = me?.display_name || '';
-        setUsername(displayName);
+        // Normalize display name to a username-friendly format (underscores, lowercase)
+        const normalized = displayName.trim().toLowerCase().replace(/\s+/g, '_');
+        setUsername(normalized);
         setZip(me?.preferences?.zip_code || '');
         
         // Check username availability immediately if it exists
@@ -71,9 +74,14 @@ export default function Step2Basic() {
     try { // eslint-disable-next-line no-console
       console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
     } catch (e) {}
-  }, [ob.affiliation, ob.dob]);
+  }, [dob, ob.affiliation, ob.dob]);
 
   useEffect(() => {
+    // Normalize live input (replace spaces) so user doesn't get stuck on Continue
+    if (username.includes(' ')) {
+      setUsername((prev) => prev.replace(/\s+/g, '_'));
+      return; // will re-run effect
+    }
     // Don't check if username is empty or invalid format
     if (!username || !usernameRe.test(username)) {
       setAvailable(null);
@@ -99,9 +107,7 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  const isCoach = ob.role === 'coach';
-  const zipRequired = isCoach; // Zip code is mandatory for coaches
-  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError && (!zipRequired || zip.trim().length > 0);
+  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError;
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -121,28 +127,31 @@ export default function Step2Basic() {
 
   const onContinue = async () => {
     if (!canContinue) return;
+    // Final normalization pass
+    const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
     try {
-      setOB((prev) => ({ ...prev, display_name: username, affiliation, dob, zip_code: zip || null }));
+      setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
       } catch (e) {}
-      await User.patchMe({ display_name: username, preferences: { affiliation, dob, zip_code: zip || undefined } });
+      await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
-        setProgress(9); // step-10 confirmation
+        setProgress(8); // step-10 is index 8
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Rookies skip plan/season/team steps and go straight to profile
-        if (ob.role === 'rookie') {
-          setProgress(6); // step-7 profile
+        // Fan: light path → profile setup
+        if (ob.role === 'fan') {
+          setProgress(5); // step-7 is index 5
           router.push('/onboarding/step-7-profile');
-        } else {
-          // Coaches continue to plan selection
-          setProgress(2); // step-3 plan
-          router.push('/onboarding/step-3-plan');
+          return;
         }
+
+        // Coach: go to plan selection
+        setProgress(2); // step-3 is index 2
+        router.push('/onboarding/step-3-plan');
       }
     } catch (e: any) { 
       Alert.alert('Failed to save', e?.message || 'Please try again'); 
@@ -163,7 +172,7 @@ export default function Step2Basic() {
       <Stack.Screen options={{ headerShown: false }} />
       
       <Text style={styles.label}>Username</Text>
-      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4 }} onEndEditing={async () => {
+      <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
         try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
       }} />
@@ -210,7 +219,7 @@ export default function Step2Basic() {
       </View>
 
       <DateField
-        label="Date of birth"
+        label={ob.role === 'coach' ? 'Date of birth (Authorized User)' : 'Date of birth'}
         value={dob} 
         onChange={setDob}
       />
@@ -218,18 +227,15 @@ export default function Step2Basic() {
         <Text style={styles.error}>Please enter a valid date of birth</Text>
       )}
 
-      <Text style={styles.label}>Zip code {zipRequired && <Text style={styles.error}>*</Text>}</Text>
+      <Text style={styles.label}>Zip code</Text>
       <Input 
         value={zip} 
         onChangeText={setZip} 
         autoCapitalize="none" 
-        placeholder={zipRequired ? "Required for coaches" : "12345"} 
+        placeholder="12345" 
         keyboardType="numeric" 
         maxLength={5}
       />
-      {zipRequired && !zip && (
-        <Text style={styles.error}>Zip code is required for coaches</Text>
-      )}
 
       <View style={{ marginTop: 20 }}>
         <PrimaryButton

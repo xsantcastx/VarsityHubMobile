@@ -77,7 +77,7 @@ type CommentItem = {
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
-const mapHighlightToFeedPost = (item: any): FeedPost | null => {
+export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
   const idValue = item?.id ?? item?.post_id ?? item?.highlight_id;
   if (!idValue) return null;
   const id = String(idValue);
@@ -699,7 +699,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   useEffect(() => {
     if (__DEV__) console.debug('GameVerticalFeedScreen.loadFeed trigger effect', { usingInitial, gameId });
     loadFeed(true);
-  }, [loadFeed]);
+  }, [gameId, loadFeed, usingInitial]);
 
   // When using initial posts, jump to the provided startIndex on mount/update
   useEffect(() => {
@@ -714,7 +714,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         setActiveIndex(target);
       });
     } catch {}
-  }, [usingInitial, posts.length, startIndex]);
+  }, [gameId, posts.length, startIndex, usingInitial]);
 
   const onEndReached = useCallback(() => {
     if (!gameId) return;
@@ -1437,4 +1437,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface OnboardingLayoutProps {
@@ -15,6 +15,9 @@ interface OnboardingLayoutProps {
   showBackButton?: boolean;
   emailVerified?: boolean;
   onVerifyEmail?: () => void;
+  onContinue?: () => void;
+  continueDisabled?: boolean;
+  loading?: boolean;
 }
 
 export default function OnboardingLayout({
@@ -28,6 +31,9 @@ export default function OnboardingLayout({
   showBackButton = true,
   emailVerified,
   onVerifyEmail,
+  onContinue,
+  continueDisabled,
+  loading,
 }: OnboardingLayoutProps) {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -42,26 +48,26 @@ export default function OnboardingLayout({
     } else if (router.canGoBack()) {
       router.back();
     } else {
-      // If there's no back history during onboarding, go to step 1
       router.replace('/onboarding/step-1-role');
     }
   };
 
   const colors = {
-    background: isDark ? '#111827' : '#FFFFFF',
+    background: isDark ? '#000000' : '#FFFFFF',
     text: isDark ? '#F9FAFB' : '#111827',
     textMuted: isDark ? '#9CA3AF' : '#6B7280',
     border: isDark ? '#374151' : '#E5E7EB',
-    headerBg: isDark ? '#1F2937' : '#FFFFFF',
+    headerBg: isDark ? '#000000' : '#FFFFFF',
+    primary: isDark ? '#60A5FA' : '#2563EB',
+    primaryMuted: isDark ? '#1E40AF' : '#D1E0FF',
   };
 
   return (
     <SafeAreaView 
       style={[styles.container, { backgroundColor: colors.background }]} 
-      edges={['bottom']}
+      edges={['top', 'left', 'right']}
     >
-      {/* Header with progress */}
-      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border, paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { backgroundColor: colors.headerBg, borderBottomColor: colors.border }]}>
         {showBackButton ? (
           <Pressable onPress={handleBack} style={styles.backButton} hitSlop={8}>
             <Ionicons name="chevron-back" size={24} color={colors.text} />
@@ -74,7 +80,6 @@ export default function OnboardingLayout({
           Step {step}/{totalSteps}
         </Text>
         
-        {/* Verify Email Button (right side) */}
         {emailVerified === false && onVerifyEmail ? (
           <Pressable onPress={onVerifyEmail} style={styles.verifyButton} hitSlop={8}>
             <Ionicons name="mail-outline" size={18} color="#EF4444" />
@@ -85,14 +90,13 @@ export default function OnboardingLayout({
         )}
       </View>
 
-      {/* Progress Bar */}
       <View style={[styles.progressBarContainer, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
         <View 
           style={[
             styles.progressBar, 
             { 
               width: `${(step / totalSteps) * 100}%`,
-              backgroundColor: isDark ? '#60A5FA' : '#2563EB'
+              backgroundColor: colors.primary
             }
           ]} 
         />
@@ -103,7 +107,6 @@ export default function OnboardingLayout({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Title Section */}
         <View style={styles.titleSection}>
           <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
           {subtitle && (
@@ -111,9 +114,27 @@ export default function OnboardingLayout({
           )}
         </View>
 
-        {/* Content */}
         {children}
       </ScrollView>
+
+      {onContinue && (
+        <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+          <Pressable
+            onPress={onContinue}
+            disabled={continueDisabled || loading}
+            style={[
+              styles.continueButton,
+              { backgroundColor: (continueDisabled || loading) ? colors.primaryMuted : colors.primary },
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -134,7 +155,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   verifyButton: {
     flexDirection: 'row',
@@ -162,14 +183,13 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    borderRadius: 2,
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
   titleSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   title: {
     fontSize: 28,
@@ -182,5 +202,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  continueButton: {
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

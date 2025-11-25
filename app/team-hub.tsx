@@ -100,7 +100,9 @@ export default function TeamHubScreen() {
       router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: targetId } });
       return;
     }
-  router.push({ pathname: '/(tabs)/feed/game' as any, params: { eventId: String(evt.id) } } as any);
+    if (evt.id) {
+      router.push(`/event-detail?id=${String(evt.id)}`);
+    }
   };
 
   return (

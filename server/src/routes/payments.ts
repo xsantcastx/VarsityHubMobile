@@ -49,12 +49,19 @@ function membershipError(status: number, message: string) {
   return error;
 }
 
-async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string) {
+async function createMembershipCheckoutSession(req: AuthedRequest, planValue: unknown, promoCode?: string, teamCount?: number) {
   if (!process.env.STRIPE_SECRET_KEY) throw membershipError(500, 'Stripe not configured');
   if (typeof planValue !== 'string' || !planValue.trim()) throw membershipError(400, 'plan is required');
   const raw = planValue.trim().toLowerCase();
   if (raw !== 'veteran' && raw !== 'legend') throw membershipError(400, 'Invalid plan for subscription');
   const chosen = raw as MembershipPlan;
+  
+  // Validate team count for Veteran plan (total teams including the first two free)
+  if (chosen === 'veteran') {
+    if (typeof teamCount !== 'number' || teamCount < 3) {
+      throw membershipError(400, 'Veteran plan requires at least 3 total teams (first 2 are free)');
+    }
+  }
 
   // Check if user already has this exact paid plan (allow upgrades from rookie)
   const userId = req.user!.id;
@@ -102,19 +109,26 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     console.warn('[payments] Ignoring invalid Stripe price id for plan', chosen, normalizedPriceId);
   }
 
+  // Calculate billable quantity for Veteran plan (only teams beyond the first two are billed)
+  const billableQuantity = chosen === 'veteran' && typeof teamCount === 'number' ? Math.max(0, teamCount - 2) : 1;
+  // If user selected only 2 or fewer teams, they should remain on Rookie (defensive check)
+  if (chosen === 'veteran' && billableQuantity === 0) {
+    throw membershipError(400, 'Select at least one billable team (3 total) to use Veteran plan');
+  }
+
   const lineItems = hasExplicitPriceId
-    ? [{ price: normalizedPriceId, quantity: 1 }]
+    ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
     : [{
-        quantity: 1,
+        quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 150 : 1750, // Veteran: $1.50/month, Legend: $17.50/year
+          unit_amount: chosen === 'veteran' ? 250 : 1999, // Veteran: $2.50/month per additional team, Legend: $19.99/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
-            description: chosen === 'veteran' 
-              ? 'Veteran plan - $1.50/month per team' 
-              : 'Legend plan - $17.50/year unlimited (fallback price)',
+            description: chosen === 'veteran'
+              ? `Veteran plan - $2.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
+              : 'Legend plan - $19.99/year unlimited (fallback price)',
           },
         },
       }];
@@ -136,6 +150,8 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       plan: chosen,
       user_id: req.user!.id,
       promo_code: promoCode || '',
+      team_count_total: chosen === 'veteran' && teamCount ? String(teamCount) : '',
+      team_count_billable: chosen === 'veteran' ? String(billableQuantity) : '',
     },
   };
 
@@ -160,7 +176,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 150 : 1750; // $1.50 or $17.50
+  const amount = chosen === 'veteran' ? 250 * billableQuantity : 1999; // Veteran billed only for additional teams
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -175,6 +191,8 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     promoCode: promoCode || undefined,
     metadata: {
       plan: chosen,
+      team_count_total: chosen === 'veteran' ? teamCount : undefined,
+      team_count_billable: chosen === 'veteran' ? billableQuantity : undefined,
     },
     ipAddress: req.ip,
     userAgent: req.get('user-agent'),
@@ -186,10 +204,10 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
   if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
-  const { ad_id, dates, promo_code, plan } = req.body || {};
+  const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
   if (typeof plan === 'string' && plan.trim()) {
     try {
-      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code);
+      const { url, sessionId } = await createMembershipCheckoutSession(req, plan, promo_code, team_count);
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
@@ -397,6 +415,70 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
   }
 });
 
+// Update subscription quantity for Veteran plan
+paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+    
+    const userId = req.user!.id;
+    const { team_count } = req.body; // total teams desired
+    if (typeof team_count !== 'number' || team_count < 3) {
+      return res.status(400).json({ error: 'Invalid total team count. Minimum 3 total teams required for Veteran plan.' });
+    }
+    const billable = Math.max(0, team_count - 2); // Only teams beyond first two are billed
+    if (billable === 0) {
+      return res.status(400).json({ error: 'No billable teams (only 2). Remain on Rookie plan instead.' });
+    }
+    
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const plan = prefs.plan || 'rookie';
+    const subscriptionId = prefs.subscription_id;
+    
+    if (plan !== 'veteran') {
+      return res.status(400).json({ error: 'This endpoint is only for Veteran plan subscribers' });
+    }
+    
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No active subscription found' });
+    }
+    
+    try {
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+        return res.status(400).json({ error: 'Subscription is not active' });
+      }
+      
+      // Update the quantity of the subscription item
+      const subscriptionItem = subscription.items.data[0];
+      if (!subscriptionItem) {
+        return res.status(400).json({ error: 'No subscription item found' });
+      }
+      
+      await stripe.subscriptionItems.update(subscriptionItem.id, {
+        quantity: billable,
+      });
+      
+      console.log(`[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`);
+      
+      return res.json({ 
+        ok: true, 
+        subscription_id: subscriptionId,
+        total_teams: team_count,
+        billable_teams: billable,
+        monthly_cost: billable * 2.50
+      });
+    } catch (err: any) {
+      console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
+      return res.status(500).json({ error: 'Failed to update subscription quantity' });
+    }
+  } catch (err) {
+    console.error('Error updating subscription quantity:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Debug endpoint to check and fix subscription status discrepancies
 paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (req: AuthedRequest, res) => {
   try {
@@ -443,6 +525,62 @@ paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (
     });
   } catch (err) {
     console.error('Error checking subscription status:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Subscription summary for Billing screen
+paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    const plan = prefs.plan || 'rookie';
+    const subscriptionId = prefs.subscription_id || null;
+
+    let quantity: number | null = null;
+    let status: string | null = null;
+    let current_period_end: string | null = null;
+    let monthly_cost: number | null = null;
+    let annual_cost: number | null = null;
+    const free_teams = 2;
+
+    if (plan === 'veteran' && subscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        status = sub.status;
+        if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
+        const item = sub.items.data[0];
+        quantity = item?.quantity ?? null;
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 2.5).toFixed(2));
+      } catch (err) {
+        console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
+      }
+    } else if (plan === 'legend') {
+      // Annual cost fixed at $19.99
+      annual_cost = 19.99;
+      // status can be determined if subscription id exists
+      if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
+        try {
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          status = sub.status;
+          if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
+        } catch {}
+      }
+    }
+
+    return res.json({
+      plan,
+      subscription_id: subscriptionId,
+      status,
+      quantity,
+      free_teams,
+      monthly_cost,
+      annual_cost,
+      current_period_end,
+    });
+  } catch (err) {
+    console.error('Error building subscription summary:', (err as any)?.message || err);
     return res.status(500).json({ error: 'Server error' });
   }
 });

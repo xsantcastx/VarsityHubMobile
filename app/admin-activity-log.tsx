@@ -5,6 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../api/http';
 
 interface ActivityLogItem {
   id: string;
@@ -32,8 +33,8 @@ export default function AdminActivityLogScreen() {
     
     try {
       const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = (process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:4000';
-      
+      const apiUrl = getApiBaseUrl();
+
       const params = new URLSearchParams();
       if (filter !== 'all') params.append('type', filter);
       if (searchQuery) params.append('q', searchQuery);
