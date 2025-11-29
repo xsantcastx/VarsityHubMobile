@@ -19,10 +19,10 @@ RUN npm ci
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Copy source code, ensuring start.sh is included from the server subdirectory
+# Copy source code, ensuring the start script (living at repo root) is included
 COPY ./server/src ./src
 COPY ./server/tsconfig.json .
-COPY ./server/start.sh .
+COPY ./start.sh .
 
 # Build TypeScript
 RUN npm run build
@@ -45,4 +45,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 
 # Start the server (with migrations)
 CMD ["./start.sh"]
-
