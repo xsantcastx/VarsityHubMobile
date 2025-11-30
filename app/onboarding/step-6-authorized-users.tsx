@@ -3,15 +3,15 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 // Segmented replaced by wheel picker for roles
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, useColorScheme, Modal } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
+import { httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
-import { httpPost } from '@/api/http';
 
 type TeamRole =
   | 'Coach'
@@ -177,7 +177,7 @@ export default function Step6AuthorizedUsers() {
       setProgress(8);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(5);
+      setProgress(6); // Advance to Step 7
       router.push('/onboarding/step-7-profile');
     }
   };
@@ -189,7 +189,7 @@ export default function Step6AuthorizedUsers() {
         setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(5);
+        setProgress(6); // Advance to Step 7
         router.push('/onboarding/step-7-profile');
       }
     }

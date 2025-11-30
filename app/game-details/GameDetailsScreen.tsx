@@ -1165,23 +1165,31 @@ const GameDetailsScreen = () => {
   const handleVote = useCallback(
     async (team: VoteOption) => {
       if (!vm?.gameId || vm.isPast || voteBusy) return;
-      const previous = voteSummary ? { ...voteSummary } : null;
-      const baseline = voteSummary ?? buildVoteSummary(0, 0, null);
-      if (baseline.userVote === team) {
-        return;
-      }
-      let nextA = baseline.teamA;
-      let nextB = baseline.teamB;
-      if (baseline.userVote === 'A') nextA = Math.max(0, nextA - 1);
-      if (baseline.userVote === 'B') nextB = Math.max(0, nextB - 1);
-      if (team === 'A') nextA += 1; else nextB += 1;
-      setVoteSummary(buildVoteSummary(nextA, nextB, team));
+
+      let rollback: VoteSummary | null = null;
+      setVoteSummary((prev) => {
+        rollback = prev ? { ...prev } : null;
+        const baseline = prev ?? buildVoteSummary(0, 0, null);
+        if (baseline.userVote === team) {
+          return baseline; // No change
+        }
+        let nextA = baseline.teamA;
+        let nextB = baseline.teamB;
+        if (baseline.userVote === 'A') nextA = Math.max(0, nextA - 1);
+        if (baseline.userVote === 'B') nextB = Math.max(0, nextB - 1);
+        if (team === 'A') nextA += 1; else nextB += 1;
+        return buildVoteSummary(nextA, nextB, team);
+      });
+
       setVoteBusy(true);
       try {
         const res: any = await Game.castVote(vm.gameId, team);
+        // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
+        // We can also refresh votes as a secondary measure if needed
+        // refreshVotes(); 
       } catch (err: any) {
-        if (previous) setVoteSummary(previous); else setVoteSummary(null);
+        if (rollback) setVoteSummary(rollback); else setVoteSummary(null);
         if (err?.status === 401) {
           router.push('/sign-in');
         } else {
@@ -1192,21 +1200,27 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router],
+    [vm?.gameId, vm?.isPast, voteBusy, router, refreshVotes],
   );
 
   const handleClearVote = useCallback(async () => {
-    if (!vm?.gameId || vm.isPast || voteBusy || !voteSummary?.userVote) return;
-    const previous = { ...voteSummary };
-    const nextA = voteSummary.userVote === 'A' ? Math.max(0, voteSummary.teamA - 1) : voteSummary.teamA;
-    const nextB = voteSummary.userVote === 'B' ? Math.max(0, voteSummary.teamB - 1) : voteSummary.teamB;
-    setVoteSummary(buildVoteSummary(nextA, nextB, null));
+    if (!vm?.gameId || vm.isPast || voteBusy) return;
+
+    let rollback: VoteSummary | null = null;
+    setVoteSummary((prev) => {
+      if (!prev?.userVote) return prev; // Nothing to clear
+      rollback = { ...prev };
+      const nextA = prev.userVote === 'A' ? Math.max(0, prev.teamA - 1) : prev.teamA;
+      const nextB = prev.userVote === 'B' ? Math.max(0, prev.teamB - 1) : prev.teamB;
+      return buildVoteSummary(nextA, nextB, null);
+    });
+
     setVoteBusy(true);
     try {
       const res: any = await Game.clearVote(vm.gameId);
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
-      setVoteSummary(previous);
+      if (rollback) setVoteSummary(rollback);
       if (err?.status === 401) {
         router.push('/sign-in');
       } else {

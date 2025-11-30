@@ -198,6 +198,16 @@ export default function Step4Organization() {
     }
   }, [clearOrganizations, executeNearbySearch]);
 
+  // Cleanup search timer on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // Request to join an organization
   const requestToJoin = async (org: any) => {
     setSelectedOrg(org);

@@ -5,6 +5,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -78,7 +79,7 @@ export default function VerifyEmailScreen() {
             router.replace('/onboarding/step-1-role');
           } else {
             console.log('[verify-email] Auto-redirecting to main app...');
-            router.replace('/(tabs)/feed' as any);
+            router.replace('/(tabs)' as any);
           }
         }, 3000); // Longer delay to let user see success and choose to continue manually
         
@@ -122,7 +123,7 @@ export default function VerifyEmailScreen() {
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');
       } else {
-        router.replace('/(tabs)/feed' as any);
+        router.replace('/(tabs)' as any);
       }
     } catch (userError) {
       console.error('[verify-email] Failed to get user info:', userError);
@@ -138,86 +139,88 @@ export default function VerifyEmailScreen() {
           headerShown: false,
         }} 
       />
-      
-      {/* Back Button */}
-      <Pressable 
-        onPress={() => router.back()} 
-        style={styles.backButton}
-        hitSlop={8}
-      >
-        <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
-      </Pressable>
-      
-      {/* Header Icon */}
-      <View style={styles.iconContainer}>
-        <Ionicons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
-      </View>
-      
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
-      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-        We sent a 6-digit verification code to your email address. 
-        Enter the code below to complete your registration.
-      </Text>
-      
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {info ? <Text style={styles.info}>{info}</Text> : null}
-      
-      {/* Dev Code Display */}
-      {devCode ? (
-        <View style={styles.devCodeContainer}>
-          <Ionicons name="bug-outline" size={16} color="#059669" />
-          <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
-        </View>
-      ) : null}
-      
-      <View style={styles.codeSection}>
-        <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
-        <Input 
-          placeholder="123456" 
-          value={code} 
-          onChangeText={setCode} 
-          keyboardType="number-pad" 
-          maxLength={6}
-          style={styles.codeInput}
-        />
-      </View>
-      
-      {isVerified ? (
-        <Button onPress={onContinue} style={styles.verifyButton}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
-        </Button>
-      ) : (
-        <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
-          {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
-        </Button>
-      )}
-      
-      {!isVerified && (
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
-          <Pressable onPress={onResend} disabled={loading}>
-            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
-          </Pressable>
-        </View>
-      )}
-      
-      {!isVerified && (
-        <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
-          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
+      <KeyboardAwareScreen contentContainerStyle={styles.content}>
+        {/* Back Button */}
+        <Pressable 
+          onPress={() => router.back()} 
+          style={styles.backButton}
+          hitSlop={8}
+        >
+          <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
-      )}
-      
-      {isVerified && (
-        <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
-          Automatically continuing in a few seconds...
+        
+        {/* Header Icon */}
+        <View style={styles.iconContainer}>
+          <Ionicons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+        </View>
+        
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
+        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
+          We sent a 6-digit verification code to your email address. 
+          Enter the code below to complete your registration.
         </Text>
-      )}
+        
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {info ? <Text style={styles.info}>{info}</Text> : null}
+        
+        {/* Dev Code Display */}
+        {devCode ? (
+          <View style={styles.devCodeContainer}>
+            <Ionicons name="bug-outline" size={16} color="#059669" />
+            <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
+          </View>
+        ) : null}
+        
+        <View style={styles.codeSection}>
+          <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
+          <Input 
+            placeholder="123456" 
+            value={code} 
+            onChangeText={setCode} 
+            keyboardType="number-pad" 
+            maxLength={6}
+            style={styles.codeInput}
+          />
+        </View>
+        
+        {isVerified ? (
+          <Button onPress={onContinue} style={styles.verifyButton}>
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
+          </Button>
+        ) : (
+          <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
+            {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
+          </Button>
+        )}
+        
+        {!isVerified && (
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
+            <Pressable onPress={onResend} disabled={loading}>
+              <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+            </Pressable>
+          </View>
+        )}
+        
+        {!isVerified && (
+          <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
+            <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
+          </Pressable>
+        )}
+        
+        {isVerified && (
+          <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
+            Automatically continuing in a few seconds...
+          </Text>
+        )}
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
+  container: { flex: 1, padding: 24 },
+  content: { flexGrow: 1, justifyContent: 'center' },
   backButton: { 
     position: 'absolute', 
     top: 60, 

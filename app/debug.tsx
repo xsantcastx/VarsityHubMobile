@@ -15,7 +15,7 @@ export default function DebugScreen() {
       <Stack.Screen options={{ title: 'Debug' }} />
       <Text style={styles.title}>Quick Nav</Text>
       <View style={styles.row}>
-  <Button onPress={() => router.push('/(tabs)/feed')}><Text>Feed</Text></Button>
+  <Button onPress={() => router.push('/(tabs)')}><Text>Feed</Text></Button>
   <Button onPress={() => router.push('/(tabs)/discover')}><Text>Discover</Text></Button>
   <Button onPress={() => router.push('/profile')}><Text>Profile</Text></Button>
   <Button onPress={() => router.push('/messages')}><Text>Messages</Text></Button>
@@ -50,7 +50,6 @@ const styles = StyleSheet.create({
   block: { marginTop: 12 },
   label: { fontWeight: '700', marginBottom: 6 },
 });
-
 
 
 

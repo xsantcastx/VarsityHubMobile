@@ -267,10 +267,20 @@ const HighlightCard = ({
             
             <Pressable 
               style={styles.actionButton}
-              onPress={(e) => {
+              onPress={async (e) => {
                 e.stopPropagation();
-                // Handle share action
-                Alert.alert('Share', 'Share this highlight!');
+                try {
+                  const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
+                  const shareUrl = `${base}/highlights/${item.id}`;
+                  const message = item.caption ? `${item.caption}\n\n${shareUrl}` : shareUrl;
+                  await Share.share({ message, url: shareUrl, title: item.title || 'VarsityHub Highlight' });
+                } catch (err) {
+                  try {
+                    const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
+                    await Clipboard.setStringAsync(`${base}/highlights/${item.id}`);
+                    Alert.alert('Link Copied', 'Share link copied to clipboard!');
+                  } catch {}
+                }
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
@@ -323,8 +333,8 @@ export default function HighlightsScreen() {
     try {
       const me: any = await User.me().catch(() => null);
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
-      const lat = me?.lat;
-      const lng = me?.lng;
+      const lat = me?.preferences?.lat;
+      const lng = me?.preferences?.lng;
       
       // Store user location for ranking calculations
       if (lat && lng) {

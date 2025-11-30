@@ -1,12 +1,14 @@
 import { Colors } from '@/constants/Colors';
+import React from 'react';
 import { StyleSheet, TextInput, TextInputProps, useColorScheme } from 'react-native';
 
-export function Input(props: TextInputProps) {
-  const colorScheme = useColorScheme();
-  
+const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
+  const colorScheme = useColorScheme() ?? 'light';
+
   return (
-    <TextInput 
-      {...props} 
+    <TextInput
+      ref={ref}
+      {...props}
       style={[
         {
           height: 44,
@@ -17,12 +19,14 @@ export function Input(props: TextInputProps) {
           backgroundColor: Colors[colorScheme].surface,
           color: Colors[colorScheme].text,
         },
-        props.style
-      ]} 
+        props.style,
+      ]}
       placeholderTextColor={Colors[colorScheme].mutedText}
     />
   );
-}
+});
+
+export { Input };
 
 export default Input;
 

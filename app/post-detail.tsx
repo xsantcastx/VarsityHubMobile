@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
+import { AppLinks } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -283,7 +284,7 @@ export default function PostDetailScreen() {
       }
       
       // Add URL
-      const shareUrl = `https://varsityhub.com/post/${currentPostId}`;
+      const shareUrl = AppLinks.post(currentPostId);
       message += `\n\n${shareUrl}`;
       
       await Share.share({

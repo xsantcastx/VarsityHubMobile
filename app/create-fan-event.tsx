@@ -9,7 +9,6 @@ import {
     Alert,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -18,6 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { httpPost } from '@/api/http';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 
 const EVENT_TYPES = [
   { value: 'game', label: '🏈 Game/Match', icon: 'football' },
@@ -143,7 +143,7 @@ export default function CreateFanEventScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Create Event', headerShown: true }} />
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
@@ -393,7 +393,7 @@ export default function CreateFanEventScreen() {
         </Pressable>
         
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }

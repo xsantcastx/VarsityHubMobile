@@ -26,7 +26,7 @@ export default function Index() {
             router.replace('/onboarding/step-2-basic');
           } else {
             // Everyone lands on feed
-            router.replace('/(tabs)/feed' as any);
+            router.replace('/(tabs)' as any);
           }
         } else {
           // No user, go to sign in

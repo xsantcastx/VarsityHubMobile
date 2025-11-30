@@ -3,57 +3,15 @@ import { useFonts } from 'expo-font';
 import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { ActivityIndicator, Alert, LogBox, Platform, View } from 'react-native';
+import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-
-// Error Boundary Component
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error to console in development
-    if (__DEV__) {
-      console.error('ErrorBoundary caught error:', error, errorInfo);
-    }
-    
-    // In production, you would log to Sentry:
-    // Sentry.captureException(error);
-    
-    Alert.alert(
-      'Something went wrong',
-      'Please restart the app. If the problem persists, contact support.',
-      [{ text: 'OK', onPress: () => this.setState({ hasError: false }) }]
-    );
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <ActivityIndicator size="large" />
-        </View>
-      );
-    }
-
-    return this.props.children;
-  }
-}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -100,7 +58,7 @@ export default function RootLayout() {
         // Role-aware login landing - only redirect if on public routes (but NOT verify-email, user might be verifying during onboarding)
         if (isPublic && me && first !== 'verify-email') {
           // Everyone lands on feed
-          const landingRoute = '/(tabs)/feed';
+          const landingRoute = '/(tabs)';
           
           if (lastRedirectRef.current !== landingRoute) {
             lastRedirectRef.current = landingRoute;

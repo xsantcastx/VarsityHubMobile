@@ -20,12 +20,13 @@ export default function OnboardingIndex() {
       '/onboarding/step-1-role',           // 0
       '/onboarding/step-2-basic',          // 1
       '/onboarding/step-3-plan',           // 2
-      '/onboarding/step-5-league',         // 3 (removed step-4-season)
-      '/onboarding/step-6-authorized-users', // 4
-      '/onboarding/step-7-profile',        // 5
-      '/onboarding/step-8-interests',      // 6
-      '/onboarding/step-9-features',       // 7
-      '/onboarding/step-10-confirmation',  // 8
+      '/onboarding/step-4-organization',   // 3
+      '/onboarding/step-5-teams',          // 4
+      '/onboarding/step-6-authorized-users', // 5
+      '/onboarding/step-7-profile',        // 6
+      '/onboarding/step-8-interests',      // 7
+      '/onboarding/step-9-features',       // 8
+      '/onboarding/step-10-confirmation',  // 9
     ];
     
     // Progress is 0-based index, so progress=8 means step 10

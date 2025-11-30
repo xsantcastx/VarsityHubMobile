@@ -85,7 +85,7 @@ export default function Step9Features() {
         });
         
         clearOnboarding();
-        router.replace('/(tabs)/feed');
+        router.replace('/(tabs)');
         return;
       }
       
@@ -320,7 +320,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
 });
-
 
 
 

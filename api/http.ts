@@ -5,42 +5,99 @@ export function setAuthToken(token: string | null) { tokenCache = token || null;
 export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
-export function getApiBaseUrl(): string {
-  // Expo packs env vars under process.env at runtime
-  const env = (typeof process !== 'undefined' ? (process as any).env || {} : {}) as any;
-  const envUrl = (env && env.EXPO_PUBLIC_API_URL) || '';
-  const forceRemote = String(env?.EXPO_PUBLIC_FORCE_REMOTE_API || '').toLowerCase() === 'true';
+const DEFAULT_REMOTE_API_URL = 'https://api-production-8ac3.up.railway.app';
+const DEFAULT_LOCAL_API_URL = 'http://localhost:4000';
 
-  // In development, use the env URL if provided, otherwise fall back to production
-  let url: string;
-  if (__DEV__ && !forceRemote) {
-    // Always use EXPO_PUBLIC_API_URL if provided (supports localhost, LAN IPs, etc.)
-    url = envUrl || 'http://localhost:4000';
-  } else {
-    const defaultUrl = 'https://api-production-8ac3.up.railway.app';
-    url = envUrl || defaultUrl;
+type ApiBaseState = {
+  current: string;
+  fallback: string | null;
+  envUrl: string | null;
+  forceRemote: boolean;
+  preferLocalFallback: boolean;
+  usedLocalDefault: boolean;
+};
+
+let apiBaseState: ApiBaseState | null = null;
+
+function sanitizeUrl(url: string) {
+  if (!url) return '';
+  return url.replace(/\/$/, '');
+}
+
+function resolveApiBaseState(): ApiBaseState {
+  const env = (typeof process !== 'undefined' ? (process as any).env || {} : {}) as any;
+  const envUrlRaw = typeof env?.EXPO_PUBLIC_API_URL === 'string' ? env.EXPO_PUBLIC_API_URL.trim() : '';
+  const envUrl = envUrlRaw || null;
+  const forceRemote = String(env?.EXPO_PUBLIC_FORCE_REMOTE_API || '').toLowerCase() === 'true';
+  const preferLocalFallback = String(env?.EXPO_PUBLIC_USE_LOCAL_API || '').toLowerCase() === 'true';
+  const useLocalDefault = __DEV__ && !forceRemote && !envUrl && preferLocalFallback;
+
+  let primary = envUrl || (useLocalDefault ? DEFAULT_LOCAL_API_URL : DEFAULT_REMOTE_API_URL);
+  if (__DEV__ && primary.startsWith('http://localhost') && Platform.OS === 'android') {
+    primary = primary.replace('http://localhost', 'http://10.0.2.2');
   }
-  
-  // On iOS simulator, `localhost` will automatically resolve to the host machine.
-  // On Android, it needs to be explicitly mapped to `10.0.2.2`.
-  if (__DEV__ && url.startsWith('http://localhost')) {
-    if (Platform.OS === 'android') {
-      // Android simulator uses 10.0.2.2 to reach host machine
-      url = url.replace('http://localhost', 'http://10.0.2.2');
+  const sanitizedPrimary = sanitizeUrl(primary);
+
+  let fallback: string | null = null;
+  if (!forceRemote) {
+    if (envUrl) {
+      fallback = DEFAULT_REMOTE_API_URL;
+    } else if (useLocalDefault) {
+      fallback = DEFAULT_REMOTE_API_URL;
     }
   }
-  
-  const finalUrl = url.replace(/\/$/, '');
-  if (__DEV__ && !('__VH_LOGGED_API_BASE' in (global as any))) {
-    (global as any).__VH_LOGGED_API_BASE = true;
-    // eslint-disable-next-line no-console
-    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS });
+
+  const sanitizedFallback = fallback ? sanitizeUrl(fallback) : null;
+
+  return {
+    current: sanitizedPrimary,
+    fallback: sanitizedFallback,
+    envUrl,
+    forceRemote,
+    preferLocalFallback,
+    usedLocalDefault: useLocalDefault,
+  };
+}
+
+function logBase(event: 'init' | 'fallback', state: ApiBaseState) {
+  if (!__DEV__) return;
+  const meta = {
+    envUrl: state.envUrl,
+    fallbackAvailable: !!state.fallback,
+    event,
+    forceRemote: state.forceRemote,
+    preferLocalFallback: state.preferLocalFallback,
+    platform: Platform.OS,
+  };
+  // eslint-disable-next-line no-console
+  console.log('[http] API base:', state.current, meta);
+}
+
+function getApiBaseState(): ApiBaseState {
+  if (!apiBaseState) {
+    apiBaseState = resolveApiBaseState();
+    logBase('init', apiBaseState);
   }
-  return finalUrl;
+  return apiBaseState;
+}
+
+export function getApiBaseUrl(): string {
+  return getApiBaseState().current;
 }
 
 function getBaseUrl(): string {
   return getApiBaseUrl();
+}
+
+function maybeSwitchToFallback(): boolean {
+  const state = getApiBaseState();
+  if (!state.fallback || state.current === state.fallback) {
+    return false;
+  }
+  state.current = state.fallback;
+  state.fallback = null;
+  logBase('fallback', state);
+  return true;
 }
 
 async function request(path: string, options: RequestInit = {}, timeoutMs: number = 60000): Promise<any> {
@@ -59,57 +116,93 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  try {
-    // HTTP request initiated
-    const res = await fetch(base + path, { 
-      ...options, 
-      headers,
-      signal: controller.signal 
-    });
-    clearTimeout(timeoutId);
-    // HTTP response received
+  const perform = async (resolvedBase: string): Promise<any> => {
+    const targetUrl = resolvedBase + path;
+    try {
+      // HTTP request initiated
+      const res = await fetch(targetUrl, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      // HTTP response received
 
-    // Handle 304 Not Modified: return a special object or null.
-    // The caller can then decide whether to use cached data or ignore.
-    if (res.status === 304) {
-      return { _status: 304, _isNotModified: true };
-    }
-
-    const text = await res.text();
-    const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
-    let data: any = null;
-    if (ct.includes('application/json')) {
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
+      // Handle 304 Not Modified: return a special object or null.
+      // The caller can then decide whether to use cached data or ignore.
+      if (res.status === 304) {
+        return { _status: 304, _isNotModified: true };
       }
-    } else {
-      data = text; // plain text or HTML
-    }
 
-    if (!res.ok) {
-      const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
-      const err: any = new Error(msg || `HTTP ${res.status}`);
-      err.status = res.status;
-      err.data = data;
-      throw err;
+      const text = await res.text();
+      const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+      let data: any = null;
+      if (ct.includes('application/json')) {
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+      } else {
+        data = text; // plain text or HTML
+      }
+
+      if (!res.ok) {
+        const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
+        const err: any = new Error(msg || `HTTP ${res.status}`);
+        err.status = res.status;
+        err.data = data;
+        
+        // Handle 401 Unauthorized - clear session and notify user
+        if (res.status === 401) {
+          console.warn('[http] 401 Unauthorized - clearing session');
+          clearAuthToken();
+          
+          // Try to clear token from secure storage
+          try {
+            const { Platform } = await import('react-native');
+            if (Platform.OS === 'web') {
+              if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.removeItem('vh_access_token');
+              }
+            } else {
+              const SecureStore = await import('expo-secure-store');
+              await SecureStore.deleteItemAsync('vh_access_token');
+            }
+          } catch (storageError) {
+            console.error('[http] Failed to clear stored token:', storageError);
+          }
+        }
+        
+        throw err;
+      }
+      return data;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      console.warn('[http] Request failed:', { url: targetUrl, error: error.message });
+      if (error.name === 'AbortError') {
+        const timeoutError: any = new Error(`Request to ${resolvedBase}${path} timed out after ${timeoutMs}ms`);
+        timeoutError.status = 0;
+        timeoutError.originalError = error;
+        timeoutError.name = 'TimeoutError';
+        throw timeoutError;
+      }
+      // Add more context to network errors
+      if (error.message === 'Network request failed') {
+        const err: any = new Error(`Cannot connect to server at ${resolvedBase}. Make sure the backend is running or reachable.`);
+        err.originalError = error;
+        err.status = 0;
+        throw err;
+      }
+      throw error;
     }
-    return data;
+  };
+
+  try {
+    return await perform(base);
   } catch (error: any) {
-    clearTimeout(timeoutId);
-    console.warn('[http] Request failed:', { url: base + path, error: error.message });
-    if (error.name === 'AbortError') {
-      // Don't re-throw AbortError, just return null to the caller.
-      // The caller should handle the null response gracefully.
-      return null;
-    }
-    // Add more context to network errors
-    if (error.message === 'Network request failed') {
-      const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
-      err.originalError = error;
-      err.status = 0;
-      throw err;
+    if (error?.status === 0 && maybeSwitchToFallback()) {
+      return perform(getBaseUrl());
     }
     throw error;
   }

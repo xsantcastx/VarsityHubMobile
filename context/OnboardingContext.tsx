@@ -1,4 +1,8 @@
-import React, { createContext, PropsWithChildren, useContext, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
+
+const ONBOARDING_STATE_KEY = 'onboarding_state';
+const ONBOARDING_PROGRESS_KEY = 'onboarding_progress';
 
 export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
 export type Plan = 'rookie' | 'veteran' | 'legend';
@@ -41,7 +45,7 @@ export type OnboardingState = {
 
 type Ctx = { 
   state: OnboardingState; 
-  setState: React.Dispatch<React.SetStateAction<OnboardingState>>;
+  setState: (newState: React.SetStateAction<OnboardingState>) => void;
   clearOnboarding: () => void;
   progress: number;
   setProgress: (progress: number) => void;
@@ -53,14 +57,55 @@ const OBContext = createContext<Ctx | null>(null);
 export function OBProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<OnboardingState>({});
   const [progress, setProgress] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(true); // Set to true for now since we're not using AsyncStorage persistence
-  
-  const clearOnboarding = () => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load state from AsyncStorage on mount
+  useEffect(() => {
+    const loadState = async () => {
+      try {
+        const savedState = await AsyncStorage.getItem(ONBOARDING_STATE_KEY);
+        const savedProgress = await AsyncStorage.getItem(ONBOARDING_PROGRESS_KEY);
+        if (savedState) {
+          setState(JSON.parse(savedState));
+        }
+        if (savedProgress) {
+          setProgress(parseInt(savedProgress, 10));
+        }
+      } catch (e) {
+        console.error('Failed to load onboarding state from storage', e);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    loadState();
+  }, []);
+
+  // Persist state to AsyncStorage on change
+  const setAndPersistState = (newState: React.SetStateAction<OnboardingState>) => {
+    setState(prevState => {
+      const updatedState = typeof newState === 'function' ? newState(prevState) : newState;
+      AsyncStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(updatedState));
+      return updatedState;
+    });
+  };
+
+  const setAndPersistProgress = (newProgress: number) => {
+    setProgress(newProgress);
+    AsyncStorage.setItem(ONBOARDING_PROGRESS_KEY, newProgress.toString());
+  };
+
+  const clearOnboarding = async () => {
     setState({});
     setProgress(0);
+    try {
+      await AsyncStorage.removeItem(ONBOARDING_STATE_KEY);
+      await AsyncStorage.removeItem(ONBOARDING_PROGRESS_KEY);
+    } catch (e) {
+      console.error('Failed to clear onboarding state from storage', e);
+    }
   };
   
-  return <OBContext.Provider value={{ state, setState, clearOnboarding, progress, setProgress, isLoaded }}>{children}</OBContext.Provider>;
+  return <OBContext.Provider value={{ state, setState: setAndPersistState, clearOnboarding, progress, setProgress: setAndPersistProgress, isLoaded }}>{children}</OBContext.Provider>;
 }
 
 export function useOnboarding() {

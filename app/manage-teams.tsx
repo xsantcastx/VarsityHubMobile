@@ -74,7 +74,7 @@ export default function ManageTeamsSimpleScreen() {
         const role = me?.preferences?.role;
         if (role !== 'coach') {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
-          router.replace('/(tabs)/feed');
+          router.replace('/(tabs)');
         }
       } catch {
         // silently ignore

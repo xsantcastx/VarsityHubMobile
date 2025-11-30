@@ -204,7 +204,7 @@ export default function Step10Confirmation() {
       clearOnboarding();
       
       // Navigate to main app - use router.push to ensure proper navigation
-      router.push('/(tabs)/feed');
+      router.push('/(tabs)');
     } catch (e: any) {
       console.error('Onboarding completion error:', e);
       Alert.alert('Setup Failed', e?.message || 'Please try again or contact support.');
@@ -580,4 +580,3 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     lineHeight: 18,
   },
 });
-
