@@ -261,11 +261,10 @@ export const Organization = {
 export const Team = {
   list: (q?: string, mine?: boolean) => {
     if (mine) {
-      // Use dedicated managed teams endpoint
-      const params: string[] = [];
+      const params: string[] = ['mine=1'];
       if (q) params.push(`q=${encodeURIComponent(q)}`);
-      const qs = params.length ? '?' + params.join('&') : '';
-      return httpGet('/teams/managed' + qs);
+      const qs = '?' + params.join('&');
+      return httpGet('/teams' + qs);
     }
     
     const params: string[] = [];

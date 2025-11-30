@@ -1,4 +1,5 @@
 import { Organization, Team, User } from '@/api/entities';
+import { uploadAvatar } from '@/api/upload';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -14,7 +15,6 @@ import { Stack, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '../api/http';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -92,11 +92,13 @@ export default function ProfileScreen() {
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
   const [postsHasMore, setPostsHasMore] = useState(true);
   const [postsLoading, setPostsLoading] = useState(false);
+  const postsRequestInFlight = useRef(false);
 
   const [interactions, setInteractions] = useState<any[]>([]);
   const [interCursor, setInterCursor] = useState<string | null>(null);
   const [interHasMore, setInterHasMore] = useState(true);
   const [interLoading, setInterLoading] = useState(false);
+  const interRequestInFlight = useRef(false);
   const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
   const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
@@ -104,6 +106,7 @@ export default function ProfileScreen() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
+  const profileRequestInFlight = useRef(false);
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -115,7 +118,8 @@ export default function ProfileScreen() {
   }, []);
 
   const refreshPosts = useCallback(async (userId: string) => {
-    if (postsLoading) return;
+    if (postsRequestInFlight.current) return;
+    postsRequestInFlight.current = true;
     setPostsLoading(true);
     try {
       const page = await User.postsForProfile(String(userId), { limit: 10, sort });
@@ -124,12 +128,14 @@ export default function ProfileScreen() {
       setPostsHasMore(Boolean(page.nextCursor));
       if (page.counts) setCounts(page.counts);
     } finally {
+      postsRequestInFlight.current = false;
       setPostsLoading(false);
     }
-  }, [postsLoading, sort, setIfDifferent]);
+  }, [sort, setIfDifferent]);
 
   const refreshInteractions = useCallback(async (userId: string) => {
-    if (interLoading) return;
+    if (interRequestInFlight.current) return;
+    interRequestInFlight.current = true;
     setInterLoading(true);
     try {
       const page = await User.interactionsForProfile(String(userId), { limit: 10, type: interType, sort });
@@ -138,9 +144,10 @@ export default function ProfileScreen() {
       setInterHasMore(Boolean(page.nextCursor));
       if (page.counts) setCounts(page.counts);
     } finally {
+      interRequestInFlight.current = false;
       setInterLoading(false);
     }
-  }, [interLoading, interType, sort, setIfDifferent]);
+  }, [interType, sort, setIfDifferent]);
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -172,13 +179,10 @@ export default function ProfileScreen() {
 
       const { uri, fileName, mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
-      const fd = new FormData();
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
-      fd.append('file', { uri: manipulated.uri, name, type: 'image/jpeg' } as any);
-      const token = await (await import('@/api/auth')).loadToken();
-      const resp = await fetch(`${getApiBaseUrl()}/upload/avatar`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } as any : undefined, body: fd as any });
-      if (!resp.ok) throw new Error(await resp.text());
-      const { url } = await resp.json();
+      
+      // Use shared upload helper with consistent auth/retry logic
+      const { url } = await uploadAvatar(manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
@@ -191,6 +195,8 @@ export default function ProfileScreen() {
   };
 
   const loadProfile = useCallback(async () => {
+    if (profileRequestInFlight.current) return;
+    profileRequestInFlight.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -203,7 +209,34 @@ export default function ProfileScreen() {
       const themeColor = u?.preferences?.theme_color || '#3B82F6';
       setUserThemeColor(themeColor);
 
-      // Load organizations - get user's teams and extract their organizations
+      // Load first page for active tab
+      if (activeTab === 'posts') {
+        await refreshPosts(u.id);
+      } else {
+        await refreshInteractions(u.id);
+      }
+    } catch (e: any) {
+      console.error('Failed to load profile', e);
+      // Only show sign-in if the session itself is invalid from /me.
+      if (e && e.status === 401) {
+        setError('You need to sign in to view your profile.');
+      } else {
+        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile.');
+      }
+    } finally {
+      profileRequestInFlight.current = false;
+      setLoading(false);
+    }
+  }, [activeTab, refreshInteractions, refreshPosts]);
+
+  // Refresh on mount and when screen regains focus (after creating a post, etc.)
+  useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
+
+  // Load organizations separately to avoid blocking profile render
+  useEffect(() => {
+    if (!me?.id) return;
+    
+    const loadOrganizations = async () => {
       try {
         const myTeams = await Team.list('', true); // mine=true
         
@@ -259,34 +292,15 @@ export default function ProfileScreen() {
       } catch (err) {
         console.error('Failed to load organizations', err);
       }
-
-      // Load first page for active tab
-      if (activeTab === 'posts') {
-        await refreshPosts(u.id);
-      } else {
-        await refreshInteractions(u.id);
-      }
-    } catch (e: any) {
-      console.error('Failed to load profile', e);
-      // Only show sign-in if the session itself is invalid from /me.
-      if (e && e.status === 401) {
-        setError('You need to sign in to view your profile.');
-      } else {
-        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, refreshInteractions, refreshPosts]);
-
-  useEffect(() => { loadProfile(); }, [loadProfile]);
-
-  // Refresh when screen regains focus (after creating a post, etc.)
-  useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
+    };
+    
+    loadOrganizations();
+  }, [me?.id]);
 
   // Refresh when switching tabs
   useEffect(() => {
     if (!me?.id) return;
+    setError(null); // Clear any stale errors
     if (activeTab === 'posts') {
       refreshPosts(String(me.id));
     } else {
@@ -299,6 +313,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!me?.id) return;
     if (activeTab === 'interactions') {
+      setError(null); // Clear any stale errors
       refreshInteractions(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

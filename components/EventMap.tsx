@@ -21,22 +21,9 @@ import {
 } from 'react-native';
 import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 
-export interface EventMapData {
-  id: string;
-  title: string;
-  date: string;
-  location?: string;
-  latitude?: number;
-  longitude?: number;
-  type?: 'game' | 'event' | 'post';
-}
+import { EventMapData, EventMapProps } from './EventMap.types';
 
-interface EventMapProps {
-  events: EventMapData[];
-  onEventPress?: (eventId: string) => void;
-  initialRegion?: Region;
-  showUserLocation?: boolean;
-}
+export type { EventMapData, EventMapProps } from './EventMap.types';
 
 export default function EventMap({
   events,

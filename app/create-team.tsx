@@ -6,13 +6,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '../api/http';
 import { Platform } from 'react-native';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 
 export default function CreateTeamScreen() {
   const router = useRouter();
@@ -336,7 +337,7 @@ export default function CreateTeamScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Create Team', headerShown: false }} />
       
-      <ScrollView 
+      <KeyboardAwareScreen 
         style={{ flex: 1 }} 
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
@@ -619,7 +620,7 @@ export default function CreateTeamScreen() {
             </Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
@@ -868,5 +869,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-
 

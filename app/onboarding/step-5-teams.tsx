@@ -79,18 +79,18 @@ export default function Step5Teams() {
         console.warn('Failed to persist season to backend:', err);
       }
 
-      setProgress(4);
+      setProgress(5); // Advance to Step 6
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-6-league');
+        router.push('/onboarding/step-6-authorized-users');
       }
     } catch (e: any) {
       console.error('Failed to save season:', e);
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        router.push('/onboarding/step-6-league');
+        router.push('/onboarding/step-6-authorized-users');
       }
     } finally {
       setSaving(false);

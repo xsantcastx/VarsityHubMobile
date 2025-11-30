@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { Router, Request } from 'express';
+import { Request, Router } from 'express';
+import jwt from 'jsonwebtoken';
+import jwkToPem from 'jwk-to-pem';
 import { z } from 'zod';
 import { sendEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
@@ -271,6 +273,8 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
+const ALLOW_DEV_APPLE_TOKENS = process.env.NODE_ENV !== 'production';
+
 const appleAuthSchema = z.object({
   identity_token: z.string().min(10),
   email: z.string().email().optional(),
@@ -289,15 +293,55 @@ authRouter.post('/apple', async (req, res) => {
   const { identity_token, email, full_name } = parsed.data;
 
   try {
-    // In a real app, you'd verify the identity_token with Apple's servers.
-    // For this example, we'll simulate verification by decoding the token.
-    // WARNING: This is not secure and for demonstration purposes only.
-    const decodedToken = JSON.parse(Buffer.from(identity_token.split('.')[1], 'base64').toString());
-    const appleUserId = decodedToken.sub;
+    let decodedToken: any = null;
+    let appleUserId: string | null = null;
+
+    const parts = identity_token.split('.');
+    const looksLikeJwt = parts.length === 3;
+
+    // The Expo Go simulator may return a non-JWT string for Apple Sign-In.
+    // This dev-only branch handles that case by creating a stable, fake user ID.
+    // It is gated by ALLOW_DEV_APPLE_TOKENS, which is false in production.
+    if (looksLikeJwt) {
+      try {
+        const applePublicKeys = await (
+          await fetch('https://appleid.apple.com/auth/keys')
+        ).json();
+        const jwtHeader = JSON.parse(Buffer.from(parts[0], 'base64').toString());
+        const kid = jwtHeader.kid;
+        const key = applePublicKeys.keys.find((k: any) => k.kid === kid);
+        if (!key) {
+          return res.status(401).json({ error: 'Apple public key not found' });
+        }
+        const pubKey = jwkToPem(key);
+        decodedToken = jwt.verify(identity_token, pubKey, {
+          algorithms: ['RS256'],
+        });
+        appleUserId = typeof decodedToken.sub === 'string' ? decodedToken.sub : null;
+      } catch (err: any) {
+        console.error('[auth/apple] JWT verification failed', err);
+        return res.status(401).json({ error: 'Invalid Apple identity token' });
+      }
+    } else if (ALLOW_DEV_APPLE_TOKENS) {
+      // This branch is for dev environment only, where the token is not a real JWT
+      // It's a simple string that we can use as a stable identifier for dev/testing
+      appleUserId = `dev-apple-id:${identity_token}`;
+      decodedToken = {
+        email: email,
+        email_verified: 'true',
+        // other fields can be mocked if needed
+      };
+    }
 
     if (!appleUserId) {
       return res.status(400).json({ error: 'Invalid Apple identity token' });
     }
+
+    console.log('[auth/apple] token accepted', {
+      userId: appleUserId,
+      fromSimulator: !looksLikeJwt,
+      hasEmail: Boolean(email || decodedToken?.email),
+    });
 
     let user = await prisma.user.findUnique({ where: { apple_id: appleUserId } });
     let created = false;
@@ -835,4 +879,3 @@ authRouter.post('/test-email', async (req, res) => {
 });
 
 export default authRouter;
-

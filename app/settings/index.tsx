@@ -203,16 +203,32 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
               const patchPrefs = (patch: Partial<Preferences>) => {
                 const key = JSON.stringify(patch);
                 if (timers.current[key]) clearTimeout(timers.current[key]);
-                timers.current[key] = setTimeout(async () => {
-                  try {
-                    // merge locally for immediate UI
-                    setPrefs((cur) => ({ ...(cur as any), ...(patch as any) }));
-                    await User.updatePreferences(patch as any);
-                  } catch (e) {
-                    console.warn('Failed to patch prefs', e);
-                    Alert.alert('Update failed', 'Could not save your preference. Please try again.');
-                  }
-                }, 150);
+                
+                // Use functional update to get the latest state
+                setPrefs(cur => {
+                  // Deep merge notifications, shallow merge the rest
+                  const newPrefs = {
+                    ...cur,
+                    ...patch,
+                    notifications: {
+                      ...cur.notifications,
+                      ...(patch.notifications || {}),
+                    },
+                  };
+
+                  // Debounce the API call
+                  timers.current[key] = setTimeout(async () => {
+                    try {
+                      await User.updatePreferences(newPrefs);
+                    } catch (e) {
+                      console.warn('Failed to patch prefs', e);
+                      // Revert on failure if needed, though not implemented here
+                      Alert.alert('Update failed', 'Could not save your preference. Please try again.');
+                    }
+                  }, 300);
+
+                  return newPrefs;
+                });
               };
 
               const restartOnboarding = async () => {
@@ -228,12 +244,13 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     plan: prefsFromServer.plan ?? null,
                     avatar_url: me?.avatar_url ?? prefsFromServer.avatar_url ?? null,
                     bio: me?.bio ?? prefsFromServer.bio ?? '',
-                    sports: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
+                    sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
                     primary_intents: prefsFromServer.primary_intents ?? [],
                     authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
                   } as any;
 
-                  try { pushHistory?.(preload); } catch (e) { console.warn('Failed to push onboarding history', e); }
+                  // pushHistory is not available in the context, so this call is removed.
+                  // try { pushHistory?.(preload); } catch (e) { console.warn('Failed to push onboarding history', e); }
                   try { await User.updatePreferences({ onboarding_completed: false }); } catch (e) { /* ignore */ }
                   if (setOB) setOB(preload);
                   router.replace('/onboarding/step-1-role');

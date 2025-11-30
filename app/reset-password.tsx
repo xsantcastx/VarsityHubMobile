@@ -1,4 +1,5 @@
 import { User } from '@/api/entities';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -59,86 +60,88 @@ export default function ResetPasswordScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Reset Password' }} />
-      <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
-        <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
-        <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a 6-digit code to your email. Enter it with your new password.</Text>
+      <KeyboardAwareScreen contentContainerStyle={styles.content}>
+        <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
+          <Text style={[styles.title, { color: palette.text }]}>Enter your reset code</Text>
+          <Text style={[styles.subtitle, { color: palette.mutedText }]}>We sent a 6-digit code to your email. Enter it with your new password.</Text>
 
-        {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
-        {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
+          {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
+          {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
 
-        <Input
-          placeholder="name@school.edu"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor={palette.mutedText}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-        />
+          <Input
+            placeholder="name@school.edu"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+          />
 
-        <Input
-          placeholder="123456"
-          value={code}
-          onChangeText={setCode}
-          keyboardType="number-pad"
-          placeholderTextColor={palette.mutedText}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-        />
+          <Input
+            placeholder="123456"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+          />
 
-        <Input
-          placeholder="New password (min 8 characters)"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholderTextColor={palette.mutedText}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-        />
+          <Input
+            placeholder="New password (min 8 characters)"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+          />
 
-        <Input
-          placeholder="Confirm new password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          placeholderTextColor={palette.mutedText}
-          style={[
-            styles.input,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              color: palette.text,
-            },
-          ]}
-        />
+          <Input
+            placeholder="Confirm new password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            placeholderTextColor={palette.mutedText}
+            style={[
+              styles.input,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                color: palette.text,
+              },
+            ]}
+          />
 
-        <Button onPress={onSubmit} disabled={loading}>
-          {loading ? <ActivityIndicator color="white" /> : 'Update password'}
-        </Button>
-      </View>
+          <Button onPress={onSubmit} disabled={loading}>
+            {loading ? <ActivityIndicator color="white" /> : 'Update password'}
+          </Button>
+        </View>
 
-      <Pressable style={styles.secondary} onPress={() => router.replace('/sign-in')}>
-        <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
-      </Pressable>
+        <Pressable style={styles.secondary} onPress={() => router.replace('/sign-in')}>
+          <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
+        </Pressable>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
@@ -147,6 +150,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: 'center',
   },
   card: {

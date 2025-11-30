@@ -9,11 +9,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { uploadAvatar } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import OnboardingLayout from './components/OnboardingLayout';
-import { getApiBaseUrl } from '../../api/http';
 
 const ALL_INTERESTS = ['Football','Basketball','Baseball','Soccer','Volleyball','Track & Field','Swimming','Hockey','Other'] as const;
 
@@ -69,18 +69,11 @@ export default function Step7Profile() {
         [{ resize: { width: 800 } }],
         { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
       );
-      const fd = new FormData();
       const fileName = (asset.fileName && String(asset.fileName).includes('.')) ? String(asset.fileName) : `avatar_${Date.now()}.jpg`;
-      fd.append('file', { uri: manipulated.uri, name: fileName, type: 'image/jpeg' } as any);
-      const token = await (await import('@/api/auth')).loadToken();
-      const resp = await fetch(`${getApiBaseUrl()}/upload/avatar`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: fd as any,
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      const body: any = await resp.json();
-      setAvatar(body.url);
+      
+      // Use shared upload helper with consistent auth/retry logic
+      const { url } = await uploadAvatar(manipulated.uri, fileName);
+      setAvatar(url);
     } catch (e: any) { Alert.alert('Upload failed', e?.message || 'Try again later'); }
     finally { setUploading(false); }
   };

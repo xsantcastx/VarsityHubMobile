@@ -108,7 +108,7 @@ export default function ManageSeasonScreen() {
         const { User } = await import('@/api/entities');
         const me: any = await User.me();
         if (me?.preferences?.role !== 'coach') {
-          router.replace('/(tabs)/feed');
+          router.replace('/(tabs)');
         }
       } catch {}
     })();

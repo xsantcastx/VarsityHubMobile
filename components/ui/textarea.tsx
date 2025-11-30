@@ -1,19 +1,36 @@
+import { Colors } from '@/constants/Colors';
 import React from 'react';
-import { TextInput, TextInputProps, StyleSheet } from 'react-native';
+import { StyleSheet, TextInput, TextInputProps, useColorScheme } from 'react-native';
 
-export function Textarea(props: TextInputProps) {
-  return <TextInput {...props} multiline style={[styles.input, props.style]} />;
-}
+const Textarea = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
+  const colorScheme = useColorScheme() ?? 'light';
+
+  return (
+    <TextInput
+      ref={ref}
+      {...props}
+      multiline
+      style={[
+        styles.input,
+        {
+          borderColor: Colors[colorScheme].border,
+          backgroundColor: Colors[colorScheme].surface,
+          color: Colors[colorScheme].text,
+        },
+        props.style,
+      ]}
+      placeholderTextColor={Colors[colorScheme].mutedText}
+    />
+  );
+});
 
 const styles = StyleSheet.create({
   input: {
     minHeight: 88,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: 'white',
     textAlignVertical: 'top',
   },
 });

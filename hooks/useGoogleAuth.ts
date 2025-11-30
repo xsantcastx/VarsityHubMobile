@@ -5,6 +5,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 const { makeRedirectUri } = AuthSession;
@@ -23,17 +24,25 @@ try {
 
 type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
 
-const googleClientConfig = () => {
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  const expoClientId = process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID;
-  return {
-    androidClientId: androidClientId || undefined,
-    iosClientId: iosClientId || undefined,
-    webClientId: webClientId || undefined,
-    expoClientId: expoClientId || undefined,
-  };
+const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
+  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined;
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
+  const expoClientId = process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID || undefined;
+
+    const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
+
+  if (isDevSimulator && webClientId) {
+    return {
+      androidClientId: webClientId,
+      iosClientId: webClientId,
+      webClientId,
+      expoClientId: webClientId,
+      forceWebClient: true,
+    } as const;
+  }
+
+  return { androidClientId, iosClientId, webClientId, expoClientId, forceWebClient: false } as const;
 };
 
 const FORCE_PROXY_FLAG = process.env.EXPO_PUBLIC_GOOGLE_FORCE_PROXY === '1';
@@ -68,7 +77,7 @@ export function useGoogleAuth() {
   const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership !== 'standalone';
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
-  const clients = useMemo(() => googleClientConfig(), []);
+  const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
   const isConfigured = useMemo(
     () => Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId),
     [clients],

@@ -57,7 +57,12 @@ export default function UserProfileScreen() {
       setPosts(page.items || []);
     } catch (e: any) {
       console.error('Error loading user profile:', e);
-      setError(e?.message || 'Failed to load user');
+      // Handle 401 separately like profile.tsx
+      if (e && e.status === 401) {
+        setError('You need to sign in to view profiles.');
+      } else {
+        setError(e?.message || 'Failed to load user');
+      }
     } finally { setLoading(false); }
   }, [params.id]);
 

@@ -15,7 +15,7 @@ export default function PaymentCancelScreen() {
 
   const handleContinue = () => {
     // Navigate to feed (they can try payment later)
-    router.replace('/(tabs)/feed');
+    router.replace('/(tabs)');
   };
 
   return (

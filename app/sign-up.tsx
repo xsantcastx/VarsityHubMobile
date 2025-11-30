@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { getApiBaseUrl } from '@/api/http';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
@@ -140,7 +141,7 @@ export default function SignUpScreen() {
         return;
       }
       // Everyone lands on feed
-      router.replace('/(tabs)/feed' as any);
+      router.replace('/(tabs)' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -176,7 +177,7 @@ export default function SignUpScreen() {
       }
       
       console.log('[sign-up] Redirecting to feed...');
-      router.replace('/(tabs)/feed' as any);
+      router.replace('/(tabs)' as any);
     } catch (e: any) {
       console.error('[sign-up] Apple sign up error:', e);
       const message = e?.message || 'Apple sign up failed';
@@ -197,13 +198,14 @@ export default function SignUpScreen() {
           headerBackTitle: 'Back'
         }} 
       />
-      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
-      <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
-      
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <KeyboardAwareScreen contentContainerStyle={styles.content}>
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
+        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
+        
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {!showEmailForm ? (
-        <>
+        {!showEmailForm ? (
+          <>
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
             <AppleAuthenticationButton
@@ -256,8 +258,8 @@ export default function SignUpScreen() {
             <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
-      ) : (
-        <>
+        ) : (
+          <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
             <Ionicons name="arrow-back" size={20} color="#6b7280" />
@@ -279,19 +281,22 @@ export default function SignUpScreen() {
               </View>
             ) : 'Sign Up'}
           </Button>
-        </>
-      )}
+          </>
+        )}
 
-      <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => router.replace('/sign-in')}>
-        <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
-      </Pressable>
-      
+        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => router.replace('/sign-in')}>
+          <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
+        </Pressable>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
+  content: {
+    flexGrow: 1,
+  },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
   error: { color: '#b91c1c', marginBottom: 8, textAlign: 'center' },

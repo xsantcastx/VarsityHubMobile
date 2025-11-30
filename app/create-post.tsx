@@ -5,18 +5,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { PromptPresets } from '@/components/RotatingPrompts';
 import { MentionInput } from '@/components/ui/MentionInput';
+import PrimaryButton from '@/components/ui/PrimaryButton';
 import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import PrimaryButton from '@/components/ui/PrimaryButton';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { Platform } from 'react-native';
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -41,11 +41,13 @@ const validateMediaType = (mimeType: string | undefined, mediaType: 'image' | 'v
   return allowedTypes.some(type => mimeType.toLowerCase().includes(type.toLowerCase()));
 };
 
+import * as FileSystem from 'expo-file-system';
+
 const getFileSizeFromUri = async (uri: string): Promise<number> => {
   try {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    return blob.size;
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info && info.exists && typeof info.size === 'number') return info.size as number;
+    return 0;
   } catch (error) {
     console.warn('Could not determine file size:', error);
     return 0;
@@ -190,6 +192,7 @@ export default function CreatePostScreen() {
       quality: media === 'image' ? 0.85 : undefined,
       exif: false,
       videoMaxDuration: 30,
+      videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
       const a = r.assets[0];
@@ -351,7 +354,7 @@ export default function CreatePostScreen() {
           ? 'Your highlight has been shared.' 
           : `Your post has been created and will appear on the ${postDestination}.`
       );
-      router.replace('/(tabs)/feed');
+      router.replace('/(tabs)');
     } catch (e: any) {
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (issues.length) {
@@ -384,7 +387,7 @@ export default function CreatePostScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+      <KeyboardAwareScreen contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
         {/* Composer Section with Rotating Tips */}
         <View style={styles.composerSection}>
           <MentionInput
@@ -562,7 +565,7 @@ export default function CreatePostScreen() {
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
-      </ScrollView>
+      </KeyboardAwareScreen>
 
       {/* Event Selector Modal */}
       <Modal

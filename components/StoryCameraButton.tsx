@@ -81,7 +81,7 @@ export function StoryCameraButton({
         quality: 0.9,
         exif: false,
         videoMaxDuration: 60, // 60 second max for Stories
-        videoQuality: ImagePicker.UIImagePickerControllerQualityType.High,
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {

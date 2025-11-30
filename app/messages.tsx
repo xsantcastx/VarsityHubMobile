@@ -1,7 +1,8 @@
+import { AppLinks } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +40,8 @@ type Conversation = {
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ sharePost?: string }>();
+  const sharePostId = params?.sharePost ? String(params.sharePost) : undefined;
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,15 @@ export default function MessagesScreen() {
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [searchUserQuery, setSearchUserQuery] = useState('');
+  const [prefillMessage, setPrefillMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sharePostId) {
+      const link = AppLinks.post(sharePostId);
+      setPrefillMessage(`Check out this post: ${link}`);
+      setComposeOpen(true);
+    }
+  }, [sharePostId]);
   const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
 

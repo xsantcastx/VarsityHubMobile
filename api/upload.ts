@@ -1,4 +1,4 @@
-import { getAuthToken, getApiBaseUrl } from './http';
+import { getApiBaseUrl, getAuthToken } from './http';
 
 function computeBase(provided?: string | null) {
   if (provided) return provided.replace(/\/$/, '');
@@ -57,4 +57,44 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   }
 }
 
-export default { uploadFile };
+export async function uploadAvatar(uri: string, filename?: string): Promise<{ url: string }> {
+  const finalBase = computeBase(null);
+  const target = `${finalBase}/upload/avatar`;
+
+  const form = new FormData();
+  form.append('file', {
+    uri,
+    name: filename || `avatar_${Date.now()}.jpg`,
+    type: 'image/jpeg',
+  } as any);
+
+  const headers: any = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  try {
+    console.log('[upload] Uploading avatar to:', target);
+    const res = await fetch(target, {
+      method: 'POST',
+      headers,
+      body: form as any,
+    });
+    
+    if (!res.ok) {
+      const text = await res.text();
+      const err: any = new Error(`Avatar upload failed: ${text || res.statusText}`);
+      err.status = res.status;
+      throw err;
+    }
+    
+    return await res.json();
+  } catch (err: any) {
+    console.error('[upload] Avatar upload error:', err?.message || err);
+    if (err instanceof TypeError && err.message === 'Network request failed') {
+      throw new Error('Network error: unable to reach server. Check your connection.');
+    }
+    throw err;
+  }
+}
+
+export default { uploadFile, uploadAvatar };

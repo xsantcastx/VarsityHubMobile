@@ -30,6 +30,7 @@ import { captureRef } from 'react-native-view-shot';
 import { Game, Highlights, Post, User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 import events from '@/utils/events';
+import { AppLinks } from '@/utils/links';
 
 const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 
@@ -838,7 +839,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   const handleShare = useCallback((post: FeedPost) => {
-   const deepLink = `${process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.app'}/posts/${post.id}`;
+   const deepLink = AppLinks.post(post.id);
    const message = post.caption ? `${post.caption}\n${deepLink}` : deepLink;
    Share.share({ message }).catch(() => {});
   }, []);
