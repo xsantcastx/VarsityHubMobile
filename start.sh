@@ -17,6 +17,7 @@ MASKED_DB_URL="$(printf "%s" "$DATABASE_URL" | sed -E 's#://([^:/]+):[^@]*@#://\
 DB_HOSTPORT="$(printf "%s" "$DATABASE_URL" | sed -E 's#^[^@]*@([^/]+).*#\1#')"
 echo "[startup] DATABASE_URL: $MASKED_DB_URL"
 echo "[startup] DB host:port: ${DB_HOSTPORT:-unknown}"
+echo "[startup] Build timestamp: $(date)"
 
 echo "[startup] Applying Prisma migrations (up to $RETRIES retries)..."
 count=0
