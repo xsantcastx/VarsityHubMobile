@@ -40,9 +40,16 @@ function resolveApiBaseState(): ApiBaseState {
 
   let fallback: string | null = null;
   if (!forceRemote) {
+    const localBase = sanitizeUrl(
+      __DEV__ && Platform.OS === 'android'
+        ? DEFAULT_LOCAL_API_URL.replace('http://localhost', 'http://10.0.2.2')
+        : DEFAULT_LOCAL_API_URL
+    );
     if (envUrl) {
-      fallback = DEFAULT_REMOTE_API_URL;
+      // If an explicit API URL is provided but we prefer local in dev, use local as fallback.
+      fallback = preferLocalFallback ? localBase : DEFAULT_REMOTE_API_URL;
     } else if (useLocalDefault) {
+      // When using local as primary by default, remote is a good fallback.
       fallback = DEFAULT_REMOTE_API_URL;
     }
   }
@@ -152,6 +159,13 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
         const err: any = new Error(msg || `HTTP ${res.status}`);
         err.status = res.status;
         err.data = data;
+
+        // In development, allow automatic fallback on server-side errors (5xx)
+        if (__DEV__ && res.status >= 500) {
+          if (maybeSwitchToFallback()) {
+            return perform(getBaseUrl());
+          }
+        }
         
         // Handle 401 Unauthorized - clear session and notify user
         if (res.status === 401) {
