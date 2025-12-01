@@ -85,7 +85,7 @@ export default function Step9Features() {
         });
         
         clearOnboarding();
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/feed');
         return;
       }
       

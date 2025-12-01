@@ -6,11 +6,13 @@ export const API_BASE_URL = getApiBaseUrl();
 
 export const API_TIMEOUT = 10000; // 10 seconds
 
-// Debug logging
-console.log('🔗 API Configuration:');
-console.log('  Base URL:', API_BASE_URL);
-console.log('  Environment:', process.env.EXPO_PUBLIC_NODE_ENV || 'production');
-console.log('  Timeout:', API_TIMEOUT + 'ms');
+// Debug logging (only in development)
+if (__DEV__) {
+  console.log('🔗 API Configuration:');
+  console.log('  Base URL:', API_BASE_URL);
+  console.log('  Environment:', process.env.EXPO_PUBLIC_NODE_ENV || 'production');
+  console.log('  Timeout:', API_TIMEOUT + 'ms');
+}
 
 // API health check function
 export const checkAPIHealth = async (): Promise<boolean> => {

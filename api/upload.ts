@@ -21,7 +21,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
-    console.log('[upload] Uploading to:', target);
+    if (__DEV__) console.log('[upload] Uploading to:', target);
     const res = await fetch(target, {
       method: 'POST',
       headers,
@@ -29,7 +29,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
     });
     
     const text = await res.text();
-    console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
+    if (__DEV__) console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
     
     if (!text) {
       throw new Error(`Empty response from server (HTTP ${res.status})`);
@@ -39,7 +39,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
     try {
       data = JSON.parse(text);
     } catch (parseError) {
-      console.error('[upload] JSON parse error. Response text:', text);
+      if (__DEV__) console.error('[upload] JSON parse error. Response text:', text);
       throw new Error(`Server returned non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}...`);
     }
     
@@ -49,7 +49,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
     }
     return data; // { url, path, type, mime, size }
   } catch (err: any) {
-    console.error('[upload] error uploading to', target, err?.message || err);
+    if (__DEV__) console.error('[upload] error uploading to', target, err?.message || err);
     if (err instanceof TypeError && err.message === 'Network request failed') {
       throw new Error('Network error: unable to reach upload endpoint. Check your internet connection and server status.');
     }
