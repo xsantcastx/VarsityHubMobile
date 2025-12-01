@@ -78,7 +78,7 @@ railway service api
 railway variables | Select-String "DATABASE_URL"
 ```
 
-Should show the new database: `postgres-dkc5.railway.internal`
+Should show the new database internal host (example): `postgres-tngr.railway.internal`
 
 ## Expected Result
 
