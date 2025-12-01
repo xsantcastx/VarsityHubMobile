@@ -299,7 +299,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-create-event')}
+                onPress={() => router.push('/admin-create-event' as any)}
               >
                 <Ionicons name="calendar" size={28} color="#10B981" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>

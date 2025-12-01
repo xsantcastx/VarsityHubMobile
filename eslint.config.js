@@ -7,7 +7,7 @@ const tsParser = require('@typescript-eslint/parser');
 module.exports = [
   // Ignore non-RN folders to keep lint signal focused
   {
-    ignores: ['dist/*', 'server/**', 'src/**', 'node_modules/**'],
+    ignores: ['dist/*', 'server/**', 'node_modules/**', '.expo/**', 'android/**', 'ios/**'],
   },
   // RN rules for RN source folders
   {

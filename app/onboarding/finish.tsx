@@ -36,12 +36,12 @@ export default function OnboardingFinish() {
   const verify = async () => {
     if (!code.trim()) { Alert.alert('Enter the 6-digit code'); return; }
     setVerifying(true);
-    try { await User.verifyEmail(code.trim()); const updated = await User.me(); setMe(updated); router.replace('/(tabs)'); }
+    try { await User.verifyEmail(code.trim()); const updated = await User.me(); setMe(updated); router.replace('/(tabs)/feed'); }
     catch (e: any) { Alert.alert('Invalid code', e?.message || 'Check the code and try again'); }
     finally { setVerifying(false); }
   };
 
-  const skip = () => router.replace('/(tabs)');
+  const skip = () => router.replace('/(tabs)/feed');
 
   const verified = !!me?.email_verified;
   return (
@@ -56,7 +56,7 @@ export default function OnboardingFinish() {
         {verified ? (
           <>
             <Text style={styles.muted}>Your email is verified. Enjoy Varsity Hub!</Text>
-            <PrimaryButton label="Go to Feed" onPress={() => router.replace('/(tabs)')} />
+            <PrimaryButton label="Go to Feed" onPress={() => router.replace('/(tabs)/feed')} />
           </>
         ) : (
           <View style={styles.card}>

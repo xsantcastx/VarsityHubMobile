@@ -18,7 +18,12 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
         },
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
@@ -29,7 +34,7 @@
       "bundleIdentifier": "com.xsantcastx.varsityhub",
       "usesAppleSignIn": true,
       "config": {
-        "googleMapsApiKey": ""
+        "googleMapsApiKey": ""  // TODO: Add iOS Google Maps API key from https://console.cloud.google.com/apis/credentials
       }
     },
     "android": {
@@ -42,18 +47,17 @@
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
       "package": "com.xsantcastx.varsityhub",
       "config": {
         "googleMaps": {
-          "apiKey": ""
+          "apiKey": ""  // TODO: Add Android Google Maps API key from https://console.cloud.google.com/apis/credentials
         }
-      },
-      "softwareKeyboardLayoutMode": "pan"
+      }
     },
     "web": {
       "bundler": "metro",
