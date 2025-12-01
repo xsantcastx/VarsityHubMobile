@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { isCloudinaryConfigured } from '../lib/cloudinary.js';
-import { isTwilioConfigured } from '../lib/twilio.js';
 import { prisma } from '../lib/prisma.js';
+import { isTwilioConfigured } from '../lib/twilio.js';
 
 export const healthRouter = Router();
 

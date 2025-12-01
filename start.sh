@@ -12,6 +12,12 @@ if [ -z "$DATABASE_URL" ]; then
 	exit 1
 fi
 
+# Log masked DATABASE_URL and extracted host:port for troubleshooting
+MASKED_DB_URL="$(printf "%s" "$DATABASE_URL" | sed -E 's#://([^:/]+):[^@]*@#://\1:***@#')"
+DB_HOSTPORT="$(printf "%s" "$DATABASE_URL" | sed -E 's#^[^@]*@([^/]+).*#\1#')"
+echo "[startup] DATABASE_URL: $MASKED_DB_URL"
+echo "[startup] DB host:port: ${DB_HOSTPORT:-unknown}"
+
 echo "[startup] Applying Prisma migrations (up to $RETRIES retries)..."
 count=0
 until npx prisma migrate deploy; do
