@@ -156,11 +156,9 @@ app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
 
-// Test endpoints (consider removing in production or adding auth)
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/test-notifications', testNotificationsRouter);
-  console.log('📱 Test notification endpoints available at /test-notifications/*');
-}
+// Test endpoints (TEMPORARY: enabled in production for integration verification)
+app.use('/test-notifications', testNotificationsRouter);
+console.log('📱 Test notification endpoints available at /test-notifications/*');
 
 const PORT = Number(process.env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
