@@ -4,9 +4,11 @@ import { Request, Router } from 'express';
 import jwt from 'jsonwebtoken';
 import jwkToPem from 'jwk-to-pem';
 import { z } from 'zod';
-import { sendEmail } from '../lib/email.js';
+import { getClientIp, logAuditEvent } from '../lib/audit-log.js';
+import { sendEmail, sendEmailWithTemplate } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
+import { createRefreshToken, revokeRefreshToken, validateRefreshToken } from '../lib/refresh-tokens.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 // Define a custom interface for authenticated requests
@@ -33,7 +35,7 @@ function mergePreferences(current: any, updates: any) {
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
 const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
-const MAX_AUTH_ATTEMPTS = 5;
+const MAX_AUTH_ATTEMPTS = 10;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function checkAuthRateLimit(identifier: string): boolean {
@@ -146,21 +148,81 @@ authRouter.post('/login', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
+  const clientIp = getClientIp(req);
+  const userAgent = req.headers['user-agent'] || 'unknown';
   
   // Rate limiting
   if (!checkAuthRateLimit(sanitizedEmail)) {
+    await logAuditEvent({
+      action: 'LOGIN_FAILED',
+      email: sanitizedEmail,
+      ipAddress: clientIp,
+      userAgent,
+      metadata: { reason: 'rate_limit' },
+      severity: 'warning',
+    });
     return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
   }
   
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  if (user.banned) return res.status(403).json({ error: 'Account banned' });
+  if (!user) {
+    await logAuditEvent({
+      action: 'LOGIN_FAILED',
+      email: sanitizedEmail,
+      ipAddress: clientIp,
+      userAgent,
+      metadata: { reason: 'user_not_found' },
+      severity: 'warning',
+    });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  if (user.banned) {
+    await logAuditEvent({
+      action: 'LOGIN_FAILED',
+      userId: user.id,
+      email: sanitizedEmail,
+      ipAddress: clientIp,
+      userAgent,
+      metadata: { reason: 'account_banned' },
+      severity: 'warning',
+    });
+    return res.status(403).json({ error: 'Account banned' });
+  }
   const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!ok) {
+    await logAuditEvent({
+      action: 'LOGIN_FAILED',
+      userId: user.id,
+      email: sanitizedEmail,
+      ipAddress: clientIp,
+      userAgent,
+      metadata: { reason: 'invalid_password' },
+      severity: 'warning',
+    });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  
+  // Generate tokens
   const access_token = signJwt({ id: user.id });
+  const refreshTokenData = await createRefreshToken(user.id);
+  
+  await logAuditEvent({
+    action: 'LOGIN_SUCCESS',
+    userId: user.id,
+    email: sanitizedEmail,
+    ipAddress: clientIp,
+    userAgent,
+    severity: 'info',
+  });
+  
   const sanitized = sanitizeUser(user);
   const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
-  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = { 
+    access_token, 
+    refresh_token: refreshTokenData.token,
+    user: sanitized, 
+    needs_onboarding: needsOnboarding 
+  };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 });
@@ -767,6 +829,30 @@ function sanitizeUser(u: any) {
 
 async function sendVerificationEmail(to: string, code: string) {
   console.log(`[email] Starting sendVerificationEmail for ${to}`);
+  
+  // Try SendGrid Dynamic Template first
+  const sendgridKey = process.env.SENDGRID_API_KEY || process.env.SMTP_PASS;
+  if (sendgridKey && sendgridKey.startsWith('SG.')) {
+    try {
+      console.log(`[email] Sending verification email via SendGrid Dynamic Template...`);
+      const success = await sendEmailWithTemplate({
+        to,
+        dynamicData: {
+          verification_code: code,
+          subject: 'Verify your VarsityHub account',
+        },
+      });
+      
+      if (success) {
+        console.log(`[email] ✅ Verification email sent successfully via SendGrid to ${to}`);
+        return;
+      }
+    } catch (error) {
+      console.error(`[email] SendGrid template failed, falling back to SMTP:`, error);
+    }
+  }
+  
+  // Fallback to SMTP
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined;
   const user = process.env.SMTP_USER;
@@ -876,6 +962,46 @@ authRouter.post('/test-email', async (req, res) => {
     console.error('[email-test] Test email failed:', error);
     res.status(500).json({ success: false, error: (error as any).message || 'Unknown error' });
   }
+});
+
+// Refresh Token endpoint for silent token rotation
+const refreshSchema = z.object({ refresh_token: z.string().min(1) });
+
+authRouter.post('/refresh', async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid refresh token' });
+  
+  const { refresh_token } = parsed.data;
+  const userId = await validateRefreshToken(refresh_token);
+  
+  if (!userId) {
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+  
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.banned) {
+    return res.status(401).json({ error: 'User not found or banned' });
+  }
+  
+  // Revoke old refresh token and create new one (token rotation)
+  await revokeRefreshToken(refresh_token);
+  const newRefreshTokenData = await createRefreshToken(userId);
+  const access_token = signJwt({ id: userId });
+  
+  await logAuditEvent({
+    action: 'LOGIN_SUCCESS',
+    userId,
+    email: user.email,
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'] || 'unknown',
+    metadata: { method: 'refresh_token' },
+    severity: 'info',
+  });
+  
+  return res.json({ 
+    access_token, 
+    refresh_token: newRefreshTokenData.token 
+  });
 });
 
 export default authRouter;

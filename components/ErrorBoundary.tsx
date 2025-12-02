@@ -39,8 +39,17 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // TODO: Send to Sentry when configured
-    // Sentry.captureException(error, { contexts: { react: errorInfo } });
+    // Send to Sentry in production
+    if (process.env.NODE_ENV === 'production' && typeof (global as any).Sentry !== 'undefined') {
+      try {
+        (global as any).Sentry.captureException(error, { 
+          contexts: { react: errorInfo },
+          tags: { component: 'ErrorBoundary' }
+        });
+      } catch (sentryError) {
+        console.warn('[ErrorBoundary] Failed to send to Sentry:', sentryError);
+      }
+    }
   }
 
   handleReset = () => {

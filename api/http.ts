@@ -5,6 +5,11 @@ export function setAuthToken(token: string | null) { tokenCache = token || null;
 export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
+// Optional refresh handler that can be registered by auth.ts
+export type RefreshHandler = () => Promise<boolean>;
+let refreshHandler: RefreshHandler | null = null;
+export function setRefreshHandler(fn: RefreshHandler | null) { refreshHandler = fn; }
+
 const DEFAULT_REMOTE_API_URL = 'https://api-production-8ac3.up.railway.app';
 const DEFAULT_LOCAL_API_URL = 'http://localhost:4000';
 
@@ -123,7 +128,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  const perform = async (resolvedBase: string): Promise<any> => {
+  const perform = async (resolvedBase: string, allowRefresh: boolean = true): Promise<any> => {
     const targetUrl = resolvedBase + path;
     try {
       // HTTP request initiated
@@ -163,16 +168,25 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
         // In development, allow automatic fallback on server-side errors (5xx)
         if (__DEV__ && res.status >= 500) {
           if (maybeSwitchToFallback()) {
-            return perform(getBaseUrl());
+            return perform(getBaseUrl(), allowRefresh);
           }
         }
-        
-        // Handle 401 Unauthorized - clear session
+        // Handle 401 Unauthorized - try one-time refresh, then retry
+        if (res.status === 401 && allowRefresh && refreshHandler) {
+          try {
+            const ok = await refreshHandler();
+            if (ok) {
+              // Rebuild Authorization header with the new token and retry once
+              const newToken = getAuthToken();
+              if (newToken) headers['Authorization'] = `Bearer ${newToken}`;
+              return await perform(resolvedBase, false);
+            }
+          } catch {}
+        }
+        // If we reach here, either refresh isn't available, or it failed
         if (res.status === 401) {
           clearAuthToken();
-          // Note: Token storage cleared in-memory only to avoid circular import issues
         }
-        
         throw err;
       }
       return data;
@@ -198,10 +212,10 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   };
 
   try {
-    return await perform(base);
+    return await perform(base, true);
   } catch (error: any) {
     if (error?.status === 0 && maybeSwitchToFallback()) {
-      return perform(getBaseUrl());
+      return perform(getBaseUrl(), true);
     }
     throw error;
   }

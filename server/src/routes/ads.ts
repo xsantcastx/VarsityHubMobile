@@ -96,27 +96,34 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   return res.json(list);
 });
 
-// Ads for feed: return ads with a reservation for a specific date (default: today), optional zip filter, paid only
+// Ads for feed: return ads with a reservation for a specific date (default: today), radius-based targeting
 adsRouter.get('/for-feed', async (req, res) => {
   const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
   const zip = req.query.zip ? String(req.query.zip) : undefined;
+  const lat = req.query.lat ? parseFloat(String(req.query.lat)) : undefined;
+  const lng = req.query.lng ? parseFloat(String(req.query.lng)) : undefined;
   const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
+  
   // Build date range [start, next)
   const dateISO = dateParam || new Date().toISOString().slice(0, 10);
   const start = new Date(dateISO + 'T00:00:00.000Z');
   const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
-  console.log('[ads] for-feed query:', { dateParam, dateISO, zip, limit, start, next });
+  console.log('[ads] for-feed query:', { dateParam, dateISO, zip, lat, lng, limit, start, next });
 
+  // Base filter: paid only, must have reservations for this date
   const whereAd: any = {
     payment_status: 'paid',
-    // Removed banner_url requirement - allow ads with or without banners
   };
-  if (zip) whereAd.target_zip_code = zip;
+  
+  // Exact zip filter (legacy behavior)
+  if (zip && !lat && !lng) {
+    whereAd.target_zip_code = zip;
+  }
 
   console.log('[ads] for-feed where clause for ads:', whereAd);
 
-  const ads = await prisma.ad.findMany({
+  let ads = await prisma.ad.findMany({
     where: {
       ...whereAd,
       reservations: {
@@ -124,11 +131,25 @@ adsRouter.get('/for-feed', async (req, res) => {
       },
     },
     orderBy: { created_at: 'desc' },
-    take: limit,
     include: {
-      reservations: true, // Include reservations for debugging
+      reservations: true,
     },
   });
+
+  // Apply radius-based filtering if lat/lng provided
+  if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
+    ads = ads.filter(ad => {
+      if (!ad.target_zip_code) return false;
+      const adCoords = getZipCoordinates(ad.target_zip_code);
+      if (!adCoords) return false;
+      const distance = haversineDistance(lat, lng, adCoords.lat, adCoords.lon);
+      const adRadius = typeof ad.radius === 'number' ? ad.radius : 20; // Default 20 miles
+      return distance <= adRadius;
+    });
+  }
+
+  // Apply limit after radius filtering
+  ads = ads.slice(0, limit);
 
   console.log('[ads] for-feed found ads:', { 
     count: ads.length, 
@@ -140,7 +161,7 @@ adsRouter.get('/for-feed', async (req, res) => {
     }))
   });
 
-  return res.json({ date: dateISO, ads: ads.map(ad => ({ ...ad, reservations: undefined })) }); // Remove reservations from response
+  return res.json({ date: dateISO, ads: ads.map(ad => ({ ...ad, reservations: undefined })) });
 });
 
 // Get a single Ad with its reservations (dates)

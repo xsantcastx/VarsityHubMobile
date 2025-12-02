@@ -19,6 +19,16 @@ import GameVerticalFeedScreen, { FeedPost, mapHighlightToFeedPost } from './game
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
 
+// Feature flag: force sample feed for demos/regression runs
+const FORCE_SAMPLE_FEED = (process.env.EXPO_PUBLIC_FORCE_SAMPLE_FEED || '').toLowerCase() === 'true';
+
+const SAMPLE_EVENTS_SOURCE = require('../assets/sample-events.json');
+const SAMPLE_EVENTS: any[] = Array.isArray(SAMPLE_EVENTS_SOURCE?.default)
+  ? SAMPLE_EVENTS_SOURCE.default
+  : Array.isArray(SAMPLE_EVENTS_SOURCE)
+    ? SAMPLE_EVENTS_SOURCE
+    : [];
+
 const HighlightCard = ({ highlight, onPress }: { highlight: FeedPost, onPress: () => void }) => {
   const colorScheme = useColorScheme() ?? 'light';
   return (
@@ -239,6 +249,7 @@ export default function FeedScreen() {
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
+  const [sampleEvents, setSampleEvents] = useState<any[]>([]);
   
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
@@ -377,6 +388,15 @@ export default function FeedScreen() {
     })();
   }, [load]);
 
+  // Load sample events when the feed is empty, to showcase UI
+  useEffect(() => {
+    if (FORCE_SAMPLE_FEED || (!loading && games.length === 0)) {
+      setSampleEvents(Array.isArray(SAMPLE_EVENTS) ? [...SAMPLE_EVENTS] : []);
+    } else {
+      setSampleEvents([]);
+    }
+  }, [loading, games.length]);
+
   useEffect(() => {
     if (!games.length) return;
     preloadVoteSummaries(games.slice(0, 12));
@@ -475,6 +495,7 @@ export default function FeedScreen() {
     const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
     const adInterval = 8; // Show ad every 8 events
     const hasAds = sponsoredAds && sponsoredAds.length > 0;
+    let adRotationIndex = 0; // Track which ad to show next for rotation
     
     // If no events exist, show promotional ad card alone
     if (upcomingEvents.length === 0) {
@@ -488,8 +509,8 @@ export default function FeedScreen() {
       // Insert first ad AFTER the first event (index 0)
       if (index === 0) {
         if (hasAds) {
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+          result.push({ type: 'ad', ad: sponsoredAds[adRotationIndex % sponsoredAds.length] });
+          adRotationIndex++;
         } else {
           result.push({ type: 'ad', ad: null });
         }
@@ -497,15 +518,26 @@ export default function FeedScreen() {
       // Insert subsequent ads after every adInterval events (starting from the first interval)
       else if ((index + 1) % adInterval === 0) {
         if (hasAds) {
-          // Pick a random ad from available ads
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
+          // Rotate through available ads sequentially to prevent repetition
+          result.push({ type: 'ad', ad: sponsoredAds[adRotationIndex % sponsoredAds.length] });
+          adRotationIndex++;
         } else {
           // No ads available, show promotional card
           result.push({ type: 'ad', ad: null });
         }
       }
     });
+    
+    // Ensure at least one sponsored slot even if we have <9 events
+    // If no ad slots were added (events < adInterval and not index 0), append one at the end
+    const hasAdSlots = result.some(item => 'type' in item && item.type === 'ad');
+    if (!hasAdSlots && upcomingEvents.length > 0) {
+      if (hasAds) {
+        result.push({ type: 'ad', ad: sponsoredAds[0] });
+      } else {
+        result.push({ type: 'ad', ad: null });
+      }
+    }
     
     return result;
   }, [upcomingEvents, sponsoredAds]);
@@ -746,8 +778,8 @@ export default function FeedScreen() {
           <ActivityIndicator />
         </View>
       )}
-      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
+      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && sampleEvents.length === 0 && !FORCE_SAMPLE_FEED && (
+        <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
       )}
 
       <ScrollView
@@ -767,8 +799,8 @@ export default function FeedScreen() {
       >
         {renderEmailReminder()}
         
-        {/* Upcoming Events with Ads */}
-        {upcomingWithAds.length > 0 && (
+        {/* Upcoming Events with Ads (hidden when sample-feed is forced) */}
+        {!FORCE_SAMPLE_FEED && upcomingWithAds.length > 0 && (
           <View style={{ gap: 20 }}>
             {upcomingWithAds.map((item, index) => {
               // Check if this is an ad
@@ -942,8 +974,65 @@ export default function FeedScreen() {
           </View>
         )}
 
-        {/* Past Events Section */}
-        {pastEvents.length > 0 && (
+        {/* Sample Events fallback or forced sample mode */}
+        {!loading && (FORCE_SAMPLE_FEED || (upcomingEvents.length === 0 && pastEvents.length === 0)) && sampleEvents.length > 0 && (
+          <View style={{ gap: 20 }}>
+            <View>
+              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].text }]}>Sample Events</Text>
+              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, marginTop: 4 }]}>Add your teams to see real games near you.</Text>
+            </View>
+            {sampleEvents.map((evt, index) => {
+              const banner = evt.coverUrl || null;
+              const hasBanner = typeof banner === 'string' && banner.length > 0;
+              const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+              const startsAt = evt.starts_at ? new Date(evt.starts_at) : null;
+              const eventDate = startsAt ? format(startsAt, 'MMM d') : 'TBD';
+              const eventTime = startsAt ? format(startsAt, 'h:mm a') : '';
+              const locationText = evt.location?.name || 'Location TBD';
+
+              return (
+                <View key={String(evt.id)} style={styles.singleEventCard}>
+                  {hasBanner ? (
+                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
+                  ) : (
+                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                  )}
+                  <LinearGradient
+                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                    style={styles.gridShade}
+                    pointerEvents="none"
+                  />
+                  <View style={styles.gridContent}>
+                    <View style={styles.gridDateChip}>
+                      <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                      <Text style={styles.gridDateText}>{eventDate}</Text>
+                    </View>
+                    <Text style={styles.gridTitle} numberOfLines={2}>
+                      {String(evt.title)}
+                    </Text>
+                    <Text style={styles.gridMeta} numberOfLines={1}>
+                      {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                    </Text>
+                    <View style={styles.gridStatsRow}>
+                      <View style={styles.gridStat}>
+                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                        <Text style={styles.gridStatText}>0</Text>
+                      </View>
+                      <View style={styles.gridStat}>
+                        <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                        <Text style={styles.gridStatText}>0</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.gridVoteText, { color: '#93C5FD' }]}>Sample</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Past Events Section (hidden when sample-feed is forced) */}
+        {!FORCE_SAMPLE_FEED && pastEvents.length > 0 && (
           <View style={{ marginTop: 32 }}>
             <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
               Past Events

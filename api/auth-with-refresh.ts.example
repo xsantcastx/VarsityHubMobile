@@ -1,6 +1,10 @@
+// Client-side refresh token implementation guide
+// 
+// Update api/auth.ts to support the new refresh token system
+
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken, setRefreshHandler } from './http';
+import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
 
 const TOKEN_KEY = 'vh_access_token';
 const REFRESH_TOKEN_KEY = 'vh_refresh_token';
@@ -26,12 +30,13 @@ async function saveRefreshToken(token: string | null) {
   } catch {}
 }
 
-export async function getRefreshToken(): Promise<string | null> {
+async function getRefreshToken(): Promise<string | null> {
   try {
     if (Platform.OS === 'web') {
       return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+    } else {
+      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
     }
-    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
   } catch {
     return null;
   }
@@ -54,22 +59,26 @@ export const auth = {
     const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
     if ((res as any)?.access_token) {
       await saveToken((res as any).access_token);
+      // Store refresh token if provided
       if ((res as any)?.refresh_token) {
         await saveRefreshToken((res as any).refresh_token);
       }
     }
     return res;
   },
+  
   async login(email: string, password: string) {
     const res = await httpPost('/auth/login', { email, password });
     if (res?.access_token) {
       await saveToken(res.access_token);
+      // Store refresh token
       if (res?.refresh_token) {
         await saveRefreshToken(res.refresh_token);
       }
     }
     return res;
   },
+  
   async loginWithGoogle(idToken: string) {
     const res = await httpPost('/auth/google', { id_token: idToken });
     if (res?.access_token) {
@@ -80,8 +89,8 @@ export const auth = {
     }
     return res;
   },
+  
   async loginWithApple(identityToken: string) {
-    // Apple auth can be slow on real devices; allow longer timeout
     const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
     if (res?.access_token) {
       await saveToken(res.access_token);
@@ -91,21 +100,31 @@ export const auth = {
     }
     return res;
   },
+  
+  // NEW: Refresh access token using stored refresh token
   async refreshAccessToken(): Promise<boolean> {
     const refreshToken = await getRefreshToken();
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      console.warn('[auth] No refresh token available');
+      return false;
+    }
+    
     try {
       const res = await httpPost('/auth/refresh', { refresh_token: refreshToken });
       if (res?.access_token && res?.refresh_token) {
         await saveToken(res.access_token);
         await saveRefreshToken(res.refresh_token);
+        console.log('[auth] Token refreshed successfully');
         return true;
       }
     } catch (e) {
-      try { await auth.logout(); } catch {}
+      console.error('[auth] Token refresh failed:', e);
+      // Clear tokens if refresh fails (user needs to re-login)
+      await this.logout();
     }
     return false;
   },
+  
   async me() {
     await loadToken();
     const options = {
@@ -118,16 +137,20 @@ export const auth = {
     try {
       return await httpGet('/me', options);
     } catch (e: any) {
+      // On 401, try to refresh token once before giving up
       if (e && e.status === 401) {
-        const refreshed = await auth.refreshAccessToken();
+        const refreshed = await this.refreshAccessToken();
         if (refreshed) {
+          // Retry /me with new token
           return await httpGet('/me', options);
         }
-        try { await auth.logout(); } catch {}
+        // If refresh fails, clear session
+        try { await this.logout(); } catch {}
       }
       throw e;
     }
   },
+  
   async logout() {
     clearAuthToken();
     try {
@@ -140,29 +163,27 @@ export const auth = {
       }
     } catch {}
   },
+  
   async requestEmailVerification() {
     await loadToken();
     return httpPost('/auth/verify/request', {});
   },
+  
   async verifyEmail(code: string) {
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
   },
+  
   async requestPasswordReset(email: string) {
     return httpPost('/auth/password/forgot', { email });
   },
+  
   async resetPassword(email: string, code: string, password: string) {
     return httpPost('/auth/password/reset', { email, code, password });
   },
+  
   getToken: loadToken,
+  getRefreshToken,
 };
 
 export default auth;
-
-// Register global one-time 401 refresh handler for all HTTP requests
-try {
-  setRefreshHandler(() => auth.refreshAccessToken());
-} catch {
-  // No-op if registration fails
-}
-

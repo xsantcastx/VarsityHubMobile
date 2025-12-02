@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sample-evt-unc-duke",
+    "title": "UNC Tar Heels vs. Duke Blue Devils",
+    "subtitle": "Men's College Basketball",
+    "starts_at": "2025-02-15T18:00:00-05:00",
+    "ends_at": "2025-02-15T20:30:00-05:00",
+    "location": {
+      "name": "Cameron Indoor Stadium",
+      "city": "Durham",
+      "state": "NC",
+      "lat": 35.9973,
+      "lng": -78.9419
+    },
+    "teams": [
+      { "name": "North Carolina Tar Heels", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/unc.png" },
+      { "name": "Duke Blue Devils", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/duke.png" }
+    ],
+    "coverUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/sample-unc-duke.jpg",
+    "isSample": true
+  },
+  {
+    "id": "sample-evt-warriors",
+    "title": "Golden State Warriors vs. Los Angeles Lakers",
+    "subtitle": "NBA Regular Season",
+    "starts_at": "2025-03-02T19:30:00-08:00",
+    "ends_at": "2025-03-02T22:00:00-08:00",
+    "location": {
+      "name": "Chase Center",
+      "city": "San Francisco",
+      "state": "CA",
+      "lat": 37.768,
+      "lng": -122.387
+    },
+    "teams": [
+      { "name": "Golden State Warriors", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/warriors.png" },
+      { "name": "Los Angeles Lakers", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/lakers.png" }
+    ],
+    "coverUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/sample-warriors.jpg",
+    "isSample": true
+  },
+  {
+    "id": "sample-evt-patriots",
+    "title": "New England Patriots vs. New York Jets",
+    "subtitle": "NFL Week 16",
+    "starts_at": "2025-12-21T13:00:00-05:00",
+    "ends_at": "2025-12-21T16:30:00-05:00",
+    "location": {
+      "name": "Gillette Stadium",
+      "city": "Foxborough",
+      "state": "MA",
+      "lat": 42.091,
+      "lng": -71.264
+    },
+    "teams": [
+      { "name": "New England Patriots", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/patriots.png" },
+      { "name": "New York Jets", "logoUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/jets.png" }
+    ],
+    "coverUrl": "https://res.cloudinary.com/demo/image/upload/v1690000000/varsityhub/sample-patriots.jpg",
+    "isSample": true
+  }
+]
