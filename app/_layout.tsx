@@ -27,6 +27,10 @@ export default function RootLayout() {
     if (!__DEV__) return;
     LogBox.ignoreLogs([
       'Non-serializable values were found in the navigation state',
+      'new NativeEventEmitter',
+      'Require cycle:',
+      'PushNotificationIOS has been extracted',
+      'Invariant Violation: `new NativeEventEmitter()',
     ]);
     if (Platform.OS === 'web') {
       LogBox.ignoreLogs([

@@ -1,5 +1,5 @@
-import './load-env.js';
 import { PrismaClient } from '@prisma/client';
+import './load-env.js';
 
 // Runtime diagnostic: mask password in DATABASE_URL and log first segment once
 (() => {

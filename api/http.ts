@@ -167,25 +167,10 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
           }
         }
         
-        // Handle 401 Unauthorized - clear session and notify user
+        // Handle 401 Unauthorized - clear session
         if (res.status === 401) {
-          console.warn('[http] 401 Unauthorized - clearing session');
           clearAuthToken();
-          
-          // Try to clear token from secure storage
-          try {
-            const { Platform } = await import('react-native');
-            if (Platform.OS === 'web') {
-              if (typeof window !== 'undefined' && window.localStorage) {
-                window.localStorage.removeItem('vh_access_token');
-              }
-            } else {
-              const SecureStore = await import('expo-secure-store');
-              await SecureStore.deleteItemAsync('vh_access_token');
-            }
-          } catch (storageError) {
-            console.error('[http] Failed to clear stored token:', storageError);
-          }
+          // Note: Token storage cleared in-memory only to avoid circular import issues
         }
         
         throw err;
