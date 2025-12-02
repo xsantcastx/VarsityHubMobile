@@ -9,8 +9,64 @@ import { notifyNewFollower, notifyNewMessage, notifyPostInteraction, sendPushNot
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { sendPasswordResetEmail } from '../lib/email.js';
+import twilio from '../lib/twilio.js';
+import Sentry from '../lib/sentry.js';
 
 export const testNotificationsRouter = Router();
+
+// Production integration test endpoints (temporary - remove after verification)
+testNotificationsRouter.get('/email', async (req, res) => {
+  try {
+    const testEmail = process.env.TEST_EMAIL || 'customerservice@varsityhub.app';
+    await sendPasswordResetEmail(testEmail, 'test-reset-token-12345');
+    res.json({ 
+      success: true, 
+      message: `Test email sent to ${testEmail}. Check inbox and verify SPF/DKIM headers.`,
+      instructions: 'View raw email headers and confirm: spf=pass, dkim=pass'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+testNotificationsRouter.get('/sms', async (req, res) => {
+  try {
+    const testPhone = process.env.TEST_PHONE;
+    if (!testPhone) {
+      return res.status(400).json({ 
+        error: 'Set TEST_PHONE env var with your phone number (e.g., +15551234567)' 
+      });
+    }
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    await twilio.messages.create({
+      body: `VarsityHub test SMS. Verification code: ${code}`,
+      from: process.env.TWILIO_FROM_PHONE!,
+      to: testPhone
+    });
+    res.json({ 
+      success: true, 
+      message: `Test SMS sent to ${testPhone}. Check device and Twilio logs.`,
+      code
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+testNotificationsRouter.get('/sentry', async (req, res) => {
+  try {
+    Sentry.captureMessage('VarsityHub production integration test', 'info');
+    const testError = new Error('Test error for Sentry verification - safe to ignore');
+    Sentry.captureException(testError);
+    res.json({ 
+      success: true, 
+      message: 'Test event and exception sent to Sentry. Check dashboard.'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Test: Send a basic push notification to yourself
 testNotificationsRouter.post('/test/push', requireAuth as any, async (req: AuthedRequest, res) => {
