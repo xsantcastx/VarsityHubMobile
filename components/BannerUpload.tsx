@@ -8,6 +8,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -69,20 +70,28 @@ export function BannerUpload({
         allowsEditing: false, // Allow full image without cropping
         quality: 0.9,
         exif: false,
+        copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         
-        // Validate image size (max 5MB)
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        if (blob.size > 5 * 1024 * 1024) {
-          Alert.alert(
-            'File Too Large',
-            'Banner images must be under 5MB. Please choose a smaller image.'
-          );
-          return;
+        // Validate image size (max 5MB) using FileSystem when possible
+        try {
+          let size = (asset as any).fileSize as number | undefined;
+          if (!size && asset.uri) {
+            const info = await FileSystem.getInfoAsync(asset.uri, { size: true });
+            if (info && typeof info.size === 'number') size = info.size as number;
+          }
+          if (typeof size === 'number' && size > 5 * 1024 * 1024) {
+            Alert.alert(
+              'File Too Large',
+              'Banner images must be under 5MB. Please choose a smaller image.'
+            );
+            return;
+          }
+        } catch (_) {
+          // If we cannot determine size (iCloud asset, etc.), allow upload to proceed
         }
 
         // Update with selected image

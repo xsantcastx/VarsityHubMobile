@@ -91,8 +91,18 @@ export default function VerifyEmailScreen() {
       }
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
-      const errorMsg = e?.message || e?.data?.error || 'Verification failed';
-      setError(errorMsg);
+      
+      // If 401 Unauthorized, token is missing/expired - show helpful message
+      if (e?.status === 401 || e?.message?.includes('Unauthorized')) {
+        setError('Session expired. Please sign in again to verify your email.');
+        // Auto-redirect to sign-in after 3 seconds
+        setTimeout(() => {
+          router.replace('/sign-in?returnTo=/verify-email');
+        }, 3000);
+      } else {
+        const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -106,9 +116,18 @@ export default function VerifyEmailScreen() {
       console.log('[verify-email] Resend response:', res);
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
-      console.error('[verify-email] Resend failed:', e);
-      const errorMsg = e?.message || e?.data?.error || 'Resend failed';
-      setError(errorMsg);
+      console.error('[verify-email] Verification failed:', e);
+      
+      // If 401 Unauthorized, token is missing/expired - redirect to sign-in
+      if (e?.status === 401 || e?.message?.includes('Unauthorized')) {
+        setError('Session expired. Redirecting to sign in...');
+        setTimeout(() => {
+          router.replace('/sign-in?returnTo=/verify-email&code=' + code.trim());
+        }, 2000);
+      } else {
+        const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

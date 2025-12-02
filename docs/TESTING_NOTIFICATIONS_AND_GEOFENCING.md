@@ -11,6 +11,39 @@ No Firebase, Google Maps API, or third-party services needed! 🎉
 
 ---
 
+## Verification Status Helper (Admin Only)
+
+Need to confirm whether a test account has finished email/SMS verification or is marked `is_active`? Use the guarded helper endpoint that now ships with the backend:
+
+```bash
+# Requires an admin JWT in the Authorization header
+curl "https://YOUR_API_DOMAIN/test-notifications/verification-status?email=test@example.com" \
+  -H "Authorization: Bearer <ADMIN_JWT>"
+```
+
+**Response sample**
+```json
+{
+  "success": true,
+  "user": {
+    "email": "test@example.com",
+    "email_verified": true,
+    "phone_verified": false,
+    "phone_present": true,
+    "phone_masked": "••••1234",
+    "is_active": false
+  },
+  "activation_ready": false,
+  "next_steps": ["phone_verification", "activate_account"]
+}
+```
+
+- Provide either `email` or `userId` query params.
+- Endpoint is available anywhere `test-notifications` routes are mounted (dev by default, production when enabled).
+- Only admins (emails listed in `ADMIN_EMAILS`) may call it.
+
+---
+
 ## Prerequisites
 
 1. **Install Backend Dependency:**

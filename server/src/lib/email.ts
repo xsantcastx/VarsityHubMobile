@@ -1,6 +1,20 @@
+import sendgridMail from '@sendgrid/mail';
 import nodemailer from 'nodemailer';
 
-// Create reusable transporter object using SMTP transport
+// Initialize SendGrid API client
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || process.env.SMTP_PASS || '';
+if (SENDGRID_API_KEY) {
+  sendgridMail.setApiKey(SENDGRID_API_KEY);
+}
+
+// SendGrid Dynamic Template IDs
+const SENDGRID_TEMPLATES = {
+  VERIFICATION: process.env.SENDGRID_TEMPLATE_VERIFICATION || 'd-e4a32dd538ee42358d1d5aba509445ac',
+  PASSWORD_RESET: process.env.SENDGRID_TEMPLATE_PASSWORD_RESET || 'd-e4a32dd538ee42358d1d5aba509445ac',
+  GENERAL: process.env.SENDGRID_TEMPLATE_GENERAL || 'd-e4a32dd538ee42358d1d5aba509445ac',
+};
+
+// Fallback: Create reusable transporter object using SMTP transport
 const transporter = process.env.SMTP_HOST
   ? nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -21,7 +35,53 @@ export interface EmailOptions {
 }
 
 /**
- * Send an email using the configured SMTP service
+ * Send an email using SendGrid Dynamic Templates (preferred) or SMTP fallback
+ */
+export async function sendEmailWithTemplate(params: {
+  to: string;
+  templateId?: string;
+  dynamicData: Record<string, any>;
+  subject?: string;
+}): Promise<boolean> {
+  const { to, templateId, dynamicData, subject } = params;
+  
+  if (!SENDGRID_API_KEY) {
+    console.warn('⚠️ SendGrid API key not configured - cannot send templated email');
+    console.log('📧 Would have sent templated email:', {
+      to,
+      templateId,
+      dynamicData,
+    });
+    return false;
+  }
+
+  try {
+    const msg = {
+      to,
+      from: process.env.FROM_EMAIL || 'noreply@varsityhub.app',
+      templateId: templateId || SENDGRID_TEMPLATES.GENERAL,
+      dynamicTemplateData: dynamicData,
+      ...(subject && { subject }), // Optional subject override
+    };
+
+    await sendgridMail.send(msg);
+
+    console.log('✅ Templated email sent successfully:', {
+      to,
+      templateId: msg.templateId,
+    });
+    return true;
+  } catch (error: any) {
+    console.error('❌ Failed to send templated email:', error);
+    if (error.response) {
+      console.error('SendGrid error details:', error.response.body);
+    }
+    return false;
+  }
+}
+
+/**
+ * Send an email using the configured SMTP service (fallback for non-templated emails)
  */
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   if (!transporter) {

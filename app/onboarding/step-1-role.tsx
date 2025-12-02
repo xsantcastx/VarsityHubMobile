@@ -220,8 +220,6 @@ export default function Step1Role() {
           'Follow your favorite teams',
           'Get game updates and highlights',
           'Pitch events to your community',
-          '*Fan accounts can be upgraded to athlete/staff*',
-          '- Upon coach approval'
         ]}
       />
 

@@ -2,6 +2,25 @@
 
 # dependencies
 node_modules/
+server/node_modules/
+
+# iOS
+ios/Pods/
+ios/build/
+ios/Podfile.lock
+server/ios/Pods/
+server/ios/build/
+server/ios/Podfile.lock
+
+# Android
+android/build/
+android/.gradle/
+server/android/build/
+server/android/.gradle/
+
+# Uploads (user-generated content)
+server/uploads/*
+!server/uploads/.gitkeep
 
 # Expo
 .expo/
