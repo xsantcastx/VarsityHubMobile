@@ -378,6 +378,7 @@ type GameVM = {
   bannerUrl?: string | null;
   homeTeam?: string | null;
   awayTeam?: string | null;
+  appearance?: string | null;
   coverImageUrl?: string | null;
   capacity?: number | null;
   rsvpCount?: number | null;
@@ -603,6 +604,9 @@ const GameDetailsScreen = () => {
   const { findBestMatch } = require('../../utils/teamMatch');
   const getTeamLogo = (teamName: string) => {
     if (!teamName) return null;
+    // Prefer vm.teams (from backend payload) for accurate avatars
+    const fromVm = vm?.teams?.find((t) => String(t.name || '').toLowerCase() === String(teamName || '').toLowerCase());
+    if (fromVm && fromVm.avatarUrl) return fromVm.avatarUrl;
     // try exact case-insensitive match first
     const exact = (teams || []).find((t: any) => String(t.name || '').toLowerCase() === String(teamName || '').toLowerCase());
     if (exact && exact.avatarUrl) return exact.avatarUrl;
@@ -770,6 +774,10 @@ const GameDetailsScreen = () => {
             return null;
           });
         }
+        // If neither summary nor record exists, bail out to show error UI
+        if (!summary && !gameRecord) {
+          throw new Error('Game not found');
+        }
         if (summary || gameRecord) {
           // Posts/media only fetched when a real game exists to avoid extra 404 logs
           [postsData, mediaData] = await Promise.all([
@@ -793,6 +801,7 @@ const GameDetailsScreen = () => {
       let title = '';
       let homeTeam: string | null = null;
       let awayTeam: string | null = null;
+      let appearance: string | null = null;
 
       if (summary) {
         eventIdValue = summary.eventId ?? summary.event_id ?? summary.event?.id ?? null;
@@ -813,6 +822,8 @@ const GameDetailsScreen = () => {
         const summaryAway = summary.awayTeam ?? summary.away_team ?? null;
         homeTeam = typeof summaryHome === 'string' ? summaryHome : (summaryHome as any)?.name || null;
         awayTeam = typeof summaryAway === 'string' ? summaryAway : (summaryAway as any)?.name || null;
+        // Appearance field surfaced from backend
+        appearance = (summary as any)?.appearance ?? (summary.event as any)?.appearance ?? null;
       }
 
       if (!summary && gameRecord) {
@@ -851,6 +862,8 @@ const GameDetailsScreen = () => {
           });
         }
         teams = teamsArray;
+        // Appearance from game record if present
+        appearance = (gameRecord as any)?.appearance ?? null;
       }
 
       if (!title) title = 'Game';
@@ -865,6 +878,7 @@ const GameDetailsScreen = () => {
         if (eventDetails) {
           if (!location) location = eventDetails.location || null;
           if (!bannerCandidate) bannerCandidate = eventDetails.banner_url || null;
+          if (!appearance) appearance = (eventDetails as any)?.appearance ?? null;
           if (typeof eventDetails.capacity === 'number' && capacity == null) capacity = eventDetails.capacity;
           if (typeof eventDetails.attendees_count === 'number' && rsvpCount == null) rsvpCount = eventDetails.attendees_count;
         }
@@ -885,6 +899,7 @@ const GameDetailsScreen = () => {
         location,
         description,
         bannerUrl: bannerCandidate,
+        appearance,
         coverImageUrl: cover,
         homeTeam,
         awayTeam,
