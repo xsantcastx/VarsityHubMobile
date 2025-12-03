@@ -94,9 +94,8 @@ export default function RequestJoinOrganizationScreen() {
     try {
       await Organization.requestToJoin(
         selectedOrg.id,
-        myTeam.id,
-        myTeam.name,
-        message.trim() || undefined
+        message.trim() || undefined,
+        undefined
       );
 
       Alert.alert(

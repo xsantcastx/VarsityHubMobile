@@ -3,10 +3,18 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
+const isPlaceholderDsn = (dsn: string) => {
+  const lower = dsn.toLowerCase();
+  return (
+    lower.includes('your-key-here') ||
+    !lower.startsWith('http') ||
+    !lower.includes('ingest.sentry.io')
+  );
+};
 
 export function initSentry() {
-  if (!SENTRY_DSN) {
-    console.warn('[sentry] No DSN configured; crash reporting disabled');
+  if (!SENTRY_DSN || isPlaceholderDsn(SENTRY_DSN)) {
+    console.warn('[sentry] No valid DSN; crash reporting disabled');
     return;
   }
 

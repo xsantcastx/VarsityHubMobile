@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import AppLinks from '@/utils/links';
+import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -15,7 +16,6 @@ import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
-import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 // @ts-ignore JS exports
 import { Event, Game, Team, User } from '@/api/entities';
@@ -761,8 +761,8 @@ const GameDetailsScreen = () => {
       try {
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
           maxRetries: 2,
-          initialDelay: 800,
-          maxDelay: 4000,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
         }).catch((err: any) => {
           // Treat 404 as missing summary without escalating
           if (err && err.status === 404) return null;
@@ -775,8 +775,8 @@ const GameDetailsScreen = () => {
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
             maxRetries: 2,
-            initialDelay: 800,
-            maxDelay: 4000,
+            initialDelayMs: 800,
+            maxDelayMs: 4000,
           }).catch((err: any) => {
             if (err && err.status === 404) return null;
             console.warn('Game record fetch failed:', err?.message || err);
@@ -885,8 +885,8 @@ const GameDetailsScreen = () => {
       if (eventIdValue) {
         eventDetails = await retryWithBackoff(() => Event.get(eventIdValue), {
           maxRetries: 2,
-          initialDelay: 800,
-          maxDelay: 4000,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
         }).catch(() => null);
         if (eventDetails) {
           if (!location) location = eventDetails.location || null;
@@ -897,8 +897,8 @@ const GameDetailsScreen = () => {
         }
         const rsvp = await retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
           maxRetries: 2,
-          initialDelay: 800,
-          maxDelay: 4000,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
         }).catch(() => null);
         if (rsvp) {
           rsvpCount = typeof rsvp.count === 'number' ? rsvp.count : rsvpCount;
@@ -1123,8 +1123,8 @@ const GameDetailsScreen = () => {
     try {
       const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
         maxRetries: 2,
-        initialDelay: 800,
-        maxDelay: 4000,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
       });
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
@@ -1230,8 +1230,8 @@ const GameDetailsScreen = () => {
     try {
       const res: any = await retryWithBackoff(() => Event.rsvp(vm.eventId!, nextDesired), {
         maxRetries: 2,
-        initialDelay: 800,
-        maxDelay: 4000,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
       });
       // reconcile with authoritative server response
       setVm((prev) => {
@@ -1307,8 +1307,8 @@ const GameDetailsScreen = () => {
       try {
         const res: any = await retryWithBackoff(() => Game.castVote(vm.gameId!, team), {
           maxRetries: 2,
-          initialDelay: 800,
-          maxDelay: 4000,
+          initialDelayMs: 800,
+          maxDelayMs: 4000,
         });
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
@@ -1345,8 +1345,8 @@ const GameDetailsScreen = () => {
     try {
       const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
         maxRetries: 2,
-        initialDelay: 800,
-        maxDelay: 4000,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
       });
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
