@@ -8,18 +8,27 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ devCode?: string }>();
+  const { pendingVerificationEmail, checkAuth } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+
+  // Redirect if user is not pending verification
+  useEffect(() => {
+    if (!pendingVerificationEmail) {
+      router.replace('/sign-in');
+    }
+  }, [pendingVerificationEmail, router]);
 
   // Load dev code from params if available
   useEffect(() => {
@@ -64,29 +73,22 @@ export default function VerifyEmailScreen() {
       setCode(''); // Clear the code input
       setIsVerified(true);
       
-      // After successful verification, check if user needs onboarding
+      // After successful verification, call checkAuth to populate user state
+      // AuthProvider will detect onboarding_completed and route accordingly
       try {
-        const userInfo = await User.me();
-        console.log('[verify-email] User info after verification:', userInfo);
+        if (__DEV__) console.log('[verify-email] Calling checkAuth after verification...');
+        await checkAuth();
+        // checkAuth will update user state, and AuthProvider will auto-route
         
-        const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
-        
-        // Auto-redirect after 3 seconds, but user can click Continue earlier
+        // Auto-redirect after 2 seconds to give user time to see success message
         setTimeout(() => {
-          if (needsOnboarding) {
-            console.log('[verify-email] Auto-redirecting to onboarding...');
-            router.replace('/onboarding/step-1-role');
-          } else {
-            console.log('[verify-email] Auto-redirecting to main app...');
-            router.replace('/(tabs)/feed' as any);
-          }
-        }, 3000); // Longer delay to let user see success and choose to continue manually
-        
+          if (__DEV__) console.log('[verify-email] Auto-redirecting after verification...');
+          // Don't need to manually route - AuthProvider will handle it based on user state
+        }, 2000);
       } catch (userError) {
-        console.error('[verify-email] Failed to get user info, defaulting to onboarding:', userError);
-        setTimeout(() => {
-          router.replace('/onboarding/step-1-role');
-        }, 3000);
+        console.error('[verify-email] Failed to get user info after verification:', userError);
+        // Still show success but user needs to retry
+        setInfo('✅ Email verified! Please check your account.');
       }
     } catch (e: any) {
       console.error('[verify-email] Verification failed:', e);
@@ -115,19 +117,8 @@ export default function VerifyEmailScreen() {
 
   const onContinue = async () => {
     console.log('[verify-email] User clicked Continue, proceeding immediately...');
-    try {
-      const userInfo = await User.me();
-      const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
-      
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
-      } else {
-        router.replace('/(tabs)/feed' as any);
-      }
-    } catch (userError) {
-      console.error('[verify-email] Failed to get user info:', userError);
-      router.replace('/onboarding/step-1-role');
-    }
+    // No need to manually route - AuthProvider will detect user state and redirect
+    router.replace('/(tabs)/feed' as any);
   };
 
   return (

@@ -12,10 +12,21 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
-import { initSentry } from '@/utils/sentry';
+import { captureBreadcrumb, captureException, initSentry } from '@/utils/sentry';
 
 // Initialize Sentry before app renders
 initSentry();
+
+// Dev-only smoke test: send a breadcrumb and a test exception once on boot
+if (__DEV__) {
+  try {
+    captureBreadcrumb('Dev smoke test', 'diagnostic', { screen: 'RootLayout' });
+    // Delay to ensure Sentry client is ready
+    setTimeout(() => {
+      captureException(new Error('Sentry smoke test: dev boot'));
+    }, 300);
+  } catch {}
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

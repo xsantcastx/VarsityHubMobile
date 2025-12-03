@@ -6,6 +6,8 @@
  * - Provides single source of truth for auth state
  * - Prevents route flicker and redirect loops
  * - Exposes health check status for offline UX
+ * - Unified auth paths: all flows call checkAuth() and let provider handle routing
+ * - Email verification: detected and routed centrally; verify-email screen shows user context
  */
 
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
@@ -26,11 +28,12 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
+  pendingVerificationEmail: string | null;
   loading: boolean;
   healthOk: boolean;
   healthError: string | null;
   isAdmin: boolean;
-  checkAuth: () => Promise<void>;
+  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -46,6 +49,7 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -76,20 +80,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Check authentication
-  const checkAuth = useCallback(async () => {
-    try {
-      const me: any = await User.me();
-      setUser(me);
-      return me;
-    } catch (err: any) {
-      setUser(null);
-      throw err;
-    }
-  }, []);
+  const checkAuth = useCallback(
+    async (options?: { email?: string; pendingVerification?: boolean }) => {
+      try {
+        // If pending verification flag is set, store email and don't try to fetch user
+        if (options?.pendingVerification && options?.email) {
+          setPendingVerificationEmail(options.email);
+          setUser(null); // Don't set user until verification succeeds
+          return;
+        }
+
+        // Try to fetch current user
+        const me: any = await User.me();
+        setUser(me);
+        setPendingVerificationEmail(null); // Clear pending email after successful auth
+        return me;
+      } catch (err: any) {
+        setUser(null);
+        throw err;
+      }
+    },
+    []
+  );
 
   // Sign out
   const signOut = useCallback(async () => {
     setUser(null);
+    setPendingVerificationEmail(null);
     router.replace('/sign-in');
   }, [router]);
 
@@ -145,6 +162,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // If user is awaiting email verification, navigate to verify-email
+    if (pendingVerificationEmail && firstSegment !== 'verify-email') {
+      if (lastRedirectRef.current !== '/verify-email') {
+        lastRedirectRef.current = '/verify-email';
+        router.replace('/verify-email');
+      }
+      return;
+    }
+
     // Authenticated routing
     if (user) {
       const needsOnboarding = user.preferences?.onboarding_completed === false;
@@ -170,16 +196,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Unauthenticated routing
-    if (!user && !isPublic) {
+    if (!user && !pendingVerificationEmail && !isPublic) {
       if (lastRedirectRef.current !== '/sign-in') {
         lastRedirectRef.current = '/sign-in';
         router.replace('/sign-in');
       }
     }
-  }, [user, initializing, healthOk, segments, navState?.key, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, segments, navState?.key, router]);
 
   const value: AuthContextType = {
     user,
+    pendingVerificationEmail,
     loading,
     healthOk,
     healthError,

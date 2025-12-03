@@ -15,13 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { BackHeader } from '@/components/ui/BackHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -51,21 +51,39 @@ export default function SignInScreen() {
       const res: any = await User.loginViaEmailPassword(email, password);
       
       if (!res?.access_token) {
+        const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
+        if (__DEV__) console.error(errMsg);
+        captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
         setError('Invalid login response');
         return;
       }
 
-      // Check if email verification is needed
+      // If email verification is needed, call checkAuth with pendingVerification flag
+      // AuthProvider will detect and navigate to /verify-email
       if (res?.needs_verification) {
-        router.replace('/verify-email');
+        if (__DEV__) console.log('[sign-in] Email verification required for:', email);
+        await checkAuth({ email, pendingVerification: true });
+        // AuthProvider routing will handle the navigation to /verify-email
         return;
       }
 
-      // Refresh auth state - AuthProvider will handle routing
+      // Otherwise, refresh auth state - AuthProvider will handle routing
+      if (__DEV__) console.log('[sign-in] Login successful, calling checkAuth');
       await checkAuth();
     } catch (e: any) {
+      const errMsg = e?.message || 'Login failed';
       if (__DEV__) console.error('Login failed', e);
-      setError(e?.message || 'Login failed');
+      
+      // Capture error with context
+      captureException(
+        typeof e === 'string' ? new Error(e) : e,
+        {
+          tags: { context: 'email-password-login', userId: email },
+          extra: { response: e?.data?.error || e?.response?.data },
+        }
+      );
+      
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -79,20 +97,31 @@ export default function SignInScreen() {
     setError(null);
     try {
       const response: any = await signInWithGoogle();
-      const account = response?.user || (await User.me());
-      const prefs = account?.preferences || {};
-      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
+      
+      if (!response?.user?.email && !response?.email) {
+        const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
+        if (__DEV__) console.error(errMsg);
+        captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
+        setError('Failed to retrieve email from Google');
         return;
       }
-      // Everyone lands on feed
-      router.replace('/(tabs)/feed' as any);
+
+      // Call checkAuth to set user state; AuthProvider will handle routing
+      if (__DEV__) console.log('[sign-in] Google login successful, calling checkAuth');
+      await checkAuth();
+      // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
+      
+      if (__DEV__) console.error('Google sign-in error:', e);
+      captureException(
+        typeof e === 'string' ? new Error(e) : e,
+        { tags: { context: 'google-signin' } }
+      );
+      
       setError(message);
     }
   };
@@ -106,19 +135,30 @@ export default function SignInScreen() {
     try {
       const response: any = await signInWithApple();
       
-      // The response includes both access_token and user data
-      // Check needs_onboarding from the auth response directly
-      const needsOnboarding = response?.needs_onboarding === true;
-      
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
+      if (!response?.user?.email && !response?.email) {
+        const errMsg = `Apple sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
+        if (__DEV__) console.error(errMsg);
+        captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
+        setError('Failed to retrieve email from Apple');
+        return;
+      }
+
+      // Call checkAuth to set user state; AuthProvider will handle routing
+      if (__DEV__) console.log('[sign-in] Apple login successful, calling checkAuth');
+      await checkAuth();
+      // AuthProvider will detect onboarding_completed and route accordingly
+    } catch (e: any) {
+      const message = e?.message || 'Apple sign in failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
       
-      router.replace('/(tabs)/feed' as any);
-    } catch (e: any) {
-      const message = e?.message || 'Apple sign in failed';
-      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) return;
+      if (__DEV__) console.error('Apple sign-in error:', e);
+      captureException(
+        typeof e === 'string' ? new Error(e) : e,
+        { tags: { context: 'apple-signin' } }
+      );
+      
       setError(message);
     }
   };
@@ -126,12 +166,6 @@ export default function SignInScreen() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
-      <BackHeader
-        title="Sign In"
-        backgroundColor={palette.background}
-        textColor={palette.text}
-        borderColor={palette.border}
-      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -277,7 +311,7 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 28,
+    marginBottom: 16,
     paddingHorizontal: 0,
     paddingVertical: 0,
     shadowOpacity: 0,

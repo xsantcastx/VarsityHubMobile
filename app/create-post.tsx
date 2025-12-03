@@ -173,6 +173,7 @@ export default function CreatePostScreen() {
         const top = gamesWithDistance[0];
         if (top) {
           setSuggestedGame(top);
+          setSelectedGameId(String(top.id));
         }
       } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
@@ -341,14 +342,18 @@ export default function CreatePostScreen() {
       if (selectedGameId) {
         payload.game_id = selectedGameId;
       }
+      // Require event link for highlight posts to ensure they surface on the event page
+      if (postType === 'highlight' && !payload.game_id) {
+        throw new Error('Please attach an event to share a highlight.');
+      }
       await Post.create(payload);
       
       // Show success message based on where post will appear
-      const postDestination = selectedGameId ? 'event page' : 'profile';
+      const postDestination = payload.game_id ? 'event page' : 'profile';
       Alert.alert(
         postType === 'highlight' ? 'Highlight shared' : 'Posted successfully!',
         postType === 'highlight' 
-          ? 'Your highlight has been shared.' 
+          ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
           : `Your post has been created and will appear on the ${postDestination}.`
       );
       router.replace('/(tabs)');
@@ -500,7 +505,7 @@ export default function CreatePostScreen() {
         )}
 
         {/* Selected Game/Event */}
-        {suggestedGame && (
+        {suggestedGame && selectedGameId && (
           <View style={styles.gameSection}>
             <View style={styles.sectionTitleRow}>
               <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attached Event</Text>
@@ -718,7 +723,7 @@ export default function CreatePostScreen() {
               )}
 
               {/* Event Badge */}
-              {previewData?.game && (
+              {previewData?.game && selectedGameId && (
                 <View style={styles.previewEventBadge}>
                   <Ionicons name="trophy" size={16} color="#059669" />
                   <Text style={[styles.previewEventText, { color: Colors[colorScheme].text }]}>
@@ -735,7 +740,7 @@ export default function CreatePostScreen() {
                   color={Colors[colorScheme].mutedText} 
                 />
                 <Text style={[styles.previewDestinationText, { color: Colors[colorScheme].mutedText }]}>
-                  {previewData?.game 
+                  {previewData?.game && selectedGameId 
                     ? "This post will appear on the event page" 
                     : "This post will appear on your profile"}
                 </Text>
