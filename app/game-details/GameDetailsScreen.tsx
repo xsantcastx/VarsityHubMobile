@@ -1888,14 +1888,7 @@ const renderBanner = () => {
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
 
-              {/* Teams Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Teams</Text>
-                {renderTeams()}
-              </View>
-
-              {/* Removed the secondary stories grid section to avoid duplication. */}
-
+              {/* Posts Section */}
               <View
                 style={styles.section}
                 onLayout={(e) => {
@@ -1978,13 +1971,18 @@ const renderBanner = () => {
                     </View>
                   </View>
                 )}
-
                 {postsCount > 0 && (
                   <Pressable style={styles.viewAllButton} onPress={() => setVerticalFeedOpen(true)}>
                     <Text style={styles.viewAllButtonText}>View All Posts</Text>
                     <Ionicons name="arrow-forward" size={14} color={Colors[colorScheme].text} />
                   </Pressable>
                 )}
+              </View>
+
+              {/* Teams Section (moved after Posts) */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Teams</Text>
+                {renderTeams()}
               </View>
             </>
           ) : null}
@@ -2552,7 +2550,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: 'white', fontWeight: '700' },
-  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginTop: 40, marginBottom: 6 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
