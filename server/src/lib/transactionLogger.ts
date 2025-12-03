@@ -5,9 +5,8 @@
  * Ensures compliance with 7-year retention requirements
  */
 
-import { PrismaClient, TransactionStatus, TransactionType } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { TransactionStatus, TransactionType } from '@prisma/client';
+import { prisma } from './prisma.js';
 
 export interface TransactionLogData {
   // Transaction identification

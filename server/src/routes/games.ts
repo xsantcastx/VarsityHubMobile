@@ -1,19 +1,12 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 
 export const gamesRouter = Router();
-
-const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.avi', '.mkv'];
-
-const isVideoUrl = (url?: string | null) => {
-  if (!url) return false;
-  const sanitized = url.split('?')[0].toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext));
-};
 
 // Helper function to generate Google Maps links
 const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
@@ -47,15 +40,6 @@ const serializePost = (post: any) => ({
         avatar_url: post.author.avatar_url,
       }
     : null,
-});
-
-const serializeMedia = (story: any) => ({
-  id: story.id,
-  url: story.media_url,
-  kind: isVideoUrl(story.media_url) ? 'video' : 'photo',
-  created_at: story.created_at instanceof Date ? story.created_at.toISOString() : story.created_at,
-  caption: story.caption ?? null,
-  user_id: story.user_id ?? null,
 });
 
 const serializeEvent = (event: any | null) =>
@@ -101,6 +85,14 @@ gamesRouter.get('/', async (req, res) => {
         ? { date: 'asc' as const }
         : { created_at: 'desc' as const };
   
+  const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+  const lat = Number.parseFloat(String(req.query.lat ?? ''));
+  const lng = Number.parseFloat(String(req.query.lng ?? ''));
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  const dateFromRaw = req.query.from ? new Date(String(req.query.from)) : null;
+  const dateToRaw = req.query.to ? new Date(String(req.query.to)) : null;
+  
   // By default, only show approved games unless specifically requested otherwise
   const showPending = req.query.show_pending === 'true';
   const approvalStatus = req.query.approval_status as string;
@@ -113,9 +105,20 @@ gamesRouter.get('/', async (req, res) => {
     whereClause.approval_status = 'approved';
   }
   
+  if ((dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) || (dateToRaw && !Number.isNaN(dateToRaw.getTime()))) {
+    whereClause.date = {};
+    if (dateFromRaw && !Number.isNaN(dateFromRaw.getTime())) {
+      whereClause.date.gte = dateFromRaw;
+    }
+    if (dateToRaw && !Number.isNaN(dateToRaw.getTime())) {
+      whereClause.date.lte = dateToRaw;
+    }
+  }
+  
   const games = await (prisma.game.findMany as any)({
     where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
     orderBy,
+    take,
     include: { 
       events: { orderBy: { date: 'asc' }, take: 1 },
       _count: { select: { events: true } }
@@ -137,6 +140,19 @@ gamesRouter.get('/', async (req, res) => {
   const payload = games.map((game: any) => {
     const event = game.events[0] ?? null;
     const { events, _count, ...rest } = game as any;
+    let distance: number | null = null;
+    if (hasCoords && typeof rest.latitude === 'number' && typeof rest.longitude === 'number') {
+      const dLat = ((rest.latitude - lat) * Math.PI) / 180;
+      const dLng = ((rest.longitude - lng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat * Math.PI) / 180) *
+          Math.cos((rest.latitude * Math.PI) / 180) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distance = 6371 * c; // km
+    }
     return {
       ...rest,
       appearance: rest.appearance ?? null,
@@ -147,8 +163,18 @@ gamesRouter.get('/', async (req, res) => {
       // Include coordinates for map display
       latitude: rest.latitude,
       longitude: rest.longitude,
+      distance,
     };
   });
+  
+  if (hasCoords) {
+    payload.sort((a: any, b: any) => {
+      if (typeof a.distance !== 'number' && typeof b.distance !== 'number') return 0;
+      if (typeof a.distance !== 'number') return 1;
+      if (typeof b.distance !== 'number') return -1;
+      return a.distance - b.distance;
+    });
+  }
   res.json(payload);
 });
 
@@ -555,14 +581,7 @@ gamesRouter.get('/:id/posts', async (req, res) => {
 });
 
 // Media (stories) tied to a game
-gamesRouter.get('/:id/media', async (req, res) => {
-  const id = String(req.params.id);
-  const items = await prisma.story.findMany({
-    where: { game_id: id },
-    orderBy: { created_at: 'desc' },
-  });
-  res.json(items.map(serializeMedia));
-});
+gamesRouter.get('/:id/media', makeListMediaHandler({ prisma }));
 
 // Delete a specific media/story from a game
 gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -610,22 +629,7 @@ gamesRouter.get('/:id/stories', async (req, res) => {
   return res.json(stories);
 });
 
-gamesRouter.post('/:id/stories', async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const id = String(req.params.id);
-  const schema = z.object({ media_url: z.string().min(1), caption: z.string().optional() });
-  const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const story = await prisma.story.create({
-    data: {
-      game_id: id,
-      user_id: req.user.id,
-      media_url: parsed.data.media_url,
-      caption: parsed.data.caption,
-    },
-  });
-  return res.status(201).json(story);
-});
+gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
 
 // Update cover image
 gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
@@ -670,8 +674,9 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
     isCoach = !!membership;
   }
   
-  // For now, allow any authenticated user to approve (you can tighten this later)
-  // In production, you'd want: if (!isCoach) return res.status(403).json({ error: 'Only coaches can approve events' });
+  if (!isCoach && !isAdmin) {
+    return res.status(403).json({ error: 'Only coaches and admins can approve events' });
+  }
   
   const updatedGame = await (prisma.game.update as any)({
     where: { id },

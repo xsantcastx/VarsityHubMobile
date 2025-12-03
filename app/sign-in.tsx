@@ -22,6 +22,7 @@ import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { useAuth } from '@/context/AuthProvider';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -38,10 +39,7 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
-
-  useEffect(() => {
-    console.log('[sign-in] Runtime API base URL:', getApiBaseUrl());
-  }, []);
+  const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
     if (!email || !password) {
@@ -64,20 +62,10 @@ export default function SignInScreen() {
         return;
       }
 
-      // Check if onboarding is needed
-      const account = res?.user || (await User.me());
-      const prefs = account?.preferences || {};
-      const needsOnboarding = res?.needs_onboarding === true || prefs?.onboarding_completed === false;
-      
-      if (needsOnboarding) {
-        router.replace('/onboarding/step-1-role');
-        return;
-      }
-
-      // Everyone lands on feed after successful login
-      router.replace('/(tabs)/feed' as any);
+      // Refresh auth state - AuthProvider will handle routing
+      await checkAuth();
     } catch (e: any) {
-      console.error('Login failed', e);
+      if (__DEV__) console.error('Login failed', e);
       setError(e?.message || 'Login failed');
     } finally {
       setLoading(false);

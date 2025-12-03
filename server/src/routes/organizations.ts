@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
+import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -285,6 +286,8 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
           organizationName: organization.name,
           role: inv.role,
           inviterName: inviter?.display_name || 'An organizer',
+                  orgLogoUrl: organization.logo || undefined,
+                  primaryColor: (organization.brand_colors as any)?.primary || undefined,
         }).catch(() => false)
       ));
     }
@@ -351,13 +354,15 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
     } 
   });
   // Send email (best effort)
-  const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });
+  const org = await prisma.organization.findUnique({ where: { id }, select: { name: true, logo: true, brand_colors: true } });
   const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
   if (org) {
     await sendOrganizationInviteEmail({
       to: email,
       organizationName: org.name,
       role: role || 'member',
+        orgLogoUrl: org.logo || undefined,
+        primaryColor: (org.brand_colors as any)?.primary || undefined,
       inviterName: inviter?.display_name || 'An organizer',
     }).catch(() => false);
   }
@@ -398,6 +403,14 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
     }),
     prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
   ]);
+  
+  // Send welcome email
+  const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
+  if (org) {
+    await sendOrganizationApprovalEmail({ to: user.email, orgName: org.name }).catch(err => 
+      console.warn('[org-invite-accept] Email send failed:', err)
+    );
+  }
   
   return res.json({ message: 'Invite accepted' });
 });
@@ -603,6 +616,7 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
       organizationName: organization.name,
       message: message,
       requestId: joinRequest.id,
+      orgLogoUrl: organization.logo || undefined,
     });
   }
   
@@ -742,6 +756,7 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     userName: joinRequest.user.display_name || 'User',
     organizationName: joinRequest.organization.name,
     adminName: adminUser?.display_name || 'Admin',
+    orgLogoUrl: joinRequest.organization.logo || undefined,
   });
   
   return res.json({ message: 'Join request approved' });
@@ -811,6 +826,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     userName: joinRequest.user.display_name || 'User',
     organizationName: joinRequest.organization.name,
     reason: reason,
+    orgLogoUrl: joinRequest.organization.logo || undefined,
   });
   
   return res.json({ message: 'Join request denied' });

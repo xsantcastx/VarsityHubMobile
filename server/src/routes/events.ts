@@ -61,18 +61,29 @@ eventsRouter.get('/', async (req, res) => {
   const status = String(req.query.status || '').trim();
   const approvalStatus = String(req.query.approval_status || '').trim();
   const eventType = String(req.query.event_type || '').trim();
+  const search = String(req.query.q || '').trim();
   const sort = String(req.query.sort || '').trim();
+  const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
   
   const where: any = {};
   if (status) where.status = status;
   if (approvalStatus) where.approval_status = approvalStatus;
   else where.approval_status = 'approved'; // Default: only show approved events
   if (eventType) where.event_type = eventType;
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: 'insensitive' } },
+      { description: { contains: search, mode: 'insensitive' } },
+      { location: { contains: search, mode: 'insensitive' } },
+    ];
+  }
   
   const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
   const events = await prisma.event.findMany({
     where,
     orderBy,
+    take,
     include: { 
       game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } }
     },
@@ -348,8 +359,8 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
       approval_status: 'rejected',
       status: 'rejected',
       rejected_reason: reason,
-      approved_by: user.id,
-      approved_at: new Date(),
+      approved_by: null,
+      approved_at: null,
     },
     include: {
       creator: { select: { id: true, display_name: true } }

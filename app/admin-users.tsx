@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -10,6 +11,8 @@ import { User } from '@/api/entities';
 export default function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+  const { isAdmin, loading: authLoading } = useRequireAdmin();
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -17,6 +20,8 @@ export default function AdminUsersScreen() {
   const [showBanned, setShowBanned] = useState(false);
 
   const load = useCallback(async () => {
+    if (!isAdmin) return; // Don't load if not admin
+    
     setLoading(true); setError(null);
     try {
       const list = await User.listAll(q, 200, showBanned);
@@ -24,7 +29,7 @@ export default function AdminUsersScreen() {
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load users'));
     } finally { setLoading(false); }
-  }, [q, showBanned]);
+  }, [q, showBanned, isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -18,8 +18,10 @@
     "sourceMap": false,
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
+    "isolatedModules": true,
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     "typeRoots": [
       "./node_modules/@types"

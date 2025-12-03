@@ -81,47 +81,6 @@ model User {
   
   // Abuse Reports
   abuseReports    AbuseReport[]
-  
-  // Security
-  refreshTokens   RefreshToken[]
-  auditLogs       AuditLog[]
-}
-
-model RefreshToken {
-  id          String   @id @default(cuid())
-  user_id     String
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  token       String   @unique
-  expires_at  DateTime
-  revoked     Boolean  @default(false)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  @@index([user_id])
-  @@index([token])
-  @@index([expires_at])
-  @@map("refresh_tokens")
-}
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  action      String
-  user_id     String?
-  user        User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  email       String?
-  ip_address  String?
-  user_agent  String?
-  metadata    Json?
-  severity    String   @default("info")
-  created_at  DateTime @default(now())
-
-  @@index([action])
-  @@index([user_id])
-  @@index([email])
-  @@index([ip_address])
-  @@index([created_at])
-  @@index([severity])
-  @@map("audit_logs")
 }
 
 model Game {
