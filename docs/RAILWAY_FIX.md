@@ -3,6 +3,31 @@
 ## Problem
 Railway is currently configured with `server` as the root directory, but it's not finding `package.json` inside it.
 
+## Fast Fix Checklist (Recommended)
+
+1) In Railway → Service → Settings → Source:
+- Builder: `Dockerfile`
+- Dockerfile Path: `server/Dockerfile`
+- Root Directory: leave empty or set to `server`
+
+2) Redeploy the service.
+
+This matches `railway.toml`:
+
+```
+[build]
+builder = "dockerfile"
+dockerfilePath = "server/Dockerfile"
+buildContext = "."
+```
+
+If you prefer Nixpacks, override commands so it builds the backend:
+
+- Build: `cd server && npm ci && npm run build`
+- Start: `cd server && npm start`
+
+---
+
 ## Solution: Change Root Directory in Railway Dashboard
 
 ### Step 1: Access Railway Dashboard
@@ -20,7 +45,7 @@ Railway is currently configured with `server` as the root directory, but it's no
 
 #### Option A: Remove Root Directory, Use Custom Build Commands
 1. **Root Directory**: Leave EMPTY or set to `/`
-2. **Build Command**: `cd server && npm install && npm run build`
+2. **Build Command**: `cd server && npm ci && npm run build`
 3. **Start Command**: `cd server && npm start`
 4. **Watch Paths**: `server/**`
 
@@ -28,7 +53,7 @@ Railway is currently configured with `server` as the root directory, but it's no
 1. In Railway Dashboard → Service Settings
 2. **Custom Build Command**: 
    ```bash
-   cd server && npm ci && npx prisma generate && npm run build
+   cd server && npm ci && npm run build
    ```
 3. **Custom Start Command**:
    ```bash
@@ -47,14 +72,14 @@ railway up
 
 ## Quick Fix via CLI (from server directory)
 
-```powershell
+```zsh
 # Navigate to server directory
-cd c:\Users\xsanc\Documents\5.Projects xsantcastx\VariestyHub\test3\VarsityHubMobile\server
+cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile/server
 
-# Link to Railway (will ask you to select project)
+# Link to Railway (will ask you to select project/service)
 railway link
 
-# Deploy
+# Deploy backend only
 railway up
 ```
 
@@ -63,17 +88,17 @@ railway up
 Since your Railway project is configured for the server, it's best to always deploy from the server directory:
 
 ### One-Time Setup:
-```powershell
-cd c:\Users\xsanc\Documents\5.Projects xsantcastx\VariestyHub\test3\VarsityHubMobile\server
+```zsh
+cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile/server
 railway link
-# Select: capable-trust
-# Select environment: production  
-# Select service: api
+# Select project: capable-trust
+# Environment: production
+# Service: api
 ```
 
 ### Every Time You Deploy:
-```powershell
-cd c:\Users\xsanc\Documents\5.Projects xsantcastx\VariestyHub\test3\VarsityHubMobile\server
+```zsh
+cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile/server
 railway up
 ```
 
@@ -99,7 +124,7 @@ Your server IS already deployed and running at:
 - **Service**: api
 - **Database**: Connected (PostgreSQL)
 
-The build is failing because of directory configuration issues, not because of code problems.
+The build is failing because the service is building the Expo app at repo root instead of the backend in `server/`.
 
 ## Test Your Current Deployment
 
