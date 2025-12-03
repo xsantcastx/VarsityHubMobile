@@ -1016,6 +1016,7 @@ const GameDetailsScreen = () => {
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
                 allowsEditing: false,
                 exif: false,
+                presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
               };
               const result = await ImagePicker.launchCameraAsync(pickerOptions);
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
@@ -1066,6 +1067,7 @@ const GameDetailsScreen = () => {
                 mediaTypes: ImagePicker.MediaTypeOptions.All,
                 allowsEditing: false,
                 exif: false,
+                presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
               };
               const result = await ImagePicker.launchImageLibraryAsync(pickerOptions);
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
