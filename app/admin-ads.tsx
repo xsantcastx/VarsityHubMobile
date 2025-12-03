@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
@@ -13,6 +14,7 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+    const { isAdmin, loading: authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +26,7 @@ export default function AdminAdsScreen() {
   const [filterStatus, setFilterStatus] = useState<'all' | AdStatus>('all');
 
   const load = useCallback(async () => {
+      if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
       try { const u = await User.me(); setMe(u); } catch {}

@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -26,6 +27,7 @@ interface DashboardStats {
 
 export default function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+    const { isAdmin, loading: authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,6 +35,7 @@ export default function AdminDashboardScreen() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
   const loadStats = useCallback(async (showRefreshing = false) => {
+      if (!isAdmin) return;
     if (showRefreshing) setRefreshing(true);
     else setLoading(true);
     setError(null);

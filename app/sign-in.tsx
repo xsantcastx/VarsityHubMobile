@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -15,14 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { getApiBaseUrl } from '@/api/http';
+import { BackHeader } from '@/components/ui/BackHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
-import { useAuth } from '@/context/AuthProvider';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 

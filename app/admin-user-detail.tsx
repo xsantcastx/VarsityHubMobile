@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
@@ -11,12 +12,14 @@ import { User } from '@/api/entities';
 
 export default function AdminUserDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+    const { isAdmin, loading: authLoading } = useRequireAdmin();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
 
   const load = useCallback(async () => {
+      if (!isAdmin) return;
     if (!id) return;
     setLoading(true); setError(null);
     try {

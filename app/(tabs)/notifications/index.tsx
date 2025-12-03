@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Notification } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 type Notif = {
   id: string;
@@ -26,16 +27,24 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Notif[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async (cursor?: string | null, append = false) => {
     setLoading(!append && !refreshing);
+    setError(null);
     try {
-      const page = await Notification.listPage(cursor, 20, false);
+      const page = await retryWithBackoff(
+        () => Notification.listPage(cursor, 20, false),
+        { maxRetries: 2 }
+      );
       setItems((prev) => (append ? [...prev, ...page.items] : page.items));
       setNextCursor(page.nextCursor);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load notifications');
+      if (__DEV__) console.error('Notifications load failed:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -120,6 +129,13 @@ export default function NotificationsScreen() {
 
       {loading && !refreshing && items.length === 0 ? (
         <View style={S.center}><ActivityIndicator /></View>
+      ) : error && items.length === 0 ? (
+        <View style={S.center}>
+          <Text style={{ color: '#EF4444', marginBottom: 12 }}>{error}</Text>
+          <Pressable style={S.retryButton} onPress={() => void load(null, false)}>
+            <Text style={S.retryText}>Retry</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
           data={items}
@@ -179,4 +195,6 @@ const S = StyleSheet.create({
   subtitle: { color: '#6B7280', marginTop: 2 },
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   markAllText: { color: '#111827', fontWeight: '700' },
+  retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
+  retryText: { color: '#FFFFFF', fontWeight: '600' },
 });

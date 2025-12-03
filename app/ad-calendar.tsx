@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { getAuthToken, getApiBaseUrl } from '@/api/http';
+import { getApiBaseUrl, getAuthToken } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -193,7 +193,7 @@ export default function AdCalendarScreen() {
       );
       
       if (!r.ok) {
-        console.warn('Failed to load availability:', r.status);
+        if (__DEV__) console.warn('Failed to load availability:', r.status);
         return;
       }
       
@@ -218,7 +218,7 @@ export default function AdCalendarScreen() {
         setFullDates(fullDatesSet);
       }
     } catch (e) {
-      console.error('Error loading availability:', e);
+      if (__DEV__) console.error('Error loading availability:', e);
     }
   };
 
@@ -419,7 +419,7 @@ export default function AdCalendarScreen() {
       });
       
       if (!r.ok) {
-        console.warn('Failed to fetch alternative zips:', r.status);
+        if (__DEV__) console.warn('Failed to fetch alternative zips:', r.status);
         return;
       }
       
@@ -429,7 +429,7 @@ export default function AdCalendarScreen() {
         setShowingAlternatives(true);
       }
     } catch (e: any) {
-      console.error('Error fetching alternative zips:', e);
+      if (__DEV__) console.error('Error fetching alternative zips:', e);
     }
   };
 
@@ -481,9 +481,6 @@ export default function AdCalendarScreen() {
                 try {
                   const result = await WebBrowser.openBrowserAsync(String(data.url));
                   
-                  // When browser closes, redirect to confirmation screen
-                  console.log('[ad-calendar] Browser closed:', result.type);
-                  
                   // Reset submitting state
                   setSubmitting(false);
                   
@@ -495,7 +492,6 @@ export default function AdCalendarScreen() {
                     : 'selected dates';
                   
                   // Redirect to confirmation screen with ad details
-                  console.log('[ad-calendar] Redirecting to confirmation');
                   router.replace({
                     pathname: '/ad-confirmation',
                     params: {
@@ -507,7 +503,7 @@ export default function AdCalendarScreen() {
                   } as any);
                   
                 } catch (browserErr) {
-                  console.error('Browser error:', browserErr);
+                  if (__DEV__) console.error('Browser error:', browserErr);
                   setSubmitting(false);
                   Alert.alert('Error', 'Could not open payment page. Please try again.');
                 }
@@ -522,7 +518,7 @@ export default function AdCalendarScreen() {
         );
       }
     } catch (err) {
-      console.error('Failed to start checkout:', err);
+      if (__DEV__) console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);
       setSubmitting(false);

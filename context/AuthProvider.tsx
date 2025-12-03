@@ -8,8 +8,8 @@
  * - Exposes health check status for offline UX
  */
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useRouter, useSegments, useRootNavigationState } from 'expo-router';
+import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';

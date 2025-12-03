@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -10,6 +11,7 @@ import { Team as TeamApi, User } from '@/api/entities';
 
 export default function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+    const { isAdmin, loading: authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +21,7 @@ export default function AdminTeamsScreen() {
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+      if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
       await User.me();
