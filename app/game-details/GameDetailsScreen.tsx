@@ -883,7 +883,11 @@ const GameDetailsScreen = () => {
 
       let eventDetails: any = null;
       if (eventIdValue) {
-        eventDetails = await Event.get(eventIdValue).catch(() => null);
+        eventDetails = await retryWithBackoff(() => Event.get(eventIdValue), {
+          maxRetries: 2,
+          initialDelay: 800,
+          maxDelay: 4000,
+        }).catch(() => null);
         if (eventDetails) {
           if (!location) location = eventDetails.location || null;
           if (!bannerCandidate) bannerCandidate = eventDetails.banner_url || null;
@@ -891,7 +895,11 @@ const GameDetailsScreen = () => {
           if (typeof eventDetails.capacity === 'number' && capacity == null) capacity = eventDetails.capacity;
           if (typeof eventDetails.attendees_count === 'number' && rsvpCount == null) rsvpCount = eventDetails.attendees_count;
         }
-        const rsvp = await Event.rsvpStatus(eventIdValue).catch(() => null);
+        const rsvp = await retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+          maxRetries: 2,
+          initialDelay: 800,
+          maxDelay: 4000,
+        }).catch(() => null);
         if (rsvp) {
           rsvpCount = typeof rsvp.count === 'number' ? rsvp.count : rsvpCount;
           capacity = typeof rsvp.capacity === 'number' ? rsvp.capacity : capacity;
