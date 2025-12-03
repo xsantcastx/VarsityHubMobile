@@ -9,6 +9,8 @@ interface BackHeaderProps {
   rightElement?: React.ReactNode;
   backgroundColor?: string;
   textColor?: string;
+  borderColor?: string;
+  showDivider?: boolean;
 }
 
 export function BackHeader({ 
@@ -16,7 +18,9 @@ export function BackHeader({
   onBack, 
   rightElement, 
   backgroundColor = '#ffffff',
-  textColor = '#1F2937'
+  textColor = '#1F2937',
+  borderColor = '#E5E7EB',
+  showDivider = true,
 }: BackHeaderProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -32,9 +36,25 @@ export function BackHeader({
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          backgroundColor,
+          borderBottomWidth: showDivider ? StyleSheet.hairlineWidth : 0,
+          borderBottomColor: borderColor,
+        },
+      ]}
+    >
       <View style={styles.content}>
-        <Pressable style={styles.backButton} onPress={handleBack}>
+        <Pressable
+          style={styles.backButton}
+          onPress={handleBack}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <Ionicons name="chevron-back" size={24} color={textColor} />
         </Pressable>
         
@@ -54,8 +74,6 @@ export function BackHeader({
 
 const styles = StyleSheet.create({
   container: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   content: {
     flexDirection: 'row',

@@ -1,6 +1,11 @@
 // Design tokens for typography, colors, and spacing
 
 export const Type = {
+  h0: {
+    fontSize: 32,
+    fontWeight: '800' as const,
+    lineHeight: 40,
+  },
   h1: {
     fontSize: 28,
     fontWeight: '700' as const,
@@ -41,6 +46,12 @@ export const Type = {
     fontWeight: '400' as const,
     lineHeight: 16,
   },
+  sub: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    lineHeight: 20,
+    color: '#6B7280',
+  },
 };
 
 export const Color = {
@@ -55,6 +66,11 @@ export const Color = {
   background: '#FFFFFF',
   surface: '#F9FAFB',
   border: '#E5E7EB',
+  placeholder: '#9CA3AF',
+  pageBg: '#F3F4F6',
+  tabBg: '#E5E7EB',
+  infoTile: '#DBEAFE',
+  borderMuted: '#D1D5DB',
 };
 
 export const Radius = {

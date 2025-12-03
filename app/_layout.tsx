@@ -8,11 +8,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
-// @ts-ignore JS exports
-import { User } from '@/api/entities';
-import { httpGet } from '@/api/http';
+import { AuthProvider } from '@/context/AuthProvider';
 import { initSentry } from '@/utils/sentry';
 
 // Initialize Sentry before app renders
@@ -23,13 +22,7 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
-  const router = useRouter();
-  const segments = useSegments();
   const navState = useRootNavigationState();
-  const lastRedirectRef = React.useRef<string | null>(null);
-  const [healthOk, setHealthOk] = React.useState<boolean>(true);
-  const [healthChecked, setHealthChecked] = React.useState<boolean>(false);
-  const [_healthError, setHealthError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!__DEV__) return;
@@ -48,65 +41,6 @@ export default function RootLayout() {
     }
   }, []);
 
-  const firstSegment = React.useMemo(() => {
-    return Array.isArray(segments) && segments.length ? String(segments[0]) : '';
-  }, [segments]);
-
-  React.useEffect(() => {
-    if (!navState?.key) return;
-    const first = firstSegment;
-    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
-    const isPublic = publicRoutes.has(first);
-    // Check backend health once before protected calls
-    void (async () => {
-      if (!healthChecked) {
-        try {
-          await httpGet('/health');
-          setHealthOk(true);
-          setHealthError(null);
-        } catch (err: any) {
-          setHealthOk(false);
-          setHealthError(typeof err?.message === 'string' ? err.message : 'API unreachable');
-        } finally {
-          setHealthChecked(true);
-        }
-      }
-    })();
-    void (async () => {
-      try {
-        // If API is unhealthy, avoid redirect churn and let UI render
-        if (!isPublic && healthChecked && !healthOk) {
-          return;
-        }
-        const me: any = await User.me();
-        const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
-        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-1-role') {
-          lastRedirectRef.current = '/onboarding/step-1-role';
-          router.replace('/onboarding/step-1-role');
-          return;
-        }
-        
-        // Role-aware login landing - only redirect if on public routes (but NOT verify-email, user might be verifying during onboarding)
-        if (isPublic && me && first !== 'verify-email') {
-          // Everyone lands on feed
-          const landingRoute = '/(tabs)';
-          
-          if (lastRedirectRef.current !== landingRoute) {
-            lastRedirectRef.current = landingRoute;
-            router.replace(landingRoute as any);
-          }
-        }
-      } catch (err: any) {
-        const status = err?.status;
-        if (!isPublic && (status === 401 || status === 403) && lastRedirectRef.current !== '/sign-in') {
-          lastRedirectRef.current = '/sign-in';
-          router.replace('/sign-in');
-        }
-        // Don't redirect on other errors - let user stay where they are
-      }
-    })();
-  }, [firstSegment, navState?.key, router, healthChecked, healthOk]);
-
   if (!loaded || !navState?.key) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
@@ -119,45 +53,42 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="create-post" options={{ headerShown: false }} />
-              <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-              <Stack.Screen name="post-detail" options={{ headerShown: false }} />
-              <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-              <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-              <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-              <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
-              <Stack.Screen name="game-detail" options={{ headerShown: false }} />
-              <Stack.Screen name="highlights" options={{ headerShown: false }} />
-              <Stack.Screen name="messages" options={{ headerShown: false }} />
-              <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-              <Stack.Screen name="followers" options={{ headerShown: false }} />
-              <Stack.Screen name="following" options={{ headerShown: false }} />
-              <Stack.Screen name="create-team" options={{ headerShown: false }} />
-              <Stack.Screen name="edit-team" options={{ headerShown: false }} />
-              <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
-              <Stack.Screen name="my-team" options={{ headerShown: false }} />
-              <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-              <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-              <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-              <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-              <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-              <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-              <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            {/* Connectivity banner */}
-            {!healthOk && healthChecked ? (
+          <AuthProvider>
+            <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <OfflineBanner />
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="create-post" options={{ headerShown: false }} />
+                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                <Stack.Screen name="post-detail" options={{ headerShown: false }} />
+                <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+                <Stack.Screen name="team-profile" options={{ headerShown: false }} />
+                <Stack.Screen name="team-hub" options={{ headerShown: false }} />
+                <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
+                <Stack.Screen name="game-detail" options={{ headerShown: false }} />
+                <Stack.Screen name="highlights" options={{ headerShown: false }} />
+                <Stack.Screen name="messages" options={{ headerShown: false }} />
+                <Stack.Screen name="message-thread" options={{ headerShown: false }} />
+                <Stack.Screen name="followers" options={{ headerShown: false }} />
+                <Stack.Screen name="following" options={{ headerShown: false }} />
+                <Stack.Screen name="create-team" options={{ headerShown: false }} />
+                <Stack.Screen name="edit-team" options={{ headerShown: false }} />
+                <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
+                <Stack.Screen name="my-team" options={{ headerShown: false }} />
+                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                <Stack.Screen name="verify-email" options={{ headerShown: false }} />
+                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+                <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found" />
+              </Stack>
               <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            ) : (
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            )}
-            </Stack>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-          </NavigationThemeProvider>
+            </NavigationThemeProvider>
+          </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

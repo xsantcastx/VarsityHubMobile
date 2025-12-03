@@ -1,0 +1,50 @@
+
+> varsityhubmobile@1.0.1 lint:strict
+> expo lint --fix && npm run typecheck
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/(tabs)/discover/mobile-community.tsx
+  128:9   warning  'openVerticalViewer' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                       @typescript-eslint/no-unused-vars
+  144:9   warning  Unexpected console statement                                                                                                                                        no-console
+  214:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  366:13  warning  Unexpected console statement                                                                                                                                        no-console
+  367:13  warning  Unexpected console statement                                                                                                                                        no-console
+  368:13  warning  Unexpected console statement                                                                                                                                        no-console
+  408:15  warning  Unexpected console statement                                                                                                                                        no-console
+  595:75  warning  'i' is defined but never used. Allowed unused args must match /^_/u                                                                                                 @typescript-eslint/no-unused-vars
+  595:78  warning  'arr' is defined but never used. Allowed unused args must match /^_/u                                                                                               @typescript-eslint/no-unused-vars
+  605:23  warning  Unexpected console statement                                                                                                                                        no-console
+  632:34  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  739:19  warning  Unexpected console statement                                                                                                                                        no-console
+  740:19  warning  Unexpected console statement                                                                                                                                        no-console
+  741:19  warning  Unexpected console statement                                                                                                                                        no-console
+  758:13  warning  Unexpected console statement                                                                                                                                        no-console
+  759:13  warning  Unexpected console statement                                                                                                                                        no-console
+  760:13  warning  Unexpected console statement                                                                                                                                        no-console
+  761:13  warning  Unexpected console statement                                                                                                                                        no-console
+  769:13  warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/(tabs)/notifications/index.tsx
+  45:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  47:50  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  48:48  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/_layout.tsx
+   32:10  warning  'healthError' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+   61:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   75:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  108:6   warning  React Hook React.useEffect has missing dependencies: 'healthChecked' and 'healthOk'. Either include them or remove the dependency array                             react-hooks/exhaustive-deps
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/ad-calendar.tsx
+   21:10  warning  'toggleSet' is defined but never used. Allowed unused vars must match /^_/u                                                                                         @typescript-eslint/no-unused-vars
+  139:10  warning  'dateAvailability' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                         @typescript-eslint/no-unused-vars
+  144:10  warning  'taxRate' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+  144:19  warning  'setTaxRate' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  153:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  233:9   warning  'priceWithTax' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+  341:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  352:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  485:19  warning  Unexpected console statement                                                                                                                                        no-console
+  498:19  warning  Unexpected console statement                                                                                                                                        no-console

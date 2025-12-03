@@ -1,10 +1,11 @@
 import cors from 'cors';
+import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import './lib/load-env.js';
+import { initEmailService } from './lib/email.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -35,12 +36,16 @@ import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
 import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
+import { testEmailsRouter } from './routes/test-emails.js';
 import { testNotificationsRouter } from './routes/test-notifications.js';
 
 const app = express();
 
 // Initialize Sentry for error tracking (must be before other middleware)
 initSentry(app);
+
+// Initialize SendGrid email service
+initEmailService();
 
 // Trust proxy headers from Railway (required for express-rate-limit and IP detection)
 app.set('trust proxy', true);
@@ -78,15 +83,17 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 // Stripe webhook must be registered before body parsing so we can verify signatures
 import expressPkg from 'express';
 
-// Special raw body parser for Stripe webhook
-app.use('/billing/webhooks/stripe', expressPkg.raw({ type: 'application/json' }));
+// Special raw body parser for Stripe webhooks (payments + legacy billing path)
+const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
+rawBodyPaths.forEach((path) => {
+  app.use(path, expressPkg.raw({ type: 'application/json' }));
+});
 
-app.use((req, res, next) => { 
-  // For all other routes, use the standard JSON parser
-  if (req.originalUrl === '/billing/webhooks/stripe') {
-    return next(); 
+app.use((req, res, next) => {
+  if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
+    return next();
   }
-  return expressPkg.json()(req, res, next); 
+  return expressPkg.json()(req, res, next);
 });
 
 app.use(authMiddleware);
@@ -156,9 +163,13 @@ app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
 
-// Test endpoints (TEMPORARY: enabled in production for integration verification)
-app.use('/test-notifications', testNotificationsRouter);
-console.log('📱 Test notification endpoints available at /test-notifications/*');
+// Test endpoints (consider removing in production or adding auth)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/test-notifications', testNotificationsRouter);
+  app.use('/test-emails', testEmailsRouter);
+  console.log('📱 Test notification endpoints available at /test-notifications/*');
+  console.log('📧 Test email endpoints available at /test-emails/*');
+}
 
 const PORT = Number(process.env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)

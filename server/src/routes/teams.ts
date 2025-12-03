@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
+import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
@@ -111,6 +111,8 @@ teamsRouter.get('/', async (req, res) => {
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
   const directory = String((req.query as any).directory || '') === '1'; // Team directory search
+  const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
   
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
@@ -155,6 +157,7 @@ teamsRouter.get('/', async (req, res) => {
   const rows = await prisma.team.findMany({
     where,
     orderBy: { created_at: 'desc' },
+    take,
     include: { _count: { select: { memberships: true } } },
   });
   
@@ -664,6 +667,9 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
               organizationName: null,
               role: inv.role,
               inviterName: inviter?.display_name || 'Team Owner',
+                          teamHeroUrl: team.hero_image || undefined,
+                          teamLogoUrl: team.avatar || undefined,
+                          primaryColor: (team.brand_colors as any)?.primary || undefined,
             });
           } catch {
             /* ignore */
@@ -724,6 +730,9 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       teamName: team.name,
       organizationName: null,
       role: role || 'member',
+        teamHeroUrl: team.hero_image || undefined,
+        teamLogoUrl: team.avatar || undefined,
+        primaryColor: (team.brand_colors as any)?.primary || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
     });
   } catch {}

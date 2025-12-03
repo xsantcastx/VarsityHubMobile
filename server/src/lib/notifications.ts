@@ -1,3 +1,15 @@
+
+/**
+ * @deprecated Use email.ts instead - this file is maintained for backward compatibility with push notifications
+ * All email functionality has been consolidated into server/src/lib/email.ts
+ * 
+ * Re-export email functions for backward compatibility
+ */
+export {
+    initEmailService as initNotifications, sendBillingNoticeEmail, sendContentModerationEmail, sendOrganizationApprovalEmail,
+    sendOrganizationDenialEmail, sendOrganizationInviteEmail, sendVerificationEmail
+} from './email.js';
+
 /**
  * Push Notification System
  * 
@@ -176,7 +188,10 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
         gte: windowStart,
         lte: windowEnd,
       },
-      status: 'active',
+      OR: [
+        { status: { in: ['active', 'approved'] } },
+        { approval_status: 'approved' },
+      ],
     },
     include: {
       rsvps: {

@@ -4,120 +4,13 @@
  */
 
 import { Router } from 'express';
-import { sendPasswordResetEmail } from '../lib/email.js';
 import { calculateDistance, isWithinGeofence, verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyNewFollower, notifyNewMessage, notifyPostInteraction, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
-import * as Sentry from '../lib/sentry.js';
-import * as Twilio from '../lib/twilio.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const testNotificationsRouter = Router();
-
-// Production integration test endpoints (temporary - remove after verification)
-testNotificationsRouter.get('/email', async (req, res) => {
-  try {
-    const testEmail = process.env.TEST_EMAIL || 'customerservice@varsityhub.app';
-    await sendPasswordResetEmail(testEmail, 'test-reset-token-12345');
-    res.json({ 
-      success: true, 
-      message: `Test email sent to ${testEmail}. Check inbox and verify SPF/DKIM headers.`,
-      instructions: 'View raw email headers and confirm: spf=pass, dkim=pass'
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-testNotificationsRouter.get('/sms', async (req, res) => {
-  try {
-    const testPhone = process.env.TEST_PHONE;
-    if (!testPhone) {
-      return res.status(400).json({ 
-        error: 'Set TEST_PHONE env var with your phone number (e.g., +15551234567)' 
-      });
-    }
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const success = await Twilio.sendSmsVerificationCode(testPhone, code);
-    if (!success) {
-      return res.status(500).json({ error: 'Twilio not configured or SMS failed' });
-    }
-    res.json({ 
-      success: true, 
-      message: `Test SMS sent to ${testPhone}. Check device and Twilio logs.`,
-      code
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-testNotificationsRouter.get('/sentry', async (req, res) => {
-  try {
-    Sentry.captureException('Test error for Sentry verification - safe to ignore');
-    res.json({ 
-      success: true, 
-      message: 'Test event and exception sent to Sentry. Check dashboard.'
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * Admin-only helper to inspect verification state for a specific user
- * Usage (requires admin JWT):
- *   curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
- *     "https://api.../test-notifications/verification-status?email=test@example.com"
- */
-// Phone verification endpoint disabled - schema fields deprecated
-/* 
-testNotificationsRouter.get(
-  '/verification-status',
-  requireAuth as any,
-  requireAdmin as any,
-  async (req: AuthedRequest, res) => {
-    try {
-      const email = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : undefined;
-      const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : undefined;
-
-      if (!email && !userId) {
-        return res.status(400).json({
-          error: 'Provide email or userId query parameter',
-          example: '/test-notifications/verification-status?email=customerservice@varsityhub.app',
-        });
-      }
-
-      const user = await prisma.user.findUnique({
-        where: email ? { email } : { id: userId! },
-        select: {
-          id: true,
-          email: true,
-          email_verified: true,
-          created_at: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
-      return res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          email_verified: user.email_verified,
-          created_at: user.created_at,
-        },
-      });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
-    }
-  }
-);
-*/
 
 // Test: Send a basic push notification to yourself
 testNotificationsRouter.post('/test/push', requireAuth as any, async (req: AuthedRequest, res) => {

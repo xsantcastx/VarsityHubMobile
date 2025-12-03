@@ -62,7 +62,30 @@ export const User = {
 };
 
 export const Game = {
-  list: (sort?: string) => httpGet('/games' + (sort ? `?sort=${encodeURIComponent(sort)}` : '')),
+  list: (
+    sort?: string,
+    options?: {
+      limit?: number;
+      lat?: number;
+      lng?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      approvalStatus?: 'pending' | 'approved' | 'rejected';
+      showPending?: boolean;
+    }
+  ) => {
+    const params: string[] = [];
+    if (sort) params.push(`sort=${encodeURIComponent(sort)}`);
+    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
+    if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
+    if (options?.dateFrom) params.push(`from=${encodeURIComponent(options.dateFrom)}`);
+    if (options?.dateTo) params.push(`to=${encodeURIComponent(options.dateTo)}`);
+    if (options?.approvalStatus) params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);
+    if (options?.showPending) params.push('show_pending=true');
+    const qs = params.length ? `?${params.join('&')}` : '';
+    return httpGet('/games' + qs);
+  },
   get: (id: string) => httpGet('/games/' + encodeURIComponent(id)),
   summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary'),
   create: (data: any) => httpPost('/games', data),
@@ -179,10 +202,14 @@ export const Post = {
 };
 
 export const Event = {
-  filter: (where: any = {}, sort?: string) => {
+  filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));
+    if (where.approval_status) q.push('approval_status=' + encodeURIComponent(where.approval_status));
+    if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
+    if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
+    if (typeof limit === 'number') q.push('limit=' + encodeURIComponent(String(limit)));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
@@ -259,16 +286,12 @@ export const Organization = {
 };
 
 export const Team = {
-  list: (q?: string, mine?: boolean) => {
-    if (mine) {
-      const params: string[] = ['mine=1'];
-      if (q) params.push(`q=${encodeURIComponent(q)}`);
-      const qs = '?' + params.join('&');
-      return httpGet('/teams' + qs);
-    }
-    
+  list: (q?: string, mine?: boolean, options?: { directory?: boolean; limit?: number }) => {
     const params: string[] = [];
     if (q) params.push(`q=${encodeURIComponent(q)}`);
+    if (mine) params.push('mine=1');
+    if (options?.directory) params.push('directory=1');
+    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs);
   },

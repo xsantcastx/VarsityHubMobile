@@ -1,9 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken, setRefreshHandler } from './http';
+import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
 
 const TOKEN_KEY = 'vh_access_token';
-const REFRESH_TOKEN_KEY = 'vh_refresh_token';
 
 async function saveToken(token: string | null) {
   setAuthToken(token);
@@ -14,27 +13,6 @@ async function saveToken(token: string | null) {
       await SecureStore.setItemAsync(TOKEN_KEY, token || '');
     }
   } catch {}
-}
-
-async function saveRefreshToken(token: string | null) {
-  try {
-    if (Platform.OS === 'web') {
-      window.localStorage.setItem(REFRESH_TOKEN_KEY, token || '');
-    } else {
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token || '');
-    }
-  } catch {}
-}
-
-export async function getRefreshToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      return window.localStorage.getItem(REFRESH_TOKEN_KEY);
-    }
-    return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-  } catch {
-    return null;
-  }
 }
 
 export async function loadToken(): Promise<string | null> {
@@ -52,59 +30,24 @@ export async function loadToken(): Promise<string | null> {
 export const auth = {
   async register(email: string, password: string, display_name?: string) {
     const res = await httpPostLongTimeout('/auth/register', { email, password, display_name });
-    if ((res as any)?.access_token) {
-      await saveToken((res as any).access_token);
-      if ((res as any)?.refresh_token) {
-        await saveRefreshToken((res as any).refresh_token);
-      }
-    }
+    if ((res as any)?.access_token) await saveToken((res as any).access_token);
     return res;
   },
   async login(email: string, password: string) {
     const res = await httpPost('/auth/login', { email, password });
-    if (res?.access_token) {
-      await saveToken(res.access_token);
-      if (res?.refresh_token) {
-        await saveRefreshToken(res.refresh_token);
-      }
-    }
+    if (res?.access_token) await saveToken(res.access_token);
     return res;
   },
   async loginWithGoogle(idToken: string) {
     const res = await httpPost('/auth/google', { id_token: idToken });
-    if (res?.access_token) {
-      await saveToken(res.access_token);
-      if (res?.refresh_token) {
-        await saveRefreshToken(res.refresh_token);
-      }
-    }
+    if (res?.access_token) await saveToken(res.access_token);
     return res;
   },
   async loginWithApple(identityToken: string) {
     // Apple auth can be slow on real devices; allow longer timeout
     const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
-    if (res?.access_token) {
-      await saveToken(res.access_token);
-      if (res?.refresh_token) {
-        await saveRefreshToken(res.refresh_token);
-      }
-    }
+    if (res?.access_token) await saveToken(res.access_token);
     return res;
-  },
-  async refreshAccessToken(): Promise<boolean> {
-    const refreshToken = await getRefreshToken();
-    if (!refreshToken) return false;
-    try {
-      const res = await httpPost('/auth/refresh', { refresh_token: refreshToken });
-      if (res?.access_token && res?.refresh_token) {
-        await saveToken(res.access_token);
-        await saveRefreshToken(res.refresh_token);
-        return true;
-      }
-    } catch (e) {
-      try { await auth.logout(); } catch {}
-    }
-    return false;
   },
   async me() {
     await loadToken();
@@ -118,11 +61,8 @@ export const auth = {
     try {
       return await httpGet('/me', options);
     } catch (e: any) {
+      // Only clear session on explicit unauthenticated (401).
       if (e && e.status === 401) {
-        const refreshed = await auth.refreshAccessToken();
-        if (refreshed) {
-          return await httpGet('/me', options);
-        }
         try { await auth.logout(); } catch {}
       }
       throw e;
@@ -131,13 +71,8 @@ export const auth = {
   async logout() {
     clearAuthToken();
     try {
-      if (Platform.OS === 'web') {
-        window.localStorage.removeItem(TOKEN_KEY);
-        window.localStorage.removeItem(REFRESH_TOKEN_KEY);
-      } else {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
-        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-      }
+      if (Platform.OS === 'web') window.localStorage.removeItem(TOKEN_KEY);
+      else await SecureStore.deleteItemAsync(TOKEN_KEY);
     } catch {}
   },
   async requestEmailVerification() {
@@ -158,11 +93,4 @@ export const auth = {
 };
 
 export default auth;
-
-// Register global one-time 401 refresh handler for all HTTP requests
-try {
-  setRefreshHandler(() => auth.refreshAccessToken());
-} catch {
-  // No-op if registration fails
-}
 

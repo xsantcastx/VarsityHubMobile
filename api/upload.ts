@@ -5,7 +5,7 @@ function computeBase(provided?: string | null) {
   return getApiBaseUrl();
 }
 
-export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string): Promise<any> {
+export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string, options?: { retries?: number; backoffMs?: number }): Promise<any> {
   const finalBase = computeBase(baseUrl);
   const target = `${finalBase}/uploads`;
 
@@ -20,81 +20,51 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   const token = getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  try {
-    if (__DEV__) console.log('[upload] Uploading to:', target);
-    const res = await fetch(target, {
-      method: 'POST',
-      headers,
-      body: form as any,
-    });
-    
-    const text = await res.text();
-    if (__DEV__) console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
-    
-    if (!text) {
-      throw new Error(`Empty response from server (HTTP ${res.status})`);
-    }
-    
-    let data;
+  const retries = Math.max(0, options?.retries ?? 2);
+  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+  let attempt = 0;
+  let lastErr: any = null;
+  while (attempt <= retries) {
     try {
-      data = JSON.parse(text);
-    } catch (parseError) {
-      if (__DEV__) console.error('[upload] JSON parse error. Response text:', text);
-      throw new Error(`Server returned non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}...`);
-    }
-    
-    if (!res.ok) {
-      const err: any = new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
-      err.status = res.status; err.data = data; throw err;
-    }
-    return data; // { url, path, type, mime, size }
-  } catch (err: any) {
-    if (__DEV__) console.error('[upload] error uploading to', target, err?.message || err);
-    if (err instanceof TypeError && err.message === 'Network request failed') {
-      throw new Error('Network error: unable to reach upload endpoint. Check your internet connection and server status.');
-    }
-    throw err;
-  }
-}
-
-export async function uploadAvatar(uri: string, filename?: string): Promise<{ url: string }> {
-  const finalBase = computeBase(null);
-  const target = `${finalBase}/upload/avatar`;
-
-  const form = new FormData();
-  form.append('file', {
-    uri,
-    name: filename || `avatar_${Date.now()}.jpg`,
-    type: 'image/jpeg',
-  } as any);
-
-  const headers: any = {};
-  const token = getAuthToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  try {
-    console.log('[upload] Uploading avatar to:', target);
-    const res = await fetch(target, {
-      method: 'POST',
-      headers,
-      body: form as any,
-    });
-    
-    if (!res.ok) {
+      console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', mimeType);
+      const res = await fetch(target, {
+        method: 'POST',
+        headers,
+        body: form as any,
+      });
       const text = await res.text();
-      const err: any = new Error(`Avatar upload failed: ${text || res.statusText}`);
-      err.status = res.status;
-      throw err;
+      console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
+      if (!text) {
+        throw new Error(`Empty response from server (HTTP ${res.status})`);
+      }
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('[upload] JSON parse error. Response text:', text);
+        throw new Error(`Server returned non-JSON response (HTTP ${res.status}): ${text.substring(0, 100)}...`);
+      }
+      if (!res.ok) {
+        const err: any = new Error((data && (data.error || data.message)) || `HTTP ${res.status}`);
+        err.status = res.status; err.data = data; throw err;
+      }
+      return data; // { url, path, type, mime, size }
+    } catch (err: any) {
+      lastErr = err;
+      const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
+      const isTimeout = /timeout|timed out/i.test(String(err?.message || ''));
+      const shouldRetry = attempt < retries && (isNetwork || isTimeout);
+      console.error('[upload] attempt failed:', attempt + 1, '/', retries + 1, '|', err?.message || err);
+      if (!shouldRetry) break;
+      const wait = backoffMs * Math.pow(2, attempt);
+      await new Promise((r) => setTimeout(r, wait));
+      attempt++;
     }
-    
-    return await res.json();
-  } catch (err: any) {
-    console.error('[upload] Avatar upload error:', err?.message || err);
-    if (err instanceof TypeError && err.message === 'Network request failed') {
-      throw new Error('Network error: unable to reach server. Check your connection.');
-    }
-    throw err;
   }
+  if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
+    throw new Error('Network error: unable to reach upload endpoint. Check your internet connection and server status.');
+  }
+  throw lastErr;
 }
 
-export default { uploadFile, uploadAvatar };
+export default { uploadFile };

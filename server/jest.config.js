@@ -1,6 +1,10 @@
 export default {
-  preset: 'ts-jest',
+  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+  extensionsToTreatAsEsm: ['.ts'],
+  transform: {
+    '^.+\\.(ts|tsx)$': ['ts-jest', { useESM: true, tsconfig: { isolatedModules: true } }],
+  },
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
@@ -18,9 +22,14 @@ export default {
       statements: 50,
     },
   },
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '../lib/prisma\\.js$': '<rootDir>/src/lib/prisma.ts',
+    '../middleware/requireAdmin\\.js$': '<rootDir>/src/middleware/requireAdmin.ts',
+    '../middleware/requireAuth\\.js$': '<rootDir>/src/middleware/requireAuth.ts',
+    './load-env\\.js$': '<rootDir>/src/lib/load-env.ts',
+    './gameStories\\.js$': '<rootDir>/src/routes/gameStories.ts',
   },
   testTimeout: 10000,
   verbose: true,

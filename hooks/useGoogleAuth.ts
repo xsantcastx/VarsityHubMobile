@@ -74,7 +74,7 @@ if (PROJECT_FULL_NAME && sessionUrlProvider?.getRedirectUrl) {
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership !== 'standalone';
+  const proxyRequested = FORCE_PROXY_FLAG || Constants.appOwnership === null;
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
   const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
@@ -86,7 +86,7 @@ export function useGoogleAuth() {
   const redirectUri = useMemo(() => {
     try {
       if (shouldUseProxy && PROJECT_FULL_NAME) {
-        return AuthSession.getRedirectUrl({ projectNameForProxy: PROJECT_FULL_NAME });
+        return AuthSession.getRedirectUrl();
       }
     } catch (err) {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
@@ -94,15 +94,12 @@ export function useGoogleAuth() {
     return makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile',
-      useProxy: false,
     });
   }, [shouldUseProxy]);
 
   const redirectOptions = useMemo(() => {
-    if (shouldUseProxy && PROJECT_FULL_NAME) {
-      return { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME } as const;
-    }
-    return { useProxy: false } as const;
+    // Use default redirect behavior
+    return {} as const;
   }, [shouldUseProxy]);
 
   useEffect(() => {
@@ -161,9 +158,7 @@ export function useGoogleAuth() {
     setError(null);
     setLoading(true);
     try {
-      const response = await promptAsync(
-        shouldUseProxy && PROJECT_FULL_NAME ? { useProxy: true, projectNameForProxy: PROJECT_FULL_NAME } : undefined,
-      );
+      const response = await promptAsync();
       if (response.type !== 'success' || !response.authentication?.idToken) {
         throw new Error(response.type === 'dismiss' ? 'Google sign-in cancelled' : 'Google sign-in failed');
       }

@@ -1,5 +1,6 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
+import { sendBillingNoticeEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
@@ -322,15 +323,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     userAgent: req.get('user-agent'),
   });
 
-  return res.json({ 
-    url: session.url, 
-    session_id: session.id,
-    ad_id: String(ad_id),
-    subtotal_cents: subtotal,
-    tax_cents: taxCents,
-    discount_cents: discount,
-    total_cents: total
-  });
+  return res.json({ url: session.url });
 });
 
 // Stripe webhook to finalize reservations on successful payment.
@@ -358,6 +351,55 @@ paymentsRouter.post('/webhook', async (req, res) => {
       await finalizeFromSession(session);
     } catch (e) {
       console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+    }
+  }
+  
+  // Send billing notification emails for subscription events
+  if (event.type === 'invoice.payment_succeeded') {
+    const invoice = event.data.object as Stripe.Invoice;
+    if (invoice.customer_email && invoice.subscription) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_succeeded',
+        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
+    }
+  }
+  
+  if (event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object as Stripe.Invoice;
+    if (invoice.customer_email) {
+      await sendBillingNoticeEmail({
+        to: invoice.customer_email,
+        type: 'payment_failed',
+        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
+    }
+  }
+  
+  if (event.type === 'customer.subscription.deleted') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
+    if (customer && !customer.deleted && customer.email) {
+      await sendBillingNoticeEmail({
+        to: customer.email,
+        type: 'subscription_canceled',
+        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
+    }
+  }
+  
+  if (event.type === 'customer.subscription.updated') {
+    const subscription = event.data.object as Stripe.Subscription;
+    const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
+    if (customer && !customer.deleted && customer.email && subscription.status === 'active') {
+      await sendBillingNoticeEmail({
+        to: customer.email,
+        type: 'subscription_renewed',
+        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
+        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+      }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
     }
   }
 
@@ -487,54 +529,52 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
   }
 });
 
-// Debug endpoints - only available in development
-if (process.env.NODE_ENV !== 'production') {
-  // Debug endpoint to check and fix subscription status discrepancies
-  paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
-      const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      
-      const storedPlan = prefs.plan || 'rookie';
-      const storedSubscriptionId = prefs.subscription_id;
-      const storedPeriodEnd = prefs.subscription_period_end;
+// Debug endpoint to check and fix subscription status discrepancies
+paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    
+    const storedPlan = prefs.plan || 'rookie';
+    const storedSubscriptionId = prefs.subscription_id;
+    const storedPeriodEnd = prefs.subscription_period_end;
 
-      let stripeSubscription = null;
-      let stripeStatus = null;
+    let stripeSubscription = null;
+    let stripeStatus = null;
 
-      // Check actual Stripe subscription status if we have a subscription ID
-      if (storedSubscriptionId && process.env.STRIPE_SECRET_KEY) {
-        try {
-          stripeSubscription = await stripe.subscriptions.retrieve(storedSubscriptionId);
-          stripeStatus = stripeSubscription.status;
-        } catch (err) {
-          console.warn('Failed to retrieve Stripe subscription:', (err as any)?.message || err);
-        }
+    // Check actual Stripe subscription status if we have a subscription ID
+    if (storedSubscriptionId && process.env.STRIPE_SECRET_KEY) {
+      try {
+        stripeSubscription = await stripe.subscriptions.retrieve(storedSubscriptionId);
+        stripeStatus = stripeSubscription.status;
+      } catch (err) {
+        console.warn('Failed to retrieve Stripe subscription:', (err as any)?.message || err);
       }
+    }
 
-      // Check if there's a mismatch
-      const hasPaidPlan = storedPlan !== 'rookie';
-      const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
-      const mismatch = hasPaidPlan && !hasValidStripeSubscription;
+    // Check if there's a mismatch
+    const hasPaidPlan = storedPlan !== 'rookie';
+    const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
+    const mismatch = hasPaidPlan && !hasValidStripeSubscription;
 
-      return res.json({
-        userId,
-        stored: {
-          plan: storedPlan,
-          subscription_id: storedSubscriptionId,
-          subscription_period_end: storedPeriodEnd
-        },
-        stripe: {
-          subscription_id: stripeSubscription?.id,
-          status: stripeStatus,
-          current_period_end: stripeSubscription?.current_period_end ? new Date(stripeSubscription.current_period_end * 1000).toISOString() : null
-        },
-        mismatch,
-        recommendation: mismatch ? 'Reset to rookie plan - no valid Stripe subscription found' : 'Status looks correct'
-      });
-    } catch (err) {
-      console.error('Error checking subscription status:', (err as any)?.message || err);
+    return res.json({
+      userId,
+      stored: {
+        plan: storedPlan,
+        subscription_id: storedSubscriptionId,
+        subscription_period_end: storedPeriodEnd
+      },
+      stripe: {
+        subscription_id: stripeSubscription?.id,
+        status: stripeStatus,
+        current_period_end: stripeSubscription?.current_period_end ? new Date(stripeSubscription.current_period_end * 1000).toISOString() : null
+      },
+      mismatch,
+      recommendation: mismatch ? 'Reset to rookie plan - no valid Stripe subscription found' : 'Status looks correct'
+    });
+  } catch (err) {
+    console.error('Error checking subscription status:', (err as any)?.message || err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
@@ -595,36 +635,35 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
   }
 });
 
-  // Endpoint to reset subscription status to rookie (for fixing invalid states)
-  paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req: AuthedRequest, res) => {
-    try {
-      const userId = req.user!.id;
-      const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
-      const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
-      
-      // Reset subscription-related preferences
-      const nextPrefs: any = { ...prefs };
-      nextPrefs.plan = 'rookie';
-      delete nextPrefs.subscription_id;
-      delete nextPrefs.subscription_period_end;
-      delete nextPrefs.stripe_customer_id;
-      delete nextPrefs.payment_pending;
+// Endpoint to reset subscription status to rookie (for fixing invalid states)
+paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
+    const prefs = (user?.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+    
+    // Reset subscription-related preferences
+    const nextPrefs: any = { ...prefs };
+    nextPrefs.plan = 'rookie';
+    delete nextPrefs.subscription_id;
+    delete nextPrefs.subscription_period_end;
+    delete nextPrefs.stripe_customer_id;
+    delete nextPrefs.payment_pending;
 
-      await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
+    await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
 
-      console.log(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
-      
-      return res.json({ 
-        ok: true, 
-        message: 'Successfully reset to rookie plan',
-        newPlan: 'rookie'
-      });
-    } catch (err) {
-      console.error('Error resetting to rookie plan:', (err as any)?.message || err);
-      return res.status(500).json({ error: 'Server error' });
-    }
-  });
-} // End of debug endpoints guard
+    console.log(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Successfully reset to rookie plan',
+      newPlan: 'rookie'
+    });
+  } catch (err) {
+    console.error('Error resetting to rookie plan:', (err as any)?.message || err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // Admin endpoint to reset all users with unpaid subscriptions
 paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -761,25 +800,12 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       payment_status: session.payment_status
     });
     try {
-      // Pre-flight creative validation: ensure banner_url and target_url exist before activation
-      const adToValidate = await prisma.ad.findUnique({ where: { id: ad_id } });
-      let finalStatus = 'active';
-      
-      if (!adToValidate?.banner_url || !adToValidate?.target_url) {
-        console.warn('[payments] Ad missing required creative assets', {
-          ad_id,
-          has_banner: !!adToValidate?.banner_url,
-          has_target_url: !!adToValidate?.target_url
-        });
-        finalStatus = 'draft'; // Keep as draft; advertiser must complete creative before activation
-      }
-      
       const result = await prisma.$transaction([
         prisma.ad.update({ 
           where: { id: ad_id }, 
           data: { 
             payment_status: 'paid',
-            status: finalStatus // Mark as active only if creative is complete
+            status: 'active' // Mark ad as active when payment is completed
           } 
         }),
         prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
@@ -788,8 +814,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         ad_id,
         dates,
         session_id: session.id,
-        status: finalStatus,
-        creative_complete: finalStatus === 'active'
+        status: 'active'
       });
       
       // Update transaction log to COMPLETED
@@ -959,5 +984,6 @@ paymentsRouter.get('/cancel', (_req, res) => {
   </body>
 </html>`);
 });
+
 
 

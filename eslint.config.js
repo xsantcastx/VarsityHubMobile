@@ -3,6 +3,7 @@
 const reactHooks = require('eslint-plugin-react-hooks');
 const reactNative = require('eslint-plugin-react-native');
 const tsParser = require('@typescript-eslint/parser');
+const tsPlugin = require('@typescript-eslint/eslint-plugin');
 
 module.exports = [
   // Ignore non-RN folders to keep lint signal focused
@@ -18,13 +19,23 @@ module.exports = [
         ecmaVersion: 'latest',
         sourceType: 'module',
         ecmaFeatures: { jsx: true },
+        project: './tsconfig.json',
       },
     },
-    plugins: { 'react-native': reactNative, 'react-hooks': reactHooks },
+    plugins: { 
+      'react-native': reactNative, 
+      'react-hooks': reactHooks,
+      '@typescript-eslint': tsPlugin,
+    },
     rules: {
       'react-native/no-raw-text': ['error', { skip: ['ThemedText'] }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      'no-unused-vars': 'off', // Use TS version instead
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-floating-promises': 'warn', // Warn for now, fix incrementally
+      '@typescript-eslint/await-thenable': 'warn',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
 ];
