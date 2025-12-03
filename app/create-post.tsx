@@ -118,69 +118,66 @@ export default function CreatePostScreen() {
 
   // Auto-suggest nearest event based on time and location
   useEffect(() => {
-    // Only auto-suggest once, and don't override if already selected via params
     if (hasAutoSuggested || selectedGameId) return;
     
     (async () => {
       try {
-        // Fetch upcoming games
-        const games = await Game.list('-date');
-        const gamesArray = Array.isArray(games) ? games : (games?.items || []);
+        const now = new Date();
+        const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const options: Record<string, any> = {
+          limit: 50,
+          dateFrom: now.toISOString(),
+          dateTo: sevenDaysLater.toISOString(),
+        };
+        if (typeof lat === 'number') options.lat = lat;
+        if (typeof lng === 'number') options.lng = lng;
         
+        const games = await Game.list('-date', options);
+        const gamesArray = Array.isArray(games) ? games : (games?.items || []);
         if (!gamesArray.length) return;
         
-        const now = new Date();
-        
-        // Filter to upcoming games (within next 7 days)
-        const upcomingGames = gamesArray.filter((g: any) => {
-          if (!g.date) return false;
-          const gameDate = new Date(g.date);
-          const daysDiff = (gameDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-          return daysDiff >= -0.5 && daysDiff <= 7; // Include games from 12 hours ago to 7 days ahead
-        });
-        
-        if (!upcomingGames.length) return;
-        
-        // Calculate distance for each game if we have user location
-        const gamesWithDistance = upcomingGames.map((g: any) => {
-          let distance = null;
-          if (lat && lng && g.lat && g.lng) {
-            // Haversine formula for distance in km
-            const R = 6371; // Earth's radius in km
-            const dLat = (g.lat - lat) * Math.PI / 180;
-            const dLng = (g.lng - lng) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat * Math.PI / 180) * Math.cos(g.lat * Math.PI / 180) *
-                      Math.sin(dLng/2) * Math.sin(dLng/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            distance = R * c; // Distance in km
+        const gamesWithDistance = gamesArray.map((g: any) => {
+          const gameLat = typeof g.latitude === 'number' ? g.latitude : (typeof g.lat === 'number' ? g.lat : null);
+          const gameLng = typeof g.longitude === 'number' ? g.longitude : (typeof g.lng === 'number' ? g.lng : null);
+          let distance = typeof g.distance === 'number' ? g.distance : null;
+          if (distance == null && typeof lat === 'number' && typeof lng === 'number' && gameLat != null && gameLng != null) {
+            const R = 6371;
+            const dLat = (gameLat - lat) * Math.PI / 180;
+            const dLng = (gameLng - lng) * Math.PI / 180;
+            const a =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos((lat * Math.PI) / 180) *
+                Math.cos((gameLat * Math.PI) / 180) *
+                Math.sin(dLng / 2) *
+                Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            distance = R * c;
           }
-          return { ...g, distance };
+          return { ...g, latitude: gameLat, longitude: gameLng, distance };
         });
         
-        // Sort by distance (closest first), then by time
         gamesWithDistance.sort((a: any, b: any) => {
-          if (a.distance !== null && b.distance !== null) {
+          if (typeof a.distance === 'number' && typeof b.distance === 'number') {
             return a.distance - b.distance;
           }
-          if (a.distance !== null) return -1;
-          if (b.distance !== null) return 1;
-          
-          // If no distance, sort by time
-          const aTime = new Date(a.date).getTime();
-          const bTime = new Date(b.date).getTime();
+          if (typeof a.distance === 'number') return -1;
+          if (typeof b.distance === 'number') return 1;
+          const aTime = a.date ? new Date(a.date).getTime() : 0;
+          const bTime = b.date ? new Date(b.date).getTime() : 0;
           const aDiff = Math.abs(aTime - now.getTime());
           const bDiff = Math.abs(bTime - now.getTime());
           return aDiff - bDiff;
         });
         
-        // Keep at least 3 nearby games, more if available
-        setNearbyGames(gamesWithDistance.slice(0, Math.max(3, 5)));
-        
-        // Don't auto-select - let user choose from nearby games
-        setHasAutoSuggested(true);
+        setNearbyGames(gamesWithDistance.slice(0, 5));
+        const top = gamesWithDistance[0];
+        if (top) {
+          setSuggestedGame(top);
+        }
       } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
+      } finally {
+        setHasAutoSuggested(true);
       }
     })();
   }, [lat, lng, selectedGameId, hasAutoSuggested]);

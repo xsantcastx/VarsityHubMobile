@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
@@ -46,4 +46,3 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: 'white' },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
 });
-

@@ -613,14 +613,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   adminButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  adminButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,

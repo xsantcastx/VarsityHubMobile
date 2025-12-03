@@ -27,10 +27,12 @@ export default function Step10Confirmation() {
     }
   }, [setProgress, progress]);
 
+  // Define isCoach at module scope for use across functions
+  const isCoach = ob.role === 'coach';
+
   // Check completeness of onboarding
   const getCompletionStatus = () => {
     const isFan = ob.role === 'fan';
-    const isCoach = ob.role === 'coach';
 
     const checks = [
       {

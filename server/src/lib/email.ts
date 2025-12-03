@@ -8,7 +8,7 @@ if (SENDGRID_API_KEY) {
 }
 
 // SendGrid Dynamic Template IDs
-const SENDGRID_TEMPLATES = {
+export const SENDGRID_TEMPLATES = {
   VERIFICATION: process.env.SENDGRID_TEMPLATE_VERIFICATION || 'd-e4a32dd538ee42358d1d5aba509445ac',
   PASSWORD_RESET: process.env.SENDGRID_TEMPLATE_PASSWORD_RESET || 'd-e4a32dd538ee42358d1d5aba509445ac',
   GENERAL: process.env.SENDGRID_TEMPLATE_GENERAL || 'd-e4a32dd538ee42358d1d5aba509445ac',
@@ -444,4 +444,3 @@ export async function sendTeamInviteEmail(params: {
     html: htmlContent,
   });
 }
-

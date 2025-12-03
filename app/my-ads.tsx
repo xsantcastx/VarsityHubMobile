@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 import settings from '@/api/settings';
+import { BackHeader } from '@/components/ui/BackHeader';
 
 type ManagedAd = {
   id: string;
@@ -378,6 +379,12 @@ export default function MyAdsScreen() {
         title: 'My Ads',
         headerShown: false // Use custom header
       }} />
+      <BackHeader 
+        title="My Ads"
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+        borderColor={Colors[colorScheme].border}
+      />
       
       {/* Custom Header */}
       <View style={[styles.header, { 
@@ -478,6 +485,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 14 : 8,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    marginTop: 4,
   },
   headerTitle: {
     fontSize: 28,

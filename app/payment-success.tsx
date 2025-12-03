@@ -24,58 +24,23 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         if (params.session_id) {
-          // For ad payments, manually finalize the session with retry polling
+          // For ad payments, manually finalize the session
           if (isAdPayment) {
             console.log('[payment-success] Finalizing ad payment session:', params.session_id);
-            
-            let attempts = 0;
-            const maxAttempts = 15; // 15 attempts * 2s = 30s total
-            
-            const attemptFinalize = async (): Promise<boolean> => {
-              try {
-                await httpPost('/payments/finalize-session', { session_id: params.session_id });
-                console.log('[payment-success] Session finalized successfully');
-                return true;
-              } catch (finalizeErr) {
-                console.warn('[payment-success] Finalize attempt failed:', finalizeErr);
-                return false;
-              }
-            };
-            
-            // Try immediate finalization first
-            const immediate = await attemptFinalize();
-            if (immediate) {
-              setSessionVerified(true);
-              setTimeout(() => {
-                console.log('[payment-success] Auto-redirecting to My Ads after 2s');
-                router.replace('/(tabs)/my-ads');
-              }, 2000);
-              return;
+            try {
+              await httpPost('/payments/finalize-session', { session_id: params.session_id });
+              console.log('[payment-success] Session finalized successfully');
+            } catch (finalizeErr) {
+              console.warn('[payment-success] Failed to finalize session:', finalizeErr);
+              // Continue anyway - webhook might have already processed it
             }
             
-            // If initial attempt fails, retry with polling (webhook might lag)
-            const retryInterval = setInterval(async () => {
-              attempts++;
-              console.log(`[payment-success] Retry attempt ${attempts}/${maxAttempts}`);
-              
-              const success = await attemptFinalize();
-              if (success) {
-                clearInterval(retryInterval);
-                setSessionVerified(true);
-                setTimeout(() => {
-                  console.log('[payment-success] Auto-redirecting to My Ads after 2s');
-                  router.replace('/(tabs)/my-ads');
-                }, 2000);
-              } else if (attempts >= maxAttempts) {
-                clearInterval(retryInterval);
-                console.warn('[payment-success] Max retry attempts reached');
-                // Still mark as verified to allow manual continue
-                setSessionVerified(true);
-              }
-            }, 2000); // Poll every 2 seconds
-            
-            // Cleanup on unmount
-            return () => clearInterval(retryInterval);
+            setSessionVerified(true);
+            // Auto-redirect after 2 seconds to show success message
+            setTimeout(() => {
+              console.log('[payment-success] Auto-redirecting to My Ads after 2s');
+              router.replace('/(tabs)/my-ads');
+            }, 2000);
           } else {
             // For subscriptions, verify by checking user's plan and payment flag
             try {
@@ -100,7 +65,7 @@ export default function PaymentSuccessScreen() {
     };
 
     verifyPayment();
-  }, [isAdPayment, params.session_id, router]);
+  }, [params.session_id, isAdPayment]);
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
@@ -110,7 +75,7 @@ export default function PaymentSuccessScreen() {
       router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
     } else {
       console.log('[payment-success] Redirecting to /(tabs)/feed');
-      router.replace('/(tabs)'); // Redirect to feed after subscription payment
+      router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }
   };
 

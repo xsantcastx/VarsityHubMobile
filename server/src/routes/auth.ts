@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import jwkToPem from 'jwk-to-pem';
 import { z } from 'zod';
 import { getClientIp, logAuditEvent } from '../lib/audit-log.js';
-import { sendEmail, sendEmailWithTemplate } from '../lib/email.js';
+import { sendEmail, sendEmailWithTemplate, SENDGRID_TEMPLATES } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import { createRefreshToken, revokeRefreshToken, validateRefreshToken } from '../lib/refresh-tokens.js';
@@ -837,6 +837,7 @@ async function sendVerificationEmail(to: string, code: string) {
       console.log(`[email] Sending verification email via SendGrid Dynamic Template...`);
       const success = await sendEmailWithTemplate({
         to,
+        templateId: SENDGRID_TEMPLATES.VERIFICATION,
         dynamicData: {
           verification_code: code,
           subject: 'Verify your VarsityHub account',

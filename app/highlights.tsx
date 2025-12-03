@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +15,7 @@ import {
     Pressable,
     RefreshControl,
     ScrollView,
+    Share,
     StatusBar,
     StyleSheet,
     Text,
@@ -23,6 +25,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Team, User } from '@/api/entities';
+// Clipboard is dynamically imported only when needed to avoid crashes
+// if the dev client wasn't built with the native module.
+import { BackHeader } from '@/components/ui/BackHeader';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -270,15 +275,19 @@ const HighlightCard = ({
               onPress={async (e) => {
                 e.stopPropagation();
                 try {
-                  const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
-                  const shareUrl = `${base}/highlights/${item.id}`;
-                  const message = item.caption ? `${item.caption}\n\n${shareUrl}` : shareUrl;
-                  await Share.share({ message, url: shareUrl, title: item.title || 'VarsityHub Highlight' });
+                  const link = AppLinks.post(String(item.id), item.caption || item.title);
+                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
                 } catch (err) {
                   try {
-                    const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
-                    await Clipboard.setStringAsync(`${base}/highlights/${item.id}`);
-                    Alert.alert('Link Copied', 'Share link copied to clipboard!');
+                    const mod = await import('expo-clipboard').catch(() => null);
+                    const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
+                    if (typeof setStringAsync === 'function') {
+                      const fallback = AppLinks.post(String(item.id), item.caption).webUrl;
+                      await setStringAsync(fallback);
+                      Alert.alert('Link Copied', 'Share link copied to clipboard!');
+                    } else {
+                      Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
+                    }
                   } catch {}
                 }
               }}
@@ -403,42 +412,16 @@ export default function HighlightsScreen() {
     setSearching(true);
     try {
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list().catch(() => ({ items: [] })),
-        Event.filter({}).catch(() => ({ items: [] })),
-        User.listAll(query, 20).catch(() => ({ items: [] })),
-        Organization.list().catch(() => ({ items: [] })),
+        Team.list(query, false, { limit: 5 }).catch(() => []),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
+        User.listAll(query, 5).catch(() => []),
+        Organization.list(query, 5).catch(() => []),
       ]);
 
-      const queryLower = query.toLowerCase();
-      
-      // Filter teams
-      const teams = (Array.isArray(teamsRes) ? teamsRes : teamsRes?.items || [])
-        .filter((t: any) => 
-          (t.name || '').toLowerCase().includes(queryLower) ||
-          (t.city || '').toLowerCase().includes(queryLower) ||
-          (t.school_name || '').toLowerCase().includes(queryLower)
-        )
-        .slice(0, 5);
-
-      // Filter events
-      const events = (Array.isArray(eventsRes) ? eventsRes : eventsRes?.items || [])
-        .filter((e: any) => 
-          (e.title || '').toLowerCase().includes(queryLower) ||
-          (e.description || '').toLowerCase().includes(queryLower)
-        )
-        .slice(0, 5);
-
-      // Users are already filtered by the API
-      const users = (Array.isArray(usersRes) ? usersRes : usersRes?.items || []).slice(0, 5);
-
-      // Filter organizations
-      const organizations = (Array.isArray(orgsRes) ? orgsRes : orgsRes?.items || [])
-        .filter((o: any) => 
-          (o.name || '').toLowerCase().includes(queryLower) ||
-          (o.description || '').toLowerCase().includes(queryLower) ||
-          (o.sport || '').toLowerCase().includes(queryLower)
-        )
-        .slice(0, 5);
+      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
+      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
+      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
+      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
 
       // Filter posts
       const posts = highlights.filter(item => {
@@ -446,6 +429,7 @@ export default function HighlightsScreen() {
         const caption = (item.caption || '').toLowerCase();
         const content = (item.content || '').toLowerCase();
         const authorName = (item.author?.display_name || '').toLowerCase();
+        const queryLower = query.toLowerCase();
         return title.includes(queryLower) || caption.includes(queryLower) || 
                content.includes(queryLower) || authorName.includes(queryLower);
       }).slice(0, 10);
@@ -595,9 +579,16 @@ export default function HighlightsScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
+      <BackHeader 
+        title="Highlights"
+        backgroundColor={Colors[colorScheme].card}
+        textColor={Colors[colorScheme].text}
+        borderColor={Colors[colorScheme].border}
+        showDivider={false}
+      />
       
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: statusBarHeight, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+      <View style={[styles.header, { paddingTop: 12, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
         </View>

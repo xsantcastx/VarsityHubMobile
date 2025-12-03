@@ -1,23 +1,32 @@
+import { BackHeader } from '@/components/ui/BackHeader';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
-import * as WebBrowser from 'expo-web-browser';
+import AppLinks from '@/utils/links';
+import MatchBanner from './components/MatchBanner';
+import RsvpSheet from './components/RsvpSheet';
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const headerBackground = isDark ? '#030712' : '#FFFFFF';
+  const headerText = isDark ? '#F8FAFC' : '#0F172A';
+  const headerBorder = isDark ? '#1F2937' : '#E5E7EB';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventItem | null>(null);
   const [me, setMe] = useState<any>(null);
   const [rsvped, setRsvped] = useState<boolean>(false);
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
+  const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -53,25 +62,43 @@ export default function EventDetailScreen() {
   const onShare = async () => {
     if (!event) return;
     try {
-      await Share.share({ message: `${event.title || 'Event'}${event.location ? ' @ ' + event.location : ''}` });
-    } catch {}
+      const link = AppLinks.event(String(event.id), event.title);
+      await Share.share({
+        message: link.shareMessage,
+        url: link.webUrl,
+        title: event.title || 'VarsityHub Event'
+      });
+    } catch (err) {
+      console.warn('Share failed:', err);
+    }
   };
 
-  const openPublic = async () => {
-    const slug = (event as any)?.slug;
-    if (!slug) return;
-    await WebBrowser.openBrowserAsync(`https://example.com/event/${slug}`);
-  };
+  const router = useRouter();
 
   const toggleRsvp = async () => {
     if (!event) return;
+    if (!me) {
+      Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+      ]);
+      return;
+    }
     try {
       const res = await Event.rsvp(String(event.id), !rsvped);
       setRsvped(!!res?.attending);
       setAttendeesCount(Number(res?.count || 0));
+      setRsvpSheetVisible(false);
       Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
-    } catch (e) {
-      Alert.alert('Error', 'Unable to update RSVP.');
+    } catch (e: any) {
+      if (e?.response?.status === 401 || e?.message?.includes('Unauthorized')) {
+        Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+        ]);
+      } else {
+        Alert.alert('Error', 'Unable to update RSVP. Please try again.');
+      }
     }
   };
 
@@ -81,15 +108,26 @@ export default function EventDetailScreen() {
       return;
     }
 
+    // Prefer API coordinates if available, fallback to geocoding
+    const lat = (event as any).latitude || (event as any).lat;
+    const lng = (event as any).longitude || (event as any).lng;
     const address = encodeURIComponent(event.location);
     let url = '';
 
-    if (Platform.OS === 'ios') {
-      // iOS uses Apple Maps
-      url = `maps://?q=${address}`;
+    if (lat && lng) {
+      // Use precise coordinates from API
+      if (Platform.OS === 'ios') {
+        url = `maps://?ll=${lat},${lng}&q=${address}`;
+      } else {
+        url = `geo:${lat},${lng}?q=${address}`;
+      }
     } else {
-      // Android uses Google Maps
-      url = `geo:0,0?q=${address}`;
+      // Fallback to address-based search
+      if (Platform.OS === 'ios') {
+        url = `maps://?q=${address}`;
+      } else {
+        url = `geo:0,0?q=${address}`;
+      }
     }
 
     try {
@@ -108,6 +146,12 @@ export default function EventDetailScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Event Detail', headerShown: false }} />
+      <BackHeader 
+        title={event?.title || 'Event Detail'}
+        backgroundColor={headerBackground}
+        textColor={headerText}
+        borderColor={headerBorder}
+      />
       
       <ScrollView 
         style={{ flex: 1 }}
@@ -126,6 +170,19 @@ export default function EventDetailScreen() {
         {error && !loading && <Text style={styles.error}>{error}</Text>}
         {event && !loading && (
           <View style={{ gap: 8 }}>
+            {/* Match banner with persistent RSVP badge */}
+            <MatchBanner
+              leftImage={(event as any)?.homeLogo ?? null}
+              rightImage={(event as any)?.awayLogo ?? null}
+              leftName={(event as any)?.homeName ?? ''}
+              rightName={(event as any)?.awayName ?? ''}
+              height={220}
+              appearance="classic"
+              hero={false}
+              goingCount={attendeeCount}
+              onGoingPress={() => setRsvpSheetVisible(true)}
+            />
+
             <Text style={styles.title}>{event.title || 'Event'}</Text>
             
             {/* Location with Map Pin */}
@@ -157,15 +214,19 @@ export default function EventDetailScreen() {
               <Pressable style={styles.outlineBtn} onPress={onShare}>
                 <Text style={styles.outlineBtnText}>Share</Text>
               </Pressable>
-              {(event as any)?.slug ? (
-                <Pressable style={styles.outlineBtn} onPress={openPublic}>
-                  <Text style={styles.outlineBtnText}>Open Public</Text>
-                </Pressable>
-              ) : null}
             </View>
           </View>
         )}
       </ScrollView>
+      
+      <RsvpSheet
+        visible={rsvpSheetVisible}
+        onClose={() => setRsvpSheetVisible(false)}
+        goingCount={attendeeCount}
+        capacity={(event as any)?.capacity ?? null}
+        isGoing={rsvped}
+        onToggleRsvp={toggleRsvp}
+      />
     </SafeAreaView>
   );
 }

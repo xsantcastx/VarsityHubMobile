@@ -125,7 +125,7 @@ export default function CommunityDiscoverScreen() {
     };
   }, []);
 
-  const openVerticalViewer = useCallback((selected: any, pool: any[]) => {
+  const _openVerticalViewer = useCallback((selected: any, pool: any[]) => {
     const list = Array.isArray(pool) ? pool.map(toFeedPost).filter((f) => !!f && (!!f.media_url || !!f.collage)) : [];
     const idx = list.findIndex((it) => String(it.id) === String(selected?.id));
     setViewerPosts(list);
@@ -211,7 +211,7 @@ export default function CommunityDiscoverScreen() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const onRefresh = useCallback(async () => {
@@ -534,7 +534,7 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => setCreateEventModalOpen(true)}
+                onPress={() => router.push('/create-fan-event')}
               >
                 <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
@@ -592,7 +592,7 @@ export default function CommunityDiscoverScreen() {
         <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{tab === 'following' ? 'Follow people to see their posts here.' : 'New posts will appear here soon.'}</Text>
       ) : (
         <View style={{ marginBottom: 12, gap: 10 }}>
-          {(tab === 'following' ? followingPosts : discoverPosts).map((p, i, arr) => {
+          {(tab === 'following' ? followingPosts : discoverPosts).map((p, _i, _arr) => {
             const author = p?.author || null;
             const authorId = author?.id ? String(author.id) : null;
             return (
@@ -602,9 +602,8 @@ export default function CommunityDiscoverScreen() {
                     style={styles.postHeaderLeft}
                     onPress={() => {
                       if (!authorId) return;
-                      console.log('Profile clicked for user:', authorId, author?.username);
                       // Navigate to the specific user's profile, not own profile
-                      router.push(`/user-profile?id=${authorId}`);
+                      void router.push(`/user-profile?id=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>
@@ -629,7 +628,7 @@ export default function CommunityDiscoverScreen() {
                           } else {
                             await User.unfollow(authorId);
                           }
-                        } catch (e) {
+                        } catch {
                           // Revert on failure
                           setFollowingPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
                           setDiscoverPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
@@ -734,16 +733,17 @@ export default function CommunityDiscoverScreen() {
               {/* Map/List Toggle */}
               <Pressable
                 onPress={() => {
-                  const newMode = viewMode === 'list' ? 'map' : 'list';
+                  // In map view branch, viewMode is 'map'; toggling goes to 'list'
+                  const newMode: 'list' | 'map' = 'list';
                   console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
                   console.log('📍 Filtered games count:', filtered.length);
                   console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
-                  setViewMode(newMode as 'list' | 'map');
+                  setViewMode(newMode);
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               >
                 <Ionicons 
-                  name={viewMode === 'list' ? 'map' : 'list'} 
+                  name={'list'} 
                   size={24} 
                   color={Colors[colorScheme].tint} 
                 />
@@ -764,7 +764,7 @@ export default function CommunityDiscoverScreen() {
             } : 'none');
             
             // Show ALL games, not just filtered ones
-            const allGamesWithCoords = games.filter(g => g.latitude && g.longitude);
+            const allGamesWithCoords = games.filter(g => typeof g.latitude === 'number' && typeof g.longitude === 'number');
             console.log('📍 ALL games with coordinates:', allGamesWithCoords.length);
             
             return (
@@ -774,8 +774,8 @@ export default function CommunityDiscoverScreen() {
                   title: String(game.title || 'Game'),
                   date: String(game.date || new Date().toISOString()),
                   location: String(game.location || ''),
-                  latitude: game.latitude ?? undefined,
-                  longitude: game.longitude ?? undefined,
+                  latitude: Number(game.latitude as number),
+                  longitude: Number(game.longitude as number),
                   type: 'game',
                 }))}
                 onEventPress={(eventId) => {

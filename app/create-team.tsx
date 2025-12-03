@@ -6,14 +6,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { getApiBaseUrl } from '../api/http';
-import { Platform } from 'react-native';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import { getApiBaseUrl } from '../api/http';
 
 export default function CreateTeamScreen() {
   const router = useRouter();
@@ -434,7 +433,7 @@ export default function CreateTeamScreen() {
           {/* Sport Selection */}
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
               {sports.map((sportOption) => (
                 <Pressable
                   key={sportOption}
@@ -455,7 +454,7 @@ export default function CreateTeamScreen() {
                   </Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </RNScrollView>
           </View>
 
           {/* Season Selection */}
@@ -869,4 +868,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-

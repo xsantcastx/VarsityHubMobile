@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import Textarea from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 // @ts-ignore JS exports
 import { User, Support } from '@/api/entities';
@@ -44,4 +44,3 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: 'white' },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
 });
-

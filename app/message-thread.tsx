@@ -23,7 +23,7 @@ type Msg = {
 };
 
 export default function MessageThreadScreen() {
-  const { conversation_id, with: withParam } = useLocalSearchParams<{ conversation_id?: string; with?: string }>();
+  const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -35,6 +35,7 @@ export default function MessageThreadScreen() {
   const flatRef = useRef<FlatList<Msg>>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [prefillApplied, setPrefillApplied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +67,15 @@ export default function MessageThreadScreen() {
       } catch {}
     })();
   }, [conversation_id, withParam]);
+
+  useEffect(() => {
+    if (prefill && !prefillApplied) {
+      setText(String(prefill));
+      setPrefillApplied(true);
+      // Remove the param so returning to this screen doesn't keep reapplying
+      router.setParams({ prefill: undefined });
+    }
+  }, [prefill, prefillApplied, router]);
 
   // ✨ INSTANT MESSAGING: Poll every 3 seconds while in conversation
   useEffect(() => {

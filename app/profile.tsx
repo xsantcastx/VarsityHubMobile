@@ -1,5 +1,5 @@
 import { Organization, Team, User } from '@/api/entities';
-import { uploadAvatar } from '@/api/upload';
+import uploadFile from '@/api/upload';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
+const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
@@ -182,7 +183,7 @@ export default function ProfileScreen() {
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
       
       // Use shared upload helper with consistent auth/retry logic
-      const { url } = await uploadAvatar(manipulated.uri, name);
+      const { url } = await uploadAvatar(null, manipulated.uri, name);
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 

@@ -20,7 +20,7 @@ type PlanOption = {
   features: string[];
 };
 
-const PLAN_OPTIONS = [
+const PLAN_OPTIONS: PlanOption[] = [
   {
     id: 'rookie',
     name: 'Rookie',
@@ -687,4 +687,3 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
-

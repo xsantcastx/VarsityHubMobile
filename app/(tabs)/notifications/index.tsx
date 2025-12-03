@@ -42,10 +42,10 @@ export default function NotificationsScreen() {
     }
   }, [refreshing]);
 
-  useEffect(() => { load(null, false); }, [load]);
+  useEffect(() => { void load(null, false); }, [load]);
 
-  const onRefresh = () => { setRefreshing(true); load(null, false); };
-  const onEndReached = () => { if (nextCursor) load(nextCursor, true); };
+  const onRefresh = () => { setRefreshing(true); void load(null, false); };
+  const onEndReached = () => { if (nextCursor) void load(nextCursor, true); };
 
   const hasUnread = items.some((n) => !n.read_at);
   const onMarkAllRead = async () => {

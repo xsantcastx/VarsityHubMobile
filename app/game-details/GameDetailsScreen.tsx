@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -25,6 +26,7 @@ import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 const GAME_WINDOW_MS = 3 * 60 * 60 * 1000; // 3 hours live window
+const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 
 type MediaItem = {
   id: string;
@@ -704,7 +706,7 @@ const GameDetailsScreen = () => {
   const replaceToCanonicalGame = useCallback(
     (gameIdValue: string) => {
       const routeBase = '/(tabs)/feed/game/[id]';
-      router.replace({ pathname: routeBase, params: { id: gameIdValue } });
+      void router.replace({ pathname: routeBase, params: { id: gameIdValue } });
     },
     [router],
   );
@@ -718,19 +720,63 @@ const GameDetailsScreen = () => {
 
   const loadGameById = useCallback(
     async (gameIdValue: string) => {
+      // Handle sample slugs locally to avoid noisy 404s
+      if (/^sample-/i.test(gameIdValue)) {
+        const parts = gameIdValue.replace(/^sample-/i, '').split(/[-_]+/).filter(Boolean);
+        const toTitle = (s: string) => s ? s.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '';
+        const home = toTitle(parts[0] || 'Team A');
+        const away = toTitle(parts[1] || 'Team B');
+        const dateIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+        const vmPayload: GameVM = {
+          id: gameIdValue,
+          gameId: gameIdValue,
+          eventId: null,
+          title: `${home} vs ${away}`,
+          date: dateIso,
+          location: null,
+          description: null,
+          bannerUrl: null,
+          coverImageUrl: null,
+          homeTeam: home,
+          awayTeam: away,
+          capacity: null,
+          rsvpCount: null,
+          userRsvped: false,
+          teams: [],
+          posts: [],
+          media: [],
+          reviewsCount: null,
+          isPast: false,
+        };
+        setVm(vmPayload);
+        setActiveSection('overview');
+        return;
+      }
+
       try {
-        const summary: any = await Game.summary(gameIdValue).catch(() => null);
+        const summary: any = await Game.summary(gameIdValue).catch((err: any) => {
+          // Treat 404 as missing summary without escalating
+          if (err && err.status === 404) return null;
+          throw err;
+        });
         let gameRecord: any = null;
+        let postsData: any = [];
+        let mediaData: any = [];
         if (!summary) {
-          gameRecord = await Game.get(gameIdValue).catch((err) => {
-            console.error('Error fetching game record:', err);
+          // Only attempt record fetch if summary missing; suppress 404 noise
+          gameRecord = await Game.get(gameIdValue).catch((err: any) => {
+            if (err && err.status === 404) return null;
+            console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
         }
-        const [postsData, mediaData] = await Promise.all([
-          Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
-          Game.media(gameIdValue).catch(() => summary?.media || []),
-        ]);
+        if (summary || gameRecord) {
+          // Posts/media only fetched when a real game exists to avoid extra 404 logs
+          [postsData, mediaData] = await Promise.all([
+            Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
+            Game.media(gameIdValue).catch(() => summary?.media || []),
+          ]);
+        }
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -900,12 +946,12 @@ const GameDetailsScreen = () => {
 
   const handleCreatePost = useCallback(() => {
     if (!vm?.gameId) return;
-    router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'post' } });
+    void router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'post' } });
   }, [router, vm?.gameId]);
 
   const handleCreateHighlight = useCallback(() => {
     if (!vm?.gameId) return;
-    router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'highlight' } });
+    void router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'highlight' } });
   }, [router, vm?.gameId]);
 
   const handleAddStory = useCallback(async () => {
@@ -944,18 +990,32 @@ const GameDetailsScreen = () => {
               
               const asset = result.assets[0];
               const base = getApiBaseUrl();
-              const uri = asset.uri;
+              let uri = asset.uri;
               const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
               const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
+              uri = ensured.uri; // use uploadable local file path when available
 
               const uploaded = await uploadFile(base, uri, fileName, mimeType);
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
               }
-              await Game.addStory(vm.gameId, { media_url: mediaUrl });
-              await loadGameById(vm.gameId);
-              Alert.alert('Added', 'Story added to this game.');
+              if (isSampleId(vm.gameId)) {
+                // Local-only story for sample games; do not call backend
+                console.log('[story] Camera - sample ID detected, adding locally only');
+                setVm((prev) => {
+                  if (!prev) return prev;
+                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
+                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
+                });
+              } else {
+                console.log('[story] Camera - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
+                await Game.addStory(vm.gameId, { media_url: mediaUrl });
+                console.log('[story] Camera - story registered successfully');
+                await loadGameById(vm.gameId);
+              }
+              Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
             } catch (err: any) {
               console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -980,18 +1040,33 @@ const GameDetailsScreen = () => {
               
               const asset = result.assets[0];
               const base = getApiBaseUrl();
-              const uri = asset.uri;
+              let uri = asset.uri;
               const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
               const fileName = asset.fileName || uri.split('/').pop() || (mimeType.startsWith('video') ? 'story.mp4' : 'story.jpg');
+              const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
+              uri = ensured.uri;
               
+              console.log('[story] Gallery - uploading to:', base + '/uploads', '| file:', fileName, '| mime:', mimeType);
               const uploaded = await uploadFile(base, uri, fileName, mimeType);
+              console.log('[story] Gallery - upload response:', uploaded);
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
               }
-              await Game.addStory(vm.gameId, { media_url: mediaUrl });
-              await loadGameById(vm.gameId);
-              Alert.alert('Added', 'Story added to this game.');
+              if (isSampleId(vm.gameId)) {
+                console.log('[story] Gallery - sample ID detected, adding locally only');
+                setVm((prev) => {
+                  if (!prev) return prev;
+                  const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
+                  return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
+                });
+              } else {
+                console.log('[story] Gallery - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
+                await Game.addStory(vm.gameId, { media_url: mediaUrl });
+                console.log('[story] Gallery - story registered successfully');
+                await loadGameById(vm.gameId);
+              }
+              Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
             } catch (err: any) {
               console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -1143,18 +1218,25 @@ const GameDetailsScreen = () => {
   const onShare = useCallback(async () => {
     if (!vm) return;
     try {
-      await Share.share({ message: `${vm.title} on VarsityHub`, url: bannerUrl ?? undefined });
+      const link = vm.gameId 
+        ? AppLinks.game(String(vm.gameId), vm.title)
+        : AppLinks.event(String(vm.eventId), vm.title);
+      await Share.share({
+        message: link.shareMessage,
+        url: link.webUrl,
+        title: vm.title || 'VarsityHub'
+      });
     } catch (error) {
       console.error('Share error:', error);
       Alert.alert('Error', 'Could not share at this time.');
     }
-  }, [vm, bannerUrl]);
+  }, [vm]);
 
   const onPressLocation = useCallback(() => {
     if (vm?.location) openMaps(vm.location);
   }, [vm?.location]);
 
-  const scrollToSection = useCallback(
+  const _scrollToSection = useCallback(
     (key: SectionKey) => {
       setActiveSection(key);
       // Tabs removed - keeping Overview only, no scrolling needed
@@ -1191,7 +1273,7 @@ const GameDetailsScreen = () => {
       } catch (err: any) {
         if (rollback) setVoteSummary(rollback); else setVoteSummary(null);
         if (err?.status === 401) {
-          router.push('/sign-in');
+          void router.push('/sign-in');
         } else {
           console.error('Failed to submit vote', err);
           Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
@@ -1222,7 +1304,7 @@ const GameDetailsScreen = () => {
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
       if (err?.status === 401) {
-        router.push('/sign-in');
+        void router.push('/sign-in');
       } else {
         console.error('Failed to clear vote', err);
         Alert.alert('Vote', 'Unable to update your vote right now. Please try again.');
@@ -1440,13 +1522,13 @@ const renderBanner = () => {
         onLeftPress={() => {
           // Navigate to home team profile if team object exists
           if (homeTeamObj?.id) {
-            router.push(`/team-profile?id=${homeTeamObj.id}`);
+            void router.push(`/team-profile?id=${homeTeamObj.id}`);
           }
         }}
         onRightPress={() => {
           // Navigate to away team profile if team object exists
           if (awayTeamObj?.id) {
-            router.push(`/team-profile?id=${awayTeamObj.id}`);
+            void router.push(`/team-profile?id=${awayTeamObj.id}`);
           }
         }}
         leftColor={(homeTeamObj as any)?.color}
@@ -1536,7 +1618,7 @@ const renderBanner = () => {
     );
   };
 
-  const renderStats = () => {
+  const _renderStats = () => {
     const stats = [
       { key: 'going', label: 'Going', value: goingCount != null ? String(goingCount) : '\u2014' },
       { key: 'reviews', label: 'Reviews', value: vm?.reviewsCount != null ? String(vm.reviewsCount) : '\u2014' },
@@ -1556,7 +1638,7 @@ const renderBanner = () => {
 
   const renderTeams = () => {
     // Extract organization name from team name (e.g., "SHS Men's Soccer" -> "SHS")
-    const getOrganizationFromTeamName = (teamName: string) => {
+    const _getOrganizationFromTeamName = (teamName: string) => {
       const parts = teamName.split(/\s+/);
       if (parts.length > 1) {
         // Check if first part looks like an abbreviation (SHS, NHS, etc.)
@@ -1584,7 +1666,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -1629,7 +1711,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
             >
               {teamLogo ? (
                 <Image source={{ uri: teamLogo }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -1653,7 +1735,7 @@ const renderBanner = () => {
     return s;
   }, [vm?.description]);
 
-  const renderMediaGrid = () => {
+  const _renderMediaGrid = () => {
     if (!vm?.media?.length) {
       return <Text style={styles.muted}>Add photos & videos to showcase this game.</Text>;
     }
@@ -1789,7 +1871,7 @@ const renderBanner = () => {
                            key={post.id || index}
                            style={styles.gridItem}
                            onPress={() => {
-                             router.push(`/post-detail?id=${post.id}`);
+                             void router.push(`/post-detail?id=${post.id}`);
                            }}
                          >
                            {thumb ? (
@@ -1905,8 +1987,8 @@ const renderBanner = () => {
             <View style={styles.vsPollRow}>
               {(() => {
                 const summary = voteSummary ?? buildVoteSummary(0, 0, null);
-                const pctA = summary.total ? Math.round(summary.pctA) : 50;
-                const pctB = summary.total ? Math.round(summary.pctB) : 50;
+                const _pctA = summary.total ? Math.round(summary.pctA) : 50;
+                const _pctB = summary.total ? Math.round(summary.pctB) : 50;
                 const selected = summary.userVote;
                 const disabled = Boolean(vm?.isPast) || voteBusy;
                 const bgA = themeBgA;

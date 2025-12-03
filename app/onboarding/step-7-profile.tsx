@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { uploadAvatar } from '@/api/upload';
+import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { pickerMediaTypesProp } from '@/utils/picker';
@@ -72,7 +72,7 @@ export default function Step7Profile() {
       const fileName = (asset.fileName && String(asset.fileName).includes('.')) ? String(asset.fileName) : `avatar_${Date.now()}.jpg`;
       
       // Use shared upload helper with consistent auth/retry logic
-      const { url } = await uploadAvatar(manipulated.uri, fileName);
+      const { url } = await uploadFile(null, manipulated.uri, fileName);
       setAvatar(url);
     } catch (e: any) { Alert.alert('Upload failed', e?.message || 'Try again later'); }
     finally { setUploading(false); }
@@ -340,7 +340,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
 });
-
 
 
 

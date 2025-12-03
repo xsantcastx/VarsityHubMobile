@@ -8,7 +8,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/components/ui/PrimaryButton';
-import { Color, Radius, Type } from '@/ui/tokens';
+import { Radius, Type } from '@/components/ui/tokens';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 // @ts-ignore api exports
 import { Event } from '@/api/entities';
 
@@ -31,6 +33,9 @@ const pickBanner = (event: any) => event?.game?.cover_image_url || event?.banner
 
 export default function TeamHubScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);
+  const S = useMemo(() => createStyles(palette), [palette]);
   const [activeTab, setActiveTab] = useState<'team' | 'create' | 'approvals'>('team');
   const [query, setQuery] = useState('');
   const [events, setEvents] = useState<any[]>([]);
@@ -108,16 +113,16 @@ export default function TeamHubScreen() {
   return (
     <SafeAreaView style={S.page} edges={['top']}>
       <Stack.Screen options={{ title: 'Team Hub' }} />
-      <Text style={[Type.h0 as any, { color: Color.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
+      <Text style={[Type.h0 as any, { color: palette.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
 
       {/* Search */}
       <View style={S.searchWrap}>
-        <Ionicons name="search" size={18} color={Color.placeholder} style={{ marginRight: 8 }} />
+        <Ionicons name="search" size={18} color={palette.placeholder} style={{ marginRight: 8 }} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search for teams, players, or events."
-          placeholderTextColor={Color.placeholder}
+          placeholderTextColor={palette.placeholder}
           style={S.searchInput}
         />
       </View>
@@ -127,24 +132,27 @@ export default function TeamHubScreen() {
       {/* Team Management Card */}
       <View style={S.card}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={S.iconTile}><Ionicons name="shield-checkmark" size={24} color={Color.primary} /></View>
+          <View style={S.iconTile}><Ionicons name="shield-checkmark" size={24} color={palette.primary} /></View>
           <View style={{ flex: 1 }}>
-            <Text style={[Type.h1 as any, { color: Color.text }]}>Team Management</Text>
+            <Text style={[Type.h1 as any, { color: palette.text }]}>Team Management</Text>
             <Text style={[Type.sub as any]}>Create new teams and manage existing ones.</Text>
           </View>
         </View>
 
         <View style={S.dashedBox}>
-          <Text style={{ fontWeight: '800', color: Color.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
+          <Text style={{ fontWeight: '800', color: palette.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
           <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
-          <PrimaryButton label="Create New Team" onPress={() => router.push('/onboarding/step-5-league')} />
+          <PrimaryButton
+            label="Create New Team"
+            onPress={() => router.push({ pathname: '/onboarding/step-5-league' as any })}
+          />
         </View>
       </View>
 
       {/* Section header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
-        <Ionicons name="calendar" size={18} color={Color.primary} />
-        <Text style={[Type.h2 as any, { color: Color.text }]}>Next Events</Text>
+        <Ionicons name="calendar" size={18} color={palette.primary} />
+        <Text style={[Type.h2 as any, { color: palette.text }]}>Next Events</Text>
       </View>
 
       {/* Countdown to Next Game */}
@@ -188,7 +196,7 @@ export default function TeamHubScreen() {
 
       <View style={S.eventsWrap}>
         {eventsLoading ? (
-          <ActivityIndicator color={Color.primary} />
+          <ActivityIndicator color={palette.primary} />
         ) : eventsError ? (
           <Text style={[Type.sub as any, { color: '#b91c1c' }]}>{eventsError}</Text>
         ) : upcomingEvents.length === 0 ? (
@@ -212,19 +220,19 @@ export default function TeamHubScreen() {
                 </View>
                 <View style={S.eventInfo}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <Ionicons name="location" size={14} color={Color.primary} />
+                    <Ionicons name="location" size={14} color={palette.primary} />
                     <Text style={S.eventLocation} numberOfLines={1}>{evt.location || 'TBD'}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={S.eventChip}>
-                      <Ionicons name="people" size={14} color={Color.primary} />
+                      <Ionicons name="people" size={14} color={palette.primary} />
                       <Text style={S.eventChipText}>
                         {going != null ? `${going} going` : 'RSVP open'}
                       </Text>
                     </View>
                     {typeof evt.capacity === 'number' ? (
                       <View style={S.eventChipMuted}>
-                        <Ionicons name="alert-circle" size={14} color={Color.placeholder} />
+                        <Ionicons name="alert-circle" size={14} color={palette.placeholder} />
                         <Text style={S.eventChipMutedText}>{evt.capacity} capacity</Text>
                       </View>
                     ) : null}
@@ -239,30 +247,42 @@ export default function TeamHubScreen() {
   );
 }
 
-const S = StyleSheet.create({
-  page: { flex: 1, backgroundColor: Color.pageBg },
+type Palette = ReturnType<typeof buildPalette>;
+
+const buildPalette = (scheme: keyof typeof Colors) => ({
+  ...Colors[scheme],
+  primary: '#2563EB',
+  placeholder: Colors[scheme].mutedText,
+  pageBg: Colors[scheme].background,
+  tabBg: Colors[scheme].surface,
+  infoTile: Colors[scheme].surface,
+  borderMuted: Colors[scheme].border,
+});
+
+const createStyles = (palette: Palette) => StyleSheet.create({
+  page: { flex: 1, backgroundColor: palette.pageBg },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
     height: 48, marginHorizontal: 16, borderRadius: Radius.md,
-    backgroundColor: Color.surface, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: Color.border,
+    backgroundColor: palette.surface, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: palette.border,
   },
-  searchInput: { flex: 1, color: Color.text },
+  searchInput: { flex: 1, color: palette.text },
   tabsWrap: {
-    flexDirection: 'row', backgroundColor: Color.tabBg, borderRadius: Radius.md,
+    flexDirection: 'row', backgroundColor: palette.tabBg, borderRadius: Radius.md,
     marginHorizontal: 16, marginTop: 12, padding: 6, gap: 6, height: 40,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md },
-  tabOn: { backgroundColor: Color.surface, borderWidth: 1, borderColor: Color.border },
+  tabOn: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
   tabLabel: { fontWeight: '700', color: '#374151' },
-  tabLabelOn: { color: Color.text },
+  tabLabelOn: { color: palette.text },
   card: {
-    margin: 16, padding: 16, borderRadius: Radius.lg, backgroundColor: Color.surface,
-    borderWidth: 1, borderColor: Color.border, gap: 12,
+    margin: 16, padding: 16, borderRadius: Radius.lg, backgroundColor: palette.surface,
+    borderWidth: 1, borderColor: palette.border, gap: 12,
   },
-  iconTile: { width: 56, height: 56, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: Color.infoTile },
+  iconTile: { width: 56, height: 56, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.infoTile },
   dashedBox: {
-    borderWidth: 2, borderStyle: 'dashed', borderColor: Color.borderMuted, borderRadius: Radius.md,
+    borderWidth: 2, borderStyle: 'dashed', borderColor: palette.borderMuted, borderRadius: Radius.md,
     padding: 16, alignItems: 'center', justifyContent: 'center', minHeight: 180, marginTop: 8,
   },
   // Countdown
@@ -323,12 +343,12 @@ const S = StyleSheet.create({
     opacity: 0.6,
   },
   eventsWrap: { marginHorizontal: 16, gap: 12, marginBottom: 24 },
-  eventsEmpty: { color: Color.placeholder, fontStyle: 'italic' },
+  eventsEmpty: { color: palette.placeholder, fontStyle: 'italic' },
   eventCard: {
     borderRadius: Radius.lg,
-    backgroundColor: Color.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: Color.border,
+    borderColor: palette.border,
     overflow: 'hidden',
   },
   eventMedia: { width: '100%', height: 140 },
@@ -340,7 +360,7 @@ const S = StyleSheet.create({
   eventDate: { color: '#BFDBFE', fontWeight: '700', fontSize: 12 },
   eventTitle: { color: 'white', fontWeight: '800', fontSize: 16, marginTop: 4 },
   eventInfo: { padding: 14, gap: 8 },
-  eventLocation: { color: Color.text, fontWeight: '600', flex: 1 },
+  eventLocation: { color: palette.text, fontWeight: '600', flex: 1 },
   eventChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4,

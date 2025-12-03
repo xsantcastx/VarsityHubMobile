@@ -12,6 +12,11 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { httpGet } from '@/api/http';
+import { initSentry } from '@/utils/sentry';
+
+// Initialize Sentry before app renders
+initSentry();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -22,6 +27,9 @@ export default function RootLayout() {
   const segments = useSegments();
   const navState = useRootNavigationState();
   const lastRedirectRef = React.useRef<string | null>(null);
+  const [healthOk, setHealthOk] = React.useState<boolean>(true);
+  const [healthChecked, setHealthChecked] = React.useState<boolean>(false);
+  const [_healthError, setHealthError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!__DEV__) return;
@@ -49,8 +57,27 @@ export default function RootLayout() {
     const first = firstSegment;
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(first);
-    (async () => {
+    // Check backend health once before protected calls
+    void (async () => {
+      if (!healthChecked) {
+        try {
+          await httpGet('/health');
+          setHealthOk(true);
+          setHealthError(null);
+        } catch (err: any) {
+          setHealthOk(false);
+          setHealthError(typeof err?.message === 'string' ? err.message : 'API unreachable');
+        } finally {
+          setHealthChecked(true);
+        }
+      }
+    })();
+    void (async () => {
       try {
+        // If API is unhealthy, avoid redirect churn and let UI render
+        if (!isPublic && healthChecked && !healthOk) {
+          return;
+        }
         const me: any = await User.me();
         const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
         if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-1-role') {
@@ -78,7 +105,7 @@ export default function RootLayout() {
         // Don't redirect on other errors - let user stay where they are
       }
     })();
-  }, [firstSegment, navState?.key, router]);
+  }, [firstSegment, navState?.key, router, healthChecked, healthOk]);
 
   if (!loaded || !navState?.key) {
     return (
@@ -122,6 +149,12 @@ export default function RootLayout() {
               <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="+not-found" />
+            {/* Connectivity banner */}
+            {!healthOk && healthChecked ? (
+              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            ) : (
+              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            )}
             </Stack>
             <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
           </NavigationThemeProvider>

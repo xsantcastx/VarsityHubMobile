@@ -70,7 +70,7 @@ export default function GameMapScreen() {
   }, [loadGames]);
 
   const handleEventPress = (eventId: string) => {
-    router.push(`/game-detail?id=${eventId}`);
+    router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(eventId) } });
   };
 
   return (
@@ -92,16 +92,19 @@ export default function GameMapScreen() {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-          <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>
-            Loading nearby games...
-          </Text>
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
         </View>
+      ) : events.length > 0 ? (
+        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} />
       ) : (
-        <EventMap
-          events={events}
-          onEventPress={handleEventPress}
-          showUserLocation={true}
-        />
+        <View style={styles.emptyContainer}>
+          <Ionicons name="map" size={40} color={Colors[colorScheme].mutedText} />
+          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No mapped games yet</Text>
+          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Try Discover or follow teams near you.</Text>
+          <Pressable onPress={() => router.push('/(tabs)/discover')} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Open Discover</Text>
+          </Pressable>
+        </View>
       )}
     </SafeAreaView>
   );
