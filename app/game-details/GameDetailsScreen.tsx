@@ -15,6 +15,7 @@ import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
+import { retryWithBackoff } from '@/utils/retryWithBackoff';
 
 // @ts-ignore JS exports
 import { Event, Game, Team, User } from '@/api/entities';
@@ -758,7 +759,11 @@ const GameDetailsScreen = () => {
       }
 
       try {
-        const summary: any = await Game.summary(gameIdValue).catch((err: any) => {
+        const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
+          maxRetries: 2,
+          initialDelay: 800,
+          maxDelay: 4000,
+        }).catch((err: any) => {
           // Treat 404 as missing summary without escalating
           if (err && err.status === 404) return null;
           throw err;
@@ -768,7 +773,11 @@ const GameDetailsScreen = () => {
         let mediaData: any = [];
         if (!summary) {
           // Only attempt record fetch if summary missing; suppress 404 noise
-          gameRecord = await Game.get(gameIdValue).catch((err: any) => {
+          gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
+            maxRetries: 2,
+            initialDelay: 800,
+            maxDelay: 4000,
+          }).catch((err: any) => {
             if (err && err.status === 404) return null;
             console.warn('Game record fetch failed:', err?.message || err);
             return null;
