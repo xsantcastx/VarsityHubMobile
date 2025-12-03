@@ -839,9 +839,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   const handleShare = useCallback((post: FeedPost) => {
-   const deepLink = AppLinks.post(post.id);
-   const message = post.caption ? `${post.caption}\n${deepLink}` : deepLink;
-   Share.share({ message }).catch(() => {});
+   const shareLink = AppLinks.post(post.id, post.caption);
+   Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
   const handleDeletePost = useCallback(

@@ -59,8 +59,10 @@ export default function MessagesScreen() {
       const link = AppLinks.post(sharePostId);
       setPrefillMessage(`Check out this post: ${link}`);
       setComposeOpen(true);
+      // Clear the query param so it doesn't retrigger on navigation flicker
+      router.setParams({ sharePost: undefined });
     }
-  }, [sharePostId]);
+  }, [sharePostId, router]);
   const [searchResults, setSearchResults] = useState<MiniUser[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
 
@@ -184,19 +186,27 @@ export default function MessagesScreen() {
     };
   }, [searchUserQuery, me]);
 
+  const buildThreadPath = (base: string) => {
+    if (!prefillMessage) return base;
+    const delimiter = base.includes('?') ? '&' : '?';
+    return `${base}${delimiter}prefill=${encodeURIComponent(prefillMessage)}`;
+  };
+
   const openThread = (conv: Conversation) => {
-    if (conv.lastMessage.conversation_id) {
-      router.push(`/message-thread?conversation_id=${encodeURIComponent(String(conv.lastMessage.conversation_id))}`);
-    } else {
-      router.push(`/message-thread?with=${encodeURIComponent(conv.other.id)}`);
-    }
+    const base = conv.lastMessage.conversation_id
+      ? `/message-thread?conversation_id=${encodeURIComponent(String(conv.lastMessage.conversation_id))}`
+      : `/message-thread?with=${encodeURIComponent(conv.other.id)}`;
+    router.push(buildThreadPath(base) as any);
+    if (prefillMessage) setPrefillMessage(null);
   };
 
   const startConversation = (user: MiniUser) => {
     setComposeOpen(false);
     setSearchUserQuery('');
     setSearchResults([]);
-    router.push(`/message-thread?with=${encodeURIComponent(user.id)}`);
+    const base = `/message-thread?with=${encodeURIComponent(user.id)}`;
+    router.push(buildThreadPath(base) as any);
+    if (prefillMessage) setPrefillMessage(null);
   };
 
   const formatTime = (dateStr: string) => {

@@ -99,6 +99,8 @@ export default function ManageSeasonScreen() {
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
+  const [managedTeams, setManagedTeams] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamSelectorOpen, setTeamSelectorOpen] = useState<boolean>(false);
 
   // Guard: restrict to coach role
   useEffect(() => {
@@ -115,20 +117,44 @@ export default function ManageSeasonScreen() {
   }, [router]);
 
   const loadTeam = useCallback(async () => {
-    if (!params.teamId) return;
     try {
-      const teamData = await TeamAPI.get(params.teamId);
-      setCurrentTeam({ id: teamData.id, name: teamData.name });
+      if (params.teamId) {
+        const teamData = await TeamAPI.get(params.teamId);
+        setCurrentTeam({ id: String(teamData.id), name: String(teamData.name) });
+        return;
+      }
+      // No teamId provided: fetch managed teams and prompt selection
+      const teams = await TeamAPI.managed();
+      const arr = Array.isArray(teams) ? teams : (Array.isArray((teams as any)?.items) ? (teams as any).items : []);
+      const normalized = arr.map((t: any) => ({ id: String(t.id), name: String(t.name || t.display_name || 'Team') }));
+      setManagedTeams(normalized);
+      if (normalized.length > 0) {
+        setTeamSelectorOpen(true);
+      } else {
+        setActionModal({
+          visible: true,
+          title: 'No Managed Teams',
+          message: 'You don\'t manage any teams yet. Create one to continue.',
+          options: [
+            { label: 'Create Team', onPress: () => router.push('/create-team') },
+            { label: 'Close', onPress: () => {} },
+          ],
+        });
+      }
     } catch (error) {
       console.error('Error loading team:', error);
     }
-  }, [params.teamId]);
+  }, [params.teamId, router]);
 
   const loadGames = useCallback(async () => {
     try {
       setLoading(true);
+      if (!currentTeam?.id) {
+        setGames([]);
+        return;
+      }
       const backendGames = await GameAPI.list('-date');
-      const targetTeamId = params.teamId ? String(params.teamId) : null;
+      const targetTeamId = String(currentTeam.id);
       const relevantGames: any[] = Array.isArray(backendGames)
         ? backendGames.filter((game: any) => {
             if (!targetTeamId) return true;
@@ -146,7 +172,14 @@ export default function ManageSeasonScreen() {
       
       // Convert backend games to local Game format
       const convertedGames: Game[] = relevantGames.map((game: any) => {
-        const converted = {
+        const resolvedType: Game['type'] =
+          game.game_type === 'neutral' || game.type === 'neutral'
+            ? 'neutral'
+            : game.home_team && game.home_team !== 'Away Team'
+              ? 'home'
+              : 'away';
+
+        const converted: Game = {
           id: game.id,
           homeTeam: game.home_team || null,
           awayTeam: game.away_team || null,
@@ -158,7 +191,7 @@ export default function ManageSeasonScreen() {
             hour12: true
           }) : '7:00 PM',
           location: game.location || 'TBD',
-          type: game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away',
+          type: resolvedType,
           status: 'upcoming',
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
@@ -183,13 +216,18 @@ export default function ManageSeasonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [params.teamId]);
+  }, [currentTeam?.id]);
 
-  // Load games on mount
+  // Load team and then games
   useEffect(() => {
     loadTeam();
-    loadGames();
-  }, [loadTeam, loadGames]);
+  }, [loadTeam]);
+
+  useEffect(() => {
+    if (currentTeam?.id) {
+      loadGames();
+    }
+  }, [currentTeam?.id, loadGames]);
 
   // Mock data - Initialize games with existing mock data
   const seasonStats: SeasonStats = {
@@ -973,9 +1011,11 @@ export default function ManageSeasonScreen() {
           <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
-          <Text style={{ fontSize: 24, fontWeight: '700', textAlign: 'center', color: Colors[colorScheme].text, flex: 1 }}>
-            {currentTeam?.name || 'Team Season'}
-          </Text>
+          <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>
+            <Text style={{ fontSize: 24, fontWeight: '700', textAlign: 'center', color: Colors[colorScheme].text }}>
+              {currentTeam?.name || 'Select Team'}
+            </Text>
+          </Pressable>
           <View style={{ width: 40 }} />
         </View>
       </View>
@@ -1006,6 +1046,24 @@ export default function ManageSeasonScreen() {
       >
         {selectedTab === 'schedule' && (
           <View style={styles.tabContent}>
+            {!currentTeam?.id ? (
+              <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}> 
+                <SectionHeader title="Select a Team to Manage" style={{ paddingHorizontal: 0 }} />
+                {managedTeams.length > 0 ? (
+                  managedTeams.map((t) => (
+                    <Pressable key={t.id} style={[styles.gameCard, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => { setCurrentTeam(t); setTeamSelectorOpen(false); }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="shield" size={18} color={Colors[colorScheme].tint} />
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>{t.name}</Text>
+                      </View>
+                    </Pressable>
+                  ))
+                ) : (
+                  <EmptyState icon="people-outline" title="No Teams" subtitle="Create a team to manage your season." />
+                )}
+              </View>
+            ) : null}
             {/* Pending Approval Queue */}
             {pendingGames.length > 0 && (
               <View style={[styles.sectionCard, { backgroundColor: Colors[colorScheme].surface, borderColor: '#F59E0B', borderWidth: 2 }]}>

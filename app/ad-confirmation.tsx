@@ -7,6 +7,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BackHeader } from '@/components/ui/BackHeader';
 
 export default function AdConfirmationScreen() {
   const router = useRouter();
@@ -43,6 +44,12 @@ export default function AdConfirmationScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
+      <BackHeader 
+        title="Ad Confirmation"
+        backgroundColor={Colors[colorScheme].background}
+        textColor={Colors[colorScheme].text}
+        borderColor={Colors[colorScheme].border}
+      />
       
       {loading ? (
         <View style={styles.loadingContainer}>

@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
@@ -15,40 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
-import GameVerticalFeedScreen, { FeedPost, mapHighlightToFeedPost } from './game-details/GameVerticalFeedScreen';
+import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
-
-// Feature flag: force sample feed for demos/regression runs
-const FORCE_SAMPLE_FEED = (process.env.EXPO_PUBLIC_FORCE_SAMPLE_FEED || '').toLowerCase() === 'true';
-
-const SAMPLE_EVENTS_SOURCE = require('../assets/sample-events.json');
-const SAMPLE_EVENTS: any[] = Array.isArray(SAMPLE_EVENTS_SOURCE?.default)
-  ? SAMPLE_EVENTS_SOURCE.default
-  : Array.isArray(SAMPLE_EVENTS_SOURCE)
-    ? SAMPLE_EVENTS_SOURCE
-    : [];
-
-const HighlightCard = ({ highlight, onPress }: { highlight: FeedPost, onPress: () => void }) => {
-  const colorScheme = useColorScheme() ?? 'light';
-  return (
-    <Pressable onPress={onPress} style={styles.highlightCard}>
-      <Image
-        source={{ uri: highlight.media_url }}
-        style={styles.highlightImage}
-        contentFit="cover"
-      />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.8)']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.highlightOverlay}>
-        <Ionicons name="play-circle" size={40} color="white" />
-      </View>
-      <Text style={styles.highlightCaption} numberOfLines={2}>{highlight.caption}</Text>
-    </Pressable>
-  );
-};
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
@@ -242,14 +211,13 @@ export default function FeedScreen() {
 
   const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
   const [zipSuggestionsOpen, setZipSuggestionsOpen] = useState(false);
-  const [highlights, setHighlights] = useState<FeedPost[]>([]);
+  const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
   const [sponsoredIndex, setSponsoredIndex] = useState(0);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
-  const [sampleEvents, setSampleEvents] = useState<any[]>([]);
   
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
@@ -296,7 +264,7 @@ export default function FeedScreen() {
       const todayISO = new Date().toISOString().slice(0, 10);
       const [gamesData, highlightsData, forFeedAds] = await Promise.all([
         Game.list('-date'),
-        Highlights.fetch(countryCode ? { country: countryCode, limit: 40 } : { limit: 40 }).catch((err) => {
+        Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
@@ -313,22 +281,46 @@ export default function FeedScreen() {
         normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       }
       
-      const allGames = [...normalizedGames];
-
-      setGames(allGames);
+      // If no games returned, inject sample events for Warriors, Duke, Patriots
+      if (!normalizedGames || normalizedGames.length === 0) {
+        const now = new Date();
+        const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
+        normalizedGames = [
+          {
+            id: 'sample-warriors-lakers',
+            title: 'Golden State Warriors vs. Los Angeles Lakers',
+            date: addDays(2),
+            location: 'Chase Center, San Francisco, CA 94158',
+            cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
+          },
+          {
+            id: 'sample-duke-unc',
+            title: 'Duke Blue Devils vs. North Carolina Tar Heels',
+            date: addDays(5),
+            location: 'Cameron Indoor Stadium, Durham, NC 27708',
+            cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
+          },
+          {
+            id: 'sample-patriots-jets',
+            title: 'New England Patriots vs. New York Jets',
+            date: addDays(7),
+            location: 'Gillette Stadium, Foxborough, MA 02035',
+            cover_image_url: 'https://images.unsplash.com/photo-1504457049873-30ffae0d3d31?q=80&w=1280&auto=format&fit=crop',
+          },
+        ];
+      }
+      setGames(normalizedGames);
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
-      setZipDirectory(buildZipDirectory(allGames));
+      setZipDirectory(buildZipDirectory(normalizedGames));
       if (highlightsData) {
         const merged: any[] = [];
         if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
         if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
-        
-        const mappedHighlights = merged.map(mapHighlightToFeedPost).filter(Boolean) as FeedPost[];
-        setHighlights(mappedHighlights);
-
+        const firstWithMedia = merged.find((item) => typeof item?.media_url === 'string' && item.media_url);
+        setHighlightPreview(firstWithMedia || null);
       } else {
-        setHighlights([]);
+        setHighlightPreview(null);
       }
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
         const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
@@ -348,7 +340,7 @@ export default function FeedScreen() {
       setError('Unable to load games. Sign in may be required.');
       setGames([]);
       setZipDirectory([]);
-      setHighlights([]);
+      setHighlightPreview(null);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -387,15 +379,6 @@ export default function FeedScreen() {
       await load();
     })();
   }, [load]);
-
-  // Load sample events when the feed is empty, to showcase UI
-  useEffect(() => {
-    if (FORCE_SAMPLE_FEED || (!loading && games.length === 0)) {
-      setSampleEvents(Array.isArray(SAMPLE_EVENTS) ? [...SAMPLE_EVENTS] : []);
-    } else {
-      setSampleEvents([]);
-    }
-  }, [loading, games.length]);
 
   useEffect(() => {
     if (!games.length) return;
@@ -495,7 +478,6 @@ export default function FeedScreen() {
     const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
     const adInterval = 8; // Show ad every 8 events
     const hasAds = sponsoredAds && sponsoredAds.length > 0;
-    let adRotationIndex = 0; // Track which ad to show next for rotation
     
     // If no events exist, show promotional ad card alone
     if (upcomingEvents.length === 0) {
@@ -509,8 +491,8 @@ export default function FeedScreen() {
       // Insert first ad AFTER the first event (index 0)
       if (index === 0) {
         if (hasAds) {
-          result.push({ type: 'ad', ad: sponsoredAds[adRotationIndex % sponsoredAds.length] });
-          adRotationIndex++;
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
         } else {
           result.push({ type: 'ad', ad: null });
         }
@@ -518,9 +500,9 @@ export default function FeedScreen() {
       // Insert subsequent ads after every adInterval events (starting from the first interval)
       else if ((index + 1) % adInterval === 0) {
         if (hasAds) {
-          // Rotate through available ads sequentially to prevent repetition
-          result.push({ type: 'ad', ad: sponsoredAds[adRotationIndex % sponsoredAds.length] });
-          adRotationIndex++;
+          // Pick a random ad from available ads
+          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
+          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
         } else {
           // No ads available, show promotional card
           result.push({ type: 'ad', ad: null });
@@ -528,19 +510,45 @@ export default function FeedScreen() {
       }
     });
     
-    // Ensure at least one sponsored slot even if we have <9 events
-    // If no ad slots were added (events < adInterval and not index 0), append one at the end
-    const hasAdSlots = result.some(item => 'type' in item && item.type === 'ad');
-    if (!hasAdSlots && upcomingEvents.length > 0) {
-      if (hasAds) {
-        result.push({ type: 'ad', ad: sponsoredAds[0] });
-      } else {
-        result.push({ type: 'ad', ad: null });
-      }
-    }
-    
     return result;
   }, [upcomingEvents, sponsoredAds]);
+
+  const verticalFeedTitle = 'All Highlights';
+  const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
+  const verticalFeedSubtitleText = highlightPreview?.title
+    ? `Featured: ${highlightPreview.title}`
+    : 'Tap to watch top plays from every game.';
+  const verticalFeedAuthorText = highlightPreview?.author?.display_name
+    ? `By ${highlightPreview.author.display_name}`
+    : null;
+
+  const zipSuggestions = useMemo(() => {
+    if (!zipSuggestionsOpen) return [] as ZipDirectoryEntry[];
+    const digits = query.replace(/[^0-9]/g, '');
+    if (digits.length < 2) return [] as ZipDirectoryEntry[];
+    return zipDirectory
+      .filter((entry) => entry.zip.startsWith(digits))
+      .slice(0, 6);
+  }, [zipSuggestionsOpen, query, zipDirectory]);
+
+  const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    const digits = value.replace(/[^0-9]/g, '');
+    setZipSuggestionsOpen(digits.length >= 2);
+  }, []);
+
+  const handleZipSelect = useCallback((zip: string) => {
+    setQuery(zip);
+    setZipSuggestionsOpen(false);
+    Keyboard.dismiss();
+  }, []);
+
+  const handleSearchFocus = useCallback(() => {
+    const digits = query.replace(/[^0-9]/g, '');
+    setZipSuggestionsOpen(digits.length >= 2);
+  }, [query]);
 
   const openInstagram = useCallback(async () => {
     const instagramUrl = 'https://instagram.com/varsityhub_';
@@ -560,15 +568,9 @@ export default function FeedScreen() {
   const userCountryCode = typeof me?.preferences?.country_code === 'string'
     ? String(me.preferences.country_code).toUpperCase()
     : undefined;
-    
-  const handleSearchFocus = useCallback(() => {
-    const digits = query.replace(/[^0-9]/g, '');
-    setZipSuggestionsOpen(digits.length >= 2);
-  }, [query]);
 
-  const openVerticalFeed = useCallback((startIndex: number) => {
+  const openVerticalFeed = useCallback(() => {
     setActiveVerticalFeedGameId(null);
-    (global as any).__tempStartIndex = startIndex;
     setVerticalFeedModalVisible(true);
   }, []);
 
@@ -671,7 +673,7 @@ export default function FeedScreen() {
         </Pressable>
       );
     },
-    [colorScheme, onRefresh, router, voteSummaries],
+    [onRefresh, router, voteSummaries],
   );
 
   return (
@@ -778,8 +780,8 @@ export default function FeedScreen() {
           <ActivityIndicator />
         </View>
       )}
-      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && sampleEvents.length === 0 && !FORCE_SAMPLE_FEED && (
-        <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
+      {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
+  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
       )}
 
       <ScrollView
@@ -799,8 +801,8 @@ export default function FeedScreen() {
       >
         {renderEmailReminder()}
         
-        {/* Upcoming Events with Ads (hidden when sample-feed is forced) */}
-        {!FORCE_SAMPLE_FEED && upcomingWithAds.length > 0 && (
+        {/* Upcoming Events with Ads */}
+        {upcomingWithAds.length > 0 && (
           <View style={{ gap: 20 }}>
             {upcomingWithAds.map((item, index) => {
               // Check if this is an ad
@@ -974,65 +976,8 @@ export default function FeedScreen() {
           </View>
         )}
 
-        {/* Sample Events fallback or forced sample mode */}
-        {!loading && (FORCE_SAMPLE_FEED || (upcomingEvents.length === 0 && pastEvents.length === 0)) && sampleEvents.length > 0 && (
-          <View style={{ gap: 20 }}>
-            <View>
-              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].text }]}>Sample Events</Text>
-              <Text style={[styles.muted, { color: Colors[colorScheme].mutedText, marginTop: 4 }]}>Add your teams to see real games near you.</Text>
-            </View>
-            {sampleEvents.map((evt, index) => {
-              const banner = evt.coverUrl || null;
-              const hasBanner = typeof banner === 'string' && banner.length > 0;
-              const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-              const startsAt = evt.starts_at ? new Date(evt.starts_at) : null;
-              const eventDate = startsAt ? format(startsAt, 'MMM d') : 'TBD';
-              const eventTime = startsAt ? format(startsAt, 'h:mm a') : '';
-              const locationText = evt.location?.name || 'Location TBD';
-
-              return (
-                <View key={String(evt.id)} style={styles.singleEventCard}>
-                  {hasBanner ? (
-                    <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
-                  ) : (
-                    <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                  )}
-                  <LinearGradient
-                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
-                    style={styles.gridShade}
-                    pointerEvents="none"
-                  />
-                  <View style={styles.gridContent}>
-                    <View style={styles.gridDateChip}>
-                      <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
-                      <Text style={styles.gridDateText}>{eventDate}</Text>
-                    </View>
-                    <Text style={styles.gridTitle} numberOfLines={2}>
-                      {String(evt.title)}
-                    </Text>
-                    <Text style={styles.gridMeta} numberOfLines={1}>
-                      {eventTime ? `${eventTime} • ${locationText}` : locationText}
-                    </Text>
-                    <View style={styles.gridStatsRow}>
-                      <View style={styles.gridStat}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
-                        <Text style={styles.gridStatText}>0</Text>
-                      </View>
-                      <View style={styles.gridStat}>
-                        <Ionicons name="image-outline" size={12} color="#F9FAFB" />
-                        <Text style={styles.gridStatText}>0</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.gridVoteText, { color: '#93C5FD' }]}>Sample</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Past Events Section (hidden when sample-feed is forced) */}
-        {!FORCE_SAMPLE_FEED && pastEvents.length > 0 && (
+        {/* Past Events Section */}
+        {pastEvents.length > 0 && (
           <View style={{ marginTop: 32 }}>
             <Text style={[styles.sectionHeader, { color: Colors[colorScheme].mutedText }]}>
               Past Events
@@ -1119,26 +1064,44 @@ export default function FeedScreen() {
         
         {/* Footer Content */}
         <View style={styles.gridFooter}>
-          {/* REMOVED static sponsored card - ads now appear in feed */}
+          {/* Removed static sponsored card - ads now appear in feed */}
 
-          {highlights.length > 0 && (
-            <View style={styles.verticalFeedSection}>
-              <Text style={[styles.sectionHeader, { color: Colors[colorScheme].text, marginBottom: 12 }]}>All Highlights</Text>
-              <FlatList
-                    horizontal
-                    data={highlights}
-                    renderItem={({ item: highlight, index }) => (
-                      <HighlightCard
-                        highlight={highlight}
-                        onPress={() => openVerticalFeed(index)}
-                      />
-                    )}
-                    keyExtractor={(item, index) => `${item.id}-${index}`}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: 12, paddingRight: 16 }}
+          <View style={styles.verticalFeedSection}>
+            <Text style={styles.sectionTitle}>{verticalFeedTitle}</Text>
+            <Pressable
+              onPress={openVerticalFeed}
+              style={styles.verticalFeedCard}
+              accessibilityRole="button"
+              accessibilityLabel="Open highlights reel"
+            >
+              {verticalFeedPreviewImage ? (
+                <Image source={{ uri: verticalFeedPreviewImage }} style={styles.verticalFeedImage} contentFit="cover" />
+              ) : (
+                <LinearGradient
+                  colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#1e293b', '#0f172a']}
+                  style={styles.verticalFeedImage}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+              )}
+              <LinearGradient
+                colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.2)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.85)']}
+                style={styles.verticalFeedShade}
               />
-            </View>
-          )}
+              <View style={styles.verticalFeedContent}>
+                <View style={styles.verticalFeedBadge}>
+                  <Ionicons name="play" size={18} color="#fff" />
+                </View>
+                <Text style={styles.verticalFeedTitleText}>Watch Highlights</Text>
+                {verticalFeedAuthorText ? (
+                  <Text style={styles.verticalFeedCaption} numberOfLines={1}>{verticalFeedAuthorText}</Text>
+                ) : null}
+                <Text style={styles.verticalFeedSubtitle} numberOfLines={2}>
+                  {verticalFeedSubtitleText}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
 
           {loadingMore ? (
             <View style={styles.loadingMore}>
@@ -1251,12 +1214,11 @@ export default function FeedScreen() {
         presentationStyle="fullScreen"
         onRequestClose={closeVerticalFeed}
       >
-        <View style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}>
+  <View style={[styles.verticalFeedModal, { backgroundColor: Colors[colorScheme].background }]}>
           {verticalFeedModalVisible ? (
             <GameVerticalFeedScreen
-              key={'all-highlights-feed'}
-              initialPosts={highlights}
-              startIndex={(global as any).__tempStartIndex ?? 0}
+              key={activeVerticalFeedGameId || 'all-highlights'}
+              gameId={activeVerticalFeedGameId}
               onClose={closeVerticalFeed}
               countryCode={userCountryCode}
             />
@@ -1312,8 +1274,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+    flex: 1,
   },
-  gridRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 4, marginBottom: 6 },
+  gridRow: { gap: 6, paddingHorizontal: 4, marginBottom: 6 },
   masonryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1443,7 +1406,6 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    margin: 4,
     aspectRatio: 1,
     borderRadius: 18,
     overflow: 'hidden',
@@ -1519,32 +1481,14 @@ const styles = StyleSheet.create({
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
   verticalFeedSection: { marginTop: 32, marginBottom: 24 },
-  // New styles for horizontal highlight cards
-  highlightCard: {
-    width: 150,
-    height: 250,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#333',
-  },
-  highlightImage: {
-    width: '100%',
-    height: '100%',
-  },
-  highlightOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  highlightCaption: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    right: 8,
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
+  verticalFeedCard: { marginTop: 12, borderRadius: 20, overflow: 'hidden', backgroundColor: '#0f172a', minHeight: 220, aspectRatio: 1, justifyContent: 'flex-end' },
+  verticalFeedImage: { ...StyleSheet.absoluteFillObject },
+  verticalFeedShade: { ...StyleSheet.absoluteFillObject },
+  verticalFeedContent: { position: 'absolute', left: 20, right: 20, bottom: 20, gap: 8 },
+  verticalFeedBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(37,99,235,0.95)', shadowColor: '#0f172a', shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
+  verticalFeedTitleText: { color: '#ffffff', fontWeight: '800', fontSize: 20 },
+  verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
+  verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
   alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
   // Menu Modal Styles
@@ -1667,4 +1611,21 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#2563EB',
   },
+  unreadBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
 });
+
+
+

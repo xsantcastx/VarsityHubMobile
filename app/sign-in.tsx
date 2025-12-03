@@ -1,9 +1,8 @@
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -19,8 +18,8 @@ import { User } from '@/api/entities';
 import { getApiBaseUrl } from '@/api/http';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
-import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,85 +38,44 @@ export default function SignInScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
   const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
-  const { trackTap } = useAnalytics();
 
   useEffect(() => {
     console.log('[sign-in] Runtime API base URL:', getApiBaseUrl());
   }, []);
-
-  const goToFeed = useCallback(() => {
-    const route = '/(tabs)' as const;
-    try {
-      router.replace(route);
-    } catch (err) {
-      console.warn('[sign-in] router.replace feed failed, falling back to push', err);
-      router.push(route);
-    }
-  }, [router]);
-
-  const goToVerifyEmail = useCallback(() => {
-    const route = '/verify-email' as const;
-    try {
-      router.replace(route);
-    } catch (err) {
-      console.warn('[sign-in] router.replace verify-email failed, falling back to push', err);
-      router.push(route);
-    }
-  }, [router]);
-
-  const goToOnboarding = useCallback(() => {
-    try {
-      router.replace('/onboarding/step-1-role');
-    } catch (err) {
-      console.warn('[sign-in] router.replace onboarding failed, falling back to push', err);
-      router.push('/onboarding/step-1-role');
-    }
-  }, [router]);
-
-  const handlePostAuthNavigation = useCallback(
-    (payload: any, options: { showWelcome?: boolean } = {}) => {
-      if (!payload) {
-        throw new Error('Login payload missing');
-      }
-      if (payload?.needs_verification) {
-        Alert.alert('Verify Email', 'Please verify your email to continue.');
-        goToVerifyEmail();
-        return;
-      }
-
-      const account = payload?.user || {};
-      const prefs = account?.preferences || {};
-      const needsOnboarding = payload?.needs_onboarding === true || prefs?.onboarding_completed === false;
-      if (needsOnboarding) {
-        goToOnboarding();
-        return;
-      }
-
-      if (options.showWelcome) {
-        Alert.alert('Signed in', 'Welcome back!');
-      }
-      goToFeed();
-    },
-    [goToFeed, goToOnboarding, goToVerifyEmail],
-  );
 
   const onSubmit = async () => {
     if (!email || !password) {
       setError('Please enter email and password');
       return;
     }
-    trackTap('auth_email_submit', { screen: 'sign_in' });
     setLoading(true);
     setError(null);
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
-      if (res?.access_token) {
-        handlePostAuthNavigation(res, { showWelcome: true });
-      } else {
-        console.error('Invalid login response:', res);
+      
+      if (!res?.access_token) {
         setError('Invalid login response');
         return;
       }
+
+      // Check if email verification is needed
+      if (res?.needs_verification) {
+        router.replace('/verify-email');
+        return;
+      }
+
+      // Check if onboarding is needed
+      const account = res?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = res?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+
+      // Everyone lands on feed after successful login
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       console.error('Login failed', e);
       setError(e?.message || 'Login failed');
@@ -133,9 +91,16 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      trackTap('auth_google_tap', { screen: 'sign_in' });
       const response: any = await signInWithGoogle();
-      handlePostAuthNavigation(response);
+      const account = response?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
@@ -152,9 +117,18 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      trackTap('auth_apple_tap', { screen: 'sign_in' });
       const response: any = await signInWithApple();
-      handlePostAuthNavigation(response);
+      
+      // The response includes both access_token and user data
+      // Check needs_onboarding from the auth response directly
+      const needsOnboarding = response?.needs_onboarding === true;
+      
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      
+      router.replace('/(tabs)/feed' as any);
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) return;
@@ -165,6 +139,12 @@ export default function SignInScreen() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Sign In', headerShown: false }} />
+      <BackHeader
+        title="Sign In"
+        backgroundColor={palette.background}
+        textColor={palette.text}
+        borderColor={palette.border}
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -438,6 +418,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+
 
 
 

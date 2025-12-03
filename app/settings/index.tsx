@@ -140,7 +140,6 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
               // use non-throwing optional onboarding context (may be null if not within OBProvider)
               const obCtx = useOnboardingOptional();
               const setOB = obCtx?.setState ?? null;
-              const pushHistory = obCtx?.pushHistory ?? null;
               const colorScheme = useColorScheme();
               const { themePreference, setThemePreference } = useThemePreference();
               const [loading, setLoading] = useState(true);
@@ -249,8 +248,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
                   } as any;
 
-                  // pushHistory is not available in the context, so this call is removed.
-                  // try { pushHistory?.(preload); } catch (e) { console.warn('Failed to push onboarding history', e); }
+                  // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
                   try { await User.updatePreferences({ onboarding_completed: false }); } catch (e) { /* ignore */ }
                   if (setOB) setOB(preload);
                   router.replace('/onboarding/step-1-role');
@@ -528,4 +526,3 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                 marginLeft: 'auto',
               },
             });
-

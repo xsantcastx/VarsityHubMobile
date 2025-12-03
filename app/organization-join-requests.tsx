@@ -4,7 +4,7 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type JoinRequest = {
@@ -35,6 +35,7 @@ export default function OrganizationJoinRequestsScreen() {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ visible: boolean; request: JoinRequest | null; reason: string }>({ visible: false, request: null, reason: '' });
 
   const loadRequests = useCallback(async () => {
     if (!params.organization_id) return;
@@ -90,32 +91,24 @@ export default function OrganizationJoinRequestsScreen() {
     );
   };
 
-  const handleReject = async (request: JoinRequest) => {
-    Alert.prompt(
-      'Reject Request',
-      `Reject "${request.team_name}"'s request to join? (Optional reason)`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async (reason?: string) => {
-            setProcessingId(request.id);
-            try {
-              await Organization.rejectJoinRequest(request.id, reason);
-              Alert.alert('Request Rejected', `${request.team_name} has been notified.`);
-              await loadRequests();
-            } catch (err: any) {
-              console.error('[OrganizationJoinRequests] Error rejecting request:', err);
-              Alert.alert('Error', err?.message || 'Failed to reject request');
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
+  const handleReject = (request: JoinRequest) => {
+    setRejectModal({ visible: true, request, reason: '' });
+  };
+
+  const submitReject = async () => {
+    if (!rejectModal.request) return;
+    setProcessingId(rejectModal.request.id);
+    try {
+      await Organization.rejectJoinRequest(rejectModal.request.id, rejectModal.reason.trim() || undefined);
+      Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
+      await loadRequests();
+    } catch (err: any) {
+      console.error('[OrganizationJoinRequests] Error rejecting request:', err);
+      Alert.alert('Error', err?.message || 'Failed to reject request');
+    } finally {
+      setProcessingId(null);
+      setRejectModal({ visible: false, request: null, reason: '' });
+    }
   };
 
   const formatDate = (dateString: string): string => {
@@ -346,6 +339,51 @@ export default function OrganizationJoinRequestsScreen() {
           )}
         </ScrollView>
       )}
+
+      <Modal
+        visible={rejectModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRejectModal({ visible: false, request: null, reason: '' })}
+      >
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={() => setRejectModal({ visible: false, request: null, reason: '' })}
+        >
+          <Pressable style={[styles.modalCard, { backgroundColor: theme.background }]} onPress={() => {}}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Reject Request</Text>
+            <Text style={[styles.modalSubtitle, { color: theme.mutedText }]}>
+              {rejectModal.request ? `Optional reason for rejecting ${rejectModal.request.team_name}.` : ''}
+            </Text>
+            <TextInput
+              placeholder="Reason (optional)"
+              placeholderTextColor={theme.mutedText}
+              style={[styles.modalInput, { color: theme.text, borderColor: theme.border }]}
+              value={rejectModal.reason}
+              onChangeText={(text) => setRejectModal((prev) => ({ ...prev, reason: text }))}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, { borderColor: theme.border }]}
+                onPress={() => setRejectModal({ visible: false, request: null, reason: '' })}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalButton, styles.modalButtonDanger]}
+                onPress={submitReject}
+                disabled={processingId === rejectModal.request?.id}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>
+                  {processingId === rejectModal.request?.id ? 'Rejecting...' : 'Reject'}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -533,5 +571,51 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 20,
+    maxWidth: 420,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  modalButtonDanger: {
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
+  },
+  modalButtonText: {
+    fontWeight: '700',
   },
 });

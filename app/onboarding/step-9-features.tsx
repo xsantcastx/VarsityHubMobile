@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -320,6 +320,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
 });
+
 
 
 

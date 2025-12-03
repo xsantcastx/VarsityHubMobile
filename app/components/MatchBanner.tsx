@@ -290,7 +290,16 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
     </Animated.View>
   );
 
-  const rsvpBadge = null; // RSVP now handled externally
+  const rsvpBadge = (typeof goingCount === 'number') ? (
+    <Pressable
+      onPress={onGoingPress}
+      accessibilityRole={onGoingPress ? 'button' : undefined}
+      accessibilityLabel="View RSVP details"
+      style={styles.goingBadge as any}
+    >
+      <Text style={styles.goingBadgeText as any}>{Math.max(0, goingCount!)} going</Text>
+    </Pressable>
+  ) : null;
 
   return (
     <View style={{ position: 'relative' }}>

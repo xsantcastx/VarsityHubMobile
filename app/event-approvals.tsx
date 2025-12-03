@@ -69,16 +69,10 @@ export default function EventApprovalsScreen() {
         console.warn('Unable to fetch user data:', err);
       }
 
-      const response = await httpGet('/games?show_pending=true&approval_status=pending');
-      if (response.ok) {
-        const data = await response.json();
-        // Filter only pending events
-        const pendingEvents = (data || []).filter((event: any) => event.approval_status === 'pending');
-        setEvents(pendingEvents);
-      } else {
-        console.warn('Failed to load events, using empty list');
-        setEvents([]);
-      }
+      // Use events pending queue
+      const data = await httpGet('/events/pending');
+      const pendingEvents = Array.isArray(data) ? data.filter((event: any) => event && event.approval_status === 'pending') : [];
+      setEvents(pendingEvents);
     } catch (e: any) {
       console.warn('Error loading pending events (backend may be deploying):', e?.message || e);
       setEvents([]);
@@ -100,16 +94,10 @@ export default function EventApprovalsScreen() {
   const handleApprove = async (eventId: number) => {
     setProcessingId(eventId);
     try {
-      const response = await httpPut(`/games/${eventId}/approve`, {
-        approval_status: 'approved'
-      });
-      if (response.ok) {
-        Alert.alert('Event Approved', 'The event has been published!');
-        // Remove from list
-        setEvents(prev => prev.filter(e => e.id !== eventId));
-      } else {
-        throw new Error('Failed to approve event');
-      }
+      await httpPut(`/events/${eventId}/approve`, {});
+      Alert.alert('Event Approved', 'The event has been published!');
+      // Remove from list
+      setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
       console.error('Error approving event:', e);
       Alert.alert('Error', e?.message || 'Failed to approve event.');
@@ -130,16 +118,10 @@ export default function EventApprovalsScreen() {
           onPress: async () => {
             setProcessingId(eventId);
             try {
-              const response = await httpPut(`/games/${eventId}/approve`, {
-                approval_status: 'rejected'
-              });
-              if (response.ok) {
-                Alert.alert('Event Rejected', 'The event has been rejected.');
-                // Remove from list
-                setEvents(prev => prev.filter(e => e.id !== eventId));
-              } else {
-                throw new Error('Failed to reject event');
-              }
+              await httpPut(`/events/${eventId}/reject`, {});
+              Alert.alert('Event Rejected', 'The event has been rejected.');
+              // Remove from list
+              setEvents(prev => prev.filter(e => e.id !== eventId));
             } catch (e: any) {
               console.error('Error rejecting event:', e);
               Alert.alert('Error', e?.message || 'Failed to reject event.');

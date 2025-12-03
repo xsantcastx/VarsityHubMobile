@@ -28,6 +28,13 @@ export default function RoleOnboardingScreen() {
   const [saving, setSaving] = useState(false);
   const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showCoachTierSelection, setShowCoachTierSelection] = useState(false);
+  const logTelemetry = (event: string, data?: Record<string, unknown>) => {
+    try {
+      console.log('[telemetry] role-onboarding:', event, data ?? '');
+    } catch {
+      // ignore logging failures
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -39,8 +46,10 @@ export default function RoleOnboardingScreen() {
         // Determine account type (fan or coach)
         if (userRole === 'fan') {
           setAccountType('fan');
+          logTelemetry('prefill-fan', { subscriptionTier });
         } else if (userRole === 'coach') {
           setAccountType('coach');
+          logTelemetry('prefill-coach', { subscriptionTier });
           
           // Determine coach tier based on subscription
           if (subscriptionTier === 'pro') {
@@ -57,6 +66,7 @@ export default function RoleOnboardingScreen() {
         if (hasZip) {
           setZipCode(hasZip);
           setZipCodeProvided(true);
+          logTelemetry('prefill-zip', { zip: hasZip });
         }
         
         // If no account type, show selection screen
@@ -88,11 +98,14 @@ export default function RoleOnboardingScreen() {
 
     setSaving(true);
     try {
+      logTelemetry('zip-save-attempt');
       await User.updatePreferences({ zip_code: zipCode.trim() });
       setZipCodeProvided(true);
+      logTelemetry('zip-save-success');
       Alert.alert('Success', 'Your ZIP code has been saved!');
     } catch (e: any) {
       console.error('Failed to save ZIP code', e);
+      logTelemetry('zip-save-error', { message: e?.message });
       Alert.alert('Error', 'Failed to save ZIP code. Please try again.');
     } finally {
       setSaving(false);
@@ -105,17 +118,20 @@ export default function RoleOnboardingScreen() {
     
     // If coach, show tier selection
     if (type === 'coach') {
+      logTelemetry('select-account-type', { type });
       setShowCoachTierSelection(true);
     } else {
       // If fan, save immediately
       setSaving(true);
+      logTelemetry('select-account-type', { type });
       try {
         await User.updatePreferences({ 
           role: 'fan',
           subscription_tier: 'free'
         });
+        logTelemetry('fan-save-success');
       } catch (e: any) {
-        console.error('Failed to set account type', e);
+        logTelemetry('fan-save-error', { message: e?.message });
         Alert.alert('Error', 'Failed to set account type. Please try again.');
       } finally {
         setSaving(false);
@@ -126,6 +142,7 @@ export default function RoleOnboardingScreen() {
   const handleSelectCoachTier = async (tier: CoachTier) => {
     setSaving(true);
     try {
+      logTelemetry('coach-tier-attempt', { tier });
       // Map coach tier to subscription tier
       let subscriptionTier = 'free';
       if (tier === 'rookie') subscriptionTier = 'free';
@@ -139,8 +156,10 @@ export default function RoleOnboardingScreen() {
       
       setCoachTier(tier);
       setShowCoachTierSelection(false);
+      logTelemetry('coach-tier-success', { subscriptionTier });
     } catch (e: any) {
       console.error('Failed to set coach tier', e);
+      logTelemetry('coach-tier-error', { message: e?.message });
       Alert.alert('Error', 'Failed to set coach tier. Please try again.');
     } finally {
       setSaving(false);
@@ -304,14 +323,22 @@ export default function RoleOnboardingScreen() {
             <Text style={[styles.largeAccountDescription, { color: Colors[colorScheme].mutedText }]}>
               Follow teams, watch highlights, RSVP to games, and stay connected with high school sports
             </Text>
-            <Text style={[styles.accountUpgradeNote, { color: Colors[colorScheme].mutedText, marginTop: 8, fontSize: 12, fontStyle: 'italic' }]}>
+            <Text
+              style={{
+                color: Colors[colorScheme].mutedText,
+                marginTop: 8,
+                fontSize: 12,
+                fontStyle: 'italic',
+                textAlign: 'center',
+              }}
+            >
               *Fan accounts can be upgraded to athlete/staff upon coach approval
             </Text>
           </Pressable>
 
           {/* Coach Account */}
           <Pressable
-            style={[styles.largeAccountCard, { 
+            style={[styles.largeAccountCard, {
               backgroundColor: Colors[colorScheme].card, 
               borderColor: '#3b82f6',
               borderWidth: 2,

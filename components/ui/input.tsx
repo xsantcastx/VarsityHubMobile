@@ -18,6 +18,8 @@ const Input = React.forwardRef<TextInput, TextInputProps>((props, ref) => {
           paddingHorizontal: 12,
           backgroundColor: Colors[colorScheme].surface,
           color: Colors[colorScheme].text,
+          fontSize: 16,
+          letterSpacing: 0,
         },
         props.style,
       ]}

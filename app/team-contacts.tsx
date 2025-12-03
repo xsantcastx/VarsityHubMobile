@@ -592,37 +592,6 @@ export default function TeamChatScreen() {
     return '#757575';
   };
 
-  const pickImage = useCallback(async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await sendImageMessage(result.assets[0]);
-      }
-    } catch (error) {
-  showModal('Error', 'Failed to pick image');
-    }
-  }, [sendImageMessage, showModal]);
-
-  const takePhoto = useCallback(async () => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: false,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await sendImageMessage(result.assets[0]);
-      }
-    } catch (error) {
-  showModal('Error', 'Failed to take photo');
-    }
-  }, [sendImageMessage, showModal]);
-
   const sendImageMessage = useCallback(async (imageAsset: ImagePicker.ImagePickerAsset) => {
     try {
       const message: ChatMessage = {
@@ -729,6 +698,37 @@ export default function TeamChatScreen() {
     }
   }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
+  const pickImage = useCallback(async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await sendImageMessage(result.assets[0]);
+      }
+    } catch (error) {
+      showModal('Error', 'Failed to pick image');
+    }
+  }, [sendImageMessage, showModal]);
+
+  const takePhoto = useCallback(async () => {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await sendImageMessage(result.assets[0]);
+      }
+    } catch (error) {
+      showModal('Error', 'Failed to take photo');
+    }
+  }, [sendImageMessage, showModal]);
+
   const showImageOptions = useCallback(() => {
     setShowImageOptionsMenu(true);
   }, []);
@@ -758,35 +758,6 @@ export default function TeamChatScreen() {
   showModal('Audio Recording', 'Voice recording temporarily disabled during migration to expo-audio');
     return;
   }, [showModal]);
-
-  const stopRecording = useCallback(async () => {
-    if (!recording) return;
-
-    try {
-      // Clear timer
-      if ((recording as any).timer) {
-        clearInterval((recording as any).timer);
-      }
-      
-      setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      
-      if (uri) {
-        setRecordingUri(uri);
-        const status = await recording.getStatusAsync();
-        await sendVoiceMessage(uri, status.durationMillis || 0);
-      }
-      
-      setRecording(null);
-      setRecordingDuration(0);
-    } catch (error) {
-  showModal('Error', 'Failed to stop recording');
-      setRecording(null);
-      setIsRecording(false);
-      setRecordingDuration(0);
-    }
-  }, [recording, sendVoiceMessage, showModal]);
 
   const sendVoiceMessage = useCallback(async (uri: string, duration: number) => {
     try {
@@ -835,9 +806,38 @@ export default function TeamChatScreen() {
       }, 800);
       
     } catch (error) {
-  showModal('Error', 'Failed to send voice message');
+      showModal('Error', 'Failed to send voice message');
     }
   }, [animateNewMessage, replyingTo, saveMessages, showModal]);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) return;
+
+    try {
+      // Clear timer
+      if ((recording as any).timer) {
+        clearInterval((recording as any).timer);
+      }
+      
+      setIsRecording(false);
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      
+      if (uri) {
+        setRecordingUri(uri);
+        const status = await recording.getStatusAsync();
+        await sendVoiceMessage(uri, status.durationMillis || 0);
+      }
+      
+      setRecording(null);
+      setRecordingDuration(0);
+    } catch (error) {
+  showModal('Error', 'Failed to stop recording');
+      setRecording(null);
+      setIsRecording(false);
+      setRecordingDuration(0);
+    }
+  }, [recording, sendVoiceMessage, showModal]);
 
   // Voice playback functions
   const playVoiceMessage = useCallback(async (messageId: string, uri: string) => {
@@ -902,22 +902,6 @@ export default function TeamChatScreen() {
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
-
-  // Document picking functions
-  const pickDocument = useCallback(async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        await sendFileMessage(result.assets[0]);
-      }
-    } catch (error) {
-  showModal('Error', 'Failed to pick document');
-    }
-  }, [sendFileMessage, showModal]);
 
   const sendFileMessage = useCallback(async (fileAsset: any) => {
     try {
@@ -1034,6 +1018,22 @@ export default function TeamChatScreen() {
   showModal('Error', 'Failed to upload file to server');
     }
   }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
+
+  // Document picking functions
+  const pickDocument = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await sendFileMessage(result.assets[0]);
+      }
+    } catch (error) {
+      showModal('Error', 'Failed to pick document');
+    }
+  }, [sendFileMessage, showModal]);
 
   const handleFileUpload = useCallback(async (type: 'media' | 'document') => {
     try {

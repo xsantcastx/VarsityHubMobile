@@ -1,19 +1,16 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { getApiBaseUrl, getAuthToken } from '@/api/http';
+import { getAuthToken, getApiBaseUrl } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const weekdayRate = 8.00;   // Per week (Mon-Thu slot)
 const weekendRate = 10.00;  // Per week (Fri-Sun slot)
@@ -21,7 +18,7 @@ const weekendRate = 10.00;  // Per week (Fri-Sun slot)
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
 
-function toggleSet(set: Set<string>, value: string): Set<string> {
+function _toggleSet(set: Set<string>, value: string): Set<string> {
   const next = new Set(set);
   if (next.has(value)) next.delete(value); else next.add(value);
   return next;
@@ -139,100 +136,21 @@ export default function AdCalendarScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [reserved, setReserved] = useState<Set<string>>(new Set());
   const [fullDates, setFullDates] = useState<Set<string>>(new Set()); // Dates with 3/3 slots filled
-  const [dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
+  const [_dateAvailability, setDateAvailability] = useState<Record<string, { slotsUsed: number; slotsRemaining: number }>>({});
   const [promo, setPromo] = useState('');
   const [preview, setPreview] = useState<any>(null);
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const [taxRate, setTaxRate] = useState(0); // Tax rate as decimal
+  const [_taxRate, _setTaxRate] = useState(0); // Tax rate as decimal
   const [zipCode, setZipCode] = useState<string>('');
   const [alternatives, setAlternatives] = useState<Array<{ zip: string; distance: number }>>([]);
   const [showingAlternatives, setShowingAlternatives] = useState(false);
-  
-  const launchCheckout = useCallback(async (checkoutUrl: string, sessionId?: string | null) => {
-    const redirectUrl = Linking.createURL('/payment-success');
-    console.log('[ad-calendar] Launching Stripe checkout', { redirectUrl, sessionId });
-    try {
-      const result = await WebBrowser.openAuthSessionAsync(checkoutUrl, redirectUrl);
-      console.log('[ad-calendar] Checkout session closed', result);
-      if (result.type === 'success' && result.url) {
-        try {
-          const parsed = Linking.parse(result.url);
-          const normalizedPath = typeof parsed?.path === 'string'
-            ? parsed.path.replace(/^\//, '')
-            : '';
-          const querySessionId =
-            typeof parsed?.queryParams?.session_id === 'string'
-              ? String(parsed.queryParams.session_id)
-              : undefined;
-          const typeParam =
-            typeof parsed?.queryParams?.type === 'string'
-              ? String(parsed.queryParams.type)
-              : 'ad';
-          const finalSessionId = querySessionId || sessionId || null;
-          if (normalizedPath.startsWith('payment-success') && finalSessionId) {
-            router.replace({
-              pathname: '/payment-success',
-              params: { session_id: finalSessionId, type: typeParam || 'ad' },
-            } as any);
-            return;
-          }
-          console.warn('[ad-calendar] Unexpected redirect path from Stripe:', {
-            normalizedPath,
-            hasSession: !!finalSessionId,
-          });
-        } catch (parseErr) {
-          console.warn('[ad-calendar] Failed to parse Stripe redirect URL', parseErr);
-        }
-        if (sessionId) {
-          router.replace({
-            pathname: '/payment-success',
-            params: { session_id: sessionId, type: 'ad' },
-          } as any);
-          return;
-        }
-      }
-      if ((result.type === 'cancel' || result.type === 'dismiss') && sessionId) {
-        Alert.alert(
-          'Verify Payment',
-          'If you finished payment, tap Continue to verify it now. Otherwise choose Try Again.',
-          [
-            { text: 'Try Again', style: 'cancel' },
-            {
-              text: 'Continue',
-              onPress: () =>
-                router.replace({
-                  pathname: '/payment-success',
-                  params: { session_id: sessionId, type: 'ad' },
-                } as any),
-            },
-          ]
-        );
-        return;
-      }
-      if (result.type === 'cancel' || result.type === 'dismiss') {
-        Alert.alert('Payment canceled', 'No charges were made. You can try again when ready.');
-        return;
-      }
-      if (sessionId) {
-        router.replace({
-          pathname: '/payment-success',
-          params: { session_id: sessionId, type: 'ad' },
-        } as any);
-      }
-    } catch (checkoutErr) {
-      console.error('[ad-calendar] Stripe checkout error', checkoutErr);
-      Alert.alert('Payment Error', 'Could not open the payment page. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [router]);
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
   React.useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         if (!adId) {
           // No adId yet (new ad flow) => nothing to disable
@@ -312,7 +230,7 @@ export default function AdCalendarScreen() {
     // Rough average US sales tax ~6.5%
     return Math.round(price * 100 * 0.065);
   }, [price]);
-  const priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
+  const _priceWithTax = useMemo(() => price + (taxCents / 100), [price, taxCents]);
   const effectiveCents = useMemo(() => {
     const subtotalCents = Math.round(price * 100);
     const discount = preview?.valid ? (preview.discount_cents || 0) : 0;
@@ -420,7 +338,7 @@ export default function AdCalendarScreen() {
     
     // Prevent selection of fully booked dates
     if (fullDates.has(iso)) {
-      fetchAlternativeZips([iso]);
+      void fetchAlternativeZips([iso]);
       Alert.alert(
         'Date Fully Booked', 
         'This date already has 3/3 ad slots filled. Check below for nearby available zip codes or select a different date.'
@@ -431,7 +349,7 @@ export default function AdCalendarScreen() {
     // Prevent selection of reserved dates
     if (reserved.has(iso)) {
       // Fetch alternative zip codes
-      fetchAlternativeZips([iso]);
+      void fetchAlternativeZips([iso]);
       Alert.alert('Date Unavailable', 'This date is already reserved. Check below for nearby available zip codes.');
       return;
     }
@@ -548,52 +466,61 @@ export default function AdCalendarScreen() {
       const data = txt ? JSON.parse(txt) : null;
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       if (data?.free) {
-        setSubmitting(false);
         Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
           { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
         ]);
-        return;
-      }
-      if (data?.url) {
-        const sessionId = typeof data?.session_id === 'string' ? data.session_id : null;
-        if (!sessionId) {
-          console.warn('[ad-calendar] Checkout response missing session_id for ad payment');
-        }
-        
-        // Build pricing breakdown message
-        const totalCents = typeof data?.total_cents === 'number' ? data.total_cents : 0;
-        const subtotalCents = typeof data?.subtotal_cents === 'number' ? data.subtotal_cents : 0;
-        const taxCents = typeof data?.tax_cents === 'number' ? data.tax_cents : 0;
-        const discountCents = typeof data?.discount_cents === 'number' ? data.discount_cents : 0;
-        
-        const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
-        
-        let message = `We will open Stripe in a secure window. After paying, you will automatically return here to verify your ad.\n\n`;
-        message += `Subtotal: ${formatCents(subtotalCents)}\n`;
-        if (discountCents > 0) {
-          message += `Discount: -${formatCents(discountCents)}\n`;
-        }
-        message += `Tax: ${formatCents(taxCents)}\n`;
-        message += `\nTotal: ${formatCents(totalCents)}`;
-        
+      } else if (data?.url) {
+        // Show info before opening browser
         Alert.alert(
           'Complete Payment',
-          message,
+          'You\'ll be redirected to Stripe to complete your payment. After payment, return to this app to see your active ads.',
           [
             {
               text: 'Continue to Payment',
-              onPress: () => launchCheckout(String(data.url), sessionId),
+              onPress: async () => {
+                try {
+                  const result = await WebBrowser.openBrowserAsync(String(data.url));
+                  
+                  // When browser closes, redirect to confirmation screen
+                  console.log('[ad-calendar] Browser closed:', result.type);
+                  
+                  // Reset submitting state
+                  setSubmitting(false);
+                  
+                  // Get ad details for confirmation screen
+                  const adData = await Advertisement.get(adId).catch(() => null);
+                  const businessName = adData?.business_name || 'Your Business';
+                  const datesText = sortedDates.length > 0 
+                    ? `${sortedDates.length} ${sortedDates.length === 1 ? 'day' : 'days'}`
+                    : 'selected dates';
+                  
+                  // Redirect to confirmation screen with ad details
+                  console.log('[ad-calendar] Redirecting to confirmation');
+                  router.replace({
+                    pathname: '/ad-confirmation',
+                    params: {
+                      ad_id: adId,
+                      businessName,
+                      selectedDates: datesText,
+                      totalAmount: `$${effective.toFixed(2)}`,
+                    }
+                  } as any);
+                  
+                } catch (browserErr) {
+                  console.error('Browser error:', browserErr);
+                  setSubmitting(false);
+                  Alert.alert('Error', 'Could not open payment page. Please try again.');
+                }
+              }
             },
             {
               text: 'Cancel',
               style: 'cancel',
-              onPress: () => setSubmitting(false),
-            },
+              onPress: () => setSubmitting(false)
+            }
           ]
         );
-        return;
       }
-      setSubmitting(false);
     } catch (err) {
       console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';

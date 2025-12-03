@@ -284,12 +284,11 @@ export default function PostDetailScreen() {
       }
       
       // Add URL
-      const shareUrl = AppLinks.post(currentPostId);
-      message += `\n\n${shareUrl}`;
+      const shareLink = AppLinks.post(currentPostId, post?.caption);
       
       await Share.share({
-        message,
-        url: shareUrl,
+        message: shareLink.shareMessage,
+        url: shareLink.webUrl,
         title: post?.title || 'VarsityHub Post',
       });
     } catch (error) {

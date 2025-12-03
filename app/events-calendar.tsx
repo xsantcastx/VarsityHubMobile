@@ -1,4 +1,4 @@
-import { Game, Team, User } from '@/api/entities';
+import { Game, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +38,7 @@ export default function EventsCalendarScreen() {
       try {
         // Get current user's followed teams
         const me = await User.me();
-        const teams = await Team.listFollowed();
+        const teams = await User.following(me?.id || '');
         const teamNames = Array.isArray(teams) ? teams.map((t: any) => t.name) : [];
         
         if (!mounted) return;

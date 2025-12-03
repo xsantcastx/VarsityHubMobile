@@ -73,6 +73,7 @@ export default function ManageTeamsSimpleScreen() {
         const me: any = await User.me();
         const role = me?.preferences?.role;
         if (role !== 'coach') {
+          console.log('[telemetry] manage-teams: non-coach blocked', { role });
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.replace('/(tabs)');
         }
