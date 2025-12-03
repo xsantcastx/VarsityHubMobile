@@ -1,15 +1,12 @@
-import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 
 /**
  * Ensure a picked asset URI is a local file path suitable for upload.
- * - On iOS, ImagePicker may return `ph://` URIs which can fail with PHPhotos errors.
+ * - On iOS, ImagePicker may return `ph://` URIs from PhotoKit.
  * - For images, we re-encode via ImageManipulator to a temporary `file://` path.
- * - For videos, we use the native asset directly if picker supports it, or fallback gracefully.
- * 
- * Note: For iOS videos from MediaLibrary, ensure the picker returns a file:// path
- * by using appropriate ImagePicker options or MediaLibrary.getAssetInfoAsync separately.
+ * - For videos, we pass `ph://` URIs directly to the upload handler.
+ *   The native upload bridge should handle PhotoKit assets if permissions are set.
  */
 export async function ensureUploadableUri(uri: string, mimeType?: string): Promise<{ uri: string; mimeType?: string }> {
   const isIOS = Platform.OS === 'ios';
@@ -23,7 +20,7 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
   
   // iOS Photos URI handling
   if (isIOS && uri.startsWith('ph://')) {
-    // For images: re-encode via ImageManipulator
+    // For images: re-encode via ImageManipulator to get a real file path
     if (isPhoto) {
       try {
         if (__DEV__) console.log('[media] Re-encoding ph:// image...');
@@ -38,19 +35,15 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
       }
     }
     
-    // For videos: ph:// URIs cannot be directly accessed by FileSystem
-    // The solution is to configure ImagePicker to return file:// paths instead:
-    // Use exif:false, mediaTypes:All, and ensure the picker exports to cache
-    // For now, return original URI and let the upload handler deal with it
+    // For videos: return the ph:// URI as-is
+    // The upload handler should pass this to the native bridge, which handles PhotoKit access
     if (isVideo) {
-      console.warn('[media] Video ph:// URI detected. Ensure ImagePicker is configured to return file:// paths via caching.');
-      // Note: This should be resolved by the picker returning file:// paths
-      // If this fallback is hit, the upload will likely fail with PHPhotosErrorDomain
+      if (__DEV__) console.log('[media] Passing ph:// video URI directly to upload:', uri);
       return { uri, mimeType };
     }
     
     // Fallback for unrecognized types
-    console.warn('[media] Unhandled ph:// URI type, returning original');
+    if (__DEV__) console.log('[media] Unhandled ph:// URI type, returning original');
     return { uri, mimeType };
   }
   
