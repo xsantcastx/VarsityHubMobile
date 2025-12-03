@@ -1121,7 +1121,11 @@ const GameDetailsScreen = () => {
       return;
     }
     try {
-      const res: any = await Game.votesSummary(vm.gameId);
+      const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
+        maxRetries: 2,
+        initialDelay: 800,
+        maxDelay: 4000,
+      });
       setVoteSummary(parseVoteSummary(res));
     } catch (err) {
       console.warn('Failed to load game votes', err);
@@ -1224,7 +1228,11 @@ const GameDetailsScreen = () => {
 
     setRsvpBusy(true);
     try {
-      const res: any = await Event.rsvp(vm.eventId, nextDesired);
+      const res: any = await retryWithBackoff(() => Event.rsvp(vm.eventId!, nextDesired), {
+        maxRetries: 2,
+        initialDelay: 800,
+        maxDelay: 4000,
+      });
       // reconcile with authoritative server response
       setVm((prev) => {
         if (!prev) return prev;
@@ -1297,7 +1305,11 @@ const GameDetailsScreen = () => {
 
       setVoteBusy(true);
       try {
-        const res: any = await Game.castVote(vm.gameId, team);
+        const res: any = await retryWithBackoff(() => Game.castVote(vm.gameId!, team), {
+          maxRetries: 2,
+          initialDelay: 800,
+          maxDelay: 4000,
+        });
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
@@ -1331,7 +1343,11 @@ const GameDetailsScreen = () => {
 
     setVoteBusy(true);
     try {
-      const res: any = await Game.clearVote(vm.gameId);
+      const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
+        maxRetries: 2,
+        initialDelay: 800,
+        maxDelay: 4000,
+      });
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
       if (rollback) setVoteSummary(rollback);
