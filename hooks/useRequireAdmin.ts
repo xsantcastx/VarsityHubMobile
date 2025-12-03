@@ -5,9 +5,9 @@
  * Redirects to home if not admin
  */
 
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthProvider';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
 
 export function useRequireAdmin() {
   const { user, loading, isAdmin } = useAuth();

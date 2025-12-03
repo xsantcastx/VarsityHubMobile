@@ -141,11 +141,6 @@ export default function CommunityDiscoverScreen() {
       try {
         user = await User.me();
         setMe(user);
-        console.log('[Discover] User loaded:', { 
-          role: user?.preferences?.role, 
-          userId: user?.id,
-          displayName: user?.display_name 
-        });
       } catch (err) {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
       }
@@ -201,7 +196,7 @@ export default function CommunityDiscoverScreen() {
         }
       } catch {}
     } catch (e: any) {
-      console.error('Failed to load discover data', e);
+      if (__DEV__) console.error('Failed to load discover data', e);
       setError('Unable to load discover. Sign in may be required.');
       setGames([]);
       setZipDirectory([]);
@@ -310,7 +305,7 @@ export default function CommunityDiscoverScreen() {
         alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
       }
     } catch (error) {
-      console.error('Error adding quick game:', error);
+      if (__DEV__) console.error('Error adding quick game:', error);
       if (typeof alert !== 'undefined') {
         alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
@@ -363,9 +358,6 @@ export default function CommunityDiscoverScreen() {
         <Pressable
           onPress={() => {
             const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
-            console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
-            console.log('📍 Filtered games count:', filtered.length);
-            console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
             setViewMode(newMode);
           }}
           style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
@@ -404,9 +396,6 @@ export default function CommunityDiscoverScreen() {
               const gameDate = new Date(g.date).toISOString().split('T')[0];
               return gameDate === day.dateString;
             });
-            if (gamesOnDate.length > 0) {
-              console.log(`${gamesOnDate.length} game(s) on ${day.dateString}`);
-            }
           }}
           markedDates={useMemo(() => {
             const marked: Record<string, any> = {};
@@ -735,9 +724,6 @@ export default function CommunityDiscoverScreen() {
                 onPress={() => {
                   // In map view branch, viewMode is 'map'; toggling goes to 'list'
                   const newMode: 'list' | 'map' = 'list';
-                  console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
-                  console.log('📍 Filtered games count:', filtered.length);
-                  console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
                   setViewMode(newMode);
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
@@ -754,18 +740,9 @@ export default function CommunityDiscoverScreen() {
           {/* Full Map View */}
           {(() => {
             const eventsWithCoords = filtered.filter(g => g.latitude && g.longitude);
-            console.log('🗺️ MAP VIEW RENDERING');
-            console.log('📍 Total filtered games:', filtered.length);
-            console.log('📍 Games with coordinates:', eventsWithCoords.length);
-            console.log('📍 First game with coords:', eventsWithCoords[0] ? {
-              title: eventsWithCoords[0].title,
-              lat: eventsWithCoords[0].latitude,
-              lng: eventsWithCoords[0].longitude
-            } : 'none');
             
             // Show ALL games, not just filtered ones
             const allGamesWithCoords = games.filter(g => typeof g.latitude === 'number' && typeof g.longitude === 'number');
-            console.log('📍 ALL games with coordinates:', allGamesWithCoords.length);
             
             return (
               <EventMap
