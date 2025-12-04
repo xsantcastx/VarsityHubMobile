@@ -35,20 +35,37 @@ export default function EventDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const [data, user, status]: any = await Promise.all([
-          Event.get(String(id)).catch(() => null),
-          User.me().catch(() => null),
-          Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
-        ]);
+        // Load event first (critical path)
+        let data: any = null;
+        try {
+          data = await Event.get(String(id));
+        } catch (e: any) {
+          if (!mounted) return;
+          console.error('Failed to load event', e);
+          setError('Unable to load event. Please try again.');
+          setLoading(false);
+          return; // Stop here if event can't be loaded
+        }
+
         if (!mounted) return;
         setEvent(data ?? null);
-        setMe(user);
-        setRsvped(!!status?.attending);
-        setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
-      } catch (e: any) {
-        if (!mounted) return;
-        console.error('Failed to load event detail', e);
-        setError('Unable to load event.');
+
+        // Load user and RSVP status in parallel (best-effort, don't block)
+        try {
+          const [user, status]: any = await Promise.all([
+            User.me().catch(() => null),
+            Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
+          ]);
+          if (!mounted) return;
+          setMe(user);
+          setRsvped(!!status?.attending);
+          setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
+        } catch (e: any) {
+          if (!mounted) return;
+          console.warn('Failed to load user/RSVP status (continuing with event data)', e);
+          // Don't set error; event is loaded and that's what matters
+          setAttendeesCount(Number(data?.attendees_count || 0));
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -89,7 +106,6 @@ export default function EventDetailScreen() {
       const res = await Event.rsvp(String(event.id), !rsvped);
       setRsvped(!!res?.attending);
       setAttendeesCount(Number(res?.count || 0));
-      setRsvpSheetVisible(false);
       Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
     } catch (e: any) {
       if (e?.response?.status === 401 || e?.message?.includes('Unauthorized')) {
@@ -101,6 +117,17 @@ export default function EventDetailScreen() {
         Alert.alert('Error', 'Unable to update RSVP. Please try again.');
       }
     }
+  };
+
+  const handleRsvpPress = () => {
+    if (!me) {
+      Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => void router.push('/sign-in') }
+      ]);
+      return;
+    }
+    setRsvpSheetVisible(true);
   };
 
   const openInMaps = async () => {
@@ -139,8 +166,14 @@ export default function EventDetailScreen() {
         // Fallback to Google Maps web
         await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
       }
-    } catch (_error) {
-      Alert.alert('Error', 'Unable to open maps.');
+    } catch (error: any) {
+      console.warn('Failed to open maps:', error);
+      // Show address as last resort
+      Alert.alert(
+        'Unable to Open Maps',
+        `Location: ${event.location}\n\nTry searching this address in your maps app.`,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -209,7 +242,7 @@ export default function EventDetailScreen() {
             {event.description ? <Text>{event.description}</Text> : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable style={styles.primaryBtn} onPress={toggleRsvp}>
+              <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
                 <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
               </Pressable>
               <Pressable style={styles.outlineBtn} onPress={shareEvent}>
@@ -220,14 +253,16 @@ export default function EventDetailScreen() {
         )}
       </ScrollView>
       
-      <RsvpSheet
-        visible={rsvpSheetVisible}
-        onClose={() => setRsvpSheetVisible(false)}
-        goingCount={attendeeCount}
-        capacity={(event as any)?.capacity ?? null}
-        isGoing={rsvped}
-        onToggleRsvp={toggleRsvp}
-      />
+      {me && (
+        <RsvpSheet
+          visible={rsvpSheetVisible}
+          onClose={() => setRsvpSheetVisible(false)}
+          goingCount={attendeeCount}
+          capacity={(event as any)?.capacity ?? null}
+          isGoing={rsvped}
+          onToggleRsvp={toggleRsvp}
+        />
+      )}
     </SafeAreaView>
   );
 }
