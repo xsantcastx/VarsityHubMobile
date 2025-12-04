@@ -1,0 +1,662 @@
+
+> varsityhubmobile@1.0.1 lint:strict
+> expo lint --fix && npm run typecheck
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/(tabs)/discover/mobile-community.tsx
+   80:11  warning  'location' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   80:30  warning  'locLoading' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   80:49  warning  'locError' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  445:19  warning  'gamesOnDate' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  793:19  warning  'eventsWithCoords' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/ad-calendar.tsx
+  482:25  warning  'result' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-activity-log.tsx
+  24:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  25:9   warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                   @typescript-eslint/no-unused-vars
+  67:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  70:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-ads.tsx
+  17:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  22:10  warning  'me' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                       @typescript-eslint/no-unused-vars
+  38:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  40:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-dashboard.tsx
+  30:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  70:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  73:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  77:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-messages.tsx
+  13:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  28:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  30:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-reports.tsx
+   48:13  warning  'isAdmin' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+   48:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  100:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  104:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  143:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  178:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  219:15  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-teams.tsx
+  14:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  33:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  35:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-user-detail.tsx
+  15:31  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  31:6   warning  React Hook useCallback has a missing dependency: 'isAdmin'. Either include it or remove the dependency array                                                        react-hooks/exhaustive-deps
+  33:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/admin-users.tsx
+  14:29  warning  'authLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  34:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/billing.tsx
+  16:10  warning  'loadingSummary' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  27:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  33:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/blocked-users.tsx
+  27:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBanner.tsx
+   47:10  warning  'leftMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+   47:24  warning  'setLeftMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+   48:10  warning  'rightMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+   48:25  warning  'setRightMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                         @typescript-eslint/no-unused-vars
+   64:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  137:9   warning  'topBarHeight' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+  142:9   warning  'rightRotate' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBannerCapture.tsx
+  4:36  warning  'Platform' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBannerLottie.tsx
+  27:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  34:16  warning  'err' is defined but never used                                                                                                                                     @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create-collage.tsx
+  60:18  warning  'setGutter' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  61:18  warning  'setRadius' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  62:14  warning  'setBg' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create-fan-event.tsx
+  33:9  warning  'insets' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create-post.tsx
+   63:30  warning  'locLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  107:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  124:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  462:49  warning  'idx' is defined but never used. Allowed unused args must match /^_/u                                                                                               @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create-team.tsx
+  255:42  warning  'user' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  264:11  warning  Unexpected console statement                                            no-console
+  287:15  warning  Unexpected console statement                                            no-console
+  291:15  warning  Unexpected console statement                                            no-console
+  301:15  warning  Unexpected console statement                                            no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create.tsx
+  14:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/dm-restrictions.tsx
+  19:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/edit-ad.tsx
+   71:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  105:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/edit-profile.tsx
+   68:7   warning  Unexpected console statement                                                                                                                                        no-console
+   86:18  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  140:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  146:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  293:7   warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/edit-team.tsx
+    8:43  warning  'Platform' is defined but never used. Allowed unused vars must match /^_/u                                                                                          @typescript-eslint/no-unused-vars
+   72:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  144:11  warning  Unexpected console statement                                                                                                                                        no-console
+  157:11  warning  Unexpected console statement                                                                                                                                        no-console
+  160:11  warning  Unexpected console statement                                                                                                                                        no-console
+  170:15  warning  Unexpected console statement                                                                                                                                        no-console
+  174:15  warning  Unexpected console statement                                                                                                                                        no-console
+  179:15  warning  Unexpected console statement                                                                                                                                        no-console
+  185:15  warning  Unexpected console statement                                                                                                                                        no-console
+  218:7   warning  Unexpected console statement                                                                                                                                        no-console
+  220:7   warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/event-approvals.tsx
+  86:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  91:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/event-detail.tsx
+   56:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  142:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/events-calendar.tsx
+   80:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  102:16  warning  'err' is defined but never used                                                                                                                                     @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/favorites.tsx
+   86:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   96:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  167:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  172:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  177:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/feed.tsx
+  194:9   warning  'topPadding' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  195:9   warning  'bottomPadding' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+  196:9   warning  'iconClusterWidth' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                         @typescript-eslint/no-unused-vars
+  216:10  warning  'sponsoredIndex' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  349:9   warning  'loadMore' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+  378:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  385:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  390:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  392:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  431:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  534:9   warning  'shouldShowZipSuggestions' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                 @typescript-eslint/no-unused-vars
+  536:9   warning  'handleQueryChange' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                        @typescript-eslint/no-unused-vars
+  542:9   warning  'handleZipSelect' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+  548:9   warning  'handleSearchFocus' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                        @typescript-eslint/no-unused-vars
+  603:9   warning  'renderGameTile' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  676:5   warning  React Hook useCallback has a missing dependency: 'colorScheme'. Either include it or remove the dependency array                                                    react-hooks/exhaustive-deps
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/followers.tsx
+  33:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/following.tsx
+  33:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-details/GameDetailsScreen.tsx
+    60:10  warning  'playing' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+   106:5   warning  Unexpected console statement                                                                                                                                        no-console
+   111:5   warning  Unexpected console statement                                                                                                                                        no-console
+   117:5   warning  Unexpected console statement                                                                                                                                        no-console
+   120:7   warning  Unexpected console statement                                                                                                                                        no-console
+   133:13  warning  Unexpected console statement                                                                                                                                        no-console
+   137:15  warning  Unexpected console statement                                                                                                                                        no-console
+   144:17  warning  Unexpected console statement                                                                                                                                        no-console
+   150:19  warning  Unexpected console statement                                                                                                                                        no-console
+   153:19  warning  Unexpected console statement                                                                                                                                        no-console
+   219:5   warning  Unexpected console statement                                                                                                                                        no-console
+   271:19  warning  Unexpected console statement                                                                                                                                        no-console
+   273:19  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   470:15  warning  'teamId' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                   @typescript-eslint/no-unused-vars
+   472:9   warning  'segments' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+   476:30  warning  'locLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+   476:49  warning  'locError' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+   485:10  warning  'activeSection' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+   546:51  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+   557:52  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+   558:52  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+   589:9   warning  'canonicalGameId' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+   692:9   warning  'previewImage' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+   849:9   warning  Unexpected console statement                                                                                                                                        no-console
+   850:9   warning  Unexpected console statement                                                                                                                                        no-console
+   985:9   warning  'handleCreatePost' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                         @typescript-eslint/no-unused-vars
+   990:9   warning  'handleCreateHighlight' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                    @typescript-eslint/no-unused-vars
+  1074:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1081:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1087:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1124:15  warning  Unexpected console statement                                                                                                                                        no-console
+  1126:15  warning  Unexpected console statement                                                                                                                                        no-console
+  1132:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1139:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1145:17  warning  Unexpected console statement                                                                                                                                        no-console
+  1217:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1221:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1230:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1232:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1255:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1387:5   warning  React Hook useCallback has an unnecessary dependency: 'refreshVotes'. Either exclude it or remove the dependency array                                              react-hooks/exhaustive-deps
+  1421:6   warning  React Hook useCallback has an unnecessary dependency: 'voteSummary'. Either exclude it or remove the dependency array                                               react-hooks/exhaustive-deps
+  2137:29  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  2140:29  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  2177:29  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  2180:29  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-details/GameVerticalFeedScreen.tsx
+   40:10   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   50:6    warning  'VoteOption' is defined but never used. Allowed unused vars must match /^_/u                                                                                        @typescript-eslint/no-unused-vars
+  185:7    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  438:145  warning  'title' is assigned a value but never used. Allowed unused args must match /^_/u                                                                                    @typescript-eslint/no-unused-vars
+  480:10   warning  'cursor' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                   @typescript-eslint/no-unused-vars
+  481:10   warning  'hasMore' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+  523:7    warning  Unexpected console statement                                                                                                                                        no-console
+  524:39   warning  Unexpected console statement                                                                                                                                        no-console
+  560:20   warning  Unexpected console statement                                                                                                                                        no-console
+  564:18   warning  Unexpected console statement                                                                                                                                        no-console
+  601:18   warning  Unexpected console statement                                                                                                                                        no-console
+  602:5    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  608:16   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  619:20   warning  Unexpected console statement                                                                                                                                        no-console
+  701:18   warning  Unexpected console statement                                                                                                                                        no-console
+  702:5    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  711:20   warning  Unexpected console statement                                                                                                                                        no-console
+  724:7    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  734:5    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  782:16   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  808:16   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  834:16   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  902:14   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  930:14   warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  941:9    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  976:5    warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-highlights.tsx
+  24:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  41:24  warning  'item' is defined but never used. Allowed unused args must match /^_/u                                                                                              @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-map.tsx
+  20:10  warning  'userLocation' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+  69:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-photos.tsx
+   2:16  warning  'Text' is defined but never used. Allowed unused vars must match /^_/u                                                                                              @typescript-eslint/no-unused-vars
+  24:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/game-reviews.tsx
+  26:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/highlights.tsx
+   34:38  warning  'SCREEN_HEIGHT' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+   35:7   warning  'CARD_WIDTH' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  120:3   warning  'onTeamPress' is defined but never used. Allowed unused args must match /^_/u                                                                                       @typescript-eslint/no-unused-vars
+  121:3   warning  'onEventPress' is defined but never used. Allowed unused args must match /^_/u                                                                                      @typescript-eslint/no-unused-vars
+  280:26  warning  'err' is defined but never used                                                                                                                                     @typescript-eslint/no-unused-vars
+  401:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  448:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  545:9   warning  'statusBarHeight' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/league.tsx
+  190:19  warning  'setIsAdmin' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  329:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/manage-season.tsx
+   93:10  warning  'loading' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   95:23  warning  'setSelectedTab' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  103:10  warning  'teamSelectorOpen' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  429:9   warning  'handleChangeGameStatus' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  574:7   warning  Unexpected console statement                                                                       no-console
+  575:7   warning  Unexpected console statement                                                                       no-console
+  576:7   warning  Unexpected console statement                                                                       no-console
+  662:7   warning  Unexpected console statement                                                                       no-console
+  855:9   warning  'getWinPercentage' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  911:38  warning  'matchup' is defined but never used. Allowed unused args must match /^_/u                          @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/manage-teams.tsx
+   76:11  warning  Unexpected console statement                                                             no-console
+   96:9   warning  'getRoleBadge' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  112:9   warning  'getSportIcon' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  218:7   warning  Unexpected console statement                                                             no-console
+  221:13  warning  'newGame' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/manage-users.tsx
+  21:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  27:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/message-thread.tsx
+   52:14  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+   59:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   63:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   95:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  151:14  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/messages.tsx
+   95:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  101:7  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/my-ads.tsx
+   29:10  warning  'matchesAccount' is defined but never used. Allowed unused vars must match /^_/u                                                                                    @typescript-eslint/no-unused-vars
+   43:10  warning  'userEmail' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                @typescript-eslint/no-unused-vars
+   48:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  121:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  137:15  warning  Unexpected console statement                                                                                                                                        no-console
+  139:15  warning  Unexpected console statement                                                                                                                                        no-console
+  203:11  warning  'isActive' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/finish.tsx
+  22:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/index.tsx
+  14:7  warning  Unexpected console statement  no-console
+  35:5  warning  Unexpected console statement  no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-1-role.tsx
+  127:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  155:18  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  166:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-10-confirmation.tsx
+   25:7   warning  Unexpected console statement                                                      no-console
+   35:11  warning  'isFan' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  133:16  warning  'e' is defined but never used                                                     @typescript-eslint/no-unused-vars
+  150:20  warning  'e' is defined but never used                                                     @typescript-eslint/no-unused-vars
+  200:7   warning  Unexpected console statement                                                      no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-2-basic.tsx
+   40:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   52:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   76:14  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  109:9   warning  'usernameError' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+  137:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-3-plan.tsx
+  169:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  277:9   warning  Unexpected console statement                                                                                                                                        no-console
+  286:9   warning  Unexpected console statement                                                                                                                                        no-console
+  290:11  warning  Unexpected console statement                                                                                                                                        no-console
+  477:19  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-4-organization.tsx
+  29:10  warning  'teamName' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+  30:10  warning  'ageGroup' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+  30:20  warning  'setAgeGroup' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+  51:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/onboarding/step-9-features.tsx
+   8:17  warning  'Pressable' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+  26:9   warning  'returnToConfirmation' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/organization-join-requests.tsx
+   64:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  135:9  warning  'processedRequests' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                        @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/payment-success.tsx
+  29:13  warning  Unexpected console statement                                                                                                                                        no-console
+  32:15  warning  Unexpected console statement                                                                                                                                        no-console
+  41:15  warning  Unexpected console statement                                                                                                                                        no-console
+  53:22  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  67:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  68:6   warning  React Hook useEffect has a missing dependency: 'router'. Either include it or remove the dependency array                                                           react-hooks/exhaustive-deps
+  72:5   warning  Unexpected console statement                                                                                                                                        no-console
+  74:7   warning  Unexpected console statement                                                                                                                                        no-console
+  77:7   warning  Unexpected console statement                                                                                                                                        no-console
+  83:5   warning  Unexpected console statement                                                                                                                                        no-console
+  98:14  warning  'err' is defined but never used                                                                                                                                     @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/post-detail.tsx
+  170:16  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  174:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  213:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  224:11  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/profile.tsx
+  106:9   warning  'rememberingTab' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  181:30  warning  'mimeType' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                 @typescript-eslint/no-unused-vars
+  234:38  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  265:42  warning  'err' is defined but never used. Allowed unused args must match /^_/u                                                                                               @typescript-eslint/no-unused-vars
+  279:48  warning  'err' is defined but never used. Allowed unused args must match /^_/u                                                                                               @typescript-eslint/no-unused-vars
+  298:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  306:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  308:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  318:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  328:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  585:61  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  586:9   warning  'onEndReachedInteractions' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                 @typescript-eslint/no-unused-vars
+  586:68  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  634:19  warning  'isVideo' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+  645:32  warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/report-abuse.tsx
+  22:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/request-join-organization.tsx
+  33:10  warning  'loading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+  33:19  warning  'setLoading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                               @typescript-eslint/no-unused-vars
+  85:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/role-onboarding.tsx
+  33:7  warning  Unexpected console statement                                                                                                                                        no-console
+  40:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/rsvp-history.tsx
+  21:10  warning  'showDatePicker' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  21:26  warning  'setShowDatePicker' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                        @typescript-eslint/no-unused-vars
+  25:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  31:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/season-stats.tsx
+  42:9   warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  44:9   warning  'insets' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  46:10  warning  'loading' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  46:19  warning  'setLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/contact.tsx
+  18:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/edit-username.tsx
+  18:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/feedback.tsx
+  17:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/followed-teams.tsx
+  10:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/index.tsx
+  145:22  warning  'loading' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                  @typescript-eslint/no-unused-vars
+  147:22  warning  'email' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                    @typescript-eslint/no-unused-vars
+  162:17  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  252:97  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  414:72  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  420:29  warning  'input' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                    @typescript-eslint/no-unused-vars
+  430:38  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  447:40  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  457:63  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/manage-subscription.tsx
+  36:14  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  42:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  47:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/request-host-event.tsx
+  18:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/settings/zip-code.tsx
+  20:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/sign-in.tsx
+   40:37  warning  'appleLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   40:58  warning  'appleReady' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   64:22  warning  Unexpected console statement                                                             no-console
+   71:20  warning  Unexpected console statement                                                             no-console
+  110:20  warning  Unexpected console statement                                                             no-console
+  147:20  warning  Unexpected console statement                                                             no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/sign-up.tsx
+   29:37  warning  'appleLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   38:5   warning  Unexpected console statement                                                             no-console
+   42:5   warning  Unexpected console statement                                                             no-console
+   48:7   warning  Unexpected console statement                                                             no-console
+   53:9   warning  Unexpected console statement                                                             no-console
+   57:11  warning  Unexpected console statement                                                             no-console
+   74:9   warning  Unexpected console statement                                                             no-console
+   94:7   warning  Unexpected console statement                                                             no-console
+  155:5   warning  Unexpected console statement                                                             no-console
+  157:7   warning  Unexpected console statement                                                             no-console
+  162:5   warning  Unexpected console statement                                                             no-console
+  166:7   warning  Unexpected console statement                                                             no-console
+  171:7   warning  Unexpected console statement                                                             no-console
+  174:9   warning  Unexpected console statement                                                             no-console
+  179:7   warning  Unexpected console statement                                                             no-console
+  185:9   warning  Unexpected console statement                                                             no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/submit-ad.tsx
+  132:9  warning  'topPadding' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  133:9  warning  'bottomPadding' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/subscription-paywall.tsx
+  30:9  warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/team-contacts.tsx
+    26:19  warning  'source' is defined but never used. Allowed unused args must match /^_/u                                                                                            @typescript-eslint/no-unused-vars
+    26:32  warning  'initialStatus' is defined but never used. Allowed unused args must match /^_/u                                                                                     @typescript-eslint/no-unused-vars
+    82:9   warning  'router' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                   @typescript-eslint/no-unused-vars
+   105:10  warning  'recordingUri' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+   189:52  warning  'delay' is defined but never used. Allowed unused args must match /^_/u                                                                                             @typescript-eslint/no-unused-vars
+   243:9   warning  'animateReaction' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+   261:9   warning  'mockFiles' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                @typescript-eslint/no-unused-vars
+   350:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   393:16  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+   433:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   468:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   618:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   651:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   673:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   693:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   712:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   727:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   746:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   784:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   803:11  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   808:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   834:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   894:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   931:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   970:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   992:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1001:13  warning  'messageId' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                @typescript-eslint/no-unused-vars
+  1013:9   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1033:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  1067:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  1143:18  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  1206:11  warning  'handleDoubleTap' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                          @typescript-eslint/no-unused-vars
+  1837:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1881:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1914:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1975:19  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  1995:19  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/team-hub.tsx
+  39:10  warning  'activeTab' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                @typescript-eslint/no-unused-vars
+  39:21  warning  'setActiveTab' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+  62:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/team-page.tsx
+   63:10  warning  'teams' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                    @typescript-eslint/no-unused-vars
+  109:7   warning  Unexpected console statement                                                                                                                                        no-console
+  130:9   warning  Unexpected console statement                                                                                                                                        no-console
+  183:9   warning  Unexpected console statement                                                                                                                                        no-console
+  227:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  242:9   warning  'renderTeamCard' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/team-profile.tsx
+   73:10  warning  'inviteEmail' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+   73:23  warning  'setInviteEmail' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+   76:23  warning  'setCustomRoles' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  224:9   warning  'sportPositions' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                           @typescript-eslint/no-unused-vars
+  280:7   warning  Unexpected console statement                                                                                                                                        no-console
+  281:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  350:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  396:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  486:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  514:22  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+  855:79  warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/team-viewer.tsx
+  113:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/user-profile.tsx
+   38:5   warning  Unexpected console statement                                                                                                                                        no-console
+   54:7   warning  Unexpected console statement                                                                                                                                        no-console
+   69:21  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  235:30  warning  'e' is defined but never used                                                                                                                                       @typescript-eslint/no-unused-vars
+  295:40  warning  Unexpected console statement                                                                                                                                        no-console
+  340:40  warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/verify-email.tsx
+   38:7   warning  Unexpected console statement                                                             no-console
+   42:9   warning  'openEmailApp' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   69:7   warning  Unexpected console statement                                                             no-console
+   71:7   warning  Unexpected console statement                                                             no-console
+   79:22  warning  Unexpected console statement                                                             no-console
+   85:24  warning  Unexpected console statement                                                             no-console
+  105:7   warning  Unexpected console statement                                                             no-console
+  107:7   warning  Unexpected console statement                                                             no-console
+  119:5   warning  Unexpected console statement                                                             no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/AddGameModal.tsx
+  53:37  warning  'loadingTeams' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/BannerUpload.tsx
+   45:21  warning  'setUploading' is assigned a value but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+  138:6   warning  React Hook useEffect has a missing dependency: 'hintOpacity'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/BulkScheduleModal.tsx
+   46:3   warning  'currentTeamName' is defined but never used. Allowed unused args must match /^_/u                                                                                   @typescript-eslint/no-unused-vars
+  127:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  187:14  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/CollageView.tsx
+  113:50  warning  'index' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/EventMap.tsx
+  24:10  warning  'EventMapData' is defined but never used. Allowed unused vars must match /^_/u                                                                                      @typescript-eslint/no-unused-vars
+  50:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/HapticTab.tsx
+  12:11  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/ImageEditor.tsx
+  22:10  warning  'imgSize' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/LocationPicker.tsx
+  26:10  warning  'showAutocomplete' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  26:28  warning  'setShowAutocomplete' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/OfflineBanner.tsx
+  18:9  warning  'palette' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/PostCard.tsx
+   41:16  warning  'error' is defined but never used                                                                                                                                   @typescript-eslint/no-unused-vars
+   46:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   51:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   60:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  293:17  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/QuickAddGameModal.tsx
+    9:10  warning  'useCallback' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  104:37  warning  'loadingTeams' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  121:10  warning  'uploadingBanner' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  393:7   warning  Unexpected console statement                                                                  no-console
+  448:14  warning  'error' is defined but never used                                                             @typescript-eslint/no-unused-vars
+  472:14  warning  'error' is defined but never used                                                             @typescript-eslint/no-unused-vars
+  520:9   warning  'formatPreviewDate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  901:58  warning  Unexpected console statement                                                                  no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/VideoPlayer.tsx
+  27:7  warning  Unexpected console statement  no-console
+  37:7  warning  Unexpected console statement  no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/ZipAlternativesModal.tsx
+  106:37  warning  'index' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/ui/CenterTabButton.tsx
+  11:24  warning  'e' is defined but never used. Allowed unused args must match /^_/u                                                                                                 @typescript-eslint/no-unused-vars
+  13:7   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/ui/MentionInput.tsx
+  81:11  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/components/ui/MessagesTabIcon.tsx
+  19:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+✖ 455 problems (0 errors, 455 warnings)
+
+
+> varsityhubmobile@1.0.1 typecheck
+> tsc --noEmit
+

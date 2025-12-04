@@ -1,0 +1,96 @@
+import { useCallback, useMemo } from 'react';
+import { Alert, Share } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import AppLinks, { ShareableLink } from '@/utils/links';
+
+export type ShareLinkKind = 'post' | 'highlight' | 'event' | 'game' | 'team' | 'user';
+
+interface ShareLinkOptions {
+  kind: ShareLinkKind;
+  id?: string | number | null;
+  title?: string | null;
+  caption?: string | null;
+  contextLines?: Array<string | null | undefined>;
+}
+
+const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
+  if (options.id == null) return null;
+  const id = String(options.id);
+  switch (options.kind) {
+    case 'post':
+      return AppLinks.post(id, options.caption || undefined);
+    case 'highlight':
+      return AppLinks.highlight(id, options.caption || undefined);
+    case 'game':
+      return AppLinks.game(id, options.title || undefined);
+    case 'event':
+      return AppLinks.event(id, options.title || undefined);
+    case 'team':
+      return AppLinks.team(id, options.title || undefined);
+    case 'user':
+      return AppLinks.user(id, options.title || undefined);
+    default:
+      return null;
+  }
+};
+
+export function useShareLink(options: ShareLinkOptions) {
+  const link = useMemo(() => formatLink(options), [
+    options.caption,
+    options.id,
+    options.kind,
+    options.title,
+  ]);
+
+  const contextMessage = useMemo(() => {
+    if (!link) return '';
+    const lines = (options.contextLines || []).filter(Boolean) as string[];
+    if (!lines.length) return link.shareMessage;
+    return `${lines.join('\n')}\n${link.shareMessage}`;
+  }, [link, options.contextLines]);
+
+  const copyLink = useCallback(
+    async (silent = false) => {
+      if (!link) {
+        if (!silent) Alert.alert('Share unavailable', 'Link is still loading.');
+        return;
+      }
+      try {
+        await Clipboard.setStringAsync(link.webUrl);
+        if (!silent) Alert.alert('Link copied', 'You can paste it anywhere to share.');
+      } catch (error) {
+        console.error('[share] Failed to copy link', error);
+        if (!silent) Alert.alert('Copy failed', 'Unable to copy the link right now.');
+      }
+    },
+    [link],
+  );
+
+  const share = useCallback(async () => {
+    if (!link) {
+      Alert.alert('Share unavailable', 'Link is still loading.');
+      return;
+    }
+    try {
+      await Share.share({
+        message: contextMessage || link.shareMessage,
+        url: link.webUrl,
+        title: options.title || link.webUrl,
+      });
+    } catch (error) {
+      console.warn('[share] Failed to open share sheet', error);
+      await copyLink(true);
+      Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
+    }
+  }, [contextMessage, copyLink, link, options.title]);
+
+  return {
+    share,
+    copyLink,
+    shareMessage: contextMessage || link?.shareMessage || '',
+    webUrl: link?.webUrl ?? null,
+    isReady: !!link,
+  };
+}
+
+export default useShareLink;

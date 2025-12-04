@@ -1,8 +1,8 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
+import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import AppLinks from '@/utils/links';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
@@ -1302,22 +1302,33 @@ const GameDetailsScreen = () => {
     }
   }, [vm, rsvpBusy]);
 
-  const onShare = useCallback(async () => {
-    if (!vm) return;
-    try {
-      const link = vm.gameId 
-        ? AppLinks.game(String(vm.gameId), vm.title)
-        : AppLinks.event(String(vm.eventId), vm.title);
-      await Share.share({
-        message: link.shareMessage,
-        url: link.webUrl,
-        title: vm.title || 'VarsityHub'
-      });
-    } catch (error) {
-      console.error('Share error:', error);
-      Alert.alert('Error', 'Could not share at this time.');
+  const shareContextLines = useMemo(() => {
+    if (!vm) return [];
+    const lines: string[] = [];
+    if (vm.homeTeam && vm.awayTeam) {
+      lines.push(`${vm.homeTeam} vs ${vm.awayTeam}`);
     }
-  }, [vm]);
+    if (displayDate) {
+      lines.push(`When: ${displayDate}`);
+    }
+    if (vm.location) {
+      lines.push(`Location: ${vm.location}`);
+    }
+    return lines;
+  }, [displayDate, vm]);
+
+  const { share: shareGameLink } = useShareLink({
+    kind: vm?.gameId ? 'game' : 'event',
+    id: vm?.gameId ?? vm?.eventId,
+    title:
+      vm?.title ||
+      (vm?.homeTeam && vm?.awayTeam ? `${vm.homeTeam} vs ${vm.awayTeam}` : 'VarsityHub Game'),
+    contextLines: shareContextLines,
+  });
+
+  const onShare = useCallback(() => {
+    void shareGameLink();
+  }, [shareGameLink]);
 
   const onPressLocation = useCallback(() => {
     if (vm?.location) openMaps(vm.location);

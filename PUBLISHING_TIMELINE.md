@@ -1,125 +1,121 @@
-# VarsityHub Mobile - 4-Day Publishing Timeline
+# Publishing Timeline: 4-Day Path to Production
 
-## 📅 Overview
+**Overview:** Lock in monitoring + quality gates → clear lint/type errors → validate real-data flows → release mechanics + store submission. Daily standups enforce accountability.
 
-**Goal:** Ship to App Store/Play Console with full monitoring and quality gates  
-**Duration:** 4 days (flexible +1-2 if lint debt deeper than expected)  
-**Status Tracking:** Update ✅/🔄/⏳ as you progress
+**Timeline:** Day 0–1 (Prep) → Day 2 (Quality) → Day 3 (Validation) → Day 4 (Release)
 
----
-
-## 🗓️ Day 0-1: Foundation & Monitoring Activation
-
-### Morning: Environment Setup (2-3 hours)
-
-#### ✅ Checkpoint 1.1: Add Sentry DSN
-```bash
-# Edit .env
-EXPO_PUBLIC_SENTRY_DSN=https://your-dsn@o1234567.ingest.sentry.io/8765432
-
-# Restart Expo
-npx expo start --clear
-```
-
-**Verify:**
-- [ ] Metro logs show: `[Sentry] initialized`
-- [ ] Trigger test error: `throw new Error('Sentry Test');`
-- [ ] Check Sentry dashboard for captured exception
-
-**Rollback:** Remove DSN if crashes increase >10%
+**Owners:** Engineering (lint/types), QA (flows), DevOps (CI/monitoring), Product (release notes/comms)
 
 ---
 
-#### ✅ Checkpoint 1.2: Add SendGrid to Railway
-```bash
-# Railway Dashboard → VarsityHub API → Variables
-SENDGRID_API_KEY=SG.your-api-key-here
-```
+## Day 0–1: Monitoring & Observability Lock-In (2 hours prep work)
 
-**Verify:**
+### Objectives
+- ✅ Sentry DSN wired up and reporting errors
+- ✅ SendGrid verified with test email delivery
+- ✅ CI pipeline green (or yellow with known skips)
+- ✅ Type safety confirmed (zero TypeScript errors)
+- ✅ Lint baseline captured (starting point for Day 2 reductions)
+
+### Checklist
+
+#### Step 1: Wire Sentry DSN (10 min)
 ```bash
-curl -X POST https://api-production-8ac3.up.railway.app/api/test-email \
+# Verify Sentry is configured in app.json and server .env
+grep -r "SENTRY_DSN\|EXPO_PUBLIC_SENTRY" app.json package.json server/.env 2>/dev/null
+
+# Test Sentry integration by triggering a test event (backend)
+curl -X POST https://api-production-8ac3.up.railway.app/debug/test-sentry \
   -H "Content-Type: application/json" \
-  -d '{"to":"your-test-email@example.com","template":"welcome"}'
+  -d '{"message":"Launch prep Sentry test"}'
+
+# Confirm error appears in Sentry dashboard within 30 seconds
+# Navigate to https://sentry.io → VarsityHubMobile project → Issues
 ```
 
-**Expected:** Email received within 2 minutes
+**Success Criterion:** Test error visible in Sentry within 30 seconds; no DSN warnings in `/health`
 
-**Rollback:** Remove key if spam complaints spike
-
----
-
-### Afternoon: Quality Gates (2-3 hours)
-
-#### ✅ Checkpoint 1.3: Run Local Quality Checks
+#### Step 2: Verify SendGrid (10 min)
 ```bash
-# Clean check
-npm run typecheck
-# Expected: No errors (already passing ✅)
+# Confirm all 4 email templates are configured
+railway variables 2>&1 | grep -i "SENDGRID_.*_TEMPLATE_ID"
 
-# Expo health
-npm run doctor
-# Expected: 2 non-critical warnings (duplicates, config sync)
+# Expected output (all 4 should be present):
+# SENDGRID_VERIFICATION_TEMPLATE_ID = d-xxxxx
+# SENDGRID_PASSWORD_RESET_TEMPLATE_ID = d-xxxxx
+# SENDGRID_TEAM_INVITE_TEMPLATE_ID = d-xxxxx
+# SENDGRID_EMAIL_CONFIRMATION_TEMPLATE_ID = d-xxxxx
 
-# Strict linting
-npm run lint:strict
-# Expected: ~440 problems (156 errors, 328 warnings)
-# Focus: Priority screens only
+# Run email verification test
+./scripts/email-verification-test.sh your-test-email@example.com
+
+# Check inbox for delivery within 2 minutes
 ```
 
-**Fix Priority (3 files, ~2 hours):**
+**Success Criterion:** All 4 templates configured; test email arrives within 2 min
 
-1. **app/highlights.tsx** (30 mins)
-   - Pattern: Same as event-detail
-   - Add `void` to router.push calls
-   - Rename unused vars with `_` prefix
-   - Guide: `docs/LINT_CLEANUP_GUIDE.md`
-
-2. **app/messages.tsx** (45 mins)
-   - Fix async message handlers
-   - Add await/catch to API calls
-   - Add `void` to navigation
-
-3. **app/feed.tsx** (30 mins)
-   - Router navigation fixes
-   - Unused variable cleanup
-
-**Verify After Each:**
+#### Step 3: Run TypeCheck (5 min)
 ```bash
 npm run typecheck
-npx eslint app/highlights.tsx
+# Should show zero errors or only pre-existing known issues
+# If new errors appear, mark them as "blockers" for Day 2
 ```
 
-**Target:** Priority screens error-free, warnings acceptable
+**Success Criterion:** TypeScript clean (or regressions logged)
 
----
-
-#### ✅ Checkpoint 1.4: Push & Verify CI
+#### Step 4: Run Lint Baseline (10 min)
 ```bash
-git add .
-git commit -m "Day 1: Sentry active, priority screens lint-clean"
-git push origin main
+npm run lint:strict 2>&1 | tee ./lint-baseline-day0.txt
+# Count total errors
+wc -l ./lint-baseline-day0.txt
+
+# Expected: ~200–400 lint warnings initially (non-blocking for launch, but Day 2 targets reducing critical categories)
 ```
+
+**Success Criterion:** Baseline captured; no new critical errors vs. last commit
+
+#### Step 5: Verify CI/Health Endpoint (10 min)
+```bash
+# Check GitHub Actions status
+curl -s https://api.github.com/repos/xsantcastx/VarsityHubMobile/actions/runs \
+  | jq '.workflow_runs[0] | {name, status, conclusion}'
+
+# Verify /health endpoint
+curl -s https://api-production-8ac3.up.railway.app/health | jq '.integrations'
+
+# Expected: database, jwt, cloudinary, stripe, sendgrid, googleOAuth, googleMaps all true
+# (twilio/sentry can be false if not configured)
+```
+
+**Success Criterion:** Last CI run green/yellow; `/health` shows all required integrations true
+
+### Day 0–1 Sign-Off
+- [ ] Sentry test event captured
+- [ ] SendGrid delivery confirmed
+- [ ] TypeScript clean
+- [ ] Lint baseline recorded
+- [ ] CI/health endpoint verified
+- [ ] Team notified: "Day 1 prep complete, moving to Day 2 quality"
 
 **Watch GitHub Actions:**
-- [ ] expo-doctor passes (2 warnings OK)
-- [ ] lint:strict runs (errors in non-priority files OK)
-- [ ] npm test passes (or skipped if no tests)
-- [ ] npm audit (5 vulnerabilities OK if moderate/low)
-
-**Success Criteria:**
-- ✅ CI workflow completes (green or yellow acceptable)
-- ✅ Sentry capturing exceptions
-- ✅ SendGrid sending emails
-- ✅ Priority screens compile cleanly
-
-**Rollback:** If CI completely fails, revert commit and fix locally first
+- [ ] Sentry test event captured
+- [ ] SendGrid delivery confirmed
+- [ ] TypeScript clean
+- [ ] Lint baseline recorded
+- [ ] CI/health endpoint verified
+- [ ] Team notified: "Day 1 prep complete, moving to Day 2 quality"
 
 ---
 
-## 🗓️ Day 2: Deep Cleanup & Testing Infrastructure
+## Day 2: Quality Sweep & Lint Reduction (~4–5 hours)
 
-### Morning: Remaining Critical Screens (3-4 hours)
+### Objectives
+- ✅ Reduce lint errors by **50%** (target: <120 from baseline)
+- ✅ Zero critical/high-severity lint in key screens (auth, onboarding, teams, events, posts, payments)
+- ✅ All TypeScript errors resolved
+- ✅ Retest affected flows to ensure fixes didn't break features
+
+### Files to Prioritize (in order)
 
 #### ✅ Checkpoint 2.1: Onboarding Flow
 **Files:**
