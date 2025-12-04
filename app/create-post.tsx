@@ -118,6 +118,7 @@ export default function CreatePostScreen() {
   }, [gameId]);
 
   // Auto-suggest nearest event based on time and location
+  // Backend already filters by distance/date, limits to ~10 candidates for efficiency
   useEffect(() => {
     if (hasAutoSuggested || selectedGameId) return;
     
@@ -125,53 +126,33 @@ export default function CreatePostScreen() {
       try {
         const now = new Date();
         const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        
+        // Backend-driven filtering: let API handle distance/date filters
+        // Only include location if we have precise coordinates
         const options: Record<string, any> = {
-          limit: 50,
+          limit: 10,
           dateFrom: now.toISOString(),
           dateTo: sevenDaysLater.toISOString(),
         };
         if (location?.latitude && location?.longitude) {
           options.lat = location.latitude;
           options.lng = location.longitude;
+          options.distance = 50;
         }
         
         const games = await Game.list('-date', options);
         const gamesArray = Array.isArray(games) ? games : (games?.items || []);
         if (!gamesArray.length) return;
         
-        const gamesWithDistance = gamesArray.map((g: any) => {
-          const gameLat = typeof g.latitude === 'number' ? g.latitude : (typeof g.lat === 'number' ? g.lat : null);
-          const gameLng = typeof g.longitude === 'number' ? g.longitude : (typeof g.lng === 'number' ? g.lng : null);
-          let distance = typeof g.distance === 'number' ? g.distance : null;
-          if (distance == null && location?.latitude && location?.longitude && gameLat != null && gameLng != null) {
-            const R = 6371;
-            const dLat = (gameLat - location.latitude) * Math.PI / 180;
-            const dLng = (gameLng - location.longitude) * Math.PI / 180;
-            const a =
-              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos((location.latitude * Math.PI) / 180) *
-                Math.cos((gameLat * Math.PI) / 180) *
-                Math.sin(dLng / 2) *
-                Math.sin(dLng / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            distance = R * c;
-          }
-          return { ...g, latitude: gameLat, longitude: gameLng, distance };
-        });
+        // Backend already provides distance; minimal client-side work
+        const gamesWithDistance = gamesArray.map((g: any) => ({
+          ...g,
+          latitude: typeof g.latitude === 'number' ? g.latitude : (typeof g.lat === 'number' ? g.lat : null),
+          longitude: typeof g.longitude === 'number' ? g.longitude : (typeof g.lng === 'number' ? g.lng : null),
+          distance: typeof g.distance === 'number' ? g.distance : null,
+        }));
         
-        gamesWithDistance.sort((a: any, b: any) => {
-          if (typeof a.distance === 'number' && typeof b.distance === 'number') {
-            return a.distance - b.distance;
-          }
-          if (typeof a.distance === 'number') return -1;
-          if (typeof b.distance === 'number') return 1;
-          const aTime = a.date ? new Date(a.date).getTime() : 0;
-          const bTime = b.date ? new Date(b.date).getTime() : 0;
-          const aDiff = Math.abs(aTime - now.getTime());
-          const bDiff = Math.abs(bTime - now.getTime());
-          return aDiff - bDiff;
-        });
-        
+        // Already sorted by distance on backend if location provided
         setNearbyGames(gamesWithDistance.slice(0, 5));
         const top = gamesWithDistance[0];
         if (top) {

@@ -6,9 +6,9 @@ import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Sty
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
+import { useShareLink } from '@/hooks/useShareLink';
 import MatchBanner from './components/MatchBanner';
 import RsvpSheet from './components/RsvpSheet';
-import { useShareLink } from '@/hooks/useShareLink';
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 

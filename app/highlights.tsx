@@ -342,11 +342,14 @@ export default function HighlightsScreen() {
     try {
       const me: any = await User.me().catch(() => null);
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
-      const lat = me?.preferences?.lat;
-      const lng = me?.preferences?.lng;
       
-      // Store user location for ranking calculations
-      if (lat && lng) {
+      // Location preference lookup: coordinates live under me.preferences
+      // Guard against undefined and ensure both lat/lng are valid numbers
+      const lat = typeof me?.preferences?.lat === 'number' ? me.preferences.lat : (typeof me?.lat === 'number' ? me.lat : undefined);
+      const lng = typeof me?.preferences?.lng === 'number' ? me.preferences.lng : (typeof me?.lng === 'number' ? me.lng : undefined);
+      
+      // Store user location for ranking calculations only if both coordinates are valid
+      if (typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0) {
         setUserLocation({ lat, lng });
       }
       

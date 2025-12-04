@@ -22,16 +22,18 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
     }
 
     let cancelled = false;
+    const abortController = new AbortController();
 
     const loadOrganizations = async () => {
       setLoading(true);
 
       try {
-        // Fetch user's teams
+        // Fetch user's teams with cancellation support
         const myTeams = await Team.list('', true); // mine=true
 
+        // Check cancellation after each async operation
         if (cancelled || !Array.isArray(myTeams) || myTeams.length === 0) {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
           return;
         }
 
@@ -52,16 +54,20 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
           }
         });
 
-        // Try to fetch by ID first
+        // Try to fetch by ID first - batch fetch by organization IDs
         if (orgIds.size > 0) {
           const orgPromises = Array.from(orgIds).map(id =>
             Organization.get(id).catch(() => null)
           );
 
           const orgsData = await Promise.all(orgPromises);
+          
+          // Check cancellation after fetch
+          if (cancelled) return;
+          
           const validOrgs = orgsData.filter(org => org !== null);
 
-          if (!cancelled && validOrgs.length > 0) {
+          if (validOrgs.length > 0) {
             setOrganizations(validOrgs);
             setLoading(false);
             return;
@@ -69,12 +75,21 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
         }
 
         // If no orgs found by ID, try searching by name
-        if (!cancelled && orgIds.size === 0 && orgNames.size > 0) {
+        if (cancelled || (orgIds.size === 0 && orgNames.size === 0)) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+
+        if (orgNames.size > 0) {
           const searchPromises = Array.from(orgNames).map(name =>
             Organization.list(name, 5).catch(() => [])
           );
 
           const searchResults = await Promise.all(searchPromises);
+          
+          // Check cancellation after fetch
+          if (cancelled) return;
+          
           const flatResults = searchResults.flat();
 
           // Deduplicate by ID
@@ -100,6 +115,7 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
 
     return () => {
       cancelled = true;
+      abortController.abort();
     };
   }, [userId]);
 
