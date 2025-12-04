@@ -12,7 +12,7 @@ import { User } from '@/api/entities';
 
 export default function AdminUserDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: authLoading } = useRequireAdmin();
+    const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

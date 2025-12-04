@@ -45,7 +45,7 @@ interface ReportStats {
 
 export default function AdminReportsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: authLoading } = useRequireAdmin();
+    const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

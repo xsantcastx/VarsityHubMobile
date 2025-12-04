@@ -77,7 +77,7 @@ export default function CommunityDiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
+  const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);

@@ -11,7 +11,7 @@ import { Team as TeamApi, User } from '@/api/entities';
 
 export default function AdminTeamsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: authLoading } = useRequireAdmin();
+    const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

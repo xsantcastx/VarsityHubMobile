@@ -14,7 +14,7 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: authLoading } = useRequireAdmin();
+    const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

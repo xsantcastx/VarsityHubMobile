@@ -473,7 +473,7 @@ const GameDetailsScreen = () => {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { width: windowWidth } = useWindowDimensions();
-  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
+  const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const scrollRef = useRef<any>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
@@ -493,7 +493,7 @@ const GameDetailsScreen = () => {
   const [nowTs, setNowTs] = useState(() => Date.now());
   const livePulse = useRef(new Animated.Value(0)).current;
 
-  const [voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
+  const [_voteSummary, setVoteSummary] = useState<VoteSummary | null>(null);
   const [voteBusy, setVoteBusy] = useState(false);
   const voteAnimated = useRef({ A: new Animated.Value(50), B: new Animated.Value(50) }).current;
   // micro-animation values for VS modal cards
@@ -1162,7 +1162,7 @@ const GameDetailsScreen = () => {
     );
   }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
-  const refreshVotes = useCallback(async () => {
+  const _refreshVotes = useCallback(async () => {
     if (!vm?.gameId) {
       setVoteSummary(null);
       return;
@@ -1218,8 +1218,8 @@ const GameDetailsScreen = () => {
   }, [load]);
 
   useEffect(() => {
-    refreshVotes();
-  }, [refreshVotes]);
+    _refreshVotes();
+  }, [_refreshVotes]);
 
   useEffect(() => {
     setVoteSummary(null);
@@ -1227,19 +1227,19 @@ const GameDetailsScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      refreshVotes();
+      _refreshVotes();
       const interval = setInterval(() => {
-        refreshVotes();
+        _refreshVotes();
       }, 10000);
       return () => clearInterval(interval);
-    }, [refreshVotes]),
+    }, [_refreshVotes]),
   );
 
   useEffect(() => {
-    const total = voteSummary?.total ?? 0;
+    const total = _voteSummary?.total ?? 0;
     const hasVotes = total > 0;
-    const targetA = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctA ?? 0)) : 50;
-    const targetB = hasVotes ? Math.max(1, Math.min(100, voteSummary?.pctB ?? 0)) : 50;
+    const targetA = hasVotes ? Math.max(1, Math.min(100, _voteSummary?.pctA ?? 0)) : 50;
+    const targetB = hasVotes ? Math.max(1, Math.min(100, _voteSummary?.pctB ?? 0)) : 50;
     const dur = prefersReducedMotion ? 0 : 400;
     Animated.parallel([
       Animated.timing(voteAnimated.A, { toValue: targetA, duration: prefersReducedMotion ? 0 : 200, useNativeDriver: false }),
@@ -1249,7 +1249,7 @@ const GameDetailsScreen = () => {
       Animated.timing(numAnimA, { toValue: targetA, duration: dur, useNativeDriver: false }),
       Animated.timing(numAnimB, { toValue: targetB, duration: dur, useNativeDriver: false }),
     ]).start();
-  }, [numAnimA, numAnimB, pctAnimA, pctAnimB, prefersReducedMotion, voteAnimated.A, voteAnimated.B, voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total]);
+  }, [numAnimA, numAnimB, pctAnimA, pctAnimB, prefersReducedMotion, voteAnimated.A, voteAnimated.B, _voteSummary?.pctA, _voteSummary?.pctB, _voteSummary?.total]);
 
   const onRefresh = useCallback(() => {
     load(true);
@@ -1371,7 +1371,7 @@ const GameDetailsScreen = () => {
         // The response from the server is the latest truth
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
-        // refreshVotes(); 
+        // _refreshVotes(); 
       } catch (err: any) {
         if (rollback) setVoteSummary(rollback); else setVoteSummary(null);
         if (err?.status === 401) {
@@ -1384,7 +1384,7 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.isPast, voteBusy, router, refreshVotes],
+    [vm?.gameId, vm?.isPast, voteBusy, router, _refreshVotes],
   );
 
   const handleClearVote = useCallback(async () => {
@@ -1418,7 +1418,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router]);
+  }, [vm?.gameId, vm?.isPast, voteBusy, _voteSummary, router]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map((m) => ({ 
@@ -1466,7 +1466,7 @@ const GameDetailsScreen = () => {
 
 const renderVoteSection = () => {
   if (!vm?.gameId) return null;
-  const summary = voteSummary ?? buildVoteSummary(0, 0, null);
+  const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
   const total = summary.total ?? 0;
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
@@ -1485,7 +1485,7 @@ const renderVoteSection = () => {
       ? teamBLabel
       : null
   );
-  const caption = voteSummary
+  const caption = _voteSummary
     ? `${total} ${votesWord} ${pickLabel ? `• Your pick: ${pickLabel}` : "• You haven't voted"}`
     : 'Loading votes...';
   const showInlineCaption =
@@ -2115,7 +2115,7 @@ const renderBanner = () => {
             {/* Poll row */}
             <View style={styles.vsPollRow}>
               {(() => {
-                const summary = voteSummary ?? buildVoteSummary(0, 0, null);
+                const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
                 const _pctA = summary.total ? Math.round(summary.pctA) : 50;
                 const _pctB = summary.total ? Math.round(summary.pctB) : 50;
                 const selected = summary.userVote;

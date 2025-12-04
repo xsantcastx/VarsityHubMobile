@@ -13,7 +13,7 @@ export default function BillingScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<any | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [_loadingSummary, setLoadingSummary] = useState(false);
   const [showQtyEditor, setShowQtyEditor] = useState(false);
   const [qty, setQty] = useState<string>('3');
 
