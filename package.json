@@ -27,7 +27,8 @@
     "server:db:migrate": "cd server && npx prisma migrate dev --name init",
     "server:db:seed": "cd server && npm run seed",
     "server:db:studio": "cd server && npx prisma studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No automated tests are defined yet - skipping.\""
   },
   "dependencies": {
     "@base44/sdk": "^0.7.0",
