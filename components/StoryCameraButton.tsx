@@ -89,7 +89,7 @@ export function StoryCameraButton({
         const mediaType = asset.type === 'video' ? 'video' : 'photo';
         onCapture(asset.uri, mediaType);
       }
-    } catch (error) {
+    } catch {
       console.error('Camera error:', error);
       setModal({
         visible: true,

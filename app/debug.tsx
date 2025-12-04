@@ -15,10 +15,10 @@ export default function DebugScreen() {
       <Stack.Screen options={{ title: 'Debug' }} />
       <Text style={styles.title}>Quick Nav</Text>
       <View style={styles.row}>
-  <Button onPress={() => router.push('/(tabs)')}><Text>Feed</Text></Button>
-  <Button onPress={() => router.push('/(tabs)/discover')}><Text>Discover</Text></Button>
-  <Button onPress={() => router.push('/profile')}><Text>Profile</Text></Button>
-  <Button onPress={() => router.push('/messages')}><Text>Messages</Text></Button>
+  <Button onPress={() => void router.push('/(tabs)')}><Text>Feed</Text></Button>
+  <Button onPress={() => void router.push('/(tabs)/discover')}><Text>Discover</Text></Button>
+  <Button onPress={() => void router.push('/profile')}><Text>Profile</Text></Button>
+  <Button onPress={() => void router.push('/messages')}><Text>Messages</Text></Button>
       </View>
 
       <Text style={styles.title}>Detail Deep Links</Text>
@@ -37,7 +37,7 @@ export default function DebugScreen() {
       <View style={styles.block}>
         <Text style={styles.label}>Ad Calendar adId</Text>
         <Input placeholder="e.g. my-ad" value={adId} onChangeText={setAdId} style={{ marginBottom: 8 }} />
-  <Button onPress={() => router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}`)}><Text>Open Ad Calendar</Text></Button>
+  <Button onPress={() => void router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}`)}><Text>Open Ad Calendar</Text></Button>
       </View>
     </View>
   );

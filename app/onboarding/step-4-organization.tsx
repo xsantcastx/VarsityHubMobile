@@ -98,7 +98,7 @@ export default function Step4Organization() {
             return;
           }
         }
-      } catch (error) {
+      } catch {
         console.error('Error checking existing team/org:', error);
       } finally {
         setChecking(false);
@@ -297,7 +297,7 @@ export default function Step4Organization() {
         if (ob.payment_pending) {
           await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
         }
-      } catch (e) {
+      } catch {
         // non-fatal
         console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
       }

@@ -57,7 +57,7 @@ export default function GameMapScreen() {
         }));
 
       setEvents(mappedEvents);
-    } catch (error) {
+    } catch {
       console.error('Error loading games:', error);
       Alert.alert('Error', 'Unable to load games. Please try again.');
     } finally {
@@ -82,7 +82,7 @@ export default function GameMapScreen() {
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={styles.headerButton}>
+            <Pressable onPress={() => void router.back()} style={styles.headerButton}>
               <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
             </Pressable>
           ),
@@ -101,7 +101,7 @@ export default function GameMapScreen() {
           <Ionicons name="map" size={40} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No mapped games yet</Text>
           <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Try Discover or follow teams near you.</Text>
-          <Pressable onPress={() => router.push('/(tabs)/discover')} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
+          <Pressable onPress={() => void router.push('/(tabs)/discover')} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
             <Text style={{ color: '#fff', fontWeight: '700' }}>Open Discover</Text>
           </Pressable>
         </View>

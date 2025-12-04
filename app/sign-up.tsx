@@ -284,7 +284,7 @@ export default function SignUpScreen() {
           </>
         )}
 
-        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => router.replace('/sign-in')}>
+        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')}>
           <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
         </Pressable>
       </KeyboardAwareScreen>

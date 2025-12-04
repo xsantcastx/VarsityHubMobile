@@ -26,7 +26,7 @@ export default function CoreValuesScreen() {
           title: 'Core Values',
           headerRight: () => (
             <Pressable
-              onPress={() => router.push('/settings/safe-zone-policy')}
+              onPress={() => void router.push('/settings/safe-zone-policy')}
               style={styles.headerButton}
             >
               <Ionicons
@@ -194,7 +194,7 @@ export default function CoreValuesScreen() {
               backgroundColor: isDark ? '#3B82F6' : '#2563EB',
             },
           ]}
-          onPress={() => router.push('/settings/safe-zone-policy')}
+          onPress={() => void router.push('/settings/safe-zone-policy')}
         >
           <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
           <Text style={styles.safeZoneButtonText}>View Safe Zone Policy</Text>

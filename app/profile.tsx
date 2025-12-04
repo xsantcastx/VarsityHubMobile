@@ -187,7 +187,7 @@ export default function ProfileScreen() {
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
-    } catch (error) {
+    } catch {
       console.error("Avatar upload failed", error);
       Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
     } finally {
@@ -290,7 +290,7 @@ export default function ProfileScreen() {
             setOrganizations(uniqueOrgs);
           }
         }
-      } catch (err) {
+      } catch {
         console.error('Failed to load organizations', err);
       }
     };
@@ -386,7 +386,7 @@ export default function ProfileScreen() {
         />
         
         {/* Settings Button */}
-        <Pressable onPress={() => router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
+        <Pressable onPress={() => void router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
           <Ionicons name="settings-outline" size={20} color="#ffffff" />
         </Pressable>
         
@@ -457,7 +457,7 @@ export default function ProfileScreen() {
 
           {/* Edit Profile Button */}
           <View style={styles.actionsContainer}>
-            <Pressable style={styles.editButton} onPress={() => router.push('/edit-profile')}>
+            <Pressable style={styles.editButton} onPress={() => void router.push('/edit-profile')}>
               <Text style={styles.editButtonText}>Edit Profile</Text>
             </Pressable>
           </View>
@@ -470,9 +470,7 @@ export default function ProfileScreen() {
           <React.Fragment key={stat.label}>
             <Pressable 
               style={styles.statItem} 
-              onPress={() => {
-                if (stat.label === 'followers') {
-                  router.push(`/followers?id=${me.id}&username=${name}`);
+              onPress={() => { if (stat.label === 'followers') { void router.push(`/followers?id=${me.id}&username=${name}`);
                 } else if (stat.label === 'following') {
                   router.push(`/following?id=${me.id}&username=${name}`);
                 }
@@ -498,7 +496,7 @@ export default function ProfileScreen() {
               <Pressable
                 key={org.id}
                 style={[styles.orgCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => router.push({ pathname: '/league', params: { id: org.id, name: org.name } })}
+                onPress={() => void router.push({ pathname: '/league', params: { id: org.id, name: org.name } })}
               >
                 {org.avatar_url ? (
                   <Image
@@ -578,7 +576,7 @@ export default function ProfileScreen() {
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyTitle}>No posts yet</Text>
       <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-    <Button onPress={() => router.push('/create-post')}><Text>Create Your First Post</Text></Button>
+    <Button onPress={() => void router.push('/create-post')}><Text>Create Your First Post</Text></Button>
     </View>
   );
 
@@ -605,7 +603,7 @@ export default function ProfileScreen() {
       <View style={styles.center}>
         <Text style={styles.error}>{error}</Text>
         <View style={{ height: 8 }} />
-  <Button onPress={() => router.push('/sign-in')}><Text>Sign In</Text></Button>
+  <Button onPress={() => void router.push('/sign-in')}><Text>Sign In</Text></Button>
       </View>
     );
   }

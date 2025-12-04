@@ -37,7 +37,7 @@ const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 let FastImage: any = null;
 try {
   FastImage = require('react-native-fast-image');
-} catch (error) {
+} catch {
   FastImage = ({ source, style, resizeMode }: any) => (
     <Image
       source={source}
@@ -178,7 +178,7 @@ const FeedCard = memo(
         try {
           const user = await User.me();
           setCurrentUser(user);
-        } catch (error) {
+        } catch {
           console.error('Failed to load user:', error);
         }
       };
@@ -197,7 +197,7 @@ const FeedCard = memo(
         await Post.delete(post.id);
         setShowDeleteConfirm(false);
         onDeletePost?.();
-      } catch (error) {
+      } catch {
         console.error('Failed to delete post:', error);
       }
     };
@@ -212,7 +212,7 @@ const FeedCard = memo(
         await Post.update(post.id, { content: editCaption });
         setShowEditModal(false);
         onEditPost?.(editCaption);
-      } catch (error) {
+      } catch {
         console.error('Failed to update post:', error);
       }
     };
@@ -605,7 +605,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!cancelled && summary) {
           setGame({ id: summary.id, title: summary.title || 'Game', date: summary.date ?? null });
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) setGame(null);
       }
     })();
@@ -650,7 +650,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           setCursor(null);
           hasMoreRef.current = false;
           setHasMore(false);
-        } catch (error) {
+        } catch {
           if (__DEV__) console.warn('Global highlights feed load failed', error);
         } finally {
           setLoading(false);
@@ -686,7 +686,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         const more = Boolean(page?.nextCursor);
         hasMoreRef.current = more;
         setHasMore(more);
-      } catch (error) {
+      } catch {
         if (__DEV__) console.warn('Feed load failed', error);
       } finally {
         setLoading(false);
@@ -779,7 +779,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           has_upvoted: Boolean(res?.has_upvoted ?? res?.upvoted),
           upvotes_count: typeof res?.upvotes_count === 'number' ? res.upvotes_count : typeof res?.count === 'number' ? res.count : p.upvotes_count,
         }));
-      } catch (error) {
+      } catch {
         updatePost(post.id, (p) => ({
           ...p,
           has_upvoted: post.has_upvoted,
@@ -805,7 +805,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           has_bookmarked: Boolean(res?.has_bookmarked ?? res?.bookmarked),
           bookmarks_count: typeof res?.bookmarks_count === 'number' ? res.bookmarks_count : p.bookmarks_count,
         }));
-      } catch (error) {
+      } catch {
         updatePost(post.id, (p) => ({
           ...p,
           has_bookmarked: post.has_bookmarked,
@@ -831,7 +831,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           await User.unfollow(authorId);
           optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: false }));
         }
-      } catch (error) {
+      } catch {
         optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: post.is_following_author }));
       }
     },
@@ -899,7 +899,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       const items = Array.isArray(res?.items) ? res.items : [];
       setComments((prev) => [...prev, ...items]);
       setCommentsCursor(res?.nextCursor ?? null);
-    } catch (error) {
+    } catch {
       setCommentsCursor(null);
     } finally {
       setCommentsLoading(false);
@@ -927,7 +927,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
       // Notify profile interactions that a new comment was made
       events.emit('comment:created', { post_id: commentTarget.id });
-    } catch (error) {
+    } catch {
       setComments((prev) => prev.filter((c) => !c.optimistic));
       setCommentsError('Unable to send comment right now.');
     } finally {

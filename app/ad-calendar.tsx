@@ -217,7 +217,7 @@ export default function AdCalendarScreen() {
         setDateAvailability(availabilityMap);
         setFullDates(fullDatesSet);
       }
-    } catch (e) {
+    } catch {
       if (__DEV__) console.error('Error loading availability:', e);
     }
   };
@@ -517,7 +517,7 @@ export default function AdCalendarScreen() {
           ]
         );
       }
-    } catch (err) {
+    } catch {
       if (__DEV__) console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);
@@ -541,7 +541,7 @@ export default function AdCalendarScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border 
         }]}>
-          <Pressable onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
+          <Pressable onPress={() => void router.back()} style={[styles.iconBtn, { backgroundColor: Colors[colorScheme].surface }]}>
             <Text style={[styles.iconBtnText, { color: Colors[colorScheme].text }]}>{'<'}</Text>
           </Pressable>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Schedule Your Ad</Text>

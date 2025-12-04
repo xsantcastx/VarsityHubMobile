@@ -51,14 +51,14 @@ export default function EditTeamScreen() {
         try {
           const org = await Organization.get(teamData.organization_id);
           setOrganizationName(org.name || '');
-        } catch (err) {
+        } catch {
           console.error('Failed to load organization:', err);
           setOrganizationName('');
         }
       } else {
         setOrganizationName('');
       }
-    } catch (error) {
+    } catch {
       console.error('Failed to load team:', error);
       Alert.alert('Error', 'Failed to load team data. Please try again.');
       router.back();
@@ -142,7 +142,7 @@ export default function EditTeamScreen() {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
-        } catch (error) {
+        } catch {
           console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team updated but logo upload failed. Please try updating the logo again.');
         }
@@ -270,7 +270,7 @@ export default function EditTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.back()}
+            onPress={() => void router.back()}
           >
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>

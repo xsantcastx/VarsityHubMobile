@@ -61,7 +61,7 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch (error) {
+    } catch {
       console.error('RSVP error:', error);
       Alert.alert('Error', 'Failed to update RSVP. Please try again.');
     } finally {
@@ -236,7 +236,7 @@ export default function FeedScreen() {
       if (result.status === 'fulfilled' && result.value) {
         try {
           next[entry.id] = buildVotePreviewEntry(result.value, entry.labels);
-        } catch (err) {
+        } catch {
           if (__DEV__) console.warn('Vote summary parse failed', err);
         }
       }
@@ -255,7 +255,7 @@ export default function FeedScreen() {
       try {
         user = await User.me();
         setMe(user);
-      } catch (err) {
+      } catch {
         if (__DEV__) console.warn('Feed load: unable to fetch user', err);
       }
       const countryCode = typeof user?.preferences?.country_code === 'string'
@@ -421,7 +421,7 @@ export default function FeedScreen() {
       try {
         const page = await NotificationApi.listPage(null, 20, false);
         setNotificationsList(Array.isArray(page.items) ? page.items : []);
-      } catch (e) {
+      } catch {
         console.error('Failed to load notifications', e);
       } finally {
         setLoadingNotifications(false);
@@ -559,7 +559,7 @@ export default function FeedScreen() {
       } else {
         Alert.alert('Error', 'Unable to open Instagram. Please try again.');
       }
-    } catch (error) {
+    } catch {
       console.error('Error opening Instagram:', error);
       Alert.alert('Error', 'Failed to open Instagram link.');
     }
@@ -583,7 +583,7 @@ export default function FeedScreen() {
     if (!me || emailVerified) return null;
     return (
       <Pressable
-        onPress={() => router.push('/verify-email')}
+        onPress={() => void router.push('/verify-email')}
         style={{
           padding: 10,
           borderRadius: 10,
@@ -629,7 +629,7 @@ export default function FeedScreen() {
       return (
         <Pressable
           style={styles.gridItem}
-          onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+          onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
           accessibilityRole="button"
         >
           {hasBanner ? (
@@ -717,7 +717,7 @@ export default function FeedScreen() {
           {/* Messages on RIGHT */}
           <View style={styles.headerActions}>
             <Pressable 
-              onPress={() => router.push('/messages')} 
+              onPress={() => void router.push('/messages')} 
               style={styles.iconButton} 
               accessibilityRole="button" 
               accessibilityLabel="Open messages"
@@ -733,7 +733,7 @@ export default function FeedScreen() {
       {error && (
         <View style={{ marginBottom: 8 }}>
           <Text style={styles.error}>{error}</Text>
-          <Pressable onPress={() => router.push('/sign-in')} style={{ paddingVertical: 8 }}>
+          <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
             <Text style={{ color: '#0a7ea4', fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
@@ -759,7 +759,7 @@ export default function FeedScreen() {
               // Still navigate to map, it will request permission there
               router.push('/game-map');
             }
-          } catch (error) {
+          } catch {
             console.error('Error getting location:', error);
             // Navigate anyway, map screen will handle location
             router.push('/game-map');
@@ -830,7 +830,7 @@ export default function FeedScreen() {
                             borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
                           }
                         ]}
-                        onPress={() => router.push('/submit-ad')}
+                        onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
                       >
                         <Ionicons name="megaphone" size={48} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
@@ -886,7 +886,7 @@ export default function FeedScreen() {
                       {/* Promote your program CTA */}
                       <Pressable
                         style={styles.promoteCta}
-                        onPress={() => router.push('/submit-ad')}
+                        onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
                       >
                         <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
@@ -929,7 +929,7 @@ export default function FeedScreen() {
                 <Pressable
                   key={String(gameItem.id)}
                   style={styles.singleEventCard}
-                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
+                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
                   accessibilityRole="button"
                 >
                   {hasBanner ? (
@@ -1014,7 +1014,7 @@ export default function FeedScreen() {
                   <Pressable
                     key={String(item.id)}
                     style={styles.singleEventCard}
-                    onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+                    onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
                     accessibilityRole="button"
                   >
                     {hasBanner ? (
@@ -1169,7 +1169,7 @@ export default function FeedScreen() {
                                 // Refresh unread count
                                 const page = await NotificationApi.listPage(null, 1, true);
                                 setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-                              } catch (e) {
+                              } catch {
                                 console.error('Failed to mark notification as read', e);
                               }
                             }

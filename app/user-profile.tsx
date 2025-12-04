@@ -232,7 +232,7 @@ export default function UserProfileScreen() {
                     setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
                     try {
                       if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                    } catch (e) {
+                    } catch {
                       setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
                     }
                   }}
@@ -248,21 +248,21 @@ export default function UserProfileScreen() {
 
           {/* Athletic Stats Card */}
           <View style={[S.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Pressable style={S.statItem} onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <Pressable style={S.statItem} onPress={() => void router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.posts_count ?? 0}</Text>
               <Text style={[S.statLabel, { color: theme.mutedText }]}>Posts</Text>
             </Pressable>
             
             <View style={[S.statDivider, { backgroundColor: theme.border }]} />
             
-            <Pressable style={S.statItem} onPress={() => router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <Pressable style={S.statItem} onPress={() => void router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.followers_count ?? 0}</Text>
               <Text style={[S.statLabel, { color: theme.mutedText }]}>Followers</Text>
             </Pressable>
             
             <View style={[S.statDivider, { backgroundColor: theme.border }]} />
             
-            <Pressable style={S.statItem} onPress={() => router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <Pressable style={S.statItem} onPress={() => void router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.following_count ?? 0}</Text>
               <Text style={[S.statLabel, { color: theme.mutedText }]}>Following</Text>
             </Pressable>

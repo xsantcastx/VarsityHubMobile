@@ -38,7 +38,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       try {
         const user = await User.me();
         setCurrentUser(user);
-      } catch (error) {
+      } catch {
         // User not logged in or error occurred
         setCurrentUser(null);
       }
@@ -165,9 +165,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
-            onPress={() => {
-              if (!author?.id) return;
-              router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.display_name || 'User' } });
+            onPress={() => { if (!author?.id) return; void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.display_name || 'User' } });
             }}
           >
             <View style={styles.authorAvatarWrap}>

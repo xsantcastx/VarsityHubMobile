@@ -90,7 +90,7 @@ export default function SubscriptionPaywallScreen() {
       } else {
         throw new Error('No checkout URL received');
       }
-    } catch (error) {
+    } catch {
       console.error('Subscription error:', error);
       setModal({
         visible: true,

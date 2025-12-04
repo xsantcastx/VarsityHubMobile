@@ -65,7 +65,7 @@ export default function EventApprovalsScreen() {
       try {
         const user = await User.me();
         setMe(user);
-      } catch (err) {
+      } catch {
         console.warn('Unable to fetch user data:', err);
       }
 
@@ -222,7 +222,7 @@ export default function EventApprovalsScreen() {
       
       // Show success message
       Alert.alert('Success', data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
-    } catch (error) {
+    } catch {
       console.error('Error adding quick game:', error);
       Alert.alert('Error', `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -397,10 +397,8 @@ export default function EventApprovalsScreen() {
             styles.sectionTab,
             sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
           ]}
-          onPress={() => {
-            // Role-based navigation
-            if (me?.role === 'coach') {
-              router.push('/manage-season');
+          onPress={() => { // Role-based navigation
+            if (me?.role === 'coach') { void router.push('/manage-season');
             } else {
               setCreateEventModalOpen(true);
             }
@@ -499,7 +497,7 @@ export default function EventApprovalsScreen() {
               </Text>
               <Pressable
                 style={[styles.createButton, { backgroundColor: '#3B82F6' }]}
-                onPress={() => router.push('/create-team')}
+                onPress={() => void router.push('/create-team')}
               >
                 <Ionicons name="add-circle-outline" size={20} color="#fff" />
                 <Text style={styles.createButtonText}>Create Organization</Text>
@@ -530,7 +528,7 @@ export default function EventApprovalsScreen() {
               </Text>
               <Pressable
                 style={[styles.createButton, { backgroundColor: '#8B5CF6' }]}
-                onPress={() => router.push('/create-team')}
+                onPress={() => void router.push('/create-team')}
               >
                 <Ionicons name="add-circle-outline" size={20} color="#fff" />
                 <Text style={styles.createButtonText}>Create Organization</Text>

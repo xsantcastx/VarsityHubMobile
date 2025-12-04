@@ -141,7 +141,7 @@ export default function ManageSeasonScreen() {
           ],
         });
       }
-    } catch (error) {
+    } catch {
       console.error('Error loading team:', error);
     }
   }, [params.teamId, router]);
@@ -201,7 +201,7 @@ export default function ManageSeasonScreen() {
       });
       
       setGames(convertedGames);
-    } catch (error) {
+    } catch {
       console.error('Error loading games:', error);
       const errorMessage = error instanceof Error && error.message.includes('Too many requests') 
         ? 'Server is busy, please try again in a moment'
@@ -411,7 +411,7 @@ export default function ManageSeasonScreen() {
                 message: 'Game deleted successfully!',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-            } catch (error) {
+            } catch {
               setActionModal({
                 visible: true,
                 title: 'Error',
@@ -491,7 +491,7 @@ export default function ManageSeasonScreen() {
         message: `${game.opponent || 'Game'} has been approved and will appear in upcoming games.`,
         options: [{ label: 'OK', onPress: () => {} }],
       });
-    } catch (error) {
+    } catch {
       console.error('Error approving game:', error);
     }
   };
@@ -517,7 +517,7 @@ export default function ManageSeasonScreen() {
                 message: 'The game has been rejected and removed.',
                 options: [{ label: 'OK', onPress: () => {} }],
               });
-            } catch (error) {
+            } catch {
               console.error('Error rejecting game:', error);
             }
           },
@@ -761,7 +761,7 @@ export default function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       
-    } catch (error) {
+    } catch {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -841,7 +841,7 @@ export default function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       
-    } catch (error) {
+    } catch {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -1008,7 +1008,7 @@ export default function ManageSeasonScreen() {
       {/* SIMPLIFIED HEADER - Team Name with Back Button */}
       <View style={[styles.headerCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, padding: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
+          <Pressable onPress={() => void router.back()} style={{ padding: 8 }}>
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable onPress={() => setTeamSelectorOpen(true)} style={{ flex: 1 }}>

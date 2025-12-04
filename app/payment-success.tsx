@@ -50,7 +50,7 @@ export default function PaymentSuccessScreen() {
               if ((plan === 'veteran' || plan === 'legend') && pending === false) {
                 setSessionVerified(true);
               }
-            } catch (e) {
+            } catch {
               // If user fetch fails, allow manual continue
               console.warn('[payment-success] User.me() failed during subscription verify');
             }

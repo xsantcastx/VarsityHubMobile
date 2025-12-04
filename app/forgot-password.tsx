@@ -80,14 +80,14 @@ export default function ForgotPasswordScreen() {
 
         <Pressable
           style={styles.linkRow}
-          onPress={() => router.push({ pathname: '/reset-password', params: { email: email.trim() } })}
+          onPress={() => void router.push({ pathname: '/reset-password', params: { email: email.trim() } })}
           disabled={!email.trim()}
         >
           <Text style={[styles.link, { color: palette.tint }]}>Already have a code? Reset now</Text>
         </Pressable>
       </View>
 
-      <Pressable style={styles.secondary} onPress={() => router.replace('/sign-in')}>
+      <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
         <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
       </Pressable>
     </SafeAreaView>

@@ -93,7 +93,7 @@ export default function FavoritesScreen() {
         } else {
           setError('Unable to determine your account. Please sign in again.');
         }
-      } catch (e) {
+      } catch {
         if (!canceled) {
           setError('Unable to load your favorites right now.');
           setLoading(false);
@@ -196,7 +196,7 @@ export default function FavoritesScreen() {
     ({ item }: { item: SavedPost }) => (
       <Pressable
         style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        onPress={() => router.push(`/post-detail?id=${item.id}`)}
+        onPress={() => void router.push(`/post-detail?id=${item.id}`)}
       >
         <View style={styles.media}>
           {item.media_url ? (

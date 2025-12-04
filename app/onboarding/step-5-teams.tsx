@@ -74,7 +74,7 @@ export default function Step5Teams() {
       // Persist season dates to user's preferences so server knows the selected season
       try {
         await User.updatePreferences({ season_start: startDate, season_end: endDate });
-      } catch (err) {
+      } catch {
         // Non-fatal: continue onboarding even if preferences persistence fails
         console.warn('Failed to persist season to backend:', err);
       }
