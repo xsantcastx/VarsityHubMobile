@@ -23,7 +23,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
       } else if (autoPlay) {
         player.play();
       }
-    } catch {
+    } catch (err) {
       console.log('VideoPlayer playback control error:', err);
     }
   }, [paused, player, autoPlay]);
@@ -33,7 +33,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
     if (!player || !autoPlay || paused) return;
     try {
       player.replay();
-    } catch {
+    } catch (err) {
       console.log('VideoPlayer autoplay error:', err);
     }
   }, [autoPlay, player, paused]);
