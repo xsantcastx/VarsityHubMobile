@@ -14,7 +14,7 @@ export default function MessagesTabIcon({ color }: { color: string }) {
         if (!alive) return;
         const count = (list || []).filter((m: any) => !m.read).length;
         setUnread(count);
-      } catch {}
+      } catch (_error) {}
     };
     load();
     const id = setInterval(load, 30000);

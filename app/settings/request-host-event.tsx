@@ -15,7 +15,7 @@ export default function RequestHostEventScreen() {
   const [venue, setVenue] = useState('');
   const [dates, setDates] = useState('');
   const [sending, setSending] = useState(false);
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch (_error) {} })(); }, []);
   const onSubmit = async () => {
     if (!org.trim()) { Alert.alert('Enter organization name'); return; }
     setSending(true);

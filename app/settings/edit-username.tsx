@@ -19,7 +19,7 @@ export default function EditUsernameScreen() {
       try { 
         const me: any = await User.me(); 
         setName(me?.display_name || ''); 
-      } catch {} 
+      } catch (_error) {} 
     })(); 
   }, []);
 

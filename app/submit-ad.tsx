@@ -66,7 +66,7 @@ export default function SubmitAdScreen() {
         if (!normalizedEmail && typeof me?.email === 'string') {
           normalizedEmail = me.email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (_error) {}
 
       // Try server-side creation first
       let serverId: string | null = null;
@@ -87,7 +87,7 @@ export default function SubmitAdScreen() {
         if (typeof created?.contact_email === 'string') {
           normalizedEmail = created.contact_email.trim().toLowerCase();
         }
-      } catch {}
+      } catch (_error) {}
 
       const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
       // Keep a local copy so My Ads can show offline
@@ -119,7 +119,7 @@ export default function SubmitAdScreen() {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
-      } catch {}
+      } catch (_error) {}
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {

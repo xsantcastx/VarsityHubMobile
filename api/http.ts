@@ -90,7 +90,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     if (ct.includes('application/json')) {
       try {
         data = text ? JSON.parse(text) : null;
-      } catch {
+      } catch (_error) {
         data = null;
       }
     } else {
@@ -105,9 +105,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       // Auth-aware redirect for protected endpoints
       if (err.status === 401 || err.status === 403) {
         // clear token cache and route to sign-in preserving next
-        try { clearAuthToken(); } catch {}
+        try { clearAuthToken(); } catch (_error) {}
         const next = encodeURIComponent(path);
-        try { router.push(`/sign-in?next=${next}` as any); } catch {}
+        try { router.push(`/sign-in?next=${next}` as any); } catch (_error) {}
       }
       throw err;
     }

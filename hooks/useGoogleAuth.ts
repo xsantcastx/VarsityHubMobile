@@ -18,7 +18,7 @@ let sessionUrlProvider: {
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   sessionUrlProvider = require('expo-auth-session/build/SessionUrlProvider').default;
-} catch {
+} catch (_error) {
   sessionUrlProvider = null;
 }
 

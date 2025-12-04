@@ -68,7 +68,7 @@ export function EventMergeSuggestionModal({
     if (!date) return 'TBD';
     try {
       return format(new Date(date), 'EEE, MMM d · h:mm a');
-    } catch {
+    } catch (_error) {
       return date;
     }
   };

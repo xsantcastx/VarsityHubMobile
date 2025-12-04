@@ -64,7 +64,7 @@ export default function MessageThreadScreen() {
       try {
         if (conversation_id) await MessageApi.markReadByConversation(String(conversation_id));
         else if (withParam) await MessageApi.markReadWith(String(withParam));
-      } catch {}
+      } catch (_error) {}
     })();
   }, [conversation_id, withParam]);
 
@@ -92,7 +92,7 @@ export default function MessageThreadScreen() {
           setMsgs(list);
           setMe(user);
         }
-      } catch {
+      } catch (_error) {
         // Silently fail - don't disrupt conversation
       }
     }, 3000); // Check for new messages every 3 seconds
@@ -148,7 +148,7 @@ export default function MessageThreadScreen() {
 
       const created = await MessageApi.send(payload);
       setMsgs((arr) => arr.concat(created));
-    } catch {
+    } catch (_error) {
       setError('Failed to send message');
     }
   };

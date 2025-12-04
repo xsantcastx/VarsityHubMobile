@@ -278,7 +278,7 @@ export default function TeamProfileScreen() {
       ));
       // TODO: Save to backend
       console.log('Updated position:', { memberId, position });
-    } catch {
+    } catch (_error) {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -322,7 +322,7 @@ export default function TeamProfileScreen() {
           mutual_friends: user.mutual_friends || 0,
         }));
       setSearchResults(convertedResults);
-    } catch {
+    } catch (_error) {
       console.error('User search failed:', error);
       setSearchResults([]);
       setActionModal({
@@ -483,7 +483,7 @@ export default function TeamProfileScreen() {
         message: 'Member role updated successfully',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-    } catch {
+    } catch (_error) {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -511,7 +511,7 @@ export default function TeamProfileScreen() {
                 message: 'Member removed from team',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-            } catch {
+            } catch (_error) {
               setActionModal({
                 visible: true,
                 title: 'Error',

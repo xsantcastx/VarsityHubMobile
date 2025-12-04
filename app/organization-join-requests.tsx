@@ -126,7 +126,7 @@ export default function OrganizationJoinRequestsScreen() {
       if (diffDays < 7) return `${diffDays}d ago`;
 
       return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    } catch {
+    } catch (_error) {
       return dateString;
     }
   };

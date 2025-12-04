@@ -56,7 +56,7 @@ export default function VerifyEmailScreen() {
         // Fallback to generic email URL
         await Linking.openURL('mailto:');
       }
-    } catch {
+    } catch (_error) {
       console.error('Failed to open email app:', error);
       setInfo('Please check your email app manually');
     }

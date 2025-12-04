@@ -17,7 +17,7 @@ export default function ZipCodeScreen() {
   const [zip, setZip] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch (_error) {} })(); }, []);
 
   const onSave = async () => {
     const v = zip.trim();

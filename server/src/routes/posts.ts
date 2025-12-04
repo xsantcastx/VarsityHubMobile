@@ -202,13 +202,13 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       country_code = rev.country_code || preferCountry;
       admin1 = rev.admin_area || null;
       place_name = rev.place_name || null;
-    } catch {}
+    } catch (_error) {}
   } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
     try {
       const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
       const gg = await geocodeZip(zip, preferCountry);
       lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
-    } catch {}
+    } catch (_error) {}
   } else {
     country_code = preferCountry || null;
   }

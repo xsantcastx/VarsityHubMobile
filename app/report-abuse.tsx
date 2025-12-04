@@ -29,7 +29,7 @@ export default function ReportAbuseScreen() {
         if (typeof me?.email === 'string' && !email) {
           setEmail(me.email);
         }
-      } catch {
+      } catch (_error) {
         // Ignore, user can fill fields manually.
       }
     })();

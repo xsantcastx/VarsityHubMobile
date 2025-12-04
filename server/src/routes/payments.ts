@@ -615,7 +615,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
           if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-        } catch {}
+        } catch (_error) {}
       }
     }
 
@@ -791,7 +791,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   const meta = session.metadata || {};
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
   if (ad_id && Array.isArray(dates) && dates.length) {
     console.log('[payments] Processing ad reservation payment', {
       ad_id,
