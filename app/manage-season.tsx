@@ -104,7 +104,7 @@ export default function ManageSeasonScreen() {
 
   // Guard: restrict to coach role
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         // @ts-ignore JS exports
         const { User } = await import('@/api/entities');
@@ -113,7 +113,7 @@ export default function ManageSeasonScreen() {
           router.replace('/(tabs)');
         }
       } catch {}
-    })();
+    })().catch(() => {});
   }, [router]);
 
   const loadTeam = useCallback(async () => {
@@ -220,12 +220,12 @@ export default function ManageSeasonScreen() {
 
   // Load team and then games
   useEffect(() => {
-    loadTeam();
+    void loadTeam().catch(() => {});
   }, [loadTeam]);
 
   useEffect(() => {
     if (currentTeam?.id) {
-      loadGames();
+      void loadGames().catch(() => {});
     }
   }, [currentTeam?.id, loadGames]);
 
@@ -372,7 +372,7 @@ export default function ManageSeasonScreen() {
 
   // Load games on mount
   useEffect(() => {
-    loadGames();
+    void loadGames().catch(() => {});
   }, [loadGames]);
 
   const onRefresh = useCallback(async () => {

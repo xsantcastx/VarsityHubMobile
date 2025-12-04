@@ -338,7 +338,7 @@ export default function AdCalendarScreen() {
     
     // Prevent selection of fully booked dates
     if (fullDates.has(iso)) {
-      void fetchAlternativeZips([iso]);
+      void fetchAlternativeZips([iso]).catch(() => {});
       Alert.alert(
         'Date Fully Booked', 
         'This date already has 3/3 ad slots filled. Check below for nearby available zip codes or select a different date.'
@@ -349,7 +349,7 @@ export default function AdCalendarScreen() {
     // Prevent selection of reserved dates
     if (reserved.has(iso)) {
       // Fetch alternative zip codes
-      void fetchAlternativeZips([iso]);
+      void fetchAlternativeZips([iso]).catch(() => {});
       Alert.alert('Date Unavailable', 'This date is already reserved. Check below for nearby available zip codes.');
       return;
     }
