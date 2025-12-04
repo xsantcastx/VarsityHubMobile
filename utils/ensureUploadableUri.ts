@@ -1,5 +1,4 @@
 import * as ImageManipulator from 'expo-image-manipulator';
-import { Platform } from 'react-native';
 
 /**
  * Ensure a picked asset URI is suitable for upload via FormData.
