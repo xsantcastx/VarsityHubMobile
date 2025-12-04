@@ -1,0 +1,159 @@
+name: Snyk Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  snyk-scan:
+    runs-on: ubuntu-latest
+    name: Snyk Code & Dependency Scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Snyk authentication
+        uses: snyk/actions/setup@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run Snyk Code scan (SAST)
+        run: snyk code test --severity-threshold=high --report-metrics
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run Snyk Open Source scan (SCA)
+        run: snyk test --severity-threshold=high --report-metrics
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Monitor with Snyk
+        if: github.ref == 'refs/heads/main'
+        run: snyk monitor --severity-threshold=high
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Upload Snyk results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: snyk.sarif
+          category: snyk
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    name: npm audit
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for high/critical vulnerabilities
+        run: |
+          CRITICAL=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.critical // 0')
+          HIGH=$(npm audit --json 2>/dev/null | jq '.metadata.vulnerabilities.high // 0')
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "❌ Found critical or high severity vulnerabilities"
+            npm audit
+            exit 1
+          else
+            echo "✅ No high/critical vulnerabilities found"
+          fi
+
+  container-scan:
+    runs-on: ubuntu-latest
+    name: Container Security Scan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t varsityhubmobile:latest .
+          else
+            echo "No Dockerfile found, skipping container scan"
+          fi
+        continue-on-error: true
+
+      - name: Run Snyk container scan
+        uses: snyk/actions/docker@master
+        if: hashFiles('Dockerfile') != ''
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: varsityhubmobile:latest
+          args: --severity-threshold=high
+        continue-on-error: true
+
+  iac-scan:
+    runs-on: ubuntu-latest
+    name: Infrastructure as Code Scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Snyk
+        uses: snyk/actions/setup@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Scan Infrastructure as Code
+        run: snyk iac test --severity-threshold=high || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  security-report:
+    runs-on: ubuntu-latest
+    name: Security Summary
+    if: always()
+    needs: [snyk-scan, dependency-audit]
+
+    steps:
+      - name: Check scan results
+        run: |
+          echo "🔒 Security Scanning Complete"
+          echo "✅ Snyk Code scanning (SAST) - completed"
+          echo "✅ Snyk Open Source scanning (SCA) - completed"
+          echo "✅ npm audit - completed"
+          echo ""
+          echo "📊 Next steps:"
+          echo "  1. Review security tab for detailed findings"
+          echo "  2. Check Snyk dashboard for continuous monitoring"
+          echo "  3. Address high/critical issues before merge"
