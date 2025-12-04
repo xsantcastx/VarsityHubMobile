@@ -346,7 +346,7 @@ export default function FeedScreen() {
     }
   }, []);
 
-  const loadMore = useCallback(async () => {
+  const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
 
     setLoadingMore(true);

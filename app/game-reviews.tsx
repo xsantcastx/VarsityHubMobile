@@ -25,7 +25,7 @@ export default function GameReviewsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const loadMore = async () => {
+  const _loadMore = async () => {
     if (!game_id || !cursor) return;
     const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'review' }, cursor, 20);
     if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
@@ -47,7 +47,7 @@ export default function GameReviewsScreen() {
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         contentContainerStyle={{ padding: 12 }}
-        onEndReached={loadMore}
+        onEndReached={_loadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No reviews yet.</Text> : null}
       />

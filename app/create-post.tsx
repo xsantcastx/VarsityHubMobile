@@ -60,7 +60,7 @@ export default function CreatePostScreen() {
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
-  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
+  const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
@@ -95,10 +95,10 @@ export default function CreatePostScreen() {
   }, [permissionGranted, hasAutoSuggested, gameId, requestPermission]);
 
   useEffect(() => {
-    if (locError) {
-      setLocationError(locError);
+    if (_locError) {
+      setLocationError(_locError);
     }
-  }, [locError]);
+  }, [_locError]);
 
   // Load game details if gameId is provided via params (from event page)
   useEffect(() => {

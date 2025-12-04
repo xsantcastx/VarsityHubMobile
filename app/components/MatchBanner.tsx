@@ -44,8 +44,8 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
   }, []);
   const rightAnimRef = useRef(new Animated.Value(0))
   const rightAnim = rightAnimRef.current
-  const [leftMeasured, setLeftMeasured] = useState({ width: 0, fontSize: 34 })
-  const [rightMeasured, setRightMeasured] = useState({ width: 0, fontSize: 28 })
+  const [leftMeasured, _setLeftMeasured] = useState({ width: 0, fontSize: 34 })
+  const [rightMeasured, _setRightMeasured] = useState({ width: 0, fontSize: 28 })
 
   useEffect(() => {
     let mounted = true;

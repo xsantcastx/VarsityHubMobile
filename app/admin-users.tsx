@@ -11,7 +11,7 @@ import { User } from '@/api/entities';
 export default function AdminUsersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { isAdmin, loading: authLoading } = useRequireAdmin();
+  const { isAdmin, loading: _authLoading } = useRequireAdmin();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

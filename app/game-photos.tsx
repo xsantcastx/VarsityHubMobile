@@ -23,7 +23,7 @@ export default function GamePhotosScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const loadMore = async () => {
+  const _loadMore = async () => {
     if (!game_id || !cursor) return;
     const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'photo' }, cursor, 24);
     if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
@@ -43,7 +43,7 @@ export default function GamePhotosScreen() {
             <Image source={{ uri: String(item.media_url || '') }} style={styles.cell} contentFit="cover" />
           </Pressable>
         )}
-        onEndReached={loadMore}
+        onEndReached={_loadMore}
         onEndReachedThreshold={0.5}
       />
     </View>

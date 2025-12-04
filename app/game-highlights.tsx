@@ -23,7 +23,7 @@ export default function GameHighlightsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const loadMore = async () => {
+  const _loadMore = async () => {
     if (!game_id || !cursor) return;
     const page: any = await PostApi.filterPage({ game_id: String(game_id), type: 'highlight' }, cursor, 24);
     if (Array.isArray(page)) { setItems((arr) => arr.concat(page)); setCursor(page.length ? String(page[page.length - 1].id) : null); }
@@ -45,7 +45,7 @@ export default function GameHighlightsScreen() {
             </View>
           </Pressable>
         )}
-        onEndReached={loadMore}
+        onEndReached={_loadMore}
         onEndReachedThreshold={0.5}
         ListEmptyComponent={!loading ? <Text style={styles.muted}>No highlights yet.</Text> : null}
       />
