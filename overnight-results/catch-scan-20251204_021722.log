@@ -1,0 +1,143 @@
+🔍 Scanning for catch blocks...
+
+📊 CATCH-BLOCK SCAN RESULTS
+======================================================================
+Total catch blocks found:     637
+  ✅ With error references:   492 (LOW risk)
+  ⚠️  Without references:     145 (HIGH risk)
+
+======================================================================
+
+⚠️  HIGH-RISK CATCH BLOCKS (no error reference):
+======================================================================
+
+1. utils/events.ts:18
+   Parameter: none
+   Body: try  (cb as Listener<T>)(payload as T);  catch 
+    );
+  
+
+
+const events = new Events();
+export defa
+
+2. utils/dmRestrictions.ts:30
+   Parameter: none
+   Body: catch 
+    return null;
+
+3. utils/media.ts:28
+   Parameter: none
+   Body: catch 
+    return url;
+
+4. hooks/useProfileOrganizations.ts:64
+   Parameter: none
+   Body: if (!cancelled && validOrgs.length > 0) 
+            setOrganizations(validOrgs);
+            setLoa
+
+5. hooks/useProfileOrganizations.ts:85
+   Parameter: none
+   Body: if (!cancelled) 
+            setOrganizations(uniqueOrgs);
+
+6. hooks/useGoogleAuth.ts:21
+   Parameter: none
+   Body: catch 
+  sessionUrlProvider = null;
+
+7. hooks/useAppleAuth.ts:17
+   Parameter: none
+   Body: .catch(() =>  if (mounted) setAvailable(false); );
+    return () =>  mounted = false; ;
+
+8. hooks/useAppleAuth.ts:109
+   Parameter: none
+   Body: catch (networkErr: any) 
+          attempts++;
+
+9. api/settings.ts:13
+   Parameter: none
+   Body: catch 
+
+
+async function getItem(key: string): Promise<string | null> 
+  try
+
+10. api/settings.ts:23
+   Parameter: none
+   Body: catch 
+    return null;
+
+11. api/settings.ts:41
+   Parameter: none
+   Body: try  return JSON.parse(v) as T;  catch  return fallback; 
+
+
+export async function setJson(key: strin
+
+12. api/http.ts:93
+   Parameter: none
+   Body: catch 
+        data = null;
+
+13. api/http.ts:108
+   Parameter: none
+   Body: try  clearAuthToken();  catch 
+        const next = encodeURIComponent(path);
+
+14. api/auth.ts:15
+   Parameter: none
+   Body: catch 
+
+
+export async function loadToken(): Promise<string | null> 
+  const cached = getAuthToken();
+
+15. api/auth.ts:25
+   Parameter: none
+   Body: catch 
+  if (t) setAuthToken(t);
+  return t;
+
+
+export const auth = 
+  async register(email: string, 
+
+16. server/src/lib/jwt.ts:25
+   Parameter: none
+   Body: catch 
+    return null;
+
+17. server/src/lib/geo.ts:30
+   Parameter: none
+   Body: const data: any = await res.json().catch(() => ());
+  let out: ReverseGeocodeResult =  place_id: nul
+
+18. server/src/lib/geo.ts:57
+   Parameter: none
+   Body: const data: any = await res.json().catch(() => ());
+  let lat: number | null = null, lng: number | n
+
+19. server/src/routes/organizations.ts:299
+   Parameter: none
+   Body: const inviteUserSchema = z.object(
+  email: z.string().email(),
+  role: z.string().optional(),
+);
+
+20. server/src/routes/admin.ts:63
+   Parameter: none
+   Body: return res.json(
+      ok: true,
+      totalUsers,
+      verifiedUsers,
+      bannedUsers,
+      tot
+
+======================================================================
+
+... and 125 more high-risk blocks
+
+📈 Risk Score: 22.8% of catch blocks need review

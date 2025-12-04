@@ -24,8 +24,13 @@ export function initSentry() {
     debug: false,
     tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
     beforeSend(event, hint) {
+      // Disable error reporting in development to avoid blocking UI
+      if (__DEV__) {
+        return null; // Drop all events in dev mode
+      }
+      
       // Filter out network timeouts from dev/local environments to reduce noise
-      const isDev = __DEV__ || event.environment === 'development';
+      const isDev = event.environment === 'development';
       const ex = hint?.originalException as any;
       const isNetworkError = ex?.message?.includes('Network request failed');
       if (isDev && isNetworkError) {

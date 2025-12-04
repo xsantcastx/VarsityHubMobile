@@ -1,0 +1,12 @@
+npm warn exec The following package was not found and will be installed: prisma@7.1.0
+Error: Could not find Prisma Schema that is required for this command.
+You can either provide it with `--schema` argument,
+set it in your Prisma Config file (e.g., `prisma.config.ts`),
+set it as `prisma.schema` in your package.json,
+or put it into the default location (`./prisma/schema.prisma`, or `./schema.prisma`.
+Checked following paths:
+
+schema.prisma: file not found
+prisma/schema.prisma: file not found
+
+See also https://pris.ly/d/prisma-schema-location
