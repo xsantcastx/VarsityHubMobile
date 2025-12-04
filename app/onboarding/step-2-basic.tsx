@@ -41,7 +41,7 @@ export default function Step2Basic() {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
-        } catch {
+        } catch (error) {
           console.error('Failed to check email verification:', error);
         }
       })();
@@ -63,17 +63,17 @@ export default function Step2Basic() {
           try {
             const r: any = await User.usernameAvailable(displayName);
             setAvailable(!!r?.available);
-          } catch {
+          } catch (_error) {
             setAvailable(null);
           }
         }
-      } catch {} 
+      } catch (_error) {} 
     })(); 
   }, []);
   useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
     try { // eslint-disable-next-line no-console
       console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
-    } catch {}
+    } catch (_error) {}
   }, [dob, ob.affiliation, ob.dob]);
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function Step2Basic() {
       try {
         const r: any = await User.usernameAvailable(username);
         setAvailable(!!r?.available);
-      } catch {
+      } catch (_error) {
         setAvailable(null);
       } finally {
         setChecking(false);
@@ -134,7 +134,7 @@ export default function Step2Basic() {
       setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
-      } catch {}
+      } catch (_error) {}
       await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
@@ -174,7 +174,7 @@ export default function Step2Basic() {
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { setAvailable(null); }
       }} />
       {checking ? (
         <Text style={styles.muted}>Checking availability…</Text>

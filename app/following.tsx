@@ -22,7 +22,7 @@ export default function FollowingScreen() {
       const { items, nextCursor: newCursor } = await User.following(id, cursor);
       setUsers(prev => (cursor ? [...prev, ...items] : items));
       setNextCursor(newCursor);
-    } catch {
+    } catch (error) {
       console.error('Failed to load following', error);
     } finally {
       setLoading(false);
@@ -41,7 +41,7 @@ export default function FollowingScreen() {
         await User.follow(userId);
       }
       setUsers(users.map(u => u.id === userId ? { ...u, is_following: !isFollowing } : u));
-    } catch {
+    } catch (error) {
       console.error('Follow/unfollow failed', error);
     }
   };

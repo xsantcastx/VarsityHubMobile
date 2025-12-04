@@ -128,7 +128,7 @@ export default function LeagueScreen() {
         
         setGames(leagueGames);
         console.log(`Found ${leagueGames.length} games for league teams`);
-      } catch {
+      } catch (err) {
         console.error('Failed to load games:', err);
         setGames([]);
       }
@@ -146,7 +146,7 @@ export default function LeagueScreen() {
             if (Array.isArray(gamePosts)) {
               allPosts.push(...gamePosts);
             }
-          } catch {
+          } catch (err) {
             console.error(`Failed to load posts for game ${gameId}:`, err);
           }
         }
@@ -166,7 +166,7 @@ export default function LeagueScreen() {
               }
             });
           }
-        } catch {
+        } catch (err) {
           console.error('Failed to load recent posts:', err);
         }
         
@@ -181,7 +181,7 @@ export default function LeagueScreen() {
         
         setPosts(uniquePosts);
         console.log(`Found ${uniquePosts.length} posts for league (${gameIds.length} games)`);
-      } catch {
+      } catch (err) {
         console.error('Failed to load posts:', err);
         setPosts([]);
       }
@@ -205,7 +205,7 @@ export default function LeagueScreen() {
         }
         
         setMembers(allMembers);
-      } catch {
+      } catch (err) {
         console.error('Failed to load members:', err);
         setMembers([]);
       }

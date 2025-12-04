@@ -199,7 +199,7 @@ export default function LeagueScreen() {
       if (params.id) {
         try {
           organizationData = await Organization.get(params.id);
-        } catch {
+        } catch (err) {
           console.error('[League] Error fetching organization by ID:', err);
         }
       }
@@ -218,12 +218,12 @@ export default function LeagueScreen() {
             if (organizationData?.id) {
               try {
                 organizationData = await Organization.get(organizationData.id);
-              } catch {
+              } catch (err) {
                 console.error('[League] Error fetching organization from search result:', err);
               }
             }
           }
-        } catch {
+        } catch (err) {
           console.error('[League] Error searching organizations:', err);
         }
       }
@@ -311,7 +311,7 @@ export default function LeagueScreen() {
         console.error('[League] Error loading events:', eventErr);
         setEvents([]);
       }
-    } catch {
+    } catch (err) {
       console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
     } finally {
@@ -366,7 +366,7 @@ export default function LeagueScreen() {
         year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
       };
       return date.toLocaleDateString(undefined, options);
-    } catch {
+    } catch (_error) {
       return dateString;
     }
   };

@@ -61,7 +61,7 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch {
+    } catch (error) {
       console.error('RSVP error:', error);
       Alert.alert('Error', 'Failed to update RSVP. Please try again.');
     } finally {
@@ -236,7 +236,7 @@ export default function FeedScreen() {
       if (result.status === 'fulfilled' && result.value) {
         try {
           next[entry.id] = buildVotePreviewEntry(result.value, entry.labels);
-        } catch {
+        } catch (err) {
           if (__DEV__) console.warn('Vote summary parse failed', err);
         }
       }
@@ -255,7 +255,7 @@ export default function FeedScreen() {
       try {
         user = await User.me();
         setMe(user);
-      } catch {
+      } catch (err) {
         if (__DEV__) console.warn('Feed load: unable to fetch user', err);
       }
       const countryCode = typeof user?.preferences?.country_code === 'string'
@@ -393,7 +393,7 @@ export default function FeedScreen() {
         try {
           const page = await NotificationApi.listPage(null, 1, true);
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-        } catch {}
+        } catch (_error) {}
       })();
     }, [load]),
   );
@@ -406,7 +406,7 @@ export default function FeedScreen() {
         const page = await NotificationApi.listPage(null, 1, true);
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-      } catch {}
+      } catch (_error) {}
     };
     const id = setInterval(tick, 30000); // ~30s
     return () => { mounted = false; clearInterval(id); };
@@ -421,7 +421,7 @@ export default function FeedScreen() {
       try {
         const page = await NotificationApi.listPage(null, 20, false);
         setNotificationsList(Array.isArray(page.items) ? page.items : []);
-      } catch {
+      } catch (e) {
         console.error('Failed to load notifications', e);
       } finally {
         setLoadingNotifications(false);
@@ -559,7 +559,7 @@ export default function FeedScreen() {
       } else {
         Alert.alert('Error', 'Unable to open Instagram. Please try again.');
       }
-    } catch {
+    } catch (error) {
       console.error('Error opening Instagram:', error);
       Alert.alert('Error', 'Failed to open Instagram link.');
     }
@@ -759,7 +759,7 @@ export default function FeedScreen() {
               // Still navigate to map, it will request permission there
               router.push('/game-map');
             }
-          } catch {
+          } catch (error) {
             console.error('Error getting location:', error);
             // Navigate anyway, map screen will handle location
             router.push('/game-map');
@@ -1169,7 +1169,7 @@ export default function FeedScreen() {
                                 // Refresh unread count
                                 const page = await NotificationApi.listPage(null, 1, true);
                                 setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-                              } catch {
+                              } catch (e) {
                                 console.error('Failed to mark notification as read', e);
                               }
                             }

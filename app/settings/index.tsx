@@ -219,7 +219,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   timers.current[key] = setTimeout(async () => {
                     try {
                       await User.updatePreferences(newPrefs);
-                    } catch {
+                    } catch (e) {
                       console.warn('Failed to patch prefs', e);
                       // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
@@ -249,12 +249,12 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   } as any;
 
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
-                  try { await User.updatePreferences({ onboarding_completed: false }); } catch { /* ignore */ }
+                  try { await User.updatePreferences({ onboarding_completed: false }); } catch (e) { /* ignore */ }
                   if (setOB) setOB(preload);
                   router.replace('/onboarding/step-1-role');
-                } catch {
+                } catch (e) {
                   console.warn('Failed to preload onboarding, falling back to simple restart', e);
-                  try { await User.updatePreferences({ onboarding_completed: false }); } catch {}
+                  try { await User.updatePreferences({ onboarding_completed: false }); } catch (_error) {}
                   router.replace('/onboarding');
                 }
               };
@@ -410,8 +410,8 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                         Alert.alert('Log out', 'Are you sure you want to log out?', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Log Out', style: 'destructive', onPress: async () => {
-                            try { await User.logout(); } catch {}
-                            try { obCtx?.clearOnboarding?.(); } catch { /* ignore */ }
+                            try { await User.logout(); } catch (_error) {}
+                            try { obCtx?.clearOnboarding?.(); } catch (_error) { /* ignore */ }
                             router.replace('/sign-in');
                           } },
                         ]);
@@ -431,7 +431,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                               Alert.alert('Delete failed', 'Could not delete your account.');
                               return;
                             }
-                            try { await User.logout(); } catch {}
+                            try { await User.logout(); } catch (_error) {}
                             router.replace('/sign-in');
                           }}
                         ], 'plain-text');
@@ -445,7 +445,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                                 const res = await fetch((process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') + '/users/me', { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                                 if (!res.ok) throw new Error('Failed');
                               } catch (e: any) { Alert.alert('Delete failed', 'Could not delete your account.'); return; }
-                              try { await User.logout(); } catch {}
+                              try { await User.logout(); } catch (_error) {}
                               router.replace('/sign-in');
                             } },
                           ]);

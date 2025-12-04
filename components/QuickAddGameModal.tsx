@@ -382,7 +382,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
               finalData.banner_url = url;
               finalData.cover_image_url = url; // Also set cover_image_url to the same value
             }
-          } catch {
+          } catch (e) {
             console.warn('Banner capture/upload failed, continuing without banner', e);
           } finally {
             setUploadingBanner(false);
@@ -445,7 +445,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!pickerResult.canceled && pickerResult.assets[0]) {
         await uploadCustomBanner(pickerResult.assets[0].uri);
       }
-    } catch {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
@@ -469,7 +469,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!pickerResult.canceled && pickerResult.assets[0]) {
         await uploadCustomBanner(pickerResult.assets[0].uri);
       }
-    } catch {
+    } catch (_error) {
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
@@ -1081,7 +1081,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                                 const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
                                 setEditingImageUri(uri as any);
                                 setEditorVisible(true);
-                              } catch {
+                              } catch (e) {
                                 console.warn('Capture failed', e);
                               }
                             }
@@ -1170,7 +1170,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         const uploaded = await uploadFile(getApiBaseUrl(), uri, 'edited-banner.png', 'image/png');
         const url = uploaded?.url || uploaded?.path || null;
         if (url) setBannerUrl(url);
-      } catch {
+      } catch (e) {
         console.warn('Upload edited image failed', e);
       } finally {
         setUploadingBanner(false);

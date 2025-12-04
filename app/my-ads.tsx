@@ -52,7 +52,7 @@ export default function MyAdsScreen() {
         setUserId(me?.id ? String(me.id) : null);
         const email = typeof me?.email === 'string' ? me.email.trim().toLowerCase() : null;
         setUserEmail(email && email.length ? email : null);
-      } catch {
+      } catch (_error) {
         if (!mounted) return;
         setUserId(null);
         setUserEmail(null);
@@ -77,7 +77,7 @@ export default function MyAdsScreen() {
       try {
         const s = await AdsApi.listMine();
         serverAds = Array.isArray(s) ? s : [];
-      } catch { serverAds = null; }
+      } catch (_error) { serverAds = null; }
 
       const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
       const combined: ManagedAd[] = [];
@@ -107,7 +107,7 @@ export default function MyAdsScreen() {
           try {
             const r: any = await AdsApi.reservationsForAd(ad.id);
             return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
-          } catch { return [ad.id, []] as const; }
+          } catch (_error) { return [ad.id, []] as const; }
         })
       );
       const map: Record<string, string[]> = {};
@@ -147,7 +147,7 @@ export default function MyAdsScreen() {
               await load();
               
               Alert.alert('Success', 'Ad deleted successfully');
-            } catch {
+            } catch (error) {
               console.error('[my-ads2] Error deleting ad:', error);
               Alert.alert('Error', 'Failed to delete ad. Please try again.');
             }
@@ -172,7 +172,7 @@ export default function MyAdsScreen() {
         } else {
           future.push(dateStr);
         }
-      } catch {
+      } catch (_error) {
         // If date parsing fails, assume future
         future.push(dateStr);
       }
@@ -188,7 +188,7 @@ export default function MyAdsScreen() {
         day: 'numeric', 
         year: 'numeric' 
       });
-    } catch {
+    } catch (_error) {
       return d;
     }
   };

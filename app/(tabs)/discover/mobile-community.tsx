@@ -145,7 +145,7 @@ export default function CommunityDiscoverScreen() {
       try {
         user = await User.me();
         setMe(user);
-      } catch {
+      } catch (err) {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
       }
       const gamesData = await Game.list('-date');
@@ -171,7 +171,7 @@ export default function CommunityDiscoverScreen() {
         try {
           const trending = await Post.trendingPage(undefined, 20);
           items = Array.isArray(trending.items) ? trending.items : [];
-        } catch {
+        } catch (_error) {
           const postsPage = await Post.listPage(undefined, 20, '-created_date');
           items = Array.isArray(postsPage.items) ? postsPage.items : [];
         }
@@ -179,7 +179,7 @@ export default function CommunityDiscoverScreen() {
         const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
         setFollowingPosts(followingOnly.slice(0, 12));
         setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
-      } catch {}
+      } catch (_error) {}
       try {
         // Nearby people: prefer school/league if present, else zip
         const school = user?.preferences?.school || user?.school || null;
@@ -198,7 +198,7 @@ export default function CommunityDiscoverScreen() {
         } else {
           setNearbyPeople([]);
         }
-      } catch {}
+      } catch (e) {}
     } catch (e: any) {
       if (__DEV__) console.error('Failed to load discover data', e);
       setError('Unable to load discover. Sign in may be required.');
@@ -308,7 +308,7 @@ export default function CommunityDiscoverScreen() {
       if (typeof alert !== 'undefined') {
         alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
       }
-    } catch {
+    } catch (error) {
       if (__DEV__) console.error('Error adding quick game:', error);
       if (typeof alert !== 'undefined') {
         alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -667,7 +667,7 @@ export default function CommunityDiscoverScreen() {
                           } else {
                             await User.unfollow(authorId);
                           }
-                        } catch {
+                        } catch (_error) {
                           // Revert on failure
                           setFollowingPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
                           setDiscoverPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));

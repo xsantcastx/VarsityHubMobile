@@ -277,7 +277,7 @@ const HighlightCard = ({
                 try {
                   const link = AppLinks.post(String(item.id), item.caption || item.title);
                   await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
-                } catch {
+                } catch (_error) {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
                     const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
@@ -288,7 +288,7 @@ const HighlightCard = ({
                     } else {
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
-                  } catch {}
+                  } catch (_error) {}
                 }
               }}
             >
@@ -435,7 +435,7 @@ export default function HighlightsScreen() {
       }).slice(0, 10);
 
       setSearchResults({ teams, events, users, organizations, posts });
-    } catch {
+    } catch (err) {
       console.error('Search failed:', err);
     } finally {
       setSearching(false);

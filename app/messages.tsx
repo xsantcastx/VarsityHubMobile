@@ -73,7 +73,7 @@ export default function MessagesScreen() {
       try {
         const u = await User.me();
         setMe(u);
-      } catch {}
+      } catch (e) {}
 
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)
@@ -172,7 +172,7 @@ export default function MessagesScreen() {
           // Filter out current user
           setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
         }
-      } catch {
+      } catch (e) {
         console.error('User search failed', e);
       } finally {
         if (mounted) setSearchingUsers(false);

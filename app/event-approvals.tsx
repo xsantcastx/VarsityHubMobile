@@ -65,7 +65,7 @@ export default function EventApprovalsScreen() {
       try {
         const user = await User.me();
         setMe(user);
-      } catch {
+      } catch (err) {
         console.warn('Unable to fetch user data:', err);
       }
 
@@ -222,7 +222,7 @@ export default function EventApprovalsScreen() {
       
       // Show success message
       Alert.alert('Success', data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
-    } catch {
+    } catch (error) {
       console.error('Error adding quick game:', error);
       Alert.alert('Error', `Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

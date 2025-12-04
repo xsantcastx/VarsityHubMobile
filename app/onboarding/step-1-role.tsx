@@ -128,7 +128,7 @@ export default function Step1Role() {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
-        } catch {
+        } catch (error) {
           console.error('Failed to check email verification:', error);
         }
       })();
@@ -152,10 +152,10 @@ export default function Step1Role() {
           console.debug('[Onboarding][Step1] server prefs after update', me?.preferences);
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
           if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
-        } catch {
+        } catch (e) {
           // ignore; best-effort
         }
-      } catch {
+      } catch (e) {
         // best-effort; swallow but log for debugging
         // eslint-disable-next-line no-console
         console.warn('[Onboarding][Step1] failed to persist role to server', e);
@@ -163,7 +163,7 @@ export default function Step1Role() {
       try {
         // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step1] onContinue set role', { role });
-      } catch {}
+      } catch (_error) {}
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
@@ -190,7 +190,7 @@ export default function Step1Role() {
     try {
       await User.logout();
       router.replace('/sign-in');
-    } catch {
+    } catch (error) {
       console.error('Failed to logout:', error);
       router.replace('/sign-in');
     }

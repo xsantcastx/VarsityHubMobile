@@ -29,7 +29,7 @@ export default function AdminAdsScreen() {
       if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
-      try { const u = await User.me(); setMe(u); } catch {}
+      try { const u = await User.me(); setMe(u); } catch (e) {}
       const list = await AdsApi.listAll();
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -65,7 +65,7 @@ export default function AdminAdsScreen() {
       for (const adId of Array.from(selectedAds)) {
         try {
           await AdsApi.update(adId, { status: 'approved' });
-        } catch {
+        } catch (e) {
           console.error('Failed to approve ad:', adId, e);
         }
       }
@@ -97,7 +97,7 @@ export default function AdminAdsScreen() {
               for (const adId of Array.from(selectedAds)) {
                 try {
                   await AdsApi.update(adId, { status: 'rejected' });
-                } catch {
+                } catch (e) {
                   console.error('Failed to reject ad:', adId, e);
                 }
               }
@@ -133,7 +133,7 @@ export default function AdminAdsScreen() {
               for (const adId of Array.from(selectedAds)) {
                 try {
                   await AdsApi.delete(adId);
-                } catch {
+                } catch (e) {
                   console.error('Failed to delete ad:', adId, e);
                 }
               }
