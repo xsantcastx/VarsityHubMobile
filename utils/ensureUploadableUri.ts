@@ -1,12 +1,13 @@
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 
 /**
  * Ensure a picked asset URI is a local file path suitable for upload.
  * - On iOS, ImagePicker may return `ph://` URIs from PhotoKit.
- * - For images, we re-encode via ImageManipulator to a temporary `file://` path.
- * - For videos, we pass `ph://` URIs directly to the upload handler.
- *   The native upload bridge should handle PhotoKit assets if permissions are set.
+ * - For both images & videos: Use MediaLibrary to export to a real file:// path
+ * - For images: Also re-encode via ImageManipulator to compress
  */
 export async function ensureUploadableUri(uri: string, mimeType?: string): Promise<{ uri: string; mimeType?: string }> {
   const isIOS = Platform.OS === 'ios';
@@ -20,31 +21,49 @@ export async function ensureUploadableUri(uri: string, mimeType?: string): Promi
   
   // iOS Photos URI handling
   if (isIOS && uri.startsWith('ph://')) {
-    // For images: re-encode via ImageManipulator to get a real file path
-    if (isPhoto) {
-      try {
-        if (__DEV__) console.log('[media] Re-encoding ph:// image...');
-        const manip = await ImageManipulator.manipulateAsync(uri, [], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
-        if (manip && manip.uri) {
-          if (__DEV__) console.log('[media] Image re-encoded to:', manip.uri);
-          return { uri: manip.uri, mimeType: 'image/jpeg' };
-        }
-      } catch (e) {
-        console.warn('[media] Failed to re-encode ph:// image:', e);
-        // Fall through to return original
+    try {
+      // Request media library permissions if needed
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Media library permission denied');
       }
-    }
-    
-    // For videos: return the ph:// URI as-is
-    // The upload handler should pass this to the native bridge, which handles PhotoKit access
-    if (isVideo) {
-      if (__DEV__) console.log('[media] Passing ph:// video URI directly to upload:', uri);
+      
+      // Extract the asset ID from the ph:// URI
+      const assetId = uri.replace('ph://', '');
+      if (__DEV__) console.log('[media] Exporting ph:// asset:', assetId);
+      
+      // Use MediaLibrary to get the actual file path
+      const assets = await MediaLibrary.getAssetsAsync({ first: 1, assetIds: [assetId] });
+      if (!assets.assets || !assets.assets.length) {
+        throw new Error('Could not find asset in media library');
+      }
+      
+      const asset = assets.assets[0];
+      let fileUri = asset.uri;
+      
+      if (__DEV__) console.log('[media] Asset exported to:', fileUri, '| type:', asset.mediaType);
+      
+      // For images: also re-encode to compress
+      if (isPhoto && fileUri.startsWith('file://')) {
+        try {
+          if (__DEV__) console.log('[media] Re-encoding image for compression...');
+          const manip = await ImageManipulator.manipulateAsync(fileUri, [], { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG });
+          if (manip && manip.uri) {
+            fileUri = manip.uri;
+            if (__DEV__) console.log('[media] Image re-encoded to:', fileUri);
+          }
+        } catch (e) {
+          console.warn('[media] Failed to re-encode image:', e);
+          // Continue with un-compressed version
+        }
+      }
+      
+      return { uri: fileUri, mimeType };
+    } catch (e: any) {
+      console.error('[media] Failed to handle ph:// URI:', e?.message || e);
+      // Fallback: return original and hope the upload handler can deal with it
       return { uri, mimeType };
     }
-    
-    // Fallback for unrecognized types
-    if (__DEV__) console.log('[media] Unhandled ph:// URI type, returning original');
-    return { uri, mimeType };
   }
   
   return { uri, mimeType };

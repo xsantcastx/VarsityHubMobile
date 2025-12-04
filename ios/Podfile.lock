@@ -13,7 +13,7 @@ PODS:
     - ExpoModulesCore
   - EXNotifications (0.32.13):
     - ExpoModulesCore
-  - Expo (54.0.25):
+  - Expo (54.0.26):
     - ExpoModulesCore
     - hermes-engine
     - RCTRequired
@@ -38,15 +38,15 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - expo-dev-client (6.0.18):
+  - expo-dev-client (6.0.19):
     - EXManifests
     - expo-dev-launcher
     - expo-dev-menu
     - expo-dev-menu-interface
     - EXUpdatesInterface
-  - expo-dev-launcher (6.0.18):
+  - expo-dev-launcher (6.0.19):
     - EXManifests
-    - expo-dev-launcher/Main (= 6.0.18)
+    - expo-dev-launcher/Main (= 6.0.19)
     - expo-dev-menu
     - expo-dev-menu-interface
     - ExpoModulesCore
@@ -75,7 +75,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - expo-dev-launcher/Main (6.0.18):
+  - expo-dev-launcher/Main (6.0.19):
     - EXManifests
     - expo-dev-launcher/Unsafe
     - expo-dev-menu
@@ -106,7 +106,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - expo-dev-launcher/Unsafe (6.0.18):
+  - expo-dev-launcher/Unsafe (6.0.19):
     - EXManifests
     - expo-dev-menu
     - expo-dev-menu-interface
@@ -136,9 +136,9 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - expo-dev-menu (7.0.17):
-    - expo-dev-menu/Main (= 7.0.17)
-    - expo-dev-menu/ReactNativeCompatibles (= 7.0.17)
+  - expo-dev-menu (7.0.18):
+    - expo-dev-menu/Main (= 7.0.18)
+    - expo-dev-menu/ReactNativeCompatibles (= 7.0.18)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -161,7 +161,7 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - expo-dev-menu-interface (2.0.0)
-  - expo-dev-menu/Main (7.0.17):
+  - expo-dev-menu/Main (7.0.18):
     - EXManifests
     - expo-dev-menu-interface
     - ExpoModulesCore
@@ -187,7 +187,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - expo-dev-menu/ReactNativeCompatibles (7.0.17):
+  - expo-dev-menu/ReactNativeCompatibles (7.0.18):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -213,7 +213,7 @@ PODS:
     - ExpoModulesCore
   - ExpoAsset (12.0.10):
     - ExpoModulesCore
-  - ExpoAudio (1.0.15):
+  - ExpoAudio (1.0.16):
     - ExpoModulesCore
   - ExpoBlur (15.0.7):
     - ExpoModulesCore
@@ -231,7 +231,7 @@ PODS:
     - ExpoModulesCore
   - ExpoHaptics (15.0.7):
     - ExpoModulesCore
-  - ExpoHead (6.0.15):
+  - ExpoHead (6.0.16):
     - ExpoModulesCore
     - RNScreens
   - ExpoImage (3.0.10):
@@ -258,7 +258,7 @@ PODS:
   - ExpoMediaLibrary (18.2.0):
     - ExpoModulesCore
     - React-Core
-  - ExpoModulesCore (3.0.26):
+  - ExpoModulesCore (3.0.27):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -294,7 +294,7 @@ PODS:
   - ExpoWebBrowser (15.0.9):
     - ExpoModulesCore
   - EXStructuredHeaders (5.0.0)
-  - EXUpdates (29.0.13):
+  - EXUpdates (29.0.14):
     - EASClient
     - EXManifests
     - ExpoModulesCore
@@ -325,6 +325,13 @@ PODS:
   - EXUpdatesInterface (2.0.0):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
+  - Google-Maps-iOS-Utils (5.0.0):
+    - GoogleMaps (~> 8.0)
+  - GoogleMaps (8.4.0):
+    - GoogleMaps/Maps (= 8.4.0)
+  - GoogleMaps/Base (8.4.0)
+  - GoogleMaps/Maps (8.4.0):
+    - GoogleMaps/Base
   - hermes-engine (0.81.5):
     - hermes-engine/Pre-built (= 0.81.5)
   - hermes-engine/Pre-built (0.81.5)
@@ -1649,6 +1656,10 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+  - react-native-google-maps (1.20.1):
+    - Google-Maps-iOS-Utils (= 5.0.0)
+    - GoogleMaps (= 8.4.0)
+    - React-Core
   - react-native-maps (1.20.1):
     - React-Core
   - react-native-safe-area-context (5.6.2):
@@ -2136,7 +2147,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNCPicker (2.11.1):
+  - RNCPicker (2.11.4):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2202,7 +2213,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNReanimated (4.1.2):
+  - RNReanimated (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2224,10 +2235,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNReanimated/reanimated (= 4.1.2)
+    - RNReanimated/reanimated (= 4.1.6)
     - RNWorklets
     - Yoga
-  - RNReanimated/reanimated (4.1.2):
+  - RNReanimated/reanimated (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2249,10 +2260,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNReanimated/reanimated/apple (= 4.1.2)
+    - RNReanimated/reanimated/apple (= 4.1.6)
     - RNWorklets
     - Yoga
-  - RNReanimated/reanimated/apple (4.1.2):
+  - RNReanimated/reanimated/apple (4.1.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2347,7 +2358,7 @@ PODS:
     - ReactNativeDependencies
     - Sentry/HybridSDK (= 8.56.1)
     - Yoga
-  - RNWorklets (0.5.1):
+  - RNWorklets (0.5.2):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2369,9 +2380,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNWorklets/worklets (= 0.5.1)
+    - RNWorklets/worklets (= 0.5.2)
     - Yoga
-  - RNWorklets/worklets (0.5.1):
+  - RNWorklets/worklets (0.5.2):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2393,9 +2404,9 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNWorklets/worklets/apple (= 0.5.1)
+    - RNWorklets/worklets/apple (= 0.5.2)
     - Yoga
-  - RNWorklets/worklets/apple (0.5.1):
+  - RNWorklets/worklets/apple (0.5.2):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2418,9 +2429,9 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - SDWebImage (5.21.3):
-    - SDWebImage/Core (= 5.21.3)
-  - SDWebImage/Core (5.21.3)
+  - SDWebImage (5.21.4):
+    - SDWebImage/Core (= 5.21.4)
+  - SDWebImage/Core (5.21.4)
   - SDWebImageAVIFCoder (0.11.1):
     - libavif/core (>= 0.11.0)
     - SDWebImage (~> 5.10)
@@ -2513,6 +2524,7 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-google-maps (from `/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/react-native-maps`)
   - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-view-shot (from `../node_modules/react-native-view-shot`)
@@ -2560,6 +2572,8 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - Google-Maps-iOS-Utils
+    - GoogleMaps
     - libavif
     - libdav1d
     - libwebp
@@ -2730,6 +2744,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-google-maps:
+    :path: "/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/react-native-maps"
   react-native-maps:
     :path: "../node_modules/react-native-maps"
   react-native-safe-area-context:
@@ -2827,14 +2843,14 @@ SPEC CHECKSUMS:
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 26e15640538c3d5ef028077ebcaf004b744d4932
   EXNotifications: a62e1f8e3edd258dc3b155d3caa49f32920f1c6c
-  Expo: 111394d38f32be09385d4c7f70cc96d2da438d0d
-  expo-dev-client: cc9491ad3e25a7a89f367c30f72884584c682b77
-  expo-dev-launcher: 2c7725298ce170ea6fd2186b17cdbb4a585bae6b
-  expo-dev-menu: 7b72a6130e42799659ba2cc349e35b22bcbb8aef
+  Expo: 7af24402df45b9384900104e88a11896ffc48161
+  expo-dev-client: 8c7ea59b34bfe0a89bd78b831c067605c7868523
+  expo-dev-launcher: 444f77c299d5d6e129a46202fd14a92068ab3ee0
+  expo-dev-menu: 05b18812110c175814c6af0d09dd658abcc5e00d
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
   ExpoAppleAuthentication: bc9de6e9ff3340604213ab9031d4c4f7f802623e
   ExpoAsset: d839c8eae8124470332408427327e8f88beb2dfd
-  ExpoAudio: a435784a5da9c27649d5c585b47c65ee4e25ff2a
+  ExpoAudio: a05a68b4a0bed05b3f255fd60ff4405b4e7e009a
   ExpoBlur: 2dd8f64aa31f5d405652c21d3deb2d2588b1852f
   ExpoClipboard: af650d14765f19c60ce2a1eaf9dfe6445eff7365
   ExpoCrypto: c1fbce112d1b6b79652bbe380b4fd4cc91676595
@@ -2843,7 +2859,7 @@ SPEC CHECKSUMS:
   ExpoFileSystem: 77157a101e03150a4ea4f854b4dd44883c93ae0a
   ExpoFont: cf9d90ec1d3b97c4f513211905724c8171f82961
   ExpoHaptics: 807476b0c39e9d82b7270349d6487928ce32df84
-  ExpoHead: 95a6ee0be1142320bccf07961d6a1502ded5d6ac
+  ExpoHead: fc0185d5c2a51ea599aff223aba5d61782301044
   ExpoImage: 9c3428921c536ab29e5c6721d001ad5c1f469566
   ExpoImageManipulator: ead6e7cca441603bfaecc898a69a093adef8b4ef
   ExpoImagePicker: d251aab45a1b1857e4156fed88511b278b4eee1c
@@ -2852,7 +2868,7 @@ SPEC CHECKSUMS:
   ExpoLinking: 77455aa013e9b6a3601de03ecfab09858ee1b031
   ExpoLocation: 93d7faa0c2adbd5a04686af0c1a61bc6ed3ee2f7
   ExpoMediaLibrary: 641a6952299b395159ccd459bd8f5f6764bf55fe
-  ExpoModulesCore: e8ec7f8727caf51a49d495598303dd420ca994bf
+  ExpoModulesCore: bdc95c6daa1639e235a16350134152a0b28e5c72
   ExpoSecureStore: 9c6571fe3fcb045a671c4011c451546eaaab98fd
   ExpoSplashScreen: 268b2f128dc04284c21010540a6c4dd9f95003e3
   ExpoSymbols: 1ae04ce686de719b9720453b988d8bc5bf776c68
@@ -2860,9 +2876,11 @@ SPEC CHECKSUMS:
   ExpoVideo: 50f5b3f31c7b5fb5a8f61a0137e674096c54eb4f
   ExpoWebBrowser: b973e1351fdcf5fec0c400997b1851f5a8219ec3
   EXStructuredHeaders: c951e77f2d936f88637421e9588c976da5827368
-  EXUpdates: 9b61bfe4fbc0188ed61e406ee13bfacecb9328cf
+  EXUpdates: 0be8af0f53625794f2c719d24ccfc1ad2e14eb7e
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
+  Google-Maps-iOS-Utils: 66d6de12be1ce6d3742a54661e7a79cb317a9321
+  GoogleMaps: 8939898920281c649150e0af74aa291c60f2e77d
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
@@ -2903,6 +2921,7 @@ SPEC CHECKSUMS:
   React-logger: 50fdb9a8236da90c0b1072da5c32ee03aeb5bf28
   React-Mapbuffer: 9050ee10c19f4f7fca8963d0211b2854d624973e
   React-microtasksnativemodule: f775db9e991c6f3b8ccbc02bfcde22770f96e23b
+  react-native-google-maps: c4f5c5b2dda17e7cb2cb2b37a81f140b039b3e7e
   react-native-maps: 9febd31278b35cd21e4fad2cf6fa708993be5dab
   react-native-safe-area-context: 37e680fc4cace3c0030ee46e8987d24f5d3bdab2
   react-native-view-shot: fb3c0774edb448f42705491802a455beac1502a2
@@ -2939,20 +2958,20 @@ SPEC CHECKSUMS:
   ReactCommon: 08810150b1206cc44aecf5f6ae19af32f29151a8
   ReactNativeDependencies: 71ce9c28beb282aa720ea7b46980fff9669f428a
   RNCAsyncStorage: 3a4f5e2777dae1688b781a487923a08569e27fe4
-  RNCPicker: a7170edbcbf8288de8edb2502e08e7fc757fa755
+  RNCPicker: c8a3584b74133464ee926224463fcc54dfdaebca
   RNDateTimePicker: be0e44bcb9ed0607c7c5f47dbedd88cf091f6791
   RNGestureHandler: 2914750df066d89bf9d8f48a10ad5f0051108ac3
-  RNReanimated: d87360cba850e1df46f5b74d6ee74653a520b631
+  RNReanimated: e5c702a3e24cc1c68b2de67671713f35461678f4
   RNScreens: d8d6f1792f6e7ac12b0190d33d8d390efc0c1845
   RNSentry: 41979b419908128847ef662cc130a400b7576fa9
-  RNWorklets: 76fce72926e28e304afb44f0da23b2d24f2c1fa0
-  SDWebImage: 16309af6d214ba3f77a7c6f6fdda888cb313a50a
+  RNWorklets: 43cd6af94c18f89cbca10ea83fee281b69d75da5
+  SDWebImage: d0184764be51240d49c761c37f53dd017e1ccaaf
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   Sentry: b3ec44d01708fce73f99b544beb57e890eca4406
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
-PODFILE CHECKSUM: bac24bbd23c4fc1825190c5f8cf239d841885ebf
+PODFILE CHECKSUM: e5e9ca1799d336f719070273cf1992d8eef8e6f8
 
 COCOAPODS: 1.16.2

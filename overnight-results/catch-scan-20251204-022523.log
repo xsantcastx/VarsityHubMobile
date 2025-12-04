@@ -1,0 +1,15 @@
+app/create.tsx:14: useEffect(() => { (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
+app/admin-user-detail.tsx:38: try { await WebBrowser.openBrowserAsync(url); } catch {}
+utils/events.ts:18: try { (cb as Listener<T>)(payload as T); } catch {}
+api/settings.ts:41: try { return JSON.parse(v) as T; } catch { return fallback; }
+api/http.ts:108: try { clearAuthToken(); } catch {}
+api/http.ts:110: try { router.push(`/sign-in?next=${next}` as any); } catch {}
+server/src/routes/payments.ts:794: try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
+app/settings/request-host-event.tsx:18: useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
+app/settings/contact.tsx:18: useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
+app/settings/feedback.tsx:17: useEffect(() => { (async () => { try { await User.me(); } catch {} })(); }, []);
+app/settings/zip-code.tsx:20: useEffect(() => { (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch {} })(); }, []);
+app/components/MatchBannerLottie.tsx:21: try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
+app/components/MatchBannerLottie.tsx:32: try { onLoadedRef.current && onLoadedRef.current(true); } catch {}
+app/components/MatchBannerLottie.tsx:35: try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
+app/onboarding/finish.tsx:22: useEffect(() => { (async () => { try { setMe(await User.me()); } catch {} })(); }, []);

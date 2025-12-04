@@ -18,16 +18,15 @@ import { captureBreadcrumb, captureException, initSentry } from '@/utils/sentry'
 // Initialize Sentry before app renders
 initSentry();
 
-// Dev-only smoke test: send a breadcrumb and a test exception once on boot
-if (__DEV__) {
-  try {
-    captureBreadcrumb('Dev smoke test', 'diagnostic', { screen: 'RootLayout' });
-    // Delay to ensure Sentry client is ready
-    setTimeout(() => {
-      captureException(new Error('Sentry smoke test: dev boot'));
-    }, 300);
-  } catch {}
-}
+// Dev-only smoke test disabled - use Sentry dashboard to verify
+// if (__DEV__) {
+//   try {
+//     captureBreadcrumb('Dev smoke test', 'diagnostic', { screen: 'RootLayout' });
+//     setTimeout(() => {
+//       captureException(new Error('Sentry smoke test: dev boot'));
+//     }, 300);
+//   } catch {}
+// }
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
