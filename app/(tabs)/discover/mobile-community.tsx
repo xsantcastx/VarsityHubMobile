@@ -642,7 +642,7 @@ export default function CommunityDiscoverScreen() {
                     style={styles.postHeaderLeft}
                     onPress={() => { if (!authorId) return;
                       // Navigate to the specific user's profile, not own profile
-                      void void router.push(`/user-profile?id=${authorId}`);
+                      void void void router.push(`/user-profile?id=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>

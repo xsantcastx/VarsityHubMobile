@@ -35,7 +35,7 @@ export default function AdminAdsScreen() {
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load ads'));
     } finally { setLoading(false); }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 

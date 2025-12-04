@@ -1995,7 +1995,7 @@ const renderBanner = () => {
                          <Pressable
                            key={post.id || index}
                            style={styles.gridItem}
-                           onPress={() => { void void router.push(`/post-detail?id=${post.id}`);
+                           onPress={() => { void void void router.push(`/post-detail?id=${post.id}`);
                            }}
                          >
                            {thumb ? (

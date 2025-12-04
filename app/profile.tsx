@@ -470,7 +470,7 @@ export default function ProfileScreen() {
           <React.Fragment key={stat.label}>
             <Pressable 
               style={styles.statItem} 
-              onPress={() => { if (stat.label === 'followers') { void router.push(`/followers?id=${me.id}&username=${name}`);
+              onPress={() => { if (stat.label === 'followers') { void void router.push(`/followers?id=${me.id}&username=${name}`);
                 } else if (stat.label === 'following') {
                   router.push(`/following?id=${me.id}&username=${name}`);
                 }
