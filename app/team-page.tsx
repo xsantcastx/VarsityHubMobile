@@ -72,8 +72,6 @@ export default function LeagueScreen() {
     setLoading(true);
     setError(null);
     try {
-      // In real implementation, you'd fetch league/organization data
-      // For now, using URL params to set league info
       const leagueId = params.id || 'default';
       const leagueName = params.name || 'Athletic Organization';
       
@@ -88,14 +86,11 @@ export default function LeagueScreen() {
       const teamsData = await Team.list();
       const teamsList = Array.isArray(teamsData) ? teamsData : [];
       
-      // Filter teams by matching the league/org name in the team name
-      // For example: "SHS Men's Soccer" matches league "SHS"
+      // Filter teams by organization_id if available, otherwise by name matching
       const filteredTeams = teamsList.filter((t: any) => {
-        // First try organization_id if available
         if (params.id && t.organization_id === params.id) {
           return true;
         }
-        // Otherwise match by name prefix (e.g., "SHS" in "SHS Men's Soccer")
         if (leagueName && t.name) {
           const teamNameParts = String(t.name).split(/\s+/);
           const firstPart = teamNameParts[0] || '';
@@ -106,109 +101,115 @@ export default function LeagueScreen() {
       });
       
       setTeams(filteredTeams);
-      console.log(`Filtered ${filteredTeams.length} teams for league: ${leagueName}`, filteredTeams.map((t: any) => t.name));
 
-      // Fetch all games from all teams in this league
-      let leagueGames: any[] = [];
-      try {
-        const allGames = await Game.list('-date');
-        const teamNames = filteredTeams.map(t => t.name);
+      // Fetch games, posts, and members in parallel
+      const [gamesResult, postsResult, membersResult] = await Promise.all([
+        // Load games
+        Game.list('-date')
+          .then(allGames => {
+            const teamNames = filteredTeams.map(t => t.name);
+            return Array.isArray(allGames) 
+              ? allGames.filter((g: any) => {
+                  const homeTeam = g.home_team || g.homeTeam || '';
+                  const awayTeam = g.away_team || g.awayTeam || '';
+                  return teamNames.some(teamName => 
+                    homeTeam.toLowerCase().includes(teamName.toLowerCase()) ||
+                    awayTeam.toLowerCase().includes(teamName.toLowerCase())
+                  );
+                })
+              : [];
+          })
+          .catch(err => {
+            console.error('Failed to load games:', err);
+            return [];
+          }),
         
-        // Filter games where either home or away team matches one of the league's team names
-        leagueGames = Array.isArray(allGames) 
-          ? allGames.filter((g: any) => {
-              const homeTeam = g.home_team || g.homeTeam || '';
-              const awayTeam = g.away_team || g.awayTeam || '';
-              return teamNames.some(teamName => 
-                homeTeam.toLowerCase().includes(teamName.toLowerCase()) ||
-                awayTeam.toLowerCase().includes(teamName.toLowerCase())
-              );
-            })
-          : [];
-        
-        setGames(leagueGames);
-        console.log(`Found ${leagueGames.length} games for league teams`);
-      } catch (err) {
-        console.error('Failed to load games:', err);
-        setGames([]);
-      }
-
-      // Fetch all posts related to this league's games and teams
-      try {
-        const allPosts: any[] = [];
-        const gameIds = leagueGames.map(g => g.id);
-        const teamNames = filteredTeams.map(t => t.name.toLowerCase());
-        
-        // Fetch posts for each game in this league
-        for (const gameId of gameIds) {
+        // Load posts - batch fetch posts for all games at once
+        (async () => {
           try {
-            const gamePosts = await Post.filter({ game_id: gameId }, '-created_date', 50);
-            if (Array.isArray(gamePosts)) {
-              allPosts.push(...gamePosts);
-            }
-          } catch (err) {
-            console.error(`Failed to load posts for game ${gameId}:`, err);
-          }
-        }
-        
-        // Also get recent posts and filter by team mentions as fallback
-        try {
-          const recentPosts = await Post.list('-created_date', 100);
-          if (Array.isArray(recentPosts)) {
-            recentPosts.forEach((p: any) => {
-              // Only add if not already in our list and mentions a team
-              const alreadyAdded = allPosts.some(existing => existing.id === p.id);
-              if (!alreadyAdded) {
-                const content = (p.content || p.caption || '').toLowerCase();
-                if (teamNames.some(teamName => content.includes(teamName))) {
-                  allPosts.push(p);
-                }
-              }
-            });
-          }
-        } catch (err) {
-          console.error('Failed to load recent posts:', err);
-        }
-        
-        // Remove duplicates and sort by date
-        const uniquePosts = Array.from(
-          new Map(allPosts.map(p => [p.id, p])).values()
-        ).sort((a, b) => {
-          const dateA = new Date(a.created_at || a.created_date || 0).getTime();
-          const dateB = new Date(b.created_at || b.created_date || 0).getTime();
-          return dateB - dateA; // Most recent first
-        });
-        
-        setPosts(uniquePosts);
-        console.log(`Found ${uniquePosts.length} posts for league (${gameIds.length} games)`);
-      } catch (err) {
-        console.error('Failed to load posts:', err);
-        setPosts([]);
-      }
+            const allPosts: any[] = [];
+            const gameIds = await Game.list('-date')
+              .then(allGames => {
+                const teamNames = filteredTeams.map(t => t.name);
+                const filtered = Array.isArray(allGames) 
+                  ? allGames.filter((g: any) => {
+                      const homeTeam = g.home_team || g.homeTeam || '';
+                      const awayTeam = g.away_team || g.awayTeam || '';
+                      return teamNames.some(teamName => 
+                        homeTeam.toLowerCase().includes(teamName.toLowerCase()) ||
+                        awayTeam.toLowerCase().includes(teamName.toLowerCase())
+                      );
+                    })
+                  : [];
+                return filtered.map(g => g.id);
+              })
+              .catch(() => []);
 
-      // Fetch all members from all teams in this league
-      try {
-        const allMembers: TeamMember[] = [];
-        
-        // Only fetch members if we have filtered teams for this league
-        if (filteredTeams.length > 0) {
-          for (const team of filteredTeams) {
-            const teamMembers = await Team.members(team.id).catch(() => []);
-            if (Array.isArray(teamMembers)) {
-              allMembers.push(...teamMembers.map((m: any) => ({
-                ...m,
-                team_id: team.id,
-                team_name: team.name,
-              })));
+            // Batch fetch posts for multiple games using Promise.all
+            if (gameIds.length > 0) {
+              const postPromises = gameIds.slice(0, 10).map(gameId => // Limit to 10 games to avoid too many requests
+                Post.filter({ game_id: gameId }, '-created_date', 20).catch(() => [])
+              );
+              const postBatches = await Promise.all(postPromises);
+              postBatches.forEach(batch => {
+                if (Array.isArray(batch)) {
+                  allPosts.push(...batch);
+                }
+              });
             }
+
+            // Deduplicate and sort
+            const uniquePosts = Array.from(
+              new Map(allPosts.map(p => [p.id, p])).values()
+            ).sort((a, b) => {
+              const dateA = new Date(a.created_at || a.created_date || 0).getTime();
+              const dateB = new Date(b.created_at || b.created_date || 0).getTime();
+              return dateB - dateA;
+            });
+            return uniquePosts;
+          } catch (err) {
+            console.error('Failed to load posts:', err);
+            return [];
           }
-        }
+        })(),
         
-        setMembers(allMembers);
-      } catch (err) {
-        console.error('Failed to load members:', err);
-        setMembers([]);
-      }
+        // Load members - batch fetch all team members in parallel
+        (async () => {
+          try {
+            const allMembers: TeamMember[] = [];
+            
+            if (filteredTeams.length > 0) {
+              // Use Promise.all to fetch all members in parallel, not sequentially
+              const memberPromises = filteredTeams.map(team =>
+                Team.members(team.id)
+                  .then(teamMembers => ({
+                    team,
+                    members: Array.isArray(teamMembers) ? teamMembers : []
+                  }))
+                  .catch(() => ({ team, members: [] }))
+              );
+              
+              const memberResults = await Promise.all(memberPromises);
+              memberResults.forEach(({ team, members: teamMembers }) => {
+                allMembers.push(...teamMembers.map((m: any) => ({
+                  ...m,
+                  team_id: team.id,
+                  team_name: team.name,
+                })));
+              });
+            }
+            
+            return allMembers;
+          } catch (err) {
+            console.error('Failed to load members:', err);
+            return [];
+          }
+        })(),
+      ]);
+
+      setGames(gamesResult);
+      setPosts(postsResult);
+      setMembers(membersResult);
     } catch (err: any) {
       console.error('Failed to load league:', err);
       setError(err?.message || 'Failed to load league data');

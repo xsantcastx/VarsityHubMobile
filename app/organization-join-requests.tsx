@@ -6,6 +6,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureException } from '@/utils/sentry';
 
 type JoinRequest = {
   id: string;
@@ -38,7 +39,12 @@ export default function OrganizationJoinRequestsScreen() {
   const [rejectModal, setRejectModal] = useState<{ visible: boolean; request: JoinRequest | null; reason: string }>({ visible: false, request: null, reason: '' });
 
   const loadRequests = useCallback(async () => {
-    if (!params.organization_id) return;
+    // Guard: require organization_id
+    if (!params.organization_id) {
+      setLoading(false);
+      setError('Organization ID is required. Please select an organization.');
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -48,6 +54,7 @@ export default function OrganizationJoinRequestsScreen() {
       setRequests(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('[OrganizationJoinRequests] Error loading requests:', err);
+      captureException(err, { tags: { screen: 'organization-join-requests', action: 'load' } });
       setError(err?.message || 'Failed to load join requests');
     } finally {
       setLoading(false);
@@ -81,6 +88,7 @@ export default function OrganizationJoinRequestsScreen() {
               await loadRequests();
             } catch (err: any) {
               console.error('[OrganizationJoinRequests] Error approving request:', err);
+              captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
               Alert.alert('Error', err?.message || 'Failed to approve request');
             } finally {
               setProcessingId(null);
@@ -97,13 +105,22 @@ export default function OrganizationJoinRequestsScreen() {
 
   const submitReject = async () => {
     if (!rejectModal.request) return;
+    
+    // Validate reason is not empty
+    const reason = rejectModal.reason.trim();
+    if (!reason) {
+      Alert.alert('Reason Required', 'Please provide a reason for rejecting this request.');
+      return;
+    }
+    
     setProcessingId(rejectModal.request.id);
     try {
-      await Organization.rejectJoinRequest(rejectModal.request.id, rejectModal.reason.trim() || undefined);
+      await Organization.rejectJoinRequest(rejectModal.request.id, reason);
       Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
       await loadRequests();
     } catch (err: any) {
       console.error('[OrganizationJoinRequests] Error rejecting request:', err);
+      captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
       Alert.alert('Error', err?.message || 'Failed to reject request');
     } finally {
       setProcessingId(null);
@@ -145,7 +162,16 @@ export default function OrganizationJoinRequestsScreen() {
 
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: theme.background, borderColor: theme.border }]}>
-        <Pressable onPress={() => void router.back()} style={styles.backButton}>
+        <Pressable 
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.push('/' as any);
+            }
+          }} 
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <View style={styles.headerTextContainer}>
