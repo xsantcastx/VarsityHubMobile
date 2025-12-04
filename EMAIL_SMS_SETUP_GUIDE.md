@@ -4,6 +4,7 @@
 - 📋 [Full Regression Checklist](./EMAIL_SMS_REGRESSION_CHECKLIST.md)
 - 🧪 [Test Script](./scripts/email-verification-test.sh)
 - 📊 [Implementation Audit](./EMAIL_SMS_VERIFICATION_AUDIT.md)
+- 🧱 [Template Matrix](./docs/EMAIL_TEMPLATE_MATRIX.md)
 
 ---
 

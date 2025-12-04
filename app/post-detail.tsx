@@ -4,7 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Dimensions,
@@ -13,7 +13,6 @@ import {
     Platform,
     Pressable,
     ScrollView,
-    Share,
     StatusBar,
     StyleSheet,
     Text,
@@ -23,8 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
-import { AppLinks } from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
+import { useShareLink } from '@/hooks/useShareLink';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -262,38 +261,30 @@ export default function PostDetailScreen() {
     }
   };
 
-  const onShare = async () => {
-    try {
-      let message = post?.title 
-        ? `Check out: ${post.title}` 
-        : 'Check out this sports post';
-      
-      // Add game context if available
-      if (post?.game) {
-        if (post.game.home_team && post.game.away_team) {
-          message += ` - ${post.game.home_team} vs ${post.game.away_team}`;
-        }
-        message += ` on VarsityHub!`;
-      } else {
-        message += ' on VarsityHub!';
-      }
-      
-      // Add author context
-      if (post?.author?.display_name) {
-        message += `\nPosted by ${post.author.display_name}`;
-      }
-      
-      // Add URL
-      const shareLink = AppLinks.post(currentPostId, post?.caption);
-      
-      await Share.share({
-        message: shareLink.shareMessage,
-        url: shareLink.webUrl,
-        title: post?.title || 'VarsityHub Post',
-      });
-    } catch (error) {
-      console.log('Error sharing:', error);
+  const postShareContext = useMemo(() => {
+    const lines: string[] = [];
+    if (post?.title) {
+      lines.push(`Check out: ${post.title}`);
     }
+    if (post?.game?.home_team && post?.game?.away_team) {
+      lines.push(`${post.game.home_team} vs ${post.game.away_team}`);
+    }
+    if (post?.author?.display_name) {
+      lines.push(`Posted by ${post.author.display_name}`);
+    }
+    return lines;
+  }, [post]);
+
+  const { share: sharePost } = useShareLink({
+    kind: 'post',
+    id: currentPostId,
+    title: post?.title || 'VarsityHub Post',
+    caption: post?.caption,
+    contextLines: postShareContext,
+  });
+
+  const onShare = () => {
+    void sharePost();
   };
 
   const onSendToFriend = () => {

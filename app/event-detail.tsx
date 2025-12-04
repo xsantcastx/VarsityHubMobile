@@ -2,13 +2,13 @@ import { BackHeader } from '@/components/ui/BackHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
-import AppLinks from '@/utils/links';
 import MatchBanner from './components/MatchBanner';
 import RsvpSheet from './components/RsvpSheet';
+import { useShareLink } from '@/hooks/useShareLink';
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 
@@ -59,21 +59,22 @@ export default function EventDetailScreen() {
 
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
 
-  const onShare = async () => {
-    if (!event) return;
-    try {
-      const link = AppLinks.event(String(event.id), event.title);
-      await Share.share({
-        message: link.shareMessage,
-        url: link.webUrl,
-        title: event.title || 'VarsityHub Event'
-      });
-    } catch (err) {
-      console.warn('Share failed:', err);
-    }
-  };
-
   const router = useRouter();
+
+  const eventShareContext = useMemo(() => {
+    if (!event) return [];
+    const lines: string[] = [];
+    if (event.location) lines.push(`Location: ${event.location}`);
+    if (event.date) lines.push(`When: ${new Date(event.date).toLocaleString()}`);
+    return lines;
+  }, [event]);
+
+  const { share: shareEvent } = useShareLink({
+    kind: 'event',
+    id: event?.id,
+    title: event?.title || 'VarsityHub Event',
+    contextLines: eventShareContext,
+  });
 
   const toggleRsvp = async () => {
     if (!event) return;
@@ -211,7 +212,7 @@ export default function EventDetailScreen() {
               <Pressable style={styles.primaryBtn} onPress={toggleRsvp}>
                 <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
               </Pressable>
-              <Pressable style={styles.outlineBtn} onPress={onShare}>
+              <Pressable style={styles.outlineBtn} onPress={shareEvent}>
                 <Text style={styles.outlineBtnText}>Share</Text>
               </Pressable>
             </View>

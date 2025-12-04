@@ -22,16 +22,43 @@ const TEMPLATE_IDS = {
   BILLING_NOTICE: process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID || '',
 };
 
+type TemplateKey = keyof typeof TEMPLATE_IDS;
+const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
+  'VERIFICATION',
+  'PASSWORD_RESET',
+  'TEAM_INVITE',
+  'ORG_INVITE',
+  'JOIN_REQUEST_ADMIN',
+  'JOIN_REQUEST_APPROVED',
+  'JOIN_REQUEST_DENIED',
+];
+
 if (SENDGRID_API_KEY) {
   sgMail.setApiKey(SENDGRID_API_KEY);
 }
 
+export function isSendGridConfigured(): boolean {
+  return Boolean(SENDGRID_API_KEY);
+}
+
+export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS): string[] {
+  return required
+    .filter((key) => !TEMPLATE_IDS[key])
+    .map((key) => key.toLowerCase());
+}
+
 export function initEmailService() {
-  if (SENDGRID_API_KEY) {
-    sgMail.setApiKey(SENDGRID_API_KEY);
-    console.log('✅ SendGrid email service initialized');
-  } else {
+  if (!SENDGRID_API_KEY) {
     console.warn('⚠️ SENDGRID_API_KEY not set - emails will not be sent');
+    return;
+  }
+
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  const missing = getMissingEmailTemplates();
+  if (missing.length) {
+    console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
+  } else {
+    console.log('✅ SendGrid email service initialized (all required templates configured)');
   }
 }
 
@@ -464,4 +491,3 @@ export async function sendBillingNoticeEmail(params: {
     return false;
   }
 }
-
