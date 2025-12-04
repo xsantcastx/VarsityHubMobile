@@ -799,6 +799,14 @@ const GameDetailsScreen = () => {
             Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
             Game.media(gameIdValue).catch(() => summary?.media || []),
           ]);
+          // Ensure mediaData is always an array
+          if (!Array.isArray(mediaData)) {
+            mediaData = (mediaData as any)?.items || [];
+          }
+          // Ensure postsData is always an array
+          if (!Array.isArray(postsData)) {
+            postsData = (postsData as any)?.items || [];
+          }
         }
 
       let eventIdValue: string | null = null;
@@ -1085,9 +1093,14 @@ const GameDetailsScreen = () => {
                 }
                 await Game.addStory(vm.gameId, storyPayload);
                 console.log('[story] Camera - story registered successfully');
-                await loadGameById(vm.gameId);
+                try {
+                  await loadGameById(vm.gameId);
+                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                } catch (reloadErr: any) {
+                  console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
+                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
+                }
               }
-              Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
             } catch (err: any) {
               console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
@@ -1143,9 +1156,14 @@ const GameDetailsScreen = () => {
                 }
                 await Game.addStory(vm.gameId, storyPayload);
                 console.log('[story] Gallery - story registered successfully');
-                await loadGameById(vm.gameId);
+                try {
+                  await loadGameById(vm.gameId);
+                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                } catch (reloadErr: any) {
+                  console.warn('[story] Gallery - reload failed but story was uploaded:', reloadErr);
+                  Alert.alert('Added', 'Story added to this game. Refresh to see it.');
+                }
               }
-              Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
             } catch (err: any) {
               console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
