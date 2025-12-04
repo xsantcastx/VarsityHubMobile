@@ -15,7 +15,7 @@ healthRouter.get('/', (req, res) => {
     cloudinary: isCloudinaryConfigured(),
     twilio: isTwilioConfigured(),
     stripe: !!process.env.STRIPE_SECRET_KEY,
-    smtp: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+    sendgrid: !!(process.env.SENDGRID_API_KEY && process.env.SENDGRID_VERIFICATION_TEMPLATE_ID),
     googleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_IDS,
     googleMaps: !!process.env.GOOGLE_MAPS_API_KEY,
     sentry: !!process.env.SENTRY_DSN,

@@ -51,10 +51,19 @@ export default function NotificationsScreen() {
     }
   }, [refreshing]);
 
-  useEffect(() => { void load(null, false); }, [load]);
+  useEffect(() => {
+    void load(null, false).catch(() => {});
+  }, [load]);
 
-  const onRefresh = () => { setRefreshing(true); void load(null, false); };
-  const onEndReached = () => { if (nextCursor) void load(nextCursor, true); };
+  const onRefresh = () => {
+    setRefreshing(true);
+    void load(null, false).catch(() => {});
+  };
+  const onEndReached = () => {
+    if (nextCursor) {
+      void load(nextCursor, true).catch(() => {});
+    }
+  };
 
   const hasUnread = items.some((n) => !n.read_at);
   const onMarkAllRead = async () => {
@@ -132,7 +141,7 @@ export default function NotificationsScreen() {
       ) : error && items.length === 0 ? (
         <View style={S.center}>
           <Text style={{ color: '#EF4444', marginBottom: 12 }}>{error}</Text>
-          <Pressable style={S.retryButton} onPress={() => void load(null, false)}>
+          <Pressable style={S.retryButton} onPress={() => void load(null, false).catch(() => {})}>
             <Text style={S.retryText}>Retry</Text>
           </Pressable>
         </View>

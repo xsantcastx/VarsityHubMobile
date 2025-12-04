@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import AppLinks from '@/utils/links';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
@@ -12,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
@@ -472,6 +473,7 @@ const GameDetailsScreen = () => {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const { width: windowWidth } = useWindowDimensions();
+  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const scrollRef = useRef<any>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
 
@@ -514,6 +516,7 @@ const GameDetailsScreen = () => {
   const THRESHOLD = useMemo(() => Math.max(24, headerH * 0.6), [headerH]);
   const [showTopFab, setShowTopFab] = useState(false);
   const [vsModalOpen, setVsModalOpen] = useState(false);
+  const [preciseBannerDismissed, setPreciseBannerDismissed] = useState(false);
   const showTopFabRef = useRef(false);
   const headerTranslateY = useMemo(() => feedY.interpolate({
     inputRange: [0, headerH || 1],
@@ -529,13 +532,16 @@ const GameDetailsScreen = () => {
   // Dynamic styles based on color scheme
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
+  // Banner for precise location on Android
+  const showPreciseBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !preciseBannerDismissed;
+
   useEffect(() => {
     showTopFabRef.current = false;
     setShowTopFab(false);
   }, [headerH]);
 
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v));
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v)).catch(() => {});
     const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
     return () => { try { ev?.remove?.(); } catch (e) {} };
   }, []);
@@ -1000,6 +1006,33 @@ const GameDetailsScreen = () => {
       );
       return;
     }
+
+    // Request location permission for story tagging
+    if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
+      const granted = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Location Permission',
+          'Stories can still post without location, but pins and discovery will be less accurate until you enable it.',
+        );
+      }
+      if (Platform.OS === 'android' && needsPreciseAccuracy) {
+        Alert.alert(
+          'Enable Precise Location',
+          'To tag stories to this game automatically, allow precise location in Android settings.',
+          [
+            { text: 'Skip', style: 'cancel', onPress: () => {} },
+            {
+              text: 'Open settings',
+              onPress: () => {
+                setPreciseBannerDismissed(true);
+                void openSettings();
+              },
+            },
+          ],
+        );
+      }
+    }
     
     // Show action sheet with camera first, then gallery
     Alert.alert(
@@ -1046,7 +1079,11 @@ const GameDetailsScreen = () => {
                 });
               } else {
                 console.log('[story] Camera - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
-                await Game.addStory(vm.gameId, { media_url: mediaUrl });
+                const storyPayload: any = { media_url: mediaUrl };
+                if (location?.latitude && location?.longitude) {
+                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
+                }
+                await Game.addStory(vm.gameId, storyPayload);
                 console.log('[story] Camera - story registered successfully');
                 await loadGameById(vm.gameId);
               }
@@ -1100,7 +1137,11 @@ const GameDetailsScreen = () => {
                 });
               } else {
                 console.log('[story] Gallery - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
-                await Game.addStory(vm.gameId, { media_url: mediaUrl });
+                const storyPayload: any = { media_url: mediaUrl };
+                if (location?.latitude && location?.longitude) {
+                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
+                }
+                await Game.addStory(vm.gameId, storyPayload);
                 console.log('[story] Gallery - story registered successfully');
                 await loadGameById(vm.gameId);
               }
@@ -1119,7 +1160,7 @@ const GameDetailsScreen = () => {
         }
       ]
     );
-  }, [loadGameById, storyBusy, vm?.gameId]);
+  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
   const refreshVotes = useCallback(async () => {
     if (!vm?.gameId) {
@@ -1881,6 +1922,32 @@ const renderBanner = () => {
                   <Text style={styles.actionText}>Add Story</Text>
                 </Pressable>
               </View>
+              {showPreciseBanner ? (
+                <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
+                  <Ionicons name="navigate" size={16} color="#B45309" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.preciseBannerTitle}>Precise location is off</Text>
+                    <Text style={styles.preciseBannerText}>
+                      Android is sharing an approximate location, so story pins may be less accurate.
+                    </Text>
+                    <View style={styles.preciseBannerActions}>
+                      <Pressable onPress={() => setPreciseBannerDismissed(true)}>
+                        <Text style={styles.preciseBannerLink}>Dismiss</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setPreciseBannerDismissed(true);
+                          void openSettings();
+                        }}
+                      >
+                        <Text style={[styles.preciseBannerLink, { color: Colors[colorScheme].tint, fontWeight: '700' }]}>
+                          Open settings
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
               {/* Stories carousel (only stories section). Also anchor the Stories tab to this position */}
               <View
                 onLayout={(e) => {
@@ -2561,6 +2628,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   secondaryActionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  preciseBanner: {
+    flexDirection: 'row',
+    gap: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  preciseBannerTitle: { fontWeight: '700', fontSize: 14, color: '#92400E' },
+  preciseBannerText: { fontSize: 13, color: '#92400E', marginTop: 2, marginBottom: 8 },
+  preciseBannerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  preciseBannerLink: { fontSize: 13, color: '#92400E' },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -2911,9 +2991,3 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginRight: 8,
   },
 });
-
-
-
-
-
-

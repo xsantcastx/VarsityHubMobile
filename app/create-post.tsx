@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
@@ -12,11 +12,11 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { pickerMediaTypeFor } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 
 // Media validation constants
 const ALLOWED_IMAGE_TYPES = [
@@ -60,11 +60,10 @@ export default function CreatePostScreen() {
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
+  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
+  
   const [content, setContent] = useState('');
   const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const [locGranted, setLocGranted] = useState<boolean | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | undefined>(gameId);
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
@@ -73,6 +72,9 @@ export default function CreatePostScreen() {
   const [hasAutoSuggested, setHasAutoSuggested] = useState(!!gameId); // If gameId from params, don't auto-suggest
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
+  const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
 
   // Rotate placeholder prompts
   useEffect(() => {
@@ -83,21 +85,20 @@ export default function CreatePostScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  // Request location permission on mount
   useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        const granted = status === 'granted';
-        setLocGranted(granted);
-        if (granted) {
-          const last = await Location.getLastKnownPositionAsync();
-          const fresh = last && (Date.now() - (last.timestamp || 0)) < 10 * 60 * 1000 ? last : null;
-          const pos = fresh || await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          if (pos?.coords) { setLat(pos.coords.latitude); setLng(pos.coords.longitude); }
-        }
-      } catch { setLocGranted(false); }
-    })();
-  }, []);
+    if (!permissionGranted && !hasAutoSuggested && !gameId) {
+      requestPermission().catch(() => {
+        setLocationError('Unable to access device location. You can still post, but event suggestions won\'t be available.');
+      });
+    }
+  }, [permissionGranted, hasAutoSuggested, gameId, requestPermission]);
+
+  useEffect(() => {
+    if (locError) {
+      setLocationError(locError);
+    }
+  }, [locError]);
 
   // Load game details if gameId is provided via params (from event page)
   useEffect(() => {
@@ -129,8 +130,10 @@ export default function CreatePostScreen() {
           dateFrom: now.toISOString(),
           dateTo: sevenDaysLater.toISOString(),
         };
-        if (typeof lat === 'number') options.lat = lat;
-        if (typeof lng === 'number') options.lng = lng;
+        if (location?.latitude && location?.longitude) {
+          options.lat = location.latitude;
+          options.lng = location.longitude;
+        }
         
         const games = await Game.list('-date', options);
         const gamesArray = Array.isArray(games) ? games : (games?.items || []);
@@ -140,13 +143,13 @@ export default function CreatePostScreen() {
           const gameLat = typeof g.latitude === 'number' ? g.latitude : (typeof g.lat === 'number' ? g.lat : null);
           const gameLng = typeof g.longitude === 'number' ? g.longitude : (typeof g.lng === 'number' ? g.lng : null);
           let distance = typeof g.distance === 'number' ? g.distance : null;
-          if (distance == null && typeof lat === 'number' && typeof lng === 'number' && gameLat != null && gameLng != null) {
+          if (distance == null && location?.latitude && location?.longitude && gameLat != null && gameLng != null) {
             const R = 6371;
-            const dLat = (gameLat - lat) * Math.PI / 180;
-            const dLng = (gameLng - lng) * Math.PI / 180;
+            const dLat = (gameLat - location.latitude) * Math.PI / 180;
+            const dLng = (gameLng - location.longitude) * Math.PI / 180;
             const a =
               Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos((lat * Math.PI) / 180) *
+              Math.cos((location.latitude * Math.PI) / 180) *
                 Math.cos((gameLat * Math.PI) / 180) *
                 Math.sin(dLng / 2) *
                 Math.sin(dLng / 2);
@@ -181,7 +184,7 @@ export default function CreatePostScreen() {
         setHasAutoSuggested(true);
       }
     })();
-  }, [lat, lng, selectedGameId, hasAutoSuggested]);
+  }, [location?.latitude, location?.longitude, selectedGameId, hasAutoSuggested]);
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({
@@ -332,12 +335,12 @@ export default function CreatePostScreen() {
       }
       const trimmedContent = content.trim();
       
-      const location = lat && lng ? { lat, lng, source: 'device' as const } : {};
+      const locationPayload = location?.latitude && location?.longitude ? { lat: location.latitude, lng: location.longitude, source: 'device' as const } : {};
       const payload: Record<string, any> = {
         content: trimmedContent,
         media_url: finalMediaUrl || undefined,
         type: postType,
-        location,
+        location: locationPayload,
       };
       if (selectedGameId) {
         payload.game_id = selectedGameId;
@@ -565,6 +568,37 @@ export default function CreatePostScreen() {
           <Pressable onPress={() => {}}>
             <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           </Pressable>
+          {showPrecisionWarning ? (
+            <View style={[styles.warningBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15', marginTop: 12 }]}>
+              <Ionicons name="navigate-outline" size={16} color="#B45309" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.warningText, { color: '#92400E', marginBottom: 4 }]}>
+                  Precise location is off. Nearby event suggestions may be less accurate on Android.
+                </Text>
+                <View style={styles.warningActionsRow}>
+                  <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
+                    <Text style={[styles.warningActionLink, { color: '#92400E' }]}>Maybe later</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setPrecisionBannerDismissed(true);
+                      void openSettings();
+                    }}
+                  >
+                    <Text style={[styles.warningActionLink, { color: Colors[colorScheme].tint, fontWeight: '700' }]}>
+                      Open settings
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
+          {locationError && (
+            <View style={[styles.warningBanner, { backgroundColor: Colors[colorScheme].surface, borderColor: '#FCA5A5' }]}>
+              <Ionicons name="alert-circle" size={16} color="#DC2626" />
+              <Text style={[styles.warningText, { color: '#991B1B' }]}>{locationError}</Text>
+            </View>
+          )}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </KeyboardAwareScreen>
@@ -1110,6 +1144,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '500'
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  warningActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 16,
+  },
+  warningActionLink: {
+    fontSize: 13,
   },
   error: { 
     color: '#DC2626', 

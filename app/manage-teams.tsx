@@ -63,12 +63,12 @@ export default function ManageTeamsSimpleScreen() {
   }, []);
 
   useEffect(() => {
-    loadTeams().finally(() => setLoading(false));
+    void loadTeams().finally(() => setLoading(false)).catch(() => {});
   }, [loadTeams]);
 
   // Guard: redirect non-coach users away
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         const role = me?.preferences?.role;
@@ -80,7 +80,7 @@ export default function ManageTeamsSimpleScreen() {
       } catch {
         // silently ignore
       }
-    })();
+    })().catch(() => {});
   }, [router]);
 
   const onRefresh = useCallback(async () => {

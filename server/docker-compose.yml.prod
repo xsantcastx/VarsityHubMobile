@@ -1,0 +1,155 @@
+version: '3.9'
+# Production-ready Docker Compose for VarsityHub backend
+# Use: docker-compose -f docker-compose.yml.prod up -d
+#
+# ⚠️  IMPORTANT: Before deploying, ensure:
+# 1. DATABASE_URL is set in .env or passed via -e flag
+# 2. STRIPE_SECRET_KEY is configured
+# 3. JWT_SECRET is changed from default value
+# 4. SENTRY_DSN is configured for error tracking
+# 5. All environment variables are validated (see start.sh)
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-varsityhub}
+    # Database is internal only - no port exposed in production
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Resource limits to prevent runaway memory usage
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Required - must be set before deploying
+      DATABASE_URL: ${DATABASE_URL}
+      NODE_ENV: production
+      
+      # API Configuration
+      HOST: 0.0.0.0
+      PORT: 4000
+      
+      # Security & Payments (from .env or Railway)
+      STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      
+      # Error tracking (optional but recommended)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_PROFILING_ENABLED: ${SENTRY_PROFILING_ENABLED:-0}
+      
+      # Upload service (if using)
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
+      
+      # Admin configuration
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      
+      # Email service (SendGrid)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@varsityhub.com}
+      
+      # Database configuration
+      PRISMA_MIGRATE_RETRIES: ${PRISMA_MIGRATE_RETRIES:-25}
+      PRISMA_MIGRATE_SLEEP_SECS: ${PRISMA_MIGRATE_SLEEP_SECS:-2}
+    
+    expose:
+      - "4000"
+    
+    networks:
+      - app-network
+    
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    
+    # Resource limits to prevent runaway processes
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+        labels: "service=varsityhub-api"
+
+  # Optional: Nginx reverse proxy (uncomment if using)
+  # nginx:
+  #   image: nginx:alpine
+  #   restart: always
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./certs:/etc/nginx/certs:ro
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - app-network
+
+volumes:
+  db_data:
+    # Use named volume for easier backup/restore
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

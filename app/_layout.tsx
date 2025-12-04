@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
 import { Stack, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -50,6 +51,19 @@ export default function RootLayout() {
         'props.pointerEvents is deprecated. Use style.pointerEvents',
       ]);
     }
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'General',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [250, 250],
+      sound: 'default',
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      lightColor: '#2563EB',
+    }).catch(() => {});
   }, []);
 
   if (!loaded || !navState?.key) {

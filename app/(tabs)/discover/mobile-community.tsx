@@ -1,11 +1,12 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game, Post, Team, User } from '@/api/entities';
@@ -76,6 +77,7 @@ export default function CommunityDiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const { location, loading: locLoading, error: locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -95,6 +97,8 @@ export default function CommunityDiscoverScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
+  const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
+  const showPrecisionBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
 
   const toFeedPost = useCallback((p: any): FeedPost => {
     const mediaUrl: string | null = typeof p?.media_url === 'string' ? p.media_url : (typeof p?.media?.url === 'string' ? p.media.url : null);
@@ -206,7 +210,7 @@ export default function CommunityDiscoverScreen() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load().catch(() => {});
   }, [load]);
 
   const onRefresh = useCallback(async () => {
@@ -333,8 +337,58 @@ export default function CommunityDiscoverScreen() {
 
   const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
 
+  const handleToggleViewMode = useCallback(async () => {
+    const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
+    if (newMode === 'map') {
+      if (!permissionGranted) {
+        const granted = await requestPermission();
+        if (!granted) {
+          Alert.alert('Location Permission', 'Enable location to view the map and see nearby events.');
+          return;
+        }
+      }
+      if (Platform.OS === 'android' && needsPreciseAccuracy) {
+        Alert.alert(
+          'Enable Precise Location',
+          'Map view needs precise location to show you accurate distances.',
+          [
+            { text: 'Not now', style: 'cancel', onPress: () => {} },
+            { text: 'Open settings', onPress: () => { setPrecisionBannerDismissed(true); void openSettings(); } },
+          ],
+        );
+        return;
+      }
+    }
+    setViewMode(newMode);
+  }, [viewMode, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
+
   const ListHeader = (
     <View>
+      {showPrecisionBanner ? (
+        <View style={[styles.precisionBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
+          <Ionicons name="navigate" size={18} color="#B45309" />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.precisionBannerText, { color: '#92400E' }]}>
+              Precise location is off. Nearby recommendations will be less accurate on Android.
+            </Text>
+            <View style={styles.precisionActions}>
+              <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
+                <Text style={[styles.precisionActionLink, { color: '#92400E' }]}>Dismiss</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setPrecisionBannerDismissed(true);
+                  void openSettings();
+                }}
+              >
+                <Text style={[styles.precisionActionLink, { color: Colors[colorScheme].tint, fontWeight: '700' }]}>
+                  Open settings
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
       {/* Search Bar - At the very top */}
       <View style={{flexDirection: 'row', gap: 8, alignItems: 'center'}}>
         <View style={[styles.searchBox, { flex: 1, backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
@@ -356,10 +410,7 @@ export default function CommunityDiscoverScreen() {
 
         {/* Map/List Toggle */}
         <Pressable
-          onPress={() => {
-            const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
-            setViewMode(newMode);
-          }}
+          onPress={() => { void handleToggleViewMode(); }}
           style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
         >
           <Ionicons 
@@ -847,6 +898,28 @@ const styles = StyleSheet.create({
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
   viewToggle: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
+  precisionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  precisionBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  precisionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  precisionActionLink: {
+    fontSize: 13,
+  },
   zipSuggestionList: { marginTop: 6, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
