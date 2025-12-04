@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "rangav.vscode-thunder-client",
+    "github.vscode-github-actions",
+    "ms-azuretools.vscode-docker",
+    "msjsdiag.vscode-react-native",
+    "expo.vscode-expo-tools"
+  ],
+  "unwantedRecommendations": []
+}
+

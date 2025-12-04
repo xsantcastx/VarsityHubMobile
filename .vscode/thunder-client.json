@@ -1,0 +1,75 @@
+{
+  "client": "Thunder Client",
+  "collectionName": "VarsityHub API",
+  "dateExport": "2024-12-04T22:30:00.000Z",
+  "version": "1.1",
+  "folders": [],
+  "requests": [
+    {
+      "clientName": "Thunder Client",
+      "dateExport": "2024-12-04T22:30:00.000Z",
+      "version": "1.1",
+      "colId": "varsityhub-main",
+      "name": "Health Check",
+      "target": "http",
+      "url": "https://api-production-8ac3.up.railway.app/health",
+      "method": "GET",
+      "sortNum": 10000,
+      "created": "2024-12-04T22:30:00.000Z",
+      "modified": "2024-12-04T22:30:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": "none",
+      "auth": "none",
+      "tests": []
+    },
+    {
+      "clientName": "Thunder Client",
+      "dateExport": "2024-12-04T22:30:00.000Z",
+      "version": "1.1",
+      "colId": "varsityhub-main",
+      "name": "Test Email Verification",
+      "target": "http",
+      "url": "https://api-production-8ac3.up.railway.app/api/test-email",
+      "method": "POST",
+      "sortNum": 20000,
+      "created": "2024-12-04T22:30:00.000Z",
+      "modified": "2024-12-04T22:30:00.000Z",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\"email\": \"test@example.com\"}"
+      },
+      "auth": "none",
+      "tests": []
+    },
+    {
+      "clientName": "Thunder Client",
+      "dateExport": "2024-12-04T22:30:00.000Z",
+      "version": "1.1",
+      "colId": "varsityhub-main",
+      "name": "Admin Health Check",
+      "target": "http",
+      "url": "https://api-production-8ac3.up.railway.app/admin/health",
+      "method": "GET",
+      "sortNum": 30000,
+      "created": "2024-12-04T22:30:00.000Z",
+      "modified": "2024-12-04T22:30:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": "none",
+      "auth": "none",
+      "tests": []
+    }
+  ],
+  "variables": {
+    "baseUrl": "https://api-production-8ac3.up.railway.app",
+    "authToken": "{{ env.TOKEN }}"
+  }
+}

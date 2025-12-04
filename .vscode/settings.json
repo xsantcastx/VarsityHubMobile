@@ -3,5 +3,24 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  // Sentry Configuration
+  "sentry.enabled": true,
+  "sentry.dsn": "${env:SENTRY_DSN}",
+  "sentry.tracesSampleRate": 1.0,
+  // Snyk Configuration
+  "snyk.enabled": true,
+  "snyk.severity": "high",
+  // Expo Tools Configuration
+  "expo.debug": false,
+  "expo.preferWsl": false,
+  // Thunder Client Configuration
+  "thunderClient.clientTimeout": 30,
+  "thunderClient.showBorder": true,
+  // React Native Tools Configuration
+  "react-native.debug.logLevel": "info",
+  "react-native-tools.projectRoot": ".",
+  // General TypeScript/ESLint
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
 }
