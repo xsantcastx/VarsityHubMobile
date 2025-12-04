@@ -238,9 +238,10 @@ export default function PostDetailScreen() {
         upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
         has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
       }));
-    } catch {
+    } catch (error) {
       console.error('Error toggling upvote:', error);
-      console.error('Upvote error details:', error?.response?.data || error?.message || error);
+      const err = error as any;
+      console.error('Upvote error details:', err?.response?.data || err?.message || error);
     } finally {
       setVoting(false);
     }
@@ -253,9 +254,10 @@ export default function PostDetailScreen() {
       const created = await PostApi.addComment(currentPostId, comment.trim());
       setComments((arr) => [created, ...arr]);
       setComment('');
-    } catch {
+    } catch (error) {
       console.error('Error adding comment:', error);
-      console.error('Comment error details:', error?.response?.data || error?.message || error);
+      const err = error as any;
+      console.error('Comment error details:', err?.response?.data || err?.message || error);
     } finally {
       setCommenting(false);
     }
