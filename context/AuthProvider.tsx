@@ -13,6 +13,7 @@
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
+import auth from '@/api/auth';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
 
@@ -90,7 +91,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Try to fetch current user
+        // Try to fetch current user only if we have a token
+        const token = await auth.getToken();
+        if (!token) {
+          setUser(null);
+          return;
+        }
+
         const me: any = await User.me();
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
