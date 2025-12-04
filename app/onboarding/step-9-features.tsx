@@ -42,7 +42,7 @@ export default function Step9Features() {
           [{ text: 'OK' }]
         );
       }
-    } catch {
+    } catch (error) {
       console.error('Error requesting location permission:', error);
       Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.');
     }

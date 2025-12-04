@@ -170,7 +170,7 @@ export default function AdCalendarScreen() {
           // Load availability for next 8 weeks
           await loadAvailability(zip);
         }
-      } catch {
+      } catch (_error) {
         if (mounted) setReserved(new Set());
       }
     })();
@@ -217,7 +217,7 @@ export default function AdCalendarScreen() {
         setDateAvailability(availabilityMap);
         setFullDates(fullDatesSet);
       }
-    } catch {
+    } catch (e) {
       if (__DEV__) console.error('Error loading availability:', e);
     }
   };
@@ -517,7 +517,7 @@ export default function AdCalendarScreen() {
           ]
         );
       }
-    } catch {
+    } catch (err) {
       if (__DEV__) console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);

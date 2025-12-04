@@ -70,7 +70,7 @@ export default function AdminTeamsScreen() {
               for (const teamId of Array.from(selectedTeams)) {
                 try {
                   await TeamApi.delete(teamId);
-                } catch {
+                } catch (e) {
                   console.error('Failed to delete team:', teamId, e);
                 }
               }

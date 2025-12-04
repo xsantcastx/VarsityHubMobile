@@ -77,7 +77,7 @@ export default function ManageTeamsSimpleScreen() {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.replace('/(tabs)');
         }
-      } catch {
+      } catch (_error) {
         // silently ignore
       }
     })().catch(() => {});
@@ -226,7 +226,7 @@ export default function ManageTeamsSimpleScreen() {
         data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!', 
         [{ text: 'OK', onPress: () => {} }]
       );
-    } catch {
+    } catch (error) {
       console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',

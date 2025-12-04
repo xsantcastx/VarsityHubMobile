@@ -48,7 +48,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
     const info = await FileSystem.getInfoAsync(uri);
     if (info && info.exists && typeof info.size === 'number') return info.size as number;
     return 0;
-  } catch {
+  } catch (error) {
     console.warn('Could not determine file size:', error);
     return 0;
   }
@@ -111,7 +111,7 @@ export default function CreatePostScreen() {
           setSuggestedGame(game);
           setSelectedGameId(String(game.id));
         }
-      } catch {
+      } catch (error) {
         console.warn('Failed to load game from params:', error);
       }
     })();
@@ -178,7 +178,7 @@ export default function CreatePostScreen() {
           setSuggestedGame(top);
           setSelectedGameId(String(top.id));
         }
-      } catch {
+      } catch (error) {
         console.warn('Failed to fetch nearby games:', error);
       } finally {
         setHasAutoSuggested(true);
@@ -233,7 +233,7 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch {}
+        } catch (_error) {}
       }
       setPicked({ uri, type: media, mime: mimeType });
     }
@@ -289,7 +289,7 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch {}
+        } catch (error) {}
       }
       setPicked({ uri, type: media, mime: mimeType });
     }
@@ -323,7 +323,7 @@ export default function CreatePostScreen() {
     
     try {
       // Ensure user is authenticated
-      try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
+      try { await User.me(); } catch (_error) { throw new Error('Please sign in to create a post.'); }
       let finalMediaUrl = '';
       if (picked?.uri) {
         const { getApiBaseUrl } = await import('../api/http');

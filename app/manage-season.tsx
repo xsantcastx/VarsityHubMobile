@@ -112,7 +112,7 @@ export default function ManageSeasonScreen() {
         if (me?.preferences?.role !== 'coach') {
           router.replace('/(tabs)');
         }
-      } catch {}
+      } catch (_error) {}
     })().catch(() => {});
   }, [router]);
 
@@ -141,7 +141,7 @@ export default function ManageSeasonScreen() {
           ],
         });
       }
-    } catch {
+    } catch (error) {
       console.error('Error loading team:', error);
     }
   }, [params.teamId, router]);
@@ -201,7 +201,7 @@ export default function ManageSeasonScreen() {
       });
       
       setGames(convertedGames);
-    } catch {
+    } catch (error) {
       console.error('Error loading games:', error);
       const errorMessage = error instanceof Error && error.message.includes('Too many requests') 
         ? 'Server is busy, please try again in a moment'
@@ -411,7 +411,7 @@ export default function ManageSeasonScreen() {
                 message: 'Game deleted successfully!',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-            } catch {
+            } catch (error) {
               setActionModal({
                 visible: true,
                 title: 'Error',
@@ -491,7 +491,7 @@ export default function ManageSeasonScreen() {
         message: `${game.opponent || 'Game'} has been approved and will appear in upcoming games.`,
         options: [{ label: 'OK', onPress: () => {} }],
       });
-    } catch {
+    } catch (error) {
       console.error('Error approving game:', error);
     }
   };
@@ -517,7 +517,7 @@ export default function ManageSeasonScreen() {
                 message: 'The game has been rejected and removed.',
                 options: [{ label: 'OK', onPress: () => {} }],
               });
-            } catch {
+            } catch (error) {
               console.error('Error rejecting game:', error);
             }
           },
@@ -761,7 +761,7 @@ export default function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       
-    } catch {
+    } catch (error) {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -841,7 +841,7 @@ export default function ManageSeasonScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
       
-    } catch {
+    } catch (error) {
       setActionModal({
         visible: true,
         title: 'Error',

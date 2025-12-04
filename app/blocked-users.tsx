@@ -15,7 +15,7 @@ export default function BlockedUsersScreen() {
     try {
       const res = await User.blockedUsers();
       setList(Array.isArray(res) ? res : []);
-    } catch {
+    } catch (err) {
       console.error('Failed to load blocked users', err);
       Alert.alert('Error', 'Unable to load blocked users right now.');
     } finally {

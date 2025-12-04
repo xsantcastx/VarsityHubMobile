@@ -148,7 +148,7 @@ export default function CreateTeamScreen() {
       let user;
       try { 
         user = await User.me(); 
-      } catch { 
+      } catch (_error) { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
         return; 
@@ -194,7 +194,7 @@ export default function CreateTeamScreen() {
                         await proceedWithTeamCreation(me);
                         return;
                       }
-                    } catch {}
+                    } catch (err) {}
                     Alert.alert(
                       'Complete Payment',
                       'We could not confirm your upgrade yet. If you completed payment, please try creating your team again. Otherwise, finish checkout and retry.'
@@ -262,7 +262,7 @@ export default function CreateTeamScreen() {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
-        } catch {
+        } catch (error) {
           console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
         }
@@ -304,7 +304,7 @@ export default function CreateTeamScreen() {
               // Continue without organization if creation fails
             }
           }
-        } catch {
+        } catch (err) {
           console.error('[CreateTeam] Error handling organization:', err);
           // Continue without organization if there's an error
         }

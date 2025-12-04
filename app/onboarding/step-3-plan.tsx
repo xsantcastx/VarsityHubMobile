@@ -220,7 +220,7 @@ export default function Step3Plan() {
           navigateNext();
           return;
         }
-      } catch {
+      } catch (err) {
         // If we fail to fetch current user, continue to attempt subscription — we'll handle server errors during checkout.
         console.warn('Failed to check existing plan before checkout', err);
       }
@@ -231,7 +231,7 @@ export default function Step3Plan() {
         setOB((prev) => ({ ...prev, plan, payment_pending: pending }));
         try {
           await User.updatePreferences({ plan, payment_pending: pending });
-        } catch {
+        } catch (err) {
           console.warn('Failed to persist rookie plan to backend:', err);
         }
         setProgress(3);
@@ -253,7 +253,7 @@ export default function Step3Plan() {
           // If marked as free, save the plan now
           try {
             await User.updatePreferences({ plan, payment_pending: false });
-          } catch {
+          } catch (err) {
             console.warn('Failed to persist free plan to backend:', err);
           }
           setProgress(3);

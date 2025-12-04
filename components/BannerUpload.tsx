@@ -88,7 +88,7 @@ export function BannerUpload({
         // Update with selected image
         onChange(asset.uri, fitMode, position);
       }
-    } catch {
+    } catch (error) {
       console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }

@@ -130,7 +130,7 @@ export default function Step10Confirmation() {
       // Debug: log final payload
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step10] final payload', { role: ob.role, dob: ob.dob, ob });
-      } catch {}
+      } catch (_error) {}
       // Ensure basic preferences (role etc.) persisted before finalizing onboarding
       try {
         const prefsPatch: any = {};
@@ -147,8 +147,8 @@ export default function Step10Confirmation() {
             console.debug('[Onboarding][Step10] server prefs after patch', me?.preferences);
             // Merge server prefs into onboarding state if present
             if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
-          } catch {}
-      } catch {
+          } catch (e) {}
+      } catch (e) {
         // best-effort; continue to complete onboarding
         // eslint-disable-next-line no-console
         console.warn('[Onboarding][Step10] failed to patch preferences before complete', e);

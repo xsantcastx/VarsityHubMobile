@@ -57,7 +57,7 @@ export default function GameMapScreen() {
         }));
 
       setEvents(mappedEvents);
-    } catch {
+    } catch (error) {
       console.error('Error loading games:', error);
       Alert.alert('Error', 'Unable to load games. Please try again.');
     } finally {
