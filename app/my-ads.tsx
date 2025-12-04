@@ -147,7 +147,7 @@ export default function MyAdsScreen() {
               await load();
               
               Alert.alert('Success', 'Ad deleted successfully');
-            } catch (error) {
+            } catch {
               console.error('[my-ads2] Error deleting ad:', error);
               Alert.alert('Error', 'Failed to delete ad. Please try again.');
             }
@@ -339,7 +339,7 @@ export default function MyAdsScreen() {
         <View style={styles.actionsContainer}>
           <Pressable 
             style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } })}
+            onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } })}
           >
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>
@@ -352,7 +352,7 @@ export default function MyAdsScreen() {
               backgroundColor: Colors[colorScheme].surface,
               borderColor: Colors[colorScheme].border
             }]} 
-            onPress={() => router.push({ pathname: '/edit-ad', params: { id: item.id } })}
+            onPress={() => void router.push({ pathname: '/edit-ad', params: { id: item.id } })}
           >
             <Ionicons name="create-outline" size={18} color={Colors[colorScheme].text} />
             <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
@@ -394,7 +394,7 @@ export default function MyAdsScreen() {
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
         <Pressable 
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => router.push('/submit-ad')}
+          onPress={() => void router.push('/submit-ad')}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </Pressable>
@@ -417,7 +417,7 @@ export default function MyAdsScreen() {
             </Text>
             <Pressable 
               style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
-              onPress={() => router.push('/submit-ad')}
+              onPress={() => void router.push('/submit-ad')}
             >
               <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Create Your First Ad</Text>

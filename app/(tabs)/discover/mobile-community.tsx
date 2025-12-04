@@ -145,7 +145,7 @@ export default function CommunityDiscoverScreen() {
       try {
         user = await User.me();
         setMe(user);
-      } catch (err) {
+      } catch {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
       }
       const gamesData = await Game.list('-date');
@@ -308,7 +308,7 @@ export default function CommunityDiscoverScreen() {
       if (typeof alert !== 'undefined') {
         alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
       }
-    } catch (error) {
+    } catch {
       if (__DEV__) console.error('Error adding quick game:', error);
       if (typeof alert !== 'undefined') {
         alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -509,7 +509,7 @@ export default function CommunityDiscoverScreen() {
                 <Pressable
                   key={game.id}
                   style={[styles.dateGameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
+                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
                 >
                   <View style={styles.dateGameTime}>
                     <Ionicons name="time-outline" size={16} color={Colors[colorScheme].tint} />
@@ -546,7 +546,7 @@ export default function CommunityDiscoverScreen() {
             <>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => router.push('/manage-teams')}
+                onPress={() => void router.push('/manage-teams')}
               >
                 <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
@@ -554,7 +554,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push('/manage-season')}
+                onPress={() => void router.push('/manage-season')}
               >
                 <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
@@ -562,7 +562,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push('/event-approvals')}
+                onPress={() => void router.push('/event-approvals')}
               >
                 <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
@@ -574,7 +574,7 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => router.push('/create-fan-event')}
+                onPress={() => void router.push('/create-fan-event')}
               >
                 <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
@@ -582,7 +582,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push('/create-post')}
+                onPress={() => void router.push('/create-post')}
               >
                 <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
@@ -590,7 +590,7 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => router.push('/favorites')}
+                onPress={() => void router.push('/favorites')}
               >
                 <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
                 <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
@@ -606,7 +606,7 @@ export default function CommunityDiscoverScreen() {
           <Ionicons name="people" size={18} color="#2563EB" />
           <Text style={[styles.followingText, { color: Colors[colorScheme].text }]}>{`Following ${me._count.following} people`}</Text>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => router.push(`/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
+          <Pressable onPress={() => void router.push(`/following?id=${me.id}&username=${me.display_name || me.username || 'You'}`)} style={styles.followingBtn}>
             <Text style={styles.followingBtnText}>Manage</Text>
           </Pressable>
         </View>
@@ -640,10 +640,9 @@ export default function CommunityDiscoverScreen() {
                 <View style={styles.postHeaderRow}>
                   <Pressable
                     style={styles.postHeaderLeft}
-                    onPress={() => {
-                      if (!authorId) return;
+                    onPress={() => { if (!authorId) return;
                       // Navigate to the specific user's profile, not own profile
-                      void router.push(`/user-profile?id=${authorId}`);
+                      void void router.push(`/user-profile?id=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>
@@ -690,7 +689,7 @@ export default function CommunityDiscoverScreen() {
                 </View>
                 <PostCard
                   post={p}
-                  onPress={() => router.push(`/post-detail?id=${p.id}`)}
+                  onPress={() => void router.push(`/post-detail?id=${p.id}`)}
                   showAuthorHeader={false}
                   onDeleted={(postId) => {
                     // Remove deleted post from both arrays
@@ -718,7 +717,7 @@ export default function CommunityDiscoverScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Nearby people</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ paddingRight: 8 }}>
             {nearbyPeople.map((u) => (
-              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => router.push(`/user-profile?id=${u.id}`)}>
+              <Pressable key={String(u.id)} style={styles.personTile} onPress={() => void router.push(`/user-profile?id=${u.id}`)}>
                 <View style={styles.personAvatar}>
                   {u.avatar_url ? (
                     <Image source={{ uri: String(u.avatar_url) }} style={styles.personAvatar} contentFit="cover" />
@@ -824,7 +823,7 @@ export default function CommunityDiscoverScreen() {
           renderItem={({ item }) => (
             <Pressable
               style={styles.card}
-              onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+              onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.hero}>
                 {(() => {

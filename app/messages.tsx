@@ -172,7 +172,7 @@ export default function MessagesScreen() {
           // Filter out current user
           setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
         }
-      } catch (e) {
+      } catch {
         console.error('User search failed', e);
       } finally {
         if (mounted) setSearchingUsers(false);
@@ -327,7 +327,7 @@ export default function MessagesScreen() {
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => void router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>
           <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Messages</Text>
@@ -470,19 +470,19 @@ export default function MessagesScreen() {
         <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
           <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].background }]} onPress={() => {}}>
             <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety</Text>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/report-abuse'); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void router.push('/report-abuse'); }}>
               <Ionicons name="flag-outline" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report a message</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/blocked-users'); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void router.push('/blocked-users'); }}>
               <Ionicons name="person-remove-outline" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Blocked users</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/dm-restrictions'); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void router.push('/dm-restrictions'); }}>
               <Ionicons name="options-outline" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>DM restrictions</Text>
             </Pressable>
-            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); router.push('/settings'); }}>
+            <Pressable style={styles.sheetRow} onPress={() => { setSafetyOpen(false); void void router.push('/settings'); }}>
               <Ionicons name="settings-outline" size={18} color={Colors[colorScheme].text} />
               <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Privacy & settings</Text>
             </Pressable>

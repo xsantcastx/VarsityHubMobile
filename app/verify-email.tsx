@@ -56,7 +56,7 @@ export default function VerifyEmailScreen() {
         // Fallback to generic email URL
         await Linking.openURL('mailto:');
       }
-    } catch (error) {
+    } catch {
       console.error('Failed to open email app:', error);
       setInfo('Please check your email app manually');
     }
@@ -132,7 +132,7 @@ export default function VerifyEmailScreen() {
       
       {/* Back Button */}
       <Pressable 
-        onPress={() => router.back()} 
+        onPress={() => void router.back()} 
         style={styles.backButton}
         hitSlop={8}
       >
@@ -193,7 +193,7 @@ export default function VerifyEmailScreen() {
       )}
       
       {!isVerified && (
-        <Pressable style={styles.skipButton} onPress={() => router.replace('/onboarding/step-1-role')}>
+        <Pressable style={styles.skipButton} onPress={() => void router.replace('/onboarding/step-1-role')}>
           <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
         </Pressable>
       )}

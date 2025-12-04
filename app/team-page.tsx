@@ -128,7 +128,7 @@ export default function LeagueScreen() {
         
         setGames(leagueGames);
         console.log(`Found ${leagueGames.length} games for league teams`);
-      } catch (err) {
+      } catch {
         console.error('Failed to load games:', err);
         setGames([]);
       }
@@ -146,7 +146,7 @@ export default function LeagueScreen() {
             if (Array.isArray(gamePosts)) {
               allPosts.push(...gamePosts);
             }
-          } catch (err) {
+          } catch {
             console.error(`Failed to load posts for game ${gameId}:`, err);
           }
         }
@@ -166,7 +166,7 @@ export default function LeagueScreen() {
               }
             });
           }
-        } catch (err) {
+        } catch {
           console.error('Failed to load recent posts:', err);
         }
         
@@ -181,7 +181,7 @@ export default function LeagueScreen() {
         
         setPosts(uniquePosts);
         console.log(`Found ${uniquePosts.length} posts for league (${gameIds.length} games)`);
-      } catch (err) {
+      } catch {
         console.error('Failed to load posts:', err);
         setPosts([]);
       }
@@ -205,7 +205,7 @@ export default function LeagueScreen() {
         }
         
         setMembers(allMembers);
-      } catch (err) {
+      } catch {
         console.error('Failed to load members:', err);
         setMembers([]);
       }
@@ -331,7 +331,7 @@ export default function LeagueScreen() {
               <PostCard
                 key={`${post.id}-${index}`}
                 post={post}
-                onPress={() => router.push(`/post-detail?id=${post.id}` as any)}
+                onPress={() => void router.push(`/post-detail?id=${post.id}` as any)}
               />
             ))}
           </View>
@@ -428,7 +428,7 @@ export default function LeagueScreen() {
         paddingTop: insets.top,
       }]}>
         <Pressable 
-          onPress={() => router.back()} 
+          onPress={() => void router.back()} 
           style={styles.backButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >

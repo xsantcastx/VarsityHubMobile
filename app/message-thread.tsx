@@ -92,7 +92,7 @@ export default function MessageThreadScreen() {
           setMsgs(list);
           setMe(user);
         }
-      } catch (e) {
+      } catch {
         // Silently fail - don't disrupt conversation
       }
     }, 3000); // Check for new messages every 3 seconds
@@ -148,7 +148,7 @@ export default function MessageThreadScreen() {
 
       const created = await MessageApi.send(payload);
       setMsgs((arr) => arr.concat(created));
-    } catch (e) {
+    } catch {
       setError('Failed to send message');
     }
   };
@@ -241,15 +241,13 @@ export default function MessageThreadScreen() {
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         }]}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => void router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].text} />
           </Pressable>
           
           <Pressable 
             style={styles.headerProfile}
-            onPress={() => {
-              if (otherParticipant?.id) {
-                router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
+            onPress={() => { if (otherParticipant?.id) { void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
               }
             }}
           >
@@ -321,10 +319,8 @@ export default function MessageThreadScreen() {
               <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety & Settings</Text>
               <Pressable 
                 style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
-                onPress={() => { 
-                  setSafetyOpen(false); 
-                  if (otherParticipant?.id) {
-                    router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
+                onPress={() => { setSafetyOpen(false); 
+                  if (otherParticipant?.id) { void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
                   } else {
                     router.push('/report-abuse');
                   }
@@ -365,7 +361,7 @@ export default function MessageThreadScreen() {
                 <Ionicons name="person-remove-outline" size={20} color="#EF4444" />
                 <Text style={[styles.sheetText, { color: '#EF4444' }]}>Block user</Text>
               </Pressable>
-              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); router.push('/dm-restrictions'); }}>
+              <Pressable style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} onPress={() => { setSafetyOpen(false); void router.push('/dm-restrictions'); }}>
                 <Ionicons name="options-outline" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Message restrictions</Text>
               </Pressable>

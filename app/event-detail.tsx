@@ -139,7 +139,7 @@ export default function EventDetailScreen() {
         // Fallback to Google Maps web
         await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${address}`);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Unable to open maps.');
     }
   };

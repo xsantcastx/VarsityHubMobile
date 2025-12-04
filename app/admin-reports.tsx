@@ -327,7 +327,7 @@ export default function AdminReportsScreen() {
       >
         {/* Header */}
         <View style={[styles.header, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : 'white' }]}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => void router.back()} style={styles.backButton}>
             <Ionicons 
               name="arrow-back" 
               size={24} 

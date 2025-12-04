@@ -273,7 +273,7 @@ export default function EditAdScreen() {
             </Pressable>
 
             <Pressable 
-              onPress={() => router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })} 
+              onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: String(id || '') } })} 
               style={styles.ctaSecondary}
             >
               <Text style={styles.ctaSecondaryText}>📅 Schedule Campaign Dates</Text>

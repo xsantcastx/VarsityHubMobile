@@ -65,7 +65,7 @@ export default function AdminAdsScreen() {
       for (const adId of Array.from(selectedAds)) {
         try {
           await AdsApi.update(adId, { status: 'approved' });
-        } catch (e) {
+        } catch {
           console.error('Failed to approve ad:', adId, e);
         }
       }
@@ -97,7 +97,7 @@ export default function AdminAdsScreen() {
               for (const adId of Array.from(selectedAds)) {
                 try {
                   await AdsApi.update(adId, { status: 'rejected' });
-                } catch (e) {
+                } catch {
                   console.error('Failed to reject ad:', adId, e);
                 }
               }
@@ -133,7 +133,7 @@ export default function AdminAdsScreen() {
               for (const adId of Array.from(selectedAds)) {
                 try {
                   await AdsApi.delete(adId);
-                } catch (e) {
+                } catch {
                   console.error('Failed to delete ad:', adId, e);
                 }
               }
@@ -281,7 +281,7 @@ export default function AdminAdsScreen() {
               )}
               <Pressable 
                 style={[styles.btn, styles.btnSecondary, item.status === 'pending' ? { flex: 0, paddingHorizontal: 16 } : { flex: 1 }]} 
-                onPress={() => router.push({ pathname: '/edit-ad', params: { id: item.id } })}
+                onPress={() => void router.push({ pathname: '/edit-ad', params: { id: item.id } })}
               >
                 <Ionicons name="pencil" size={16} color={theme.text} />
                 {item.status !== 'pending' && <Text style={[styles.btnText, { color: theme.text }]}>Edit</Text>}
@@ -343,7 +343,7 @@ export default function AdminAdsScreen() {
                   color={bulkMode ? '#dc2626' : theme.tint} 
                 />
               </Pressable>
-              <Pressable onPress={() => router.push('/submit-ad')} style={{ padding: 8 }}>
+              <Pressable onPress={() => void router.push('/submit-ad')} style={{ padding: 8 }}>
                 <Ionicons name="add-circle" size={24} color={theme.tint} />
               </Pressable>
             </View>

@@ -46,7 +46,7 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
     try {
       const uri = await captureRef(viewShotRef.current, { format: 'png', quality: 0.95 });
       onSave(uri as string);
-    } catch (e) {
+    } catch {
       console.error('Failed to capture edited image', e);
     }
   };

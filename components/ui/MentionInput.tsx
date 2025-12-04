@@ -46,7 +46,7 @@ export function MentionInput({
       const data = await User.searchForMentions(query, 10);
       setSuggestions(data.users || []);
       setShowSuggestions((data.users || []).length > 0);
-    } catch (error) {
+    } catch {
       console.error('Failed to search users:', error);
       setSuggestions([]);
       setShowSuggestions(false);

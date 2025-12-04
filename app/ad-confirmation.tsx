@@ -168,7 +168,7 @@ export default function AdConfirmationScreen() {
         <View style={styles.actions}>
           <Pressable
             style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
-            onPress={() => router.replace('/(tabs)/my-ads')}
+            onPress={() => void router.replace('/(tabs)/my-ads')}
           >
             <Ionicons name="briefcase" size={20} color="#ffffff" />
             <Text style={styles.primaryButtonText}>View My Ads</Text>
@@ -176,7 +176,7 @@ export default function AdConfirmationScreen() {
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => void router.replace('/(tabs)')}
           >
             <Ionicons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>
@@ -188,7 +188,7 @@ export default function AdConfirmationScreen() {
         {/* Support Link */}
         <Pressable 
           style={styles.supportLink}
-          onPress={() => router.push('/help')}
+          onPress={() => void router.push('/help')}
         >
           <Ionicons name="help-circle-outline" size={16} color={Colors[colorScheme].mutedText} />
           <Text style={[styles.supportText, { color: Colors[colorScheme].mutedText }]}>

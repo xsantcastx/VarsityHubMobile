@@ -278,7 +278,7 @@ export default function TeamProfileScreen() {
       ));
       // TODO: Save to backend
       console.log('Updated position:', { memberId, position });
-    } catch (error) {
+    } catch {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -322,7 +322,7 @@ export default function TeamProfileScreen() {
           mutual_friends: user.mutual_friends || 0,
         }));
       setSearchResults(convertedResults);
-    } catch (error) {
+    } catch {
       console.error('User search failed:', error);
       setSearchResults([]);
       setActionModal({
@@ -483,7 +483,7 @@ export default function TeamProfileScreen() {
         message: 'Member role updated successfully',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-    } catch (error) {
+    } catch {
       setActionModal({
         visible: true,
         title: 'Error',
@@ -511,7 +511,7 @@ export default function TeamProfileScreen() {
                 message: 'Member removed from team',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-            } catch (error) {
+            } catch {
               setActionModal({
                 visible: true,
                 title: 'Error',
@@ -614,20 +614,20 @@ export default function TeamProfileScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={() => void router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
         <View style={styles.headerActions}>
           <Pressable 
             style={styles.actionButton}
-            onPress={() => router.push(`/team-viewer?id=${team.id}`)}
+            onPress={() => void router.push(`/team-viewer?id=${team.id}`)}
           >
             <Ionicons name="eye-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>
           <Pressable 
             style={styles.actionButton}
-            onPress={() => router.push(`/edit-team?id=${team.id}`)}
+            onPress={() => void router.push(`/edit-team?id=${team.id}`)}
           >
             <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>
@@ -708,7 +708,7 @@ export default function TeamProfileScreen() {
             
             <Pressable 
               style={[styles.quickActionButton, { backgroundColor: '#10B981' }]}
-              onPress={() => router.push(`/manage-season?teamId=${team.id}`)}
+              onPress={() => void router.push(`/manage-season?teamId=${team.id}`)}
             >
               <Ionicons name="calendar-outline" size={20} color="#fff" />
               <Text style={styles.quickActionText}>Manage Season</Text>
@@ -718,7 +718,7 @@ export default function TeamProfileScreen() {
             {false && (
               <Pressable 
                 style={[styles.quickActionButton, { backgroundColor: '#F59E0B' }]}
-                onPress={() => router.push(`/team-contacts?id=${team.id}`)}
+                onPress={() => void router.push(`/team-contacts?id=${team.id}`)}
               >
                 <Ionicons name="chatbubble-outline" size={20} color="#fff" />
                 <Text style={styles.quickActionText}>Team Chat</Text>
@@ -828,13 +828,13 @@ export default function TeamProfileScreen() {
               <SettingItem
                 icon="create-outline"
                 label="Edit Team Info"
-                onPress={() => router.push(`/edit-team?id=${team.id}`)}
+                onPress={() => void router.push(`/edit-team?id=${team.id}`)}
               />
               
               <SettingItem
                 icon="calendar-outline"
                 label="Manage Season & Games"
-                onPress={() => router.push(`/manage-season?teamId=${team.id}`)}
+                onPress={() => void router.push(`/manage-season?teamId=${team.id}`)}
               />
             </View>
 

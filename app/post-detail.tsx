@@ -167,7 +167,7 @@ export default function PostDetailScreen() {
       try {
         const user = await User.me();
         setCurrentUser(user);
-      } catch (error) {
+      } catch {
         setCurrentUser(null);
       }
     };
@@ -238,7 +238,7 @@ export default function PostDetailScreen() {
         upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
         has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
       }));
-    } catch (error) {
+    } catch {
       console.error('Error toggling upvote:', error);
       console.error('Upvote error details:', error?.response?.data || error?.message || error);
     } finally {
@@ -253,7 +253,7 @@ export default function PostDetailScreen() {
       const created = await PostApi.addComment(currentPostId, comment.trim());
       setComments((arr) => [created, ...arr]);
       setComment('');
-    } catch (error) {
+    } catch {
       console.error('Error adding comment:', error);
       console.error('Comment error details:', error?.response?.data || error?.message || error);
     } finally {
@@ -324,7 +324,7 @@ export default function PostDetailScreen() {
         await User.follow(post.author_id);
         setFollowing(true);
       }
-    } catch (error) {
+    } catch {
       console.error('Error toggling follow:', error);
       // Revert optimistic update on error
       setFollowing(following);
@@ -343,7 +343,7 @@ export default function PostDetailScreen() {
         // Fallback to toggle if API doesn't return the state
         setSaved(!saved);
       }
-    } catch (error) {
+    } catch {
       console.error('Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);
@@ -515,9 +515,7 @@ export default function PostDetailScreen() {
           {post.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => {
-                if (post.game?.id) {
-                  router.push(`/game-detail?id=${post.game.id}`);
+              onPress={() => { if (post.game?.id) { void router.push(`/game-detail?id=${post.game.id}`);
                 }
               }}
             >
@@ -542,10 +540,8 @@ export default function PostDetailScreen() {
           {(post.team_id || post.team) && (
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => {
-                const teamId = post.team_id || post.team?.id;
-                if (teamId) {
-                  router.push(`/team-profile?id=${teamId}`);
+              onPress={() => { const teamId = post.team_id || post.team?.id;
+                if (teamId) { void router.push(`/team-profile?id=${teamId}`);
                 }
               }}
             >
@@ -568,9 +564,7 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => {
-                if (post.author_id) {
-                  router.push(`/user-profile?id=${post.author_id}`);
+              onPress={() => { if (post.author_id) { void router.push(`/user-profile?id=${post.author_id}`);
                 }
               }}
               disabled={!post.author_id}
@@ -673,7 +667,7 @@ export default function PostDetailScreen() {
                 {post.game?.id && (
                   <Pressable
                     style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => router.push(`/game-detail?id=${post.game.id}`)}
+                    onPress={() => void router.push(`/game-detail?id=${post.game.id}`)}
                   >
                     <Ionicons name="basketball" size={18} color="#2563EB" />
                     <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
@@ -684,9 +678,8 @@ export default function PostDetailScreen() {
                 {(post.team_id || post.team?.id) && (
                   <Pressable
                     style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => {
-                      const teamId = post.team_id || post.team?.id;
-                      if (teamId) router.push(`/team-profile?id=${teamId}`);
+                    onPress={() => { const teamId = post.team_id || post.team?.id;
+                      if (teamId) void router.push(`/team-profile?id=${teamId}`);
                     }}
                   >
                     <Ionicons name="people" size={18} color="#10B981" />
@@ -698,7 +691,7 @@ export default function PostDetailScreen() {
                 {post.author_id && (
                   <Pressable
                     style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => router.push(`/user-profile?id=${post.author_id}`)}
+                    onPress={() => void router.push(`/user-profile?id=${post.author_id}`)}
                   >
                     <Ionicons name="person" size={18} color="#8B5CF6" />
                     <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
@@ -766,9 +759,7 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
-                      onPress={() => {
-                        if (c.author_id) {
-                          router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => { if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}
@@ -824,7 +815,7 @@ export default function PostDetailScreen() {
       
       {/* Custom Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={() => void router.back()}>
           <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerCenter}>

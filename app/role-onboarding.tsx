@@ -561,7 +561,7 @@ export default function RoleOnboardingScreen() {
                     styles.actionCard,
                     { opacity: pressed ? 0.8 : 1 },
                   ]}
-                  onPress={() => router.push(action.route as any)}
+                  onPress={() => void router.push(action.route as any)}
                 >
                   <LinearGradient
                     colors={action.gradient}
@@ -581,7 +581,7 @@ export default function RoleOnboardingScreen() {
 
             <Pressable
               style={[styles.continueButton, { backgroundColor: Colors[colorScheme].tint }]}
-              onPress={() => router.replace('/feed')}
+              onPress={() => void router.replace('/feed')}
             >
               <Text style={styles.continueButtonText}>Continue to Feed</Text>
               <Ionicons name="arrow-forward" size={20} color="#fff" />

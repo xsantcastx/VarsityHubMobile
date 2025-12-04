@@ -138,7 +138,7 @@ export default function ResetPasswordScreen() {
           </Button>
         </View>
 
-        <Pressable style={styles.secondary} onPress={() => router.replace('/sign-in')}>
+        <Pressable style={styles.secondary} onPress={() => void router.replace('/sign-in')}>
           <Text style={[styles.secondaryText, { color: palette.tint }]}>Back to sign in</Text>
         </Pressable>
       </KeyboardAwareScreen>

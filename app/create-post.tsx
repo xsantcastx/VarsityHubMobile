@@ -48,7 +48,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
     const info = await FileSystem.getInfoAsync(uri);
     if (info && info.exists && typeof info.size === 'number') return info.size as number;
     return 0;
-  } catch (error) {
+  } catch {
     console.warn('Could not determine file size:', error);
     return 0;
   }
@@ -111,7 +111,7 @@ export default function CreatePostScreen() {
           setSuggestedGame(game);
           setSelectedGameId(String(game.id));
         }
-      } catch (error) {
+      } catch {
         console.warn('Failed to load game from params:', error);
       }
     })();
@@ -178,7 +178,7 @@ export default function CreatePostScreen() {
           setSuggestedGame(top);
           setSelectedGameId(String(top.id));
         }
-      } catch (error) {
+      } catch {
         console.warn('Failed to fetch nearby games:', error);
       } finally {
         setHasAutoSuggested(true);
@@ -383,7 +383,7 @@ export default function CreatePostScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background, borderBottomColor: Colors[colorScheme].border }]}>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
+        <Pressable onPress={() => void router.back()} accessibilityLabel="Close" style={styles.iconBtn}>
           <Ionicons name="close" size={22} color={Colors[colorScheme].text} />
         </Pressable>
         <View style={styles.headerSpacer} />

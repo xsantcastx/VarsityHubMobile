@@ -104,7 +104,7 @@ export default function BulkScheduleModal({
         // Filter out current team from opponents
         const availableOpponents = allTeams.filter(team => team.id !== currentTeamId);
         setTeams(availableOpponents);
-      } catch (error) {
+      } catch {
         console.error('Failed to load teams:', error);
         // Fallback to hardcoded teams if API fails (excluding current team)
         const fallbackTeams = [
@@ -184,7 +184,7 @@ export default function BulkScheduleModal({
         location: '',
         type: 'home',
       }]);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to create games. Please try again.');
     } finally {
       setLoading(false);

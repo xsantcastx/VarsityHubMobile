@@ -199,7 +199,7 @@ export default function LeagueScreen() {
       if (params.id) {
         try {
           organizationData = await Organization.get(params.id);
-        } catch (err) {
+        } catch {
           console.error('[League] Error fetching organization by ID:', err);
         }
       }
@@ -218,12 +218,12 @@ export default function LeagueScreen() {
             if (organizationData?.id) {
               try {
                 organizationData = await Organization.get(organizationData.id);
-              } catch (err) {
+              } catch {
                 console.error('[League] Error fetching organization from search result:', err);
               }
             }
           }
-        } catch (err) {
+        } catch {
           console.error('[League] Error searching organizations:', err);
         }
       }
@@ -311,7 +311,7 @@ export default function LeagueScreen() {
         console.error('[League] Error loading events:', eventErr);
         setEvents([]);
       }
-    } catch (err) {
+    } catch {
       console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
     } finally {
@@ -424,15 +424,14 @@ export default function LeagueScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <Pressable onPress={() => router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
+        <Pressable onPress={() => void router.back()} style={[styles.backButton, { borderColor: theme.border }]}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </Pressable>
 
         {/* Admin: View Join Requests Button */}
         {isAdmin && league?.id && (
           <Pressable
-            onPress={() =>
-              router.push({
+            onPress={() => void router.push({
                 pathname: '/organization-join-requests',
                 params: { organization_id: league.id, organization_name: league.name },
               })

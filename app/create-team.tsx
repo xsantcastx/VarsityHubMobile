@@ -262,7 +262,7 @@ export default function CreateTeamScreen() {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
           console.log('Logo uploaded:', logoUrl);
-        } catch (error) {
+        } catch {
           console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
         }
@@ -304,7 +304,7 @@ export default function CreateTeamScreen() {
               // Continue without organization if creation fails
             }
           }
-        } catch (err) {
+        } catch {
           console.error('[CreateTeam] Error handling organization:', err);
           // Continue without organization if there's an error
         }
@@ -345,7 +345,7 @@ export default function CreateTeamScreen() {
         <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
           <Pressable 
             style={styles.backButton} 
-            onPress={() => router.back()}
+            onPress={() => void router.back()}
           >
             <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
           </Pressable>

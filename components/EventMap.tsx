@@ -63,7 +63,7 @@ export default function EventMap({
           // Keep USA-wide view, don't auto-zoom to user location
           // User can tap the location button if they want to zoom to their position
         }
-      } catch (error) {
+      } catch {
         console.error('Error getting location:', error);
       } finally {
         setLoading(false);

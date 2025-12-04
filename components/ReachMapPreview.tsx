@@ -78,7 +78,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           setLocation(null);
           setError('ZIP code not found');
         }
-      } catch (err) {
+      } catch {
         if (!mounted) return;
         console.error('Geocoding error:', err);
         setError('Unable to locate ZIP code');

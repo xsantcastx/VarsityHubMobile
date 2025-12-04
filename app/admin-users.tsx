@@ -67,7 +67,7 @@ export default function AdminUsersScreen() {
                 <Pressable style={styles.btn} onPress={() => toggleBan(String(item.id), !!item.banned)}>
                   <Text style={styles.btnText}>{item.banned ? 'Unban' : 'Ban'}</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, { backgroundColor: '#374151' }]} onPress={() => router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)}>
+                <Pressable style={[styles.btn, { backgroundColor: '#374151' }]} onPress={() => void router.push(`/admin-user-detail?id=${encodeURIComponent(String(item.id))}`)}>
                   <Text style={styles.btnText}>View</Text>
                 </Pressable>
               </View>

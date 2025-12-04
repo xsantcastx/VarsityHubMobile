@@ -503,7 +503,7 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
         if (url) {
           setFormData(prev => ({ ...prev, banner_url: url }));
         }
-      } catch (e) {
+      } catch {
         console.warn('Upload edited image failed', e);
       }
     }} />

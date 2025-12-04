@@ -22,7 +22,7 @@ export default function FollowersScreen() {
       const { items, nextCursor: newCursor } = await User.followers(id, cursor);
       setUsers(prev => (cursor ? [...prev, ...items] : items));
       setNextCursor(newCursor);
-    } catch (error) {
+    } catch {
       console.error('Failed to load followers', error);
     } finally {
       setLoading(false);
@@ -41,7 +41,7 @@ export default function FollowersScreen() {
         await User.follow(userId);
       }
       setUsers(users.map(u => u.id === userId ? { ...u, is_following: !isFollowing } : u));
-    } catch (error) {
+    } catch {
       console.error('Follow/unfollow failed', error);
     }
   };
@@ -55,7 +55,7 @@ export default function FollowersScreen() {
     <View style={styles.userRow}>
       <Pressable 
         style={styles.userInfo}
-        onPress={() => router.push(`/user-profile?id=${item.id}`)}
+        onPress={() => void router.push(`/user-profile?id=${item.id}`)}
       >
         <Avatar uri={item.avatar_url} />
         <Text style={styles.userName}>{item.display_name}</Text>

@@ -270,7 +270,7 @@ export default function SignInScreen() {
               />
             </View>
 
-            <Pressable style={styles.forgotLink} onPress={() => router.push('/forgot-password')}>
+            <Pressable style={styles.forgotLink} onPress={() => void router.push('/forgot-password')}>
               <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
             </Pressable>
 
@@ -279,7 +279,7 @@ export default function SignInScreen() {
             </Button>
           </View>
 
-          <Pressable style={styles.footer} onPress={() => router.replace('/sign-up')}>
+          <Pressable style={styles.footer} onPress={() => void router.replace('/sign-up')}>
             <Text style={[styles.footerText, { color: palette.mutedText }]}>Need an account?</Text>
             <Text style={[styles.footerLink, { color: palette.tint }]}>Create one</Text>
           </Pressable>

@@ -41,7 +41,7 @@ export default function Step2Basic() {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
-        } catch (error) {
+        } catch {
           console.error('Failed to check email verification:', error);
         }
       })();
@@ -73,7 +73,7 @@ export default function Step2Basic() {
   useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
     try { // eslint-disable-next-line no-console
       console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
-    } catch (e) {}
+    } catch {}
   }, [dob, ob.affiliation, ob.dob]);
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function Step2Basic() {
       setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
         console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
-      } catch (e) {}
+      } catch {}
       await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role

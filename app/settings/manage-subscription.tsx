@@ -19,7 +19,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     try {
       const res: any = await Subscriptions.finalizeSession(sessionId);
       if (!res?.pending) return true;
-    } catch (err) {
+    } catch {
       console.warn('Finalize session attempt failed', err);
     }
     if (attempt < attempts - 1) await wait(delayMs);
@@ -33,7 +33,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       const me: any = await User.me();
       const prefs = me?.preferences || {};
       setPlan(prefs.plan || null);
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, []);
@@ -73,7 +73,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
               // On successful finalize, update role to coach so the UI reflects new capabilities
               try {
                 await User.updatePreferences({ role: 'coach' });
-              } catch (err) {
+              } catch {
                 console.warn('Failed to persist role change locally after subscription finalize', err);
               }
             }

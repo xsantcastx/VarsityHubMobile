@@ -13,7 +13,7 @@ export default function CreateScreen() {
   const verified = !!me?.email_verified;
   useEffect(() => { (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
   const go = (path: string) => {
-    if (!verified) return router.push('/verify-email');
+    if (!verified) return void router.push('/verify-email');
     router.push(path as any);
   };
 

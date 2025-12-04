@@ -56,7 +56,7 @@ export default function OnboardingFinish() {
         {verified ? (
           <>
             <Text style={styles.muted}>Your email is verified. Enjoy Varsity Hub!</Text>
-            <PrimaryButton label="Go to Feed" onPress={() => router.replace('/(tabs)/feed')} />
+            <PrimaryButton label="Go to Feed" onPress={() => void router.replace('/(tabs)/feed')} />
           </>
         ) : (
           <View style={styles.card}>

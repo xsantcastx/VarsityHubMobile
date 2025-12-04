@@ -154,7 +154,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
                   goNext();
                 }
               }
-            } catch (err) {
+            } catch {
               console.error('Failed to delete story', err);
               Alert.alert('Error', 'Unable to delete story. Please try again.');
             } finally {
@@ -543,7 +543,7 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v)).catch(() => {});
     const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
-    return () => { try { ev?.remove?.(); } catch (e) {} };
+    return () => { try { ev?.remove?.(); } catch {} };
   }, []);
 
   // update display percentages from animated numeric values
@@ -554,8 +554,8 @@ const GameDetailsScreen = () => {
     numAnimA.setValue(displayPctA);
     numAnimB.setValue(displayPctB);
     return () => {
-      try { numAnimA.removeListener(idA); } catch (e) {}
-      try { numAnimB.removeListener(idB); } catch (e) {}
+      try { numAnimA.removeListener(idA); } catch {}
+      try { numAnimB.removeListener(idB); } catch {}
     };
   }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
@@ -602,7 +602,7 @@ const GameDetailsScreen = () => {
         avatarUrl: team.logo_url || team.avatar_url,
       }));
       setTeams(teamInfo);
-    } catch (error) {
+    } catch {
       console.error('Failed to load teams:', error);
     }
   };
@@ -938,7 +938,7 @@ const GameDetailsScreen = () => {
 
       setVm(vmPayload);
       setActiveSection('overview');
-      } catch (error) {
+      } catch {
         console.error('Error in loadGameById:', error);
         throw error; // Re-throw to be caught by outer try-catch
       }
@@ -1174,7 +1174,7 @@ const GameDetailsScreen = () => {
         maxDelayMs: 4000,
       });
       setVoteSummary(parseVoteSummary(res));
-    } catch (err) {
+    } catch {
       console.warn('Failed to load game votes', err);
     }
   }, [vm?.gameId]);
@@ -1202,7 +1202,7 @@ const GameDetailsScreen = () => {
         } else if (eventIdValue) {
           await loadVirtualFromEvent(eventIdValue);
         }
-      } catch (err) {
+      } catch {
         console.error('Failed to load game details', err);
         setError('Unable to load game details. Please try again.');
         setVm(null);
@@ -1292,7 +1292,7 @@ const GameDetailsScreen = () => {
       });
       // notify user of success
       Alert.alert('RSVP updated', nextDesired ? 'You are marked as going.' : 'You are no longer marked as going.');
-    } catch (err) {
+    } catch {
       console.error('Failed to toggle RSVP', err);
       // rollback optimistic update
       setVm(snapshot);
@@ -1657,7 +1657,7 @@ const renderBanner = () => {
     <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
         
         <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.circleButton}>
+          <Pressable onPress={() => void router.back()} accessibilityRole="button" style={styles.circleButton}>
             <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
           </Pressable>
           <View style={styles.bannerTopRightRow}>
@@ -1995,8 +1995,7 @@ const renderBanner = () => {
                          <Pressable
                            key={post.id || index}
                            style={styles.gridItem}
-                           onPress={() => {
-                             void router.push(`/post-detail?id=${post.id}`);
+                           onPress={() => { void void router.push(`/post-detail?id=${post.id}`);
                            }}
                          >
                            {thumb ? (

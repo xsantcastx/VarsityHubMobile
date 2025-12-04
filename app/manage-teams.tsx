@@ -226,7 +226,7 @@ export default function ManageTeamsSimpleScreen() {
         data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!', 
         [{ text: 'OK', onPress: () => {} }]
       );
-    } catch (error) {
+    } catch {
       console.error('Error adding quick game:', error);
       Alert.alert(
         'Error',
@@ -244,7 +244,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={[styles.header, { backgroundColor: Colors[colorScheme].background }]}>
         <Pressable 
           style={styles.backButton} 
-          onPress={() => router.back()}
+          onPress={() => void router.back()}
         >
           <Ionicons name="arrow-back" size={28} color={Colors[colorScheme].text} />
         </Pressable>
@@ -256,7 +256,7 @@ export default function ManageTeamsSimpleScreen() {
       <View style={styles.quickActionsContainer}>
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => router.push('/create-team')}
+          onPress={() => void router.push('/create-team')}
         >
           <Ionicons name="add-circle-outline" size={24} color="#fff" />
           <Text style={styles.inlineActionText}>Create Team</Text>
@@ -264,10 +264,8 @@ export default function ManageTeamsSimpleScreen() {
         
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
-          onPress={() => {
-            // Navigate to first team's add event, or show team selection if multiple teams
-            if (activeTeams.length > 0) {
-              router.push(`/manage-season?teamId=${activeTeams[0].id}`);
+          onPress={() => { // Navigate to first team's add event, or show team selection if multiple teams
+            if (activeTeams.length > 0) { void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
             }
           }}
         >
@@ -287,8 +285,7 @@ export default function ManageTeamsSimpleScreen() {
         {organization && (
           <Pressable 
             style={styles.leagueCard}
-            onPress={() => {
-              router.push({
+            onPress={() => {  void router.push({
                 pathname: '/league',
                 params: { 
                   id: organization.id,
@@ -371,7 +368,7 @@ export default function ManageTeamsSimpleScreen() {
                   member_count: team.members,
                   role: team.my_role as any,
                 }}
-                onPress={() => router.push(`/team-profile?id=${team.id}`)}
+                onPress={() => void router.push(`/team-profile?id=${team.id}`)}
                 showRole={true}
                 style={{ marginBottom: 12 }}
               />
@@ -392,7 +389,7 @@ export default function ManageTeamsSimpleScreen() {
         <View style={styles.actionsSection}>
           <Pressable
             style={[styles.bigActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-            onPress={() => router.push('/create-team')}
+            onPress={() => void router.push('/create-team')}
           >
             <Ionicons name="add-circle" size={32} color="#FFF" />
             <Text style={styles.bigActionButtonText}>CREATE TEAM</Text>

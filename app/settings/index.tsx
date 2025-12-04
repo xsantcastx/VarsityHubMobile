@@ -219,7 +219,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   timers.current[key] = setTimeout(async () => {
                     try {
                       await User.updatePreferences(newPrefs);
-                    } catch (e) {
+                    } catch {
                       console.warn('Failed to patch prefs', e);
                       // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
@@ -249,10 +249,10 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   } as any;
 
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
-                  try { await User.updatePreferences({ onboarding_completed: false }); } catch (e) { /* ignore */ }
+                  try { await User.updatePreferences({ onboarding_completed: false }); } catch { /* ignore */ }
                   if (setOB) setOB(preload);
                   router.replace('/onboarding/step-1-role');
-                } catch (e) {
+                } catch {
                   console.warn('Failed to preload onboarding, falling back to simple restart', e);
                   try { await User.updatePreferences({ onboarding_completed: false }); } catch {}
                   router.replace('/onboarding');
@@ -276,21 +276,21 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     {/* Quick Billing CTA (coaches only) */}
                     {role === 'coach' && (
                       <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-                        <Pressable onPress={() => router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
+                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
                           <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
                         </Pressable>
                       </View>
                     )}
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
-                      <NavRow title="Edit Username" onPress={() => router.push('/settings/edit-username')} />
-                      <NavRow title="Reset Password" onPress={() => router.push('/settings/reset-password')} />
+                      <NavRow title="Edit Username" onPress={() => void router.push('/settings/edit-username')} />
+                      <NavRow title="Reset Password" onPress={() => void router.push('/settings/reset-password')} />
                       <NavRow
                         title="Add ZIP Code"
                         subtitle={prefs.zip_code ? String(prefs.zip_code) : 'For local event discovery'}
-                        onPress={() => router.push('/settings/zip-code')}
+                        onPress={() => void router.push('/settings/zip-code')}
                       />
-                      <NavRow title="Followed Teams" onPress={() => router.push('/settings/followed-teams')} />
+                      <NavRow title="Followed Teams" onPress={() => void router.push('/settings/followed-teams')} />
                     </SectionCard>
 
                     {/* Appearance */}
@@ -305,8 +305,8 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 
                     {/* Events */}
                     <SectionCard title="Events">
-                      <NavRow title="Request to Host Event" onPress={() => router.push('/settings/request-host-event')} />
-                      <NavRow title="RSVP History" onPress={() => router.push('/settings/rsvp-history')} />
+                      <NavRow title="Request to Host Event" onPress={() => void router.push('/settings/request-host-event')} />
+                      <NavRow title="RSVP History" onPress={() => void router.push('/settings/rsvp-history')} />
                     </SectionCard>
 
                     {/* Notifications */}
@@ -330,7 +330,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 
                     {/* Privacy */}
                     <SectionCard title="Privacy">
-                      <NavRow title="Manage Blocked Users" onPress={() => router.push('/settings/blocked-users')} />
+                      <NavRow title="Manage Blocked Users" onPress={() => void router.push('/settings/blocked-users')} />
                       <SwitchRow
                         title="I am a parent"
                         subtitle="Disclose your parent status to coaches."
@@ -341,31 +341,31 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 
                     {/* My Content */}
                     <SectionCard title="My Content">
-                      <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => router.push('/settings/favorites')} />
-                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => router.push('/my-ads')} />
+                      <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.push('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing (coaches only) */}
                     {role === 'coach' && (
                       <SectionCard title="Billing">
-                        <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'No subscription'} onPress={() => router.push('/settings/manage-subscription')} />
+                        <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'No subscription'} onPress={() => void router.push('/settings/manage-subscription')} />
                       </SectionCard>
                     )}
 
                     {/* Legal */}
                     <SectionCard title="Legal">
-                      <NavRow title="Privacy Policy" subtitle="How we protect your data" onPress={() => router.push('/settings/privacy-policy')} />
-                      <NavRow title="Terms of Service" subtitle="Rules and guidelines" onPress={() => router.push('/settings/terms-of-service')} />
-                      <NavRow title="Safe Zone Policy" subtitle="Messaging safety & protection" onPress={() => router.push('/settings/safe-zone-policy')} />
-                      <NavRow title="View Core Values" onPress={() => router.push('/settings/core-values')} />
-                      <NavRow title="Report Abuse" onPress={() => router.push('/report-abuse')} />
-                      <NavRow title="DM Restrictions Summary" onPress={() => router.push('/dm-restrictions')} />
+                      <NavRow title="Privacy Policy" subtitle="How we protect your data" onPress={() => void router.push('/settings/privacy-policy')} />
+                      <NavRow title="Terms of Service" subtitle="Rules and guidelines" onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="Safe Zone Policy" subtitle="Messaging safety & protection" onPress={() => void router.push('/settings/safe-zone-policy')} />
+                      <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
+                      <NavRow title="Report Abuse" onPress={() => void router.push('/report-abuse')} />
+                      <NavRow title="DM Restrictions Summary" onPress={() => void router.push('/dm-restrictions')} />
                     </SectionCard>
 
                     {/* Support & Feedback */}
                     <SectionCard title="Support & Feedback">
-                      <NavRow title="Contact Varsity Hub Team" onPress={() => router.push('/settings/contact')} />
-                      <NavRow title="Leave Feedback" onPress={() => router.push('/settings/feedback')} />
+                      <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
+                      <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}
@@ -374,32 +374,32 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                         <NavRow 
                           title="Admin Dashboard" 
                           subtitle="Overview and analytics" 
-                          onPress={() => router.push('/admin-dashboard')} 
+                          onPress={() => void router.push('/admin-dashboard')} 
                         />
                         <NavRow 
                           title="Activity Log" 
                           subtitle="Track all admin actions" 
-                          onPress={() => router.push('/admin-activity-log')} 
+                          onPress={() => void router.push('/admin-activity-log')} 
                         />
                         <NavRow 
                           title="Manage Users" 
                           subtitle="View all users, ban/unban" 
-                          onPress={() => router.push('/admin-users')} 
+                          onPress={() => void router.push('/admin-users')} 
                         />
                         <NavRow 
                           title="Manage Teams" 
                           subtitle="View and moderate all teams" 
-                          onPress={() => router.push('/admin-teams')} 
+                          onPress={() => void router.push('/admin-teams')} 
                         />
                         <NavRow 
                           title="Manage Ads" 
                           subtitle="Review and moderate advertisements" 
-                          onPress={() => router.push('/admin-ads')} 
+                          onPress={() => void router.push('/admin-ads')} 
                         />
                         <NavRow 
                           title="View Messages" 
                           subtitle="Content moderation" 
-                          onPress={() => router.push('/admin-messages')} 
+                          onPress={() => void router.push('/admin-messages')} 
                         />
                       </SectionCard>
                     )}
@@ -411,7 +411,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Log Out', style: 'destructive', onPress: async () => {
                             try { await User.logout(); } catch {}
-                            try { obCtx?.clearOnboarding?.(); } catch (e) { /* ignore */ }
+                            try { obCtx?.clearOnboarding?.(); } catch { /* ignore */ }
                             router.replace('/sign-in');
                           } },
                         ]);

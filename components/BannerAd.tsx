@@ -70,7 +70,7 @@ export function BannerAd({
               } else {
                 Alert.alert('Invalid Link', 'Unable to open this link. Please check the URL format.');
               }
-            } catch (error) {
+            } catch {
               console.error('Error opening ad link:', error);
               Alert.alert('Error', 'Failed to open link. Please try again.');
             }

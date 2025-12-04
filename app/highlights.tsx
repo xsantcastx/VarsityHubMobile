@@ -277,7 +277,7 @@ const HighlightCard = ({
                 try {
                   const link = AppLinks.post(String(item.id), item.caption || item.title);
                   await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
-                } catch (err) {
+                } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
                     const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
@@ -435,7 +435,7 @@ export default function HighlightsScreen() {
       }).slice(0, 10);
 
       setSearchResults({ teams, events, users, organizations, posts });
-    } catch (err) {
+    } catch {
       console.error('Search failed:', err);
     } finally {
       setSearching(false);
@@ -655,7 +655,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={team.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => router.push(`/team-profile?id=${team.id}`)}
+                    onPress={() => void router.push(`/team-profile?id=${team.id}`)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -674,7 +674,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={event.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => router.push(`/event-detail?id=${event.id}`)}
+                    onPress={() => void router.push(`/event-detail?id=${event.id}`)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -693,7 +693,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={user.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => router.push(`/user-profile?id=${user.id}`)}
+                    onPress={() => void router.push(`/user-profile?id=${user.id}`)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -712,7 +712,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={org.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => router.push(`/league?id=${org.id}`)}
+                    onPress={() => void router.push(`/league?id=${org.id}`)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{org.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

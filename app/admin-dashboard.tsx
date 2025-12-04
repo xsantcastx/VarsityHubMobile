@@ -198,7 +198,7 @@ export default function AdminDashboardScreen() {
               subtitle={`${stats?.verifiedUsers || 0} verified • ${stats?.bannedUsers || 0} banned`}
               icon="people"
               color="#3B82F6"
-              onPress={() => router.push('/admin-users')}
+              onPress={() => void router.push('/admin-users')}
             />
             
             <StatCard
@@ -207,7 +207,7 @@ export default function AdminDashboardScreen() {
               subtitle="All teams across platform"
               icon="shield"
               color="#10B981"
-              onPress={() => router.push('/admin-teams')}
+              onPress={() => void router.push('/admin-teams')}
             />
             
             <StatCard
@@ -216,7 +216,7 @@ export default function AdminDashboardScreen() {
               subtitle={`${stats?.pendingAds || 0} pending review`}
               icon="megaphone"
               color="#F59E0B"
-              onPress={() => router.push('/admin-ads')}
+              onPress={() => void router.push('/admin-ads')}
             />
             
             <StatCard
@@ -234,7 +234,7 @@ export default function AdminDashboardScreen() {
               subtitle="Platform-wide messages"
               icon="chatbubbles"
               color="#EC4899"
-              onPress={() => router.push('/admin-messages')}
+              onPress={() => void router.push('/admin-messages')}
             />
           </View>
 
@@ -250,7 +250,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-users')}
+                onPress={() => void router.push('/admin-users')}
               >
                 <Ionicons name="people" size={28} color="#3B82F6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -263,7 +263,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-teams')}
+                onPress={() => void router.push('/admin-teams')}
               >
                 <Ionicons name="shield" size={28} color="#10B981" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -276,7 +276,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-ads')}
+                onPress={() => void router.push('/admin-ads')}
               >
                 <Ionicons name="megaphone" size={28} color="#F59E0B" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -289,7 +289,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-reports')}
+                onPress={() => void router.push('/admin-reports')}
               >
                 <Ionicons name="alert-circle" size={28} color="#EF4444" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -302,7 +302,7 @@ export default function AdminDashboardScreen() {
                   backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white',
                   borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB',
                 }]}
-                onPress={() => router.push('/admin-activity-log')}
+                onPress={() => void router.push('/admin-activity-log')}
               >
                 <Ionicons name="list" size={28} color="#8B5CF6" />
                 <Text style={[styles.actionText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
@@ -319,7 +319,7 @@ export default function AdminDashboardScreen() {
                 <Text style={[styles.sectionTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
                   Recent Activity
                 </Text>
-                <Pressable onPress={() => router.push('/admin-activity-log')}>
+                <Pressable onPress={() => void router.push('/admin-activity-log')}>
                   <Text style={[styles.viewAll, { color: Colors[colorScheme].tint }]}>
                     View All
                   </Text>

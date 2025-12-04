@@ -52,7 +52,7 @@ export default function TeamHubScreen() {
         if (!mounted) return;
         const items = Array.isArray(list) ? list : list?.items || [];
         setEvents(items);
-      } catch (err) {
+      } catch {
         console.error('Failed to load events', err);
         if (mounted) setEventsError('Unable to load events right now.');
       } finally {
@@ -144,7 +144,7 @@ export default function TeamHubScreen() {
           <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
           <PrimaryButton
             label="Create New Team"
-            onPress={() => router.push({ pathname: '/onboarding/step-5-league' as any })}
+            onPress={() => void router.push({ pathname: '/onboarding/step-5-league' as any })}
           />
         </View>
       </View>

@@ -31,7 +31,7 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
           setLottieView(() => mod.default || mod);
           try { onLoadedRef.current && onLoadedRef.current(true); } catch {}
         }
-      } catch (err) {
+      } catch {
         try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
       }
     })();
