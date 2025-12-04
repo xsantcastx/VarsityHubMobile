@@ -671,7 +671,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
                           teamLogoUrl: team.avatar || undefined,
                           primaryColor: (team.brand_colors as any)?.primary || undefined,
             });
-          } catch {
+          } catch (_error) {
             /* ignore */
           }
         }));
@@ -735,7 +735,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
         primaryColor: (team.brand_colors as any)?.primary || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
     });
-  } catch {}
+  } catch (_error) {}
   
   // Find the invited user by email and create notification if they exist
   const invitedUser = await prisma.user.findUnique({ where: { email } });

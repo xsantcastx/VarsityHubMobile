@@ -58,7 +58,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       try {
         const enabled = await AccessibilityInfo.isReduceMotionEnabled();
         if (mounted) update(enabled);
-      } catch {}
+      } catch (_error) {}
     };
 
     fetch();
@@ -68,7 +68,7 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       if (subscription && typeof subscription.remove === 'function') {
         subscription.remove();
       } else if (subscription) {
-        try { (subscription as any)(); } catch {}
+        try { (subscription as any)(); } catch (_error) {}
       }
     };
   }, []);

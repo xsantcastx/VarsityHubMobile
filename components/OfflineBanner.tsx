@@ -23,7 +23,7 @@ export function OfflineBanner() {
     setRetrying(true);
     try {
       await checkAuth();
-    } catch {
+    } catch (_error) {
       // Error already handled by AuthProvider
     } finally {
       setRetrying(false);

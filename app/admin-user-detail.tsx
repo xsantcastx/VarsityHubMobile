@@ -35,7 +35,7 @@ export default function AdminUserDetailScreen() {
   const onDownload = async () => {
     if (!id) return;
     const url = getApiBaseUrl() + `/users/${encodeURIComponent(String(id))}/export`;
-    try { await WebBrowser.openBrowserAsync(url); } catch {}
+    try { await WebBrowser.openBrowserAsync(url); } catch (_error) {}
   };
 
   const ads = detail?.ads || [];

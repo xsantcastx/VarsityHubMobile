@@ -49,7 +49,7 @@ export default function EditAdScreen() {
         setDesc(ad?.description || '');
         setStatus((ad?.status || 'draft') as any);
         setPayment((ad?.payment_status || 'unpaid') as any);
-      } catch {
+      } catch (_error) {
         // Fallback to local draft
         const local = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
         const found = local.find((a) => String(a.id) === String(id));

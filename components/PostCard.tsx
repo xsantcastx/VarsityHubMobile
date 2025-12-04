@@ -38,7 +38,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       try {
         const user = await User.me();
         setCurrentUser(user);
-      } catch {
+      } catch (_error) {
         // User not logged in or error occurred
         setCurrentUser(null);
       }
@@ -53,7 +53,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
       }
-    } catch {}
+    } catch (_error) {}
   };
   const onBookmark = async () => {
     try {
@@ -63,7 +63,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         setBookmarksCount(r.bookmarks_count);
       }
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
-    } catch {}
+    } catch (_error) {}
   };
 
   const handleDeletePost = async () => {

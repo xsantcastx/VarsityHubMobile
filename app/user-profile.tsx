@@ -49,7 +49,7 @@ export default function UserProfileScreen() {
           .map(e => e.trim().toLowerCase())
           .filter(Boolean);
         setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
-      } catch {}
+      } catch (_error) {}
       const u = await User.getPublic(String(params.id));
       console.log('Loaded user profile:', u);
       setUser(u);
@@ -232,7 +232,7 @@ export default function UserProfileScreen() {
                     setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
                     try {
                       if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                    } catch {
+                    } catch (_error) {
                       setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
                     }
                   }}

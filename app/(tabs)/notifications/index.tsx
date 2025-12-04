@@ -74,7 +74,7 @@ export default function NotificationsScreen() {
     setItems((prev) => prev.map((n) => n.read_at ? n : { ...n, read_at: now }));
     try {
       await Notification.markAllRead();
-    } catch {
+    } catch (_error) {
       // non-fatal; keep optimistic state for now
     } finally {
       setMarkingAll(false);

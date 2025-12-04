@@ -33,7 +33,7 @@ export default function TeamInvitesScreen() {
           ]
         });
       }
-    } catch {
+    } catch (_error) {
       setModal({
         title: 'Error',
         message: 'Failed to accept invite',
@@ -47,7 +47,7 @@ export default function TeamInvitesScreen() {
     try {
       await TeamApi.declineInvite(id);
       await refresh();
-    } catch {
+    } catch (_error) {
       setModal({
         title: 'Error',
         message: 'Failed to decline invite',

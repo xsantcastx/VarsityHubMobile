@@ -15,7 +15,7 @@ export default function ContactScreen() {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch (_error) {} })(); }, []);
 
   const onSubmit = async () => {
     if (!subject.trim() || !message.trim()) { Alert.alert('Please fill subject and message'); return; }

@@ -83,7 +83,7 @@ export default function EditProfileScreen() {
         try {
           const date = new Date(dobValue);
           setDateOfBirth(date);
-        } catch {
+        } catch (_error) {
           console.warn('Invalid date format:', dobValue);
           setDateOfBirth(null);
         }

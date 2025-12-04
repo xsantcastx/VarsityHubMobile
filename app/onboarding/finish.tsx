@@ -19,7 +19,7 @@ export default function OnboardingFinish() {
   const [cooldown, setCooldown] = useState(0);
   const timerRef = useRef<any>(null);
 
-  useEffect(() => { (async () => { try { setMe(await User.me()); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { setMe(await User.me()); } catch (_error) {} })(); }, []);
   useEffect(() => {
     if (cooldown <= 0) return; 
     timerRef.current = setTimeout(() => setCooldown((c) => c - 1), 1000);

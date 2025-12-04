@@ -96,7 +96,7 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
       }
     };
 
-    loadOrganizations();
+    void loadOrganizations();
 
     return () => {
       cancelled = true;

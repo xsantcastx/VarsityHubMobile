@@ -22,7 +22,7 @@ export function signJwt(payload: Record<string, unknown>, expiresIn: string = DE
 export function verifyJwt<T = any>(token: string): T | null {
   try {
     return jwt.verify(token, JWT_SECRET) as T;
-  } catch {
+  } catch (_error) {
     return null;
   }
 }

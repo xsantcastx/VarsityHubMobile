@@ -10,7 +10,7 @@ async function setItem(key: string, value: string) {
     } else {
       await SecureStore.setItemAsync(prefix + key, value);
     }
-  } catch {}
+  } catch (_error) {}
 }
 
 async function getItem(key: string): Promise<string | null> {
@@ -20,7 +20,7 @@ async function getItem(key: string): Promise<string | null> {
     } else {
       return await SecureStore.getItemAsync(prefix + key);
     }
-  } catch {
+  } catch (_error) {
     return null;
   }
 }
@@ -38,7 +38,7 @@ export async function setBool(key: string, value: boolean): Promise<void> {
 export async function getJson<T = any>(key: string, fallback: T): Promise<T> {
   const v = await getItem(key);
   if (!v) return fallback;
-  try { return JSON.parse(v) as T; } catch { return fallback; }
+  try { return JSON.parse(v) as T; } catch (_error) { return fallback; }
 }
 
 export async function setJson(key: string, value: any): Promise<void> {

@@ -13,7 +13,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
-import { captureBreadcrumb, captureException, initSentry } from '@/utils/sentry';
+import { initSentry } from '@/utils/sentry';
 
 // Initialize Sentry before app renders
 initSentry();
@@ -25,7 +25,7 @@ initSentry();
 //     setTimeout(() => {
 //       captureException(new Error('Sentry smoke test: dev boot'));
 //     }, 300);
-//   } catch {}
+//   } catch (_error) {}
 // }
 
 export default function RootLayout() {

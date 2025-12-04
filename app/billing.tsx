@@ -24,7 +24,7 @@ export default function BillingScreen() {
         const s = await Subscriptions.getSummary();
         setSummary(s);
         if (s?.quantity) setQty(String(s.quantity));
-      } catch {
+      } catch (_error) {
         // ignore
       } finally {
         setLoadingSummary(false);

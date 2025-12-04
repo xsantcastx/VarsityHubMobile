@@ -27,7 +27,7 @@ export function calculateAge(dateOfBirth: string | Date | null | undefined): num
     }
     
     return age;
-  } catch {
+  } catch (_error) {
     return null;
   }
 }

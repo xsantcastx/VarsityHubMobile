@@ -37,7 +37,7 @@ export default function AdminUsersScreen() {
     try {
       if (banned) await User.unban(id); else await User.ban(id);
       await load();
-    } catch {}
+    } catch (_error) {}
   };
 
   return (

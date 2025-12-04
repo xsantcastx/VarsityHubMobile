@@ -31,7 +31,7 @@ export default function RoleOnboardingScreen() {
   const logTelemetry = (event: string, data?: Record<string, unknown>) => {
     try {
       console.log('[telemetry] role-onboarding:', event, data ?? '');
-    } catch {
+    } catch (_error) {
       // ignore logging failures
     }
   };
@@ -73,7 +73,7 @@ export default function RoleOnboardingScreen() {
         if (!userRole) {
           setShowAccountSelection(true);
         }
-      } catch {
+      } catch (_error) {
         setShowAccountSelection(true);
       }
     })();
