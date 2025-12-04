@@ -1,10 +1,12 @@
 {
   "recommendations": [
+    "sentry.sentry",
     "rangav.vscode-thunder-client",
     "github.vscode-github-actions",
     "ms-azuretools.vscode-docker",
     "msjsdiag.vscode-react-native",
-    "expo.vscode-expo-tools"
+    "expo.vscode-expo-tools",
+    "snyk-security.snyk-vulnerability-scanner"
   ],
   "unwantedRecommendations": []
 }
