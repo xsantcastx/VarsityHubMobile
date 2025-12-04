@@ -515,7 +515,7 @@ export default function PostDetailScreen() {
           {post.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (post.game?.id) { void router.push(`/game-detail?id=${post.game.id}`);
+              onPress={() => { if (post.game?.id) { void void router.push(`/game-detail?id=${post.game.id}`);
                 }
               }}
             >
@@ -541,7 +541,7 @@ export default function PostDetailScreen() {
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               onPress={() => { const teamId = post.team_id || post.team?.id;
-                if (teamId) { void router.push(`/team-profile?id=${teamId}`);
+                if (teamId) { void void router.push(`/team-profile?id=${teamId}`);
                 }
               }}
             >
@@ -564,7 +564,7 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => { if (post.author_id) { void router.push(`/user-profile?id=${post.author_id}`);
+              onPress={() => { if (post.author_id) { void void router.push(`/user-profile?id=${post.author_id}`);
                 }
               }}
               disabled={!post.author_id}
@@ -679,7 +679,7 @@ export default function PostDetailScreen() {
                   <Pressable
                     style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
                     onPress={() => { const teamId = post.team_id || post.team?.id;
-                      if (teamId) void router.push(`/team-profile?id=${teamId}`);
+                      if (teamId) void void router.push(`/team-profile?id=${teamId}`);
                     }}
                   >
                     <Ionicons name="people" size={18} color="#10B981" />
@@ -759,7 +759,7 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
-                      onPress={() => { if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => { if (c.author_id) { void void router.push(`/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}

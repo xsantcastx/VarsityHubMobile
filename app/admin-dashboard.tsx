@@ -67,7 +67,7 @@ export default function AdminDashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     loadStats();

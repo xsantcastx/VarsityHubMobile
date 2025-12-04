@@ -265,7 +265,7 @@ export default function ManageTeamsSimpleScreen() {
         <Pressable 
           style={[styles.inlineActionButton, { backgroundColor: '#10B981' }]}
           onPress={() => { // Navigate to first team's add event, or show team selection if multiple teams
-            if (activeTeams.length > 0) { void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
+            if (activeTeams.length > 0) { void void router.push(`/manage-season?teamId=${activeTeams[0].id}`);
             }
           }}
         >
@@ -285,7 +285,7 @@ export default function ManageTeamsSimpleScreen() {
         {organization && (
           <Pressable 
             style={styles.leagueCard}
-            onPress={() => {  void router.push({
+            onPress={() => { void void router.push({
                 pathname: '/league',
                 params: { 
                   id: organization.id,

@@ -30,7 +30,7 @@ export default function AdminTeamsScreen() {
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load teams'));
     } finally { setLoading(false); }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => { load(); }, [load]);
 
