@@ -1,0 +1,46 @@
+version: 2
+updates:
+  # npm dependency updates
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    # Security updates run more frequently
+    open-pull-requests-limit: 5
+    # Ignore non-critical minor version updates
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor"]
+    # Auto-merge patch updates and security updates
+    pull-request-branch-name:
+      separator: "/"
+    reviewers:
+      - "xsantcastx"
+    commit-message:
+      prefix: "deps(npm)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+
+  # Dockerfile updates (if applicable)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+    reviewers:
+      - "xsantcastx"
+
+  # GitHub Actions workflow updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+    reviewers:
+      - "xsantcastx"

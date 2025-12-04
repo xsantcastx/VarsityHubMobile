@@ -1,0 +1,141 @@
+{
+  "version": "1.1",
+  "name": "VarsityHub API Tests",
+  "dateExport": "2024-12-04T22:30:00.000Z",
+  "dateImport": "2024-12-04T22:30:00.000Z",
+  "folders": [],
+  "requests": [
+    {
+      "name": "Health Check",
+      "description": "Check API health status, Sentry, and SendGrid connectivity",
+      "method": "GET",
+      "url": "{{baseUrl}}/health",
+      "headers": [],
+      "params": [],
+      "body": "",
+      "tests": "",
+      "notes": "Returns 200 with status of sentry_configured and sendgrid_configured"
+    },
+    {
+      "name": "Test Email Send",
+      "description": "Send a test email to verify SendGrid integration",
+      "method": "POST",
+      "url": "{{baseUrl}}/api/test-email",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "body": "{\n  \"to\": \"test@example.com\",\n  \"subject\": \"VarsityHub Test Email\",\n  \"message\": \"If you received this, SendGrid is working correctly!\"\n}",
+      "tests": "tc.expect(res.status).equals(200)",
+      "notes": "Requires valid auth token; test email goes to 'to' address"
+    },
+    {
+      "name": "Verify Token",
+      "description": "Validate a JWT token and get user info",
+      "method": "POST",
+      "url": "{{baseUrl}}/api/verify-token",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "body": "{}",
+      "tests": "tc.expect(res.status).equals(200)",
+      "notes": "Verifies the token in Authorization header is valid"
+    },
+    {
+      "name": "Get Current User",
+      "description": "Fetch authenticated user profile",
+      "method": "GET",
+      "url": "{{baseUrl}}/api/me",
+      "headers": [
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "body": "",
+      "tests": "tc.expect(res.status).equals(200)",
+      "notes": "Requires valid auth token; returns user profile data"
+    },
+    {
+      "name": "List Games",
+      "description": "Fetch all games from the API",
+      "method": "GET",
+      "url": "{{baseUrl}}/api/games?limit=10&offset=0",
+      "headers": [
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [
+        {
+          "name": "limit",
+          "value": "10"
+        },
+        {
+          "name": "offset",
+          "value": "0"
+        }
+      ],
+      "body": "",
+      "tests": "tc.expect(res.status).equals(200)",
+      "notes": "Paginated response; adjust limit/offset for testing"
+    },
+    {
+      "name": "Create Game",
+      "description": "Create a new game entry",
+      "method": "POST",
+      "url": "{{baseUrl}}/api/games",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "body": "{\n  \"title\": \"Test Game\",\n  \"description\": \"A test game for API verification\",\n  \"date\": \"2024-12-05T19:00:00Z\",\n  \"homeTeam\": \"Test Team A\",\n  \"awayTeam\": \"Test Team B\"\n}",
+      "tests": "tc.expect(res.status).equals(201)",
+      "notes": "Requires admin auth token; creates new game record"
+    },
+    {
+      "name": "Admin Health Check",
+      "description": "Check admin panel health and permissions",
+      "method": "GET",
+      "url": "{{baseUrl}}/api/admin/health",
+      "headers": [
+        {
+          "key": "Authorization",
+          "value": "Bearer {{authToken}}"
+        }
+      ],
+      "params": [],
+      "body": "",
+      "tests": "tc.expect(res.status).equals(200)",
+      "notes": "Requires admin auth; returns admin-specific status"
+    }
+  ],
+  "variables": {
+    "baseUrl": "https://your-railway-url.railway.app",
+    "authToken": "your-jwt-token-here"
+  }
+}
