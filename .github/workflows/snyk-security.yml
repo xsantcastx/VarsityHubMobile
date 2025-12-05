@@ -45,6 +45,48 @@ jobs:
         run: snyk test --severity-threshold=high --report-metrics
         continue-on-error: true
 
+      - name: Run Snyk test with JSON output
+        id: snyk-test
+        run: |
+          snyk test --json --severity-threshold=high > snyk-results.json 2>&1 || true
+          echo "snyk-test-complete=true" >> $GITHUB_OUTPUT
+
+      - name: Send Snyk results to Sentry
+        if: always() && steps.snyk-test.outputs.snyk-test-complete
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          if [ -f snyk-results.json ]; then
+            SNYK_RESULTS=$(cat snyk-results.json)
+            curl -X POST "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/events/" \
+              -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"message\": \"Snyk Security Scan - GitHub Actions\",
+                \"level\": \"info\",
+                \"environment\": \"ci\",
+                \"tags\": {
+                  \"source\": \"snyk\",
+                  \"type\": \"security-scan\",
+                  \"branch\": \"${{ github.ref_name }}\",
+                  \"commit\": \"${{ github.sha }}\"
+                },
+                \"contexts\": {
+                  \"github\": {
+                    \"event\": \"${{ github.event_name }}\",
+                    \"actor\": \"${{ github.actor }}\",
+                    \"workflow\": \"${{ github.workflow }}\",
+                    \"run_id\": \"${{ github.run_id }}\"
+                  }
+                },
+                \"extra\": {
+                  \"snyk_scan_results\": ${SNYK_RESULTS}
+                }
+              }" || echo "Failed to send to Sentry, but continuing..."
+          fi
+
       - name: Monitor with Snyk
         if: github.ref == 'refs/heads/main'
         run: snyk monitor --severity-threshold=high
