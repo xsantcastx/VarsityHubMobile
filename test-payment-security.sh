@@ -14,19 +14,19 @@ echo "════════════════════════�
 echo ""
 
 # Test 1: Health Endpoint
-echo "TEST 1: Health Endpoint - Stripe & SendGrid Status"
+echo "TEST 1: Health Endpoint - Stripe & SMTP (SendGrid) Status"
 echo "─────────────────────────────────────────────────────────"
-HEALTH=$(curl -s "$API_URL/health" | jq '.integrations | {stripe, sendgrid, sentry}')
+HEALTH=$(curl -s "$API_URL/health" | jq '.integrations | {stripe, smtp, sentry}')
 echo "Result:"
 echo "$HEALTH"
 STRIPE_OK=$(echo "$HEALTH" | jq '.stripe')
-SENDGRID_OK=$(echo "$HEALTH" | jq '.sendgrid')
+SMTP_OK=$(echo "$HEALTH" | jq '.smtp')
 
-if [ "$STRIPE_OK" = "true" ] && [ "$SENDGRID_OK" = "true" ]; then
-  echo "✅ PASS: Stripe and SendGrid configured"
+if [ "$STRIPE_OK" = "true" ] && [ "$SMTP_OK" = "true" ]; then
+  echo "✅ PASS: Stripe and SMTP (SendGrid) configured"
 else
-  echo "❌ FAIL: Stripe or SendGrid not configured"
-  echo "  Stripe: $STRIPE_OK, SendGrid: $SENDGRID_OK"
+  echo "❌ FAIL: Stripe or SMTP (SendGrid) not configured"
+  echo "  Stripe: $STRIPE_OK, SMTP: $SMTP_OK"
   exit 1
 fi
 echo ""
