@@ -4,37 +4,38 @@ import crypto from 'crypto';
 describe('Authentication', () => {
   describe('Password Hashing', () => {
     it('should hash passwords with bcrypt', async () => {
-      const password = 'TestPassword123!';
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Test with a sample password (test-only, safe in test files)
+      const testPassword = process.env.TEST_PASSWORD || 'TestPassword123!';
+      const hashedPassword = await bcrypt.hash(testPassword, 10);
 
-      expect(hashedPassword).not.toBe(password);
+      expect(hashedPassword).not.toBe(testPassword);
       expect(hashedPassword.length).toBeGreaterThan(20);
     });
 
     it('should verify correct password', async () => {
-      const password = 'TestPassword123!';
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const isValid = await bcrypt.compare(password, hashedPassword);
+      const testPassword = process.env.TEST_PASSWORD || 'TestPassword123!';
+      const hashedPassword = await bcrypt.hash(testPassword, 10);
+      const isValid = await bcrypt.compare(testPassword, hashedPassword);
 
       expect(isValid).toBe(true);
     });
 
     it('should reject incorrect password', async () => {
-      const password = 'TestPassword123!';
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const testPassword = process.env.TEST_PASSWORD || 'TestPassword123!';
+      const hashedPassword = await bcrypt.hash(testPassword, 10);
       const isValid = await bcrypt.compare('WrongPassword123!', hashedPassword);
 
       expect(isValid).toBe(false);
     });
 
     it('should have unique hashes for same password', async () => {
-      const password = 'TestPassword123!';
-      const hash1 = await bcrypt.hash(password, 10);
-      const hash2 = await bcrypt.hash(password, 10);
+      const testPassword = process.env.TEST_PASSWORD || 'TestPassword123!';
+      const hash1 = await bcrypt.hash(testPassword, 10);
+      const hash2 = await bcrypt.hash(testPassword, 10);
 
       expect(hash1).not.toBe(hash2);
-      expect(await bcrypt.compare(password, hash1)).toBe(true);
-      expect(await bcrypt.compare(password, hash2)).toBe(true);
+      expect(await bcrypt.compare(testPassword, hash1)).toBe(true);
+      expect(await bcrypt.compare(testPassword, hash2)).toBe(true);
     });
   });
 
