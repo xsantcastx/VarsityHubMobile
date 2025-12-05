@@ -30,9 +30,12 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
   const expoClientId = process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID || undefined;
 
-    const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
+  const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
+  const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
 
-  if (isDevSimulator && webClientId) {
+  // For dev simulator or standalone iOS builds, use web client with full redirect flow
+  // This works with varsityhub.app domain OAuth configuration
+  if ((isDevSimulator || isStandaloneIOS) && webClientId) {
     return {
       androidClientId: webClientId,
       iosClientId: webClientId,
@@ -91,6 +94,14 @@ export function useGoogleAuth() {
     } catch (err) {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
+    
+    // For production iOS with web client, use web redirect
+    const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
+    if (isStandaloneIOS) {
+      // Use the configured web domain for OAuth redirect
+      return `https://varsityhub.app/auth/google/callback`;
+    }
+    
     return makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile',
