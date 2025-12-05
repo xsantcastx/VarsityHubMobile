@@ -205,17 +205,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   // Check if user can delete this story
   const canDelete = currentUserId && item?.user_id && currentUserId === item.user_id;
   
-  // Debug logging
-  if (__DEV__) {
-      currentUserId,
-      itemUserId: item?.user_id,
-      canDelete,
-      hasGameId: !!gameId,
-      itemId: item?.id,
-      allItemKeys: item ? Object.keys(item) : [],
-    });
-  }
-  
   // TEMP: Show delete button for all stories during testing
   const showDeleteButton = __DEV__ || canDelete;
   
