@@ -199,7 +199,7 @@ export default function SignInScreen() {
                 buttonType={AppleAuthenticationButtonType.SIGN_IN}
                 buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={8}
-                style={{ width: '100%', height: 50, marginBottom: 8 }}
+                style={{ width: '100%', height: 50, marginBottom: 0 }}
               />
             ) : null}
 
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    gap: 18,
+    gap: 8,
   },
   googleButton: {
     flexDirection: 'row',

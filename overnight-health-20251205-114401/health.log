@@ -1,0 +1,18 @@
+{
+  "status": "degraded",
+  "timestamp": "2025-12-05T16:44:01.644Z",
+  "environment": "production",
+  "integrations": {
+    "database": true,
+    "jwt": true,
+    "cloudinary": true,
+    "twilio": true,
+    "stripe": true,
+    "smtp": true,
+    "googleOAuth": false,
+    "googleMaps": false,
+    "sentry": true
+  },
+  "ready": false,
+  "warnings": []
+}
