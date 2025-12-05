@@ -43,7 +43,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         setCurrentUser(null);
       }
     };
-    void loadUser();
+    loadUser();
   }, []);
 
   const onUpvote = async () => {

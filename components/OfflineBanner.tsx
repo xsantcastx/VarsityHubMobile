@@ -6,12 +6,14 @@
  */
 
 import { useAuth } from '@/context/AuthProvider';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
   const { healthOk, healthError, checkAuth } = useAuth();
+  const colorScheme = useColorScheme();
 
   const [retrying, setRetrying] = React.useState(false);
 
