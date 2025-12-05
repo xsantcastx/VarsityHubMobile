@@ -8,12 +8,12 @@ export default function CenterTabButton(props: BottomTabBarButtonProps) {
   const selected = accessibilityState?.selected;
   const router = useRouter();
   
-  const handlePress = (e: any) => {
+  const handlePress = () => {
     if (Platform.OS === 'ios') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     // Navigate directly to create post instead of opening menu
-    router.push('/create-post');
+    void router.push('/create-post');
   };
   return (
     <View style={styles.wrapper} pointerEvents="box-none">

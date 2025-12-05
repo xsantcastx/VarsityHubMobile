@@ -1,6 +1,5 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 // @ts-ignore - No type declarations available
 
@@ -23,7 +22,6 @@ export default function LocationPicker({
   error 
 }: LocationPickerProps) {
   const colorScheme = useColorScheme() ?? 'light';
-  const [showAutocomplete, setShowAutocomplete] = useState(false);
 
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 

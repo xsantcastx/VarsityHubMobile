@@ -6,7 +6,7 @@ import { ViewStyle } from 'react-native';
 export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true, paused }: { uri: string; style?: ViewStyle; onEnd?: () => void; autoPlay?: boolean; nativeControls?: boolean; paused?: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     if (autoPlay && !paused) {
-      try { p.play(); } catch (_error) {}
+      try { p.play(); } catch {}
     }
   });
 
@@ -23,8 +23,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
       } else if (autoPlay) {
         player.play();
       }
-    } catch (err) {
-    }
+    } catch {}
   }, [paused, player, autoPlay]);
 
   // Restart video when autoPlay changes from false to true
@@ -32,8 +31,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
     if (!player || !autoPlay || paused) return;
     try {
       player.replay();
-    } catch (err) {
-    }
+    } catch {}
   }, [autoPlay, player, paused]);
 
   return (

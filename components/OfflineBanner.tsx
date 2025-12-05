@@ -5,17 +5,13 @@
  * Provides retry mechanism
  */
 
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
   const { healthOk, healthError, checkAuth } = useAuth();
-  const colorScheme = useColorScheme();
-  const palette = Colors[colorScheme ?? 'light'];
 
   const [retrying, setRetrying] = React.useState(false);
 
@@ -23,7 +19,7 @@ export function OfflineBanner() {
     setRetrying(true);
     try {
       await checkAuth();
-    } catch (_error) {
+    } catch {
       // Error already handled by AuthProvider
     } finally {
       setRetrying(false);

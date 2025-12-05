@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,8 +21,7 @@ interface ActivityLogItem {
 
 export default function AdminActivityLogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: _authLoading } = useRequireAdmin();
-  const router = useRouter();
+  const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<ActivityLogItem[]>([]);
@@ -30,7 +29,7 @@ export default function AdminActivityLogScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
+    if (!isAdmin) return;
     setLoading(true);
     setError(null);
     
@@ -64,10 +63,10 @@ export default function AdminActivityLogScreen() {
     } finally {
       setLoading(false);
     }
-  }, [filter, searchQuery]);
+  }, [filter, isAdmin, searchQuery]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const getActionColor = (action: string) => {

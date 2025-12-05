@@ -1,12 +1,11 @@
 import { uploadFile } from '@/api/upload';
-import { getApiBaseUrl } from '../api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Image,
@@ -21,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
+import { getApiBaseUrl } from '../api/http';
 import MatchBanner from '../app/components/MatchBanner';
 import AppearancePicker, { AppearancePreset } from './AppearancePicker';
 import ImageEditor from './ImageEditor';
@@ -101,7 +101,7 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
 export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, userRole = 'fan', initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  const { teams: rawTeams, loading: loadingTeams } = useTeamOptions(true);
+  const { teams: rawTeams } = useTeamOptions(true);
   
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
@@ -118,7 +118,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const viewShotRef = useRef<any>(null);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
   const [editorVisible, setEditorVisible] = useState(false);
@@ -374,7 +373,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         // No custom banner, competitive game - try to capture the auto-generated preview and upload
         if (viewShotRef.current) {
           try {
-            setUploadingBanner(true);
             const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
             const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
             const url = uploaded?.url || uploaded?.path || null;
@@ -384,8 +382,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             }
           } catch (e) {
             console.warn('Banner capture/upload failed, continuing without banner', e);
-          } finally {
-            setUploadingBanner(false);
           }
         }
       }
@@ -514,16 +510,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         { text: 'Remove', style: 'destructive', onPress: () => setBannerUrl(null) },
       ]
     );
-  };
-
-  const formatPreviewDate = () => {
-    if (!selectedDate) return '';
-    return selectedDate.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   return (
@@ -893,11 +879,11 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                     <Pressable 
                       style={[styles.mapsLinkButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
                       onPress={() => {
-                        const url = `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`;
+                        // const url = `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`;
                         // Open in browser or maps app
                         Alert.alert('Open in Maps', 'This will open Google Maps', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Open', onPress: () => console.log('Open maps:', url) }
+                          { text: 'Open', onPress: () => { /* TODO: open maps app */ } }
                         ]);
                       }}
                     >

@@ -3,7 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,22 +14,20 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: _authLoading } = useRequireAdmin();
-  const router = useRouter();
+  const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
-  const [me, setMe] = useState<any>(null);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedAds, setSelectedAds] = useState<Set<string>>(new Set());
   const [updating, setUpdating] = useState(false);
   const [filterStatus, setFilterStatus] = useState<'all' | AdStatus>('all');
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
+    if (!isAdmin) return;
     setLoading(true); setError(null);
     try {
-      try { const u = await User.me(); setMe(u); } catch (e) {}
+      await User.me().catch(() => null);
       const list = await AdsApi.listAll();
       setItems(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -37,7 +35,7 @@ export default function AdminAdsScreen() {
     } finally { setLoading(false); }
   }, [isAdmin]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const toggleAdSelection = (adId: string) => {
     const newSet = new Set(selectedAds);
@@ -459,4 +457,3 @@ const styles = StyleSheet.create({
     borderWidth: 1.5
   }
 });
-

@@ -12,14 +12,14 @@ import { User } from '@/api/entities';
 
 export default function AdminUserDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: _authLoading } = useRequireAdmin();
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
 
   const load = useCallback(async () => {
-      if (!isAdmin) return;
+    if (!isAdmin) return;
     if (!id) return;
     setLoading(true); setError(null);
     try {
@@ -28,18 +28,34 @@ export default function AdminUserDetailScreen() {
     } catch (e: any) {
       setError(e?.status === 403 ? 'Access denied (admin only).' : (e?.message || 'Failed to load user'));
     } finally { setLoading(false); }
-  }, [id]);
+  }, [id, isAdmin]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const onDownload = async () => {
     if (!id) return;
     const url = getApiBaseUrl() + `/users/${encodeURIComponent(String(id))}/export`;
-    try { await WebBrowser.openBrowserAsync(url); } catch (_error) {}
+    try { await WebBrowser.openBrowserAsync(url); } catch { /* no-op */ }
   };
 
   const ads = detail?.ads || [];
   const datesByAd = detail?.datesByAd || {};
+
+  if (adminLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <ActivityIndicator />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Admin access required</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
@@ -92,4 +108,3 @@ const styles = StyleSheet.create({
   cardTitle: { fontWeight: '800' },
   error: { color: '#b91c1c', padding: 12 },
 });
-

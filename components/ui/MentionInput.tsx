@@ -78,7 +78,7 @@ export function MentionInput({
         
         // Debounce the search
         searchTimeoutRef.current = setTimeout(() => {
-          searchUsers(textAfterAt);
+          void searchUsers(textAfterAt);
         }, 300);
         return;
       }
