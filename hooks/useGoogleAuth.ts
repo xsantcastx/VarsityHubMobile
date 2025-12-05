@@ -18,7 +18,7 @@ let sessionUrlProvider: {
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   sessionUrlProvider = require('expo-auth-session/build/SessionUrlProvider').default;
-} catch (_error) {
+} catch {
   sessionUrlProvider = null;
 }
 
@@ -95,12 +95,12 @@ export function useGoogleAuth() {
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile',
     });
-  }, [shouldUseProxy]);
+  }, []);
 
   const redirectOptions = useMemo(() => {
     // Use default redirect behavior
     return {} as const;
-  }, [shouldUseProxy]);
+  }, []);
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
