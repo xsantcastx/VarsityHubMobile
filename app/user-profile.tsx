@@ -48,23 +48,25 @@ export default function UserProfileScreen() {
           .map(e => e.trim().toLowerCase())
           .filter(Boolean);
         setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
-      } catch (_error) {}
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_error: any) {}
       const u = await User.getPublic(String(params.id));
       setUser(u);
       const page = await User.postsForProfile(String(params.id), { limit: 10, sort: 'newest' });
       setPosts(page.items || []);
     } catch (e: any) {
-      console.error('Error loading user profile:', e);
+      // Error loading user profile - handled via error message display
       // Handle 401 separately like profile.tsx
       if (e && e.status === 401) {
         setError('You need to sign in to view profiles.');
       } else {
         setError(e?.message || 'Failed to load user');
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } finally { setLoading(false); }
   }, [params.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   // Helpers to map posts -> feed posts for viewer
   const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -230,7 +232,8 @@ export default function UserProfileScreen() {
                     setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
                     try {
                       if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                    } catch (_error) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    } catch (_error: any) {
                       setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
                     }
                   }}
@@ -290,7 +293,7 @@ export default function UserProfileScreen() {
                           const items = mapped.filter(Boolean) as FeedPost[];
                           const targetId = mapped[item.__idx]?.id;
                           const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : item.__idx;
-                          if (__DEV__) console.debug('UserProfile opening viewer (colA)', { idx: item.__idx, targetIdx, total: items.length });
+                          // Debug: UserProfile opening viewer (colA)
                           setViewerItems(items);
                           setViewerIndex(Math.max(0, targetIdx));
                           setViewerOpen(true);
@@ -335,7 +338,7 @@ export default function UserProfileScreen() {
                           const items = mapped.filter(Boolean) as FeedPost[];
                           const targetId = mapped[item.__idx]?.id;
                           const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : item.__idx;
-                          if (__DEV__) console.debug('UserProfile opening viewer (colB)', { idx: item.__idx, targetIdx, total: items.length });
+                          // Debug: UserProfile opening viewer (colB)
                           setViewerItems(items);
                           setViewerIndex(Math.max(0, targetIdx));
                           setViewerOpen(true);

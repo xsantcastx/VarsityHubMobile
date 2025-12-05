@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import type { AuthedRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 // Lazy load Stripe only if key present to avoid runtime crash in dev
 let stripe: any = null;
@@ -68,8 +68,8 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err: any) {
-    console.error('[billing] webhook signature failed', err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('[billing] webhook signature failed', err?.message || err);
+    return res.status(400).send('Webhook Error: Invalid signature');
   }
   try {
     if (event.type === 'checkout.session.completed') {

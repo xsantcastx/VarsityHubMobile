@@ -87,7 +87,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'interactions'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (_error) { return 'posts'; }
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (_error: any) { return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -103,7 +103,7 @@ export default function ProfileScreen() {
   const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
   const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
-  const rememberingTab = useRef(false);
+  const _rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
     setter((prev: any) => {
       try {
         if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch (_error) {}
+      } catch (_error: any) {}
       return next;
     });
   }, []);
@@ -178,7 +178,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      const { uri, fileName, mimeType } = pickerResult.assets[0] as any;
+      const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
       
@@ -187,8 +187,8 @@ export default function ProfileScreen() {
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
-    } catch (error) {
-      console.error("Avatar upload failed", error);
+    } catch (_error) {
+      // Avatar upload failed - error handled via Alert below
       Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
     } finally {
       setIsUploadingAvatar(false);
@@ -231,7 +231,7 @@ export default function ProfileScreen() {
   }, [activeTab, refreshInteractions, refreshPosts]);
 
   // Refresh on mount and when screen regains focus (after creating a post, etc.)
-  useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
+  useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
 
   // Load organizations separately to avoid blocking profile render
   useEffect(() => {
@@ -262,7 +262,7 @@ export default function ProfileScreen() {
           // Try to fetch by ID first
           if (orgIds.size > 0) {
             const orgPromises = Array.from(orgIds).map(id => 
-              Organization.get(id).catch(err => null)
+              Organization.get(id).catch((_err: any) => null)
             );
             
             const orgsData = await Promise.all(orgPromises);
@@ -276,7 +276,7 @@ export default function ProfileScreen() {
           // If no orgs found by ID, try searching by name
           if (orgIds.size === 0 && orgNames.size > 0) {
             const searchPromises = Array.from(orgNames).map(name => 
-              Organization.list(name, 5).catch(err => [])
+              Organization.list(name, 5).catch((_err: any) => [])
             );
             
             const searchResults = await Promise.all(searchPromises);
@@ -303,9 +303,9 @@ export default function ProfileScreen() {
     if (!me?.id) return;
     setError(null); // Clear any stale errors
     if (activeTab === 'posts') {
-      refreshPosts(String(me.id));
+      void refreshPosts(String(me.id));
     } else {
-      refreshInteractions(String(me.id));
+      void refreshInteractions(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, me?.id]);
@@ -315,7 +315,7 @@ export default function ProfileScreen() {
     if (!me?.id) return;
     if (activeTab === 'interactions') {
       setError(null); // Clear any stale errors
-      refreshInteractions(String(me.id));
+      void refreshInteractions(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interType, sort, me?.id]);
@@ -325,7 +325,7 @@ export default function ProfileScreen() {
     if (!me?.id) return;
     const off = events.on('comment:created', () => {
       if (activeTab === 'interactions') {
-        refreshInteractions(String(me.id));
+        void refreshInteractions(String(me.id));
       }
     });
     return () => { off(); };
@@ -580,8 +580,8 @@ export default function ProfileScreen() {
     </View>
   );
 
-  const onEndReachedPosts = useCallback(() => { if (me?.id) loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
-  const onEndReachedInteractions = useCallback(() => { if (me?.id) loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
+  const onEndReachedPosts = useCallback(() => { if (me?.id) void loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
+  const _onEndReachedInteractions = useCallback(() => { if (me?.id) void loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
 
   // Some interaction items may wrap a post (e.g., { type, post, created_at })
   const unwrapPost = useCallback((item: any) => {
@@ -629,7 +629,7 @@ export default function ProfileScreen() {
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
             const thumb = item.media_url;
-            const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
             const likes = item.upvotes_count ?? 0;
             const comments = item.comments_count ?? item?._count?.comments ?? 0;
             return (
@@ -640,7 +640,7 @@ export default function ProfileScreen() {
                   const items = mapped.filter(Boolean) as FeedPost[];
                   const targetId = mapped[index]?.id;
                   const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  if (__DEV__) console.debug('Profile opening viewer', { index, targetIdx, total: items.length });
+                  // Debug: Profile opening viewer
                   setViewerItems(items);
                   setViewerIndex(Math.max(0, targetIdx));
                   setViewerOpen(true);

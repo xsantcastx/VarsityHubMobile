@@ -266,8 +266,20 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // SECURITY: Enforce coach role requirement
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  
+  if (userRole !== 'coach') {
+    return res.status(403).json({
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create teams.',
+      code: 'COACH_ROLE_REQUIRED'
+    });
+  }
   
   // Check team ownership limit
   const ownedTeamsCount = await prisma.teamMembership.count({

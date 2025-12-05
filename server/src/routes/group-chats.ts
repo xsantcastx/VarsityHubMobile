@@ -120,7 +120,8 @@ groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: Authe
     const { chatId } = req.params;
     const { content } = req.body;
 
-    if (!content || !content.trim()) {
+    // SECURITY: Type validation for content (must be string)
+    if (typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Message content required' });
     }
 
@@ -193,7 +194,8 @@ groupChatsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) =
 
     const { name, teamId, memberIds } = req.body;
 
-    if (!name || !name.trim()) {
+    // SECURITY: Type validation for name (must be string)
+    if (typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Chat name required' });
     }
 
