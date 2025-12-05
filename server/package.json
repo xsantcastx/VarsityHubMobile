@@ -28,7 +28,7 @@
     "@sentry/node": "^7.91.0",
     "@sentry/profiling-node": "^7.91.0",
     "bcrypt": "^5.1.1",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "expo": "~54.0.25",

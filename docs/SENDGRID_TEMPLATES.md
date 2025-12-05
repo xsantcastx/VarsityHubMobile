@@ -42,6 +42,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 **Dynamic Template Data:**
 ```json
 {
+  "recipient_name": "John Doe",
   "team_name": "Dallas Lady Tigers",
   "org_name": "Texas Elite Sports",
   "role": "Player",
@@ -54,6 +55,7 @@ This document describes all SendGrid dynamic templates used by VarsityHub and th
 ```
 
 **Template Placeholders:**
+- `{{recipient_name}}` - Member’s name (displayed under “Congratulations”)
 - `{{team_name}}` - Name of the team (e.g., "Dallas Lady Tigers")
 - `{{org_name}}` - Organization name (optional, can be empty)
 - `{{role}}` - Role being invited to (e.g., "Player", "Assistant Coach")
