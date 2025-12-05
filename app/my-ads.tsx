@@ -134,9 +134,7 @@ export default function MyAdsScreen() {
           onPress: async () => {
             try {
               // Delete from server
-              console.log('[my-ads2] Deleting ad from server:', id);
               await AdsApi.delete(id);
-              console.log('[my-ads2] Ad deleted from server successfully');
               
               // Also remove from local storage
               const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);

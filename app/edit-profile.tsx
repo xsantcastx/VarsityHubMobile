@@ -65,7 +65,6 @@ export default function EditProfileScreen() {
     setError(null);
     try {
       const me: any = await User.me();
-      console.log('User data loaded:', me); // Debug log
       
       // Direct fields
       setDisplayName(me?.display_name || '');
@@ -290,7 +289,6 @@ export default function EditProfileScreen() {
         directFields.preferences = preferences;
       }
       
-      console.log('Saving profile data:', directFields); // Debug log
       await User.updateMe(directFields);
       Alert.alert('Saved', 'Profile updated successfully.');
       

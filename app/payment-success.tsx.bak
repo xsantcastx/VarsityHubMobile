@@ -26,8 +26,10 @@ export default function PaymentSuccessScreen() {
         if (params.session_id) {
           // For ad payments, manually finalize the session
           if (isAdPayment) {
+            console.log('[payment-success] Finalizing ad payment session:', params.session_id);
             try {
               await httpPost('/payments/finalize-session', { session_id: params.session_id });
+              console.log('[payment-success] Session finalized successfully');
             } catch (finalizeErr) {
               console.warn('[payment-success] Failed to finalize session:', finalizeErr);
               // Continue anyway - webhook might have already processed it
@@ -36,6 +38,7 @@ export default function PaymentSuccessScreen() {
             setSessionVerified(true);
             // Auto-redirect after 2 seconds to show success message
             setTimeout(() => {
+              console.log('[payment-success] Auto-redirecting to My Ads after 2s');
               router.replace('/(tabs)/my-ads');
             }, 2000);
           } else {
@@ -66,14 +69,18 @@ export default function PaymentSuccessScreen() {
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
+    console.log('[payment-success] handleContinue called', { isAdPayment, type: params.type });
     if (isAdPayment) {
+      console.log('[payment-success] Redirecting to /(tabs)/my-ads');
       router.push('/(tabs)/my-ads'); // Redirect to My Ads tab after ad payment
     } else {
+      console.log('[payment-success] Redirecting to /(tabs)/feed');
       router.replace('/(tabs)/feed'); // Redirect to feed after subscription payment
     }
   };
 
   const handleCreateTeam = () => {
+    console.log('[payment-success] Redirecting to /create-team');
     router.replace('/create-team');
   };
 

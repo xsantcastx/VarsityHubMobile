@@ -48,7 +48,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
 
   const onUpvote = async () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const r: any = await Post.toggleUpvote(String(post.id));
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
@@ -57,7 +57,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   };
   const onBookmark = async () => {
     try {
-      Haptics.selectionAsync();
+      void Haptics.selectionAsync().catch(() => {});
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarks_count === 'number') {
         setBookmarksCount(r.bookmarks_count);
@@ -288,7 +288,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
               style={styles.actionItem}
               onPress={() => {
                 setShowActionsMenu(false);
-                handleDeletePost();
+                void handleDeletePost().catch(() => {});
               }}
             >
               <Ionicons name="trash" size={20} color="#dc2626" />

@@ -72,7 +72,6 @@ export default function Step2Basic() {
   }, []);
   useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
     try { // eslint-disable-next-line no-console
-      console.debug('[Onboarding][Step2] mount', { obDob: ob.dob, localDob: dob });
     } catch (_error) {}
   }, [dob, ob.affiliation, ob.dob]);
 
@@ -133,7 +132,6 @@ export default function Step2Basic() {
     try {
       setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
       try { // eslint-disable-next-line no-console
-        console.debug('[Onboarding][Step2] onContinue set dob', { obDob: ob.dob, newDob: dob });
       } catch (_error) {}
       await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       

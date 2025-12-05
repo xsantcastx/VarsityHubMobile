@@ -22,7 +22,6 @@ export default function Step10Confirmation() {
   useEffect(() => {
     // Only set progress if not already at step 10
     if (progress !== 9) {
-      console.log('[Step10] Setting progress to 9 (was:', progress, ')');
       setProgress(9);
     }
   }, [setProgress, progress]);
@@ -129,7 +128,6 @@ export default function Step10Confirmation() {
     try {
       // Debug: log final payload
       try { // eslint-disable-next-line no-console
-        console.debug('[Onboarding][Step10] final payload', { role: ob.role, dob: ob.dob, ob });
       } catch (_error) {}
       // Ensure basic preferences (role etc.) persisted before finalizing onboarding
       try {
@@ -144,7 +142,6 @@ export default function Step10Confirmation() {
           try {
             const me: any = await User.me();
             // eslint-disable-next-line no-console
-            console.debug('[Onboarding][Step10] server prefs after patch', me?.preferences);
             // Merge server prefs into onboarding state if present
             if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
           } catch (e) {}
@@ -197,7 +194,6 @@ export default function Step10Confirmation() {
       };
       
       // Log the payload before sending
-      console.log('[Onboarding][Step10] Sending completion payload:', JSON.stringify(completionPayload, null, 2));
       
       // Final submission to backend - mark onboarding as complete
       await User.completeOnboarding(completionPayload);

@@ -85,10 +85,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useCustomColorScheme(): ActualColorScheme {
+  const systemColorScheme = useSystemColorScheme();
   const context = useContext(ThemeContext);
   if (context === undefined) {
     // Fallback if used outside provider
-    const systemColorScheme = useSystemColorScheme();
     return systemColorScheme ?? 'light';
   }
   return context.colorScheme;

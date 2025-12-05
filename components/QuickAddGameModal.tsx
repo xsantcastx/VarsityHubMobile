@@ -390,7 +390,6 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         }
       }
 
-      console.log('About to call onSave with finalData:', finalData);
       onSave(finalData);
       resetForm();
       onClose();

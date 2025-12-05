@@ -141,7 +141,6 @@ export default function EditTeamScreen() {
         try {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
-          console.log('Logo uploaded:', logoUrl);
         } catch (error) {
           console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team updated but logo upload failed. Please try updating the logo again.');
@@ -154,10 +153,8 @@ export default function EditTeamScreen() {
       
       if (trimmedOrgName) {
         try {
-          console.log('[EditTeam] Searching for organization:', trimmedOrgName);
           // Search for existing organization
           const existingOrgs = await Organization.list(trimmedOrgName, 10);
-          console.log('[EditTeam] Search results:', JSON.stringify(existingOrgs));
           
           if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
             // Check for exact match (case-insensitive)
@@ -167,22 +164,18 @@ export default function EditTeamScreen() {
             
             if (exactMatch) {
               organizationId = exactMatch.id;
-              console.log('[EditTeam] Using exact match:', organizationId);
             } else {
               // Use first result if no exact match
               organizationId = existingOrgs[0].id;
-              console.log('[EditTeam] Using first result:', organizationId);
             }
           } else {
             // Create new organization if none found
             try {
-              console.log('[EditTeam] Creating new organization');
               const newOrg = await Organization.createOrganization({
                 name: trimmedOrgName,
                 description: `Organization for ${trimmedOrgName}`,
               });
               organizationId = newOrg.id;
-              console.log('[EditTeam] Created organization:', organizationId);
             } catch (orgErr: any) {
               console.error('[EditTeam] Failed to create organization:', orgErr);
               console.error('[EditTeam] Error message:', orgErr?.message);
@@ -215,9 +208,7 @@ export default function EditTeamScreen() {
         teamData.organization_id = organizationId;
       }
       
-      console.log('[EditTeam] Updating team with data:', JSON.stringify(teamData));
       await Team.update(params.id!, teamData);
-      console.log('[EditTeam] Team update successful');
       setExistingLogoUrl(logoUrl || null);
       setLogoUri(null);
       if (organizationId !== undefined) {

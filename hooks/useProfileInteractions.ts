@@ -36,7 +36,6 @@ export function useProfileInteractions(
   const refresh = useCallback(async (userId: string) => {
     // Prevent concurrent requests
     if (requestInFlight.current) {
-      console.log('[useProfileInteractions] Request already in flight, skipping');
       return;
     }
 

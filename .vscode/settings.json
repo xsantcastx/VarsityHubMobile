@@ -8,9 +8,8 @@
   "sentry.enabled": true,
   "sentry.dsn": "${env:SENTRY_DSN}",
   "sentry.tracesSampleRate": 1.0,
-  // Snyk Configuration
-  "snyk.enabled": true,
-  "snyk.severity": "high",
+  // Disable Snyk extension inside this repo since it conflicts with VS Code's language server setup.
+  "snyk.enabled": false,
   // Expo Tools Configuration
   "expo.debug": false,
   "expo.preferWsl": false,

@@ -571,6 +571,9 @@ export default function ManageSeasonScreen() {
     try {
       const isEditing = !!gameData.id;
       
+      console.log('handleSaveQuickGame - Current team state:', currentTeam);
+      console.log('handleSaveQuickGame - Params teamId:', params.teamId);
+      console.log('handleSaveQuickGame - gameData:', gameData);
       
       const { year, month, day } = parseDateParts(gameData.date);
       const { hours, minutes } = parseMeridiemTime(gameData.time);
@@ -656,6 +659,7 @@ export default function ManageSeasonScreen() {
         gamePayload.appearance = gameData.appearance;
       }
 
+      console.log('Sending gamePayload to backend:', JSON.stringify(gamePayload, null, 2));
 
       // Save to backend API (create or update)
       const savedGame = isEditing 

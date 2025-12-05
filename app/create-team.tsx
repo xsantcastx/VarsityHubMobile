@@ -261,7 +261,6 @@ export default function CreateTeamScreen() {
         try {
           const uploaded = await uploadFile(getApiBaseUrl(), logoUri, 'team-logo.jpg', 'image/jpeg');
           logoUrl = uploaded?.path || uploaded?.url;
-          console.log('Logo uploaded:', logoUrl);
         } catch (error) {
           console.error('Logo upload failed:', error);
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
@@ -284,11 +283,9 @@ export default function CreateTeamScreen() {
             
             if (exactMatch) {
               organizationId = exactMatch.id;
-              console.log('[CreateTeam] Using existing organization:', exactMatch.name, exactMatch.id);
             } else {
               // Use first result if no exact match
               organizationId = existingOrgs[0].id;
-              console.log('[CreateTeam] Using closest match organization:', existingOrgs[0].name, existingOrgs[0].id);
             }
           } else {
             // Create new organization if none found
@@ -298,7 +295,6 @@ export default function CreateTeamScreen() {
                 description: `Organization for ${organizationName.trim()}`,
               });
               organizationId = newOrg.id;
-              console.log('[CreateTeam] Created new organization:', newOrg.name, newOrg.id);
             } catch (orgErr) {
               console.error('[CreateTeam] Failed to create organization:', orgErr);
               // Continue without organization if creation fails

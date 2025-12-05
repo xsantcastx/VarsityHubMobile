@@ -103,13 +103,6 @@ export function useGoogleAuth() {
   }, [shouldUseProxy]);
 
   useEffect(() => {
-    console.log('[google-auth]', {
-      redirectUri,
-      shouldUseProxy,
-      projectNameForProxy: shouldUseProxy ? PROJECT_FULL_NAME : null,
-      appOwnership: Constants.appOwnership,
-      executionEnvironment: Constants.executionEnvironment,
-    });
     if (proxyRequested && !PROJECT_FULL_NAME) {
       console.warn(
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
