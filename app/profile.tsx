@@ -87,7 +87,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'interactions'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (_error: any) { return 'posts'; }
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
     setter((prev: any) => {
       try {
         if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch (_error: any) {}
+      } catch {}
       return next;
     });
   }, []);
@@ -187,10 +187,10 @@ export default function ProfileScreen() {
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
-    } catch (_error) {
-      // Avatar upload failed - error handled via Alert below
-      Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
-    } finally {
+  } catch {
+    // Avatar upload failed - error handled via Alert below
+    Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+  } finally {
       setIsUploadingAvatar(false);
     }
   };
@@ -295,7 +295,7 @@ export default function ProfileScreen() {
       }
     };
     
-    loadOrganizations();
+    void loadOrganizations();
   }, [me?.id]);
 
   // Refresh when switching tabs
@@ -520,13 +520,13 @@ export default function ProfileScreen() {
 
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (_error) {} }}
+          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
           style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
           <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'posts' && { color: theme.text } ]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
         </Pressable>
         <Pressable
-          onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch (_error) {} }}
+          onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch {} }}
           style={[styles.tab, activeTab === 'interactions' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
           <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'interactions' && { color: theme.text }]}>Interactions</Text>
