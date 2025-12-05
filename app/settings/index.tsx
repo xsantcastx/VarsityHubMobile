@@ -142,9 +142,9 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
               const setOB = obCtx?.setState ?? null;
               const colorScheme = useColorScheme();
               const { themePreference, setThemePreference } = useThemePreference();
-              const [loading, setLoading] = useState(true);
+              const [_loading, setLoading] = useState(true);
               const [error, setError] = useState<string | null>(null);
-              const [email, setEmail] = useState<string | null>(null);
+              const [_email, setEmail] = useState<string | null>(null);
               const [prefs, setPrefs] = useState<Preferences>({
                 notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
                 is_parent: false,
@@ -159,7 +159,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
 
               useEffect(() => {
                 let mounted = true;
-                (async () => {
+                void (async () => {
                   setLoading(true);
                   setError(null);
                   try {
@@ -219,8 +219,9 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   timers.current[key] = setTimeout(async () => {
                     try {
                       await User.updatePreferences(newPrefs);
-                    } catch (e) {
-                      console.warn('Failed to patch prefs', e);
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    } catch (_e: any) {
+                      // Error handled via Alert below
                       // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
                     }
@@ -249,12 +250,15 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                   } as any;
 
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
-                  try { await User.updatePreferences({ onboarding_completed: false }); } catch (e) { /* ignore */ }
-                  if (setOB) setOB(preload);
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_e: any) { /* ignore */ }
+                  if (setOB) void setOB(preload);
                   router.replace('/onboarding/step-1-role');
-                } catch (e) {
-                  console.warn('Failed to preload onboarding, falling back to simple restart', e);
-                  try { await User.updatePreferences({ onboarding_completed: false }); } catch (_error) {}
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                } catch (_e: any) {
+                  // Error in onboarding restart - try fallback
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_error: any) {}
                   router.replace('/onboarding');
                 }
               };
@@ -410,14 +414,16 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                         Alert.alert('Log out', 'Are you sure you want to log out?', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Log Out', style: 'destructive', onPress: async () => {
-                            try { await User.logout(); } catch (_error) {}
-                            try { obCtx?.clearOnboarding?.(); } catch (_error) { /* ignore */ }
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            try { await User.logout(); } catch (_error: any) {}
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            try { obCtx?.clearOnboarding?.(); } catch (_error: any) { /* ignore */ }
                             router.replace('/sign-in');
                           } },
                         ]);
                       }} />
                       <NavRow title="Delete Account" destructive onPress={() => {
-                        let input = '';
+                        let _input = '';
                         Alert.prompt?.('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Confirm', style: 'destructive', onPress: async (val) => {
@@ -427,11 +433,13 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                               const res = await fetch((process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') + '/users/me', { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                               const ok = res.ok;
                               if (!ok) throw new Error('Failed');
-                            } catch (e: any) {
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            } catch (_e: any) {
                               Alert.alert('Delete failed', 'Could not delete your account.');
                               return;
                             }
-                            try { await User.logout(); } catch (_error) {}
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            try { await User.logout(); } catch (_error: any) {}
                             router.replace('/sign-in');
                           }}
                         ], 'plain-text');
@@ -444,8 +452,10 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                               try {
                                 const res = await fetch((process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') + '/users/me', { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                                 if (!res.ok) throw new Error('Failed');
-                              } catch (e: any) { Alert.alert('Delete failed', 'Could not delete your account.'); return; }
-                              try { await User.logout(); } catch (_error) {}
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                              } catch (_e: any) { Alert.alert('Delete failed', 'Could not delete your account.'); return; }
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                              try { await User.logout(); } catch (_error: any) {}
                               router.replace('/sign-in');
                             } },
                           ]);

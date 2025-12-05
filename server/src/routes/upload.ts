@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,9 +12,21 @@ const memory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-uploadRouter.post('/avatar', memory.single('file'), async (req: AuthedRequest, res) => {
+// SECURITY: Rate limit uploads per user (10 per hour) to prevent resource exhaustion
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 requests per windowMs
+  keyGenerator: (req) => (req as any).user?.id || req.ip,
+  skip: (req) => !(req as any).user, // Skip if not authenticated
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many uploads. Max 10 per hour.' });
+  },
+});
+
+uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
+  
   try {
     const ext = (req.file.mimetype && req.file.mimetype.includes('png')) ? '.png' : '.jpg';
     const name = `${req.user.id}_${Date.now()}${ext}`;

@@ -342,7 +342,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).send('Webhook Error: Invalid signature');
   }
 
   if (event.type === 'checkout.session.completed') {
