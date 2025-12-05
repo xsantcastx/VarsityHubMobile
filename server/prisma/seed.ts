@@ -7,7 +7,12 @@ const prisma = new PrismaClient();
 async function main() {
   // --- Users ---
   // Use environment variable for seed password, fallback for local dev only
-  const seedPassword = process.env.SEED_PASSWORD || 'Password123!';
+  // WARNING: Never commit real passwords - always use environment variables in production
+  const seedPassword = process.env.SEED_PASSWORD;
+  if (!seedPassword) {
+    console.error('SEED_PASSWORD environment variable is required');
+    process.exit(1);
+  }
   const password_hash = await bcrypt.hash(seedPassword, 10);
 
   const u1 = await prisma.user.upsert({

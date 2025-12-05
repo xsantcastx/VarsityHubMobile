@@ -123,6 +123,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
 export async function sendTeamInviteEmail(params: {
   to: string;
   teamName: string;
+  recipientName?: string;
   organizationName?: string | null;
   role?: string;
   inviterName?: string;
@@ -143,6 +144,7 @@ export async function sendTeamInviteEmail(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.TEAM_INVITE,
       dynamicTemplateData: {
+        recipient_name: params.recipientName || '',
         team_name: params.teamName,
         org_name: params.organizationName || '',
         role: prettyRole,

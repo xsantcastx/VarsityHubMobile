@@ -950,13 +950,18 @@ export default function ManageSeasonScreen() {
         visible={actionModal.visible}
         title={actionModal.title}
         message={actionModal.message}
-        options={actionModal.options.map(opt => ({
-          ...opt,
-          onPress: () => {
-            setActionModal(a => ({ ...a, visible: false }));
-            setTimeout(opt.onPress, 150);
-          },
-        }))}
+        options={actionModal.options.map(opt => {
+          // Validate onPress is a function to prevent code injection
+          const handler = typeof opt.onPress === 'function' ? opt.onPress : () => {};
+          return {
+            ...opt,
+            onPress: () => {
+              setActionModal(a => ({ ...a, visible: false }));
+              // Safe execution with 150ms delay
+              setTimeout(() => handler(), 150);
+            },
+          };
+        })}
         onClose={() => setActionModal(a => ({ ...a, visible: false }))}
       />
 

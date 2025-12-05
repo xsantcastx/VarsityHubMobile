@@ -2,7 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { clearAuthToken, getAuthToken, httpGet, httpPost, httpPostLongTimeout, setAuthToken } from './http';
 
-const TOKEN_KEY = 'vh_access_token';
+// Storage key for authentication token (not a secret itself, just a key name)
+const TOKEN_KEY = 'auth_token_key';
 
 async function saveToken(token: string | null) {
   setAuthToken(token);
