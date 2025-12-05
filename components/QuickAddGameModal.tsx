@@ -118,6 +118,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [gameType, setGameType] = useState<'home' | 'away'>('home');
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const viewShotRef = useRef<any>(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [editingImageUri, setEditingImageUri] = useState<string | null>(null);
   const [editorVisible, setEditorVisible] = useState(false);
@@ -373,6 +374,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
         // No custom banner, competitive game - try to capture the auto-generated preview and upload
         if (viewShotRef.current) {
           try {
+            setUploadingBanner(true);
             const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
             const uploaded = await uploadFile(getApiBaseUrl(), uri, 'match-banner.png', 'image/png');
             const url = uploaded?.url || uploaded?.path || null;
@@ -382,6 +384,8 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             }
           } catch (e) {
             console.warn('Banner capture/upload failed, continuing without banner', e);
+          } finally {
+            setUploadingBanner(false);
           }
         }
       }
@@ -879,7 +883,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                     <Pressable 
                       style={[styles.mapsLinkButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
                       onPress={() => {
-                        // const url = `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`;
+                        const url = `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`;
                         // Open in browser or maps app
                         Alert.alert('Open in Maps', 'This will open Google Maps', [
                           { text: 'Cancel', style: 'cancel' },
