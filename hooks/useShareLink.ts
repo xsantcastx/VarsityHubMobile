@@ -35,19 +35,19 @@ const formatLink = (options: ShareLinkOptions): ShareableLink | null => {
 };
 
 export function useShareLink(options: ShareLinkOptions) {
-  const link = useMemo(() => formatLink(options), [
-    options.caption,
-    options.id,
-    options.kind,
-    options.title,
-  ]);
+  const { caption, id, kind, title, contextLines } = options;
+
+  const link = useMemo(
+    () => formatLink({ caption, id, kind, title }),
+    [caption, id, kind, title],
+  );
 
   const contextMessage = useMemo(() => {
     if (!link) return '';
-    const lines = (options.contextLines || []).filter(Boolean) as string[];
+    const lines = (contextLines || []).filter(Boolean) as string[];
     if (!lines.length) return link.shareMessage;
     return `${lines.join('\n')}\n${link.shareMessage}`;
-  }, [link, options.contextLines]);
+  }, [link, contextLines]);
 
   const copyLink = useCallback(
     async (silent = false) => {
@@ -75,14 +75,14 @@ export function useShareLink(options: ShareLinkOptions) {
       await Share.share({
         message: contextMessage || link.shareMessage,
         url: link.webUrl,
-        title: options.title || link.webUrl,
+        title: title || link.webUrl,
       });
     } catch (error) {
       console.warn('[share] Failed to open share sheet', error);
       await copyLink(true);
       Alert.alert('Share unavailable', 'Link copied to clipboard so you can paste it manually.');
     }
-  }, [contextMessage, copyLink, link, options.title]);
+  }, [contextMessage, copyLink, link, title]);
 
   return {
     share,
