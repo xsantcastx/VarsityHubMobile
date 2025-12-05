@@ -1,0 +1,50 @@
+
+> varsityhubmobile@1.0.1 lint:strict
+> expo lint --fix && npm run typecheck
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/(tabs)/discover/mobile-community.tsx
+   80:11  warning  'location' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  172:16  warning  '_error' is defined but never used                                                           @typescript-eslint/no-unused-vars
+  463:19  warning  'gamesOnDate' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  692:34  warning  '_error' is defined but never used                                                           @typescript-eslint/no-unused-vars
+  814:19  warning  'eventsWithCoords' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/(tabs)/notifications/index.tsx
+  77:14  warning  '_error' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/ad-calendar.tsx
+  173:16  warning  '_error' is defined but never used                                                 @typescript-eslint/no-unused-vars
+  482:25  warning  'result' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/billing.tsx
+  27:16  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+  33:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/blocked-users.tsx
+  27:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBanner.tsx
+   47:10  warning  'leftMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+   48:10  warning  'rightMeasured' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                            @typescript-eslint/no-unused-vars
+   61:16  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+   64:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   71:49  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+  137:9   warning  'topBarHeight' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                             @typescript-eslint/no-unused-vars
+  142:9   warning  'rightRotate' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                              @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBannerCapture.tsx
+  4:36  warning  'Platform' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/components/MatchBannerLottie.tsx
+  21:73  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+  27:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  32:76  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+  34:16  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+  35:75  warning  '_error' is defined but never used                                                                                                                                  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/app/create-collage.tsx
+  60:18  warning  'setGutter' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  61:18  warning  'setRadius' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars

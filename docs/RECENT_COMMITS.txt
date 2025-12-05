@@ -1,0 +1,113 @@
+9c5d6a3 trigger: Run Snyk security scan + Sentry integration test
+97a31a4 Integrate Snyk + Sentry for unified security and error monitoring
+f65307d refactor: Organize repository structure into logical folders
+4076e4f Overnight automation: All 6 tasks completed (lint + API + build + security + E2E + results)
+4f1a4fa Clean: Fix easy-win component warnings (385→361)
+35d5207 Fix: Update Google OAuth credentials with production varsityhub.app URIs
+d7a1af5 Fix: Restore Google sign-in to working state
+5122e7c Test: Overnight API validation - 82+ endpoints passed
+da983ef Fix: Clean up hooks - remove console logs, unused params, floating promises, optimize deps
+307852d Add: Payment QA Quick Start - Reference guide for Phase 2D Flow 7
+2ffe4a9 Fix: Update test script to use 'smtp' instead of 'sendgrid' in health check
+e5c8052 docs: Add Flow 7 Payment Integration - Quick Reference card
+0f49357 docs: Add comprehensive payment security & notifications verification
+98296db docs: Add comprehensive 6-phase launch action plan addressing all gaps
+c7801c2 fix: remove sentry-expo to eliminate vulnerable dependency chain
+0038804 fix: reduce ESLint violations in profile, user-profile, and settings
+cb2ab9a docs: add comprehensive Snyk integration verification guide
+e1876b1 chore: consolidate SNYK_TOKEN to job-level env blocks
+8c7a480 docs: add comprehensive cleanup session summary
+fd15aa4 fix: resolve TypeScript parse error in GameDetailsScreen
+a235478 chore: lint cleanup - remove console logs, fix floating promises, fix React hooks violations
+2a336ba Security: Add comprehensive security framework & continuous monitoring
+f04639e Security: Upgrade sentry-expo to 7.1.1 for CVE fixes
+05488c9 Config: Add Sentry and Snyk to VS Code extension recommendations
+948fa34 Final: Production hardening complete (A+ ready)
+dab7245 Update: Log latest hardening (Create Post, Highlights, Organization fixes)
+386f605 Doc: Comprehensive hardening verification guide (A+ ready)
+8293ebd Hardening: Fix critical logic gaps in Create Post, Highlights, and Organization fetching
+b5ca0ac Fix: Critical logic gaps in social screens (Event, Team, Organization)
+c21223b Fix: Prevent crash when uploading stories
+68e16cc Add: QA Quick Commands Reference
+fa3da38 Summary: Complete Day 3 QA launch readiness
+9d12333 Ready: Day 3 QA documentation complete
+5c82ccb Fix: Simplify iOS video/image upload URI handling
+9d86f07 Fix: Video upload on iOS using MediaLibrary to convert ph:// URIs to file:// paths
+42d94ec Fix: Restore all catch block error parameters (TypeScript errors resolved)
+a2c3bc5 Plan: Comprehensive Android + overnight testing options (API, Lint, E2E, Hybrid)
+48cc294 Ready: Day 3 QA locked - 0 TypeScript errors, all tools configured, 6-8 hour plan ready
+02ea250 Fix: Restore TypeScript error parameters to catch blocks in 43 files
+db934a2 Confirm: All .vscode/ configs verified and staged for activation
+5aecaa5 Lock: Day 2 Final Status - 86% launch ready, all paths documented
+07c32c5 Add: Complete Documentation Index - master reference for all 50+ guides
+6b93deb Add: Comprehensive Launch Dashboard - 86% ready, Day 3 & 4 plans documented
+69fbb8b Final: Day 2 Wrap-up & Day 3 Readiness - 86% launch ready, QA checklist prepared
+db4b33b Add: Extensions Setup Complete - auto-configuration ready for use
+5df6163 Setup: Auto-configured VS Code extensions with .vscode config files
+c5c9044 Add: Extension Status Report - 1 of 6 working, 5 need installation
+058d1ca Final: Day 2 Executive Summary - 400 warnings, toolkit ready, launch-capable
+a8dc8aa Add: Comprehensive Developer Efficiency Toolkit for Days 2-4
+8a12d45 Day 2 Final: Safe Lint Reduction - 456 → 400 warnings (-56, -12%)
+0744aed Day 2: Additional lint fixes - 422 → 405 warnings (-17)
+f097f70 Day 2: Lint reduction progress - 456 → 422 warnings (-34)
+c882aef Fix: Production Readiness Check workflow artifact upload
+b5468e2 docs: Add Day 2 Quick Start guide
+7636724 docs: Add Publishing Path Execution Summary
+59b2310 Day 0-1: Publishing Path Implementation & Observability Lock-In
+e687d2e docs: Day 7 monitoring template for 24-hour post-deployment tracking
+9f67433 docs: 7-day launch week tracker and event/share hardening checklist
+e04212e docs: Phase 1 runbook - step-by-step secrets configuration guide
+0cd57a6 docs: comprehensive auth, roles, and coach features test plan
+391c9ab docs: add interactive launch checklist for Phase 1-3 execution
+31cc52f feat: add test script stub to package.json for CI compatibility
+7f6be4f docs: launch readiness summary - all ship blockers complete
+dc33e2a docs: ship blockers completion summary
+c27eb43 docs: add production secrets setup and critical flows testing guide
+5d372ab feat: email verification integration with SendGrid health check
+25ffde1 Fix iOS video upload by using legacy:false in ImagePicker
+ec99cb1 Add comprehensive video upload fix documentation
+8a05d46 Fix video story upload from iOS PhotoKit by configuring ImagePicker for file paths
+f758f52 Add comprehensive unified auth flow documentation
+ddf3368 Unify auth flow: all paths use checkAuth() with centralized AuthProvider routing
+4165f1f chore(sentry): guard init on invalid DSN; docs and .env guidance; fix retryWithBackoff options in GameDetails; align org join request helper usage
+2ca6178 ui(game-details): Add top margin to title and move Teams section after Posts for better layout
+a1e9fbf docs(railway): Add concise checklist; align builder with Dockerfile; add macOS CLI steps
+42b9ebb feat(game-details): Add retryWithBackoff to votes (summary/cast/clear) and RSVP flows for full resilience
+21af32e feat(game-details): Wrap Event.get and rsvpStatus with retryWithBackoff for consistent resilience
+f6c4163 feat(game-details): Add exponential backoff to Game.summary/Game.get calls for resilience
+a7ec842 fix(game-details): Use vm.teams for logos, add appearance to GameVM, and bail on missing game
+9c74445 docs: Add production grade A- achievement summary
+a260e8c feat: Add production polish (B+ → A-)
+0d5b784 CRITICAL: Fix production routing and auth issues (Grade C+ → B+)
+b9afa81 Day 1 complete: Overnight lint cleanup + manual fixes
+1ccc5b8 Integrate SendGrid Dynamic Templates for branded emails
+3cc24c7 temp: enable test endpoints in production for verification
+aa57ed2 feat: add production integration test endpoints (email/SMS/Sentry)
+aefa6c5 chore: runtime DB URL diagnostic + doc host update
+17435b1 force rebuild
+1326dd5 fix: add build context to railway.toml
+e84e91b chore: Railway runbook, verify script; dev fallback; start.sh DB logging
+346745e health: return 503 when DB unreachable; add Prisma SELECT 1 readiness check
+c4a83ec startup: add Prisma migrate retry loop for Railway DB readiness
+a4d410c Production readiness fixes: ESLint config, Android API 33+ permissions, tighten ATS, gate debug logs, fix router types
+3107faf Fix Railway build: use repo root as build context
+87008fe Fix Dockerfile paths for Railway build context
+4d5f8f1 Add Privacy Policy and Terms of Service HTML for GitHub Pages
+17cfa55 fix: copy start script from repo root
+d3d88f2 fix: build server assets from repo root
+4b0f53a chore: move Railway start script
+b617934 feat: make start.sh executable
+0490a10 feat: Overhaul seed data and implement admin event creation
+5ed32d2 fix: Configure server and enable login
+abc7da5 feat: Configure project for development build
+22d252b feat: overhaul onboarding and notifications
+e11d57a Security improvements: add rate limiting, email sanitization, remove sensitive logging, implement trophy/medal emblems, fix TypeScript errors
+4ec1c22 Fix build errors and add health check endpoint
+04ce780 feat: Add Apple Sign In with simulator support and onboarding back button
+c9c7e40 Fix event approvals: Fix API endpoints and add approval_status filtering
+4bc63c2 feat: Implement role-based Quick Actions and fix iOS OAuth client ID
+190da1c fix: Remove merge conflict markers and update settings screens
+d6de797 Merge release/v1.2.0 - VarsityHub Mobile v1.2.0
+fdc4e4b Merge branch 'feature/changes' into develope
+3a23275 feat: Add horizontal swipe navigation to post-detail screen
+0f055fd fixed size
