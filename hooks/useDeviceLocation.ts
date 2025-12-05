@@ -84,7 +84,6 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       // Check cache first
       const now = Date.now();
       if (location && now - lastFetchTime < CACHE_DURATION_MS) {
-        if (__DEV__) console.log('[location] Using cached location');
         setLoading(false);
         return;
       }
@@ -93,7 +92,6 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       const lastKnown = await Location.getLastKnownPositionAsync();
       if (lastKnown?.coords && (now - (lastKnown.timestamp || 0)) < 30 * 60 * 1000) {
         // Last known is less than 30 minutes old
-        if (__DEV__) console.log('[location] Using last known position');
         assignLocation(lastKnown.coords, lastKnown.timestamp);
         setLastFetchTime(now);
         setLoading(false);
@@ -101,7 +99,6 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       }
 
       // Get fresh position with balanced accuracy
-      if (__DEV__) console.log('[location] Fetching fresh location...');
       const fresh = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -130,16 +127,16 @@ export function useDeviceLocation(): UseDeviceLocationResult {
 
         if (granted) {
           setAccuracyMeters(null);
-          await fetchLocation();
+          void fetchLocation();
         } else {
           setLoading(false);
         }
-      } catch (e) {
+      } catch {
         setError('Failed to check location permissions');
         setLoading(false);
       }
     })();
-  }, []);
+  }, [fetchLocation]);
 
   const openSettings = async () => {
     if (typeof Linking.openSettings !== 'function') return;

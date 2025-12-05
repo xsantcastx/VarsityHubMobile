@@ -25,7 +25,6 @@ function storageKeyForUser(userId?: string | null) {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemColorScheme = useSystemColorScheme();
   const [themePreference, setThemePreferenceState] = useState<ColorScheme>('system');
-  const [isLoaded, setIsLoaded] = useState(false);
   const currentStorageKey = useRef<string>(storageKeyForUser(null));
 
   // Load theme preference from storage on app start
@@ -38,7 +37,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         let me: any = null;
         try {
           me = await User.me();
-        } catch (_) {
+        } catch {
           me = null;
         }
         const key = storageKeyForUser(me?.id ?? me?.user_id ?? null);
@@ -49,8 +48,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.warn('Failed to load theme preference:', error);
-      } finally {
-        if (mounted) setIsLoaded(true);
       }
     };
     loadTheme();

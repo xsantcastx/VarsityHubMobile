@@ -62,7 +62,6 @@ export function useAppleAuth() {
 
           const code = String(appleErr?.code || '').toLowerCase();
           const msg = String(appleErr?.message || '').toLowerCase();
-          const isUnknown = code.includes('unknown') || msg.includes('unknown');
           const isCanceled = code.includes('canceled') || msg.includes('canceled') || msg.includes('cancelled');
 
           if (isCanceled) throw appleErr; // propagate cancel handling
