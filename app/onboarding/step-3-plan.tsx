@@ -274,7 +274,6 @@ export default function Step3Plan() {
         navigateNext();
       } catch (err: any) {
         console.warn('Failed to start subscription checkout for plan:', err);
-        console.log('Error details:', { status: err?.status, message: err?.message, data: err?.data });
         
         // Check for email verification required error in multiple ways
         const isEmailVerificationError = 
@@ -283,11 +282,9 @@ export default function Step3Plan() {
           (err && err.data && err.data.error && err.data.error.toLowerCase().includes('verification')) || // Server error response
           (err && String(err).toLowerCase().includes('verification')); // Fallback check
           
-        console.log('Is email verification error:', isEmailVerificationError);
           
         if (isEmailVerificationError) {
           // Show email verification modal instead of just showing an alert
-          console.log('Showing email verification modal...');
           setShowVerifyModal(true);
           return; // Don't navigate to next step when showing verification modal
         } else if (err && err.data && err.data.error) {

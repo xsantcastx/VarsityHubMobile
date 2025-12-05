@@ -30,6 +30,7 @@ export default function RoleOnboardingScreen() {
   const [showCoachTierSelection, setShowCoachTierSelection] = useState(false);
   const logTelemetry = (event: string, data?: Record<string, unknown>) => {
     try {
+      console.log('[telemetry] role-onboarding:', event, data ?? '');
     } catch (_error) {
       // ignore logging failures
     }

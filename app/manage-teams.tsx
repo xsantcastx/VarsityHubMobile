@@ -73,7 +73,6 @@ export default function ManageTeamsSimpleScreen() {
         const me: any = await User.me();
         const role = me?.preferences?.role;
         if (role !== 'coach') {
-          console.log('[telemetry] manage-teams: non-coach blocked', { role });
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.replace('/(tabs)');
         }
@@ -215,7 +214,6 @@ export default function ManageTeamsSimpleScreen() {
         gamePayload.appearance = data.appearance;
       }
 
-      console.log('manage-teams sending gamePayload:', JSON.stringify(gamePayload, null, 2));
 
       // Create game using the API
       const newGame = await GameApi.create(gamePayload);

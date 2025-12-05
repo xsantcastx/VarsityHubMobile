@@ -149,7 +149,6 @@ export default function Step1Role() {
         try {
           const me: any = await User.me();
           // eslint-disable-next-line no-console
-          console.debug('[Onboarding][Step1] server prefs after update', me?.preferences);
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
           if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
         } catch (e) {
@@ -162,7 +161,6 @@ export default function Step1Role() {
       }
       try {
         // eslint-disable-next-line no-console
-        console.debug('[Onboarding][Step1] onContinue set role', { role });
       } catch (_error) {}
       
       // If we came from confirmation, go back there

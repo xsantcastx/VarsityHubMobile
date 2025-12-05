@@ -35,7 +35,6 @@ export default function VerifyEmailScreen() {
     if (params.devCode) {
       setDevCode(params.devCode);
       setCode(params.devCode);
-      console.log('[verify-email] Dev code loaded from params:', params.devCode);
     }
   }, [params.devCode]);
 
@@ -66,9 +65,7 @@ export default function VerifyEmailScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      console.log('[verify-email] Attempting to verify with code:', code.trim());
       const result = await User.verifyEmail(code.trim());
-      console.log('[verify-email] Verification result:', result);
       setInfo('✅ Email verified successfully!');
       setCode(''); // Clear the code input
       setIsVerified(true);
@@ -102,9 +99,7 @@ export default function VerifyEmailScreen() {
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
     try {
-      console.log('[verify-email] Requesting new verification code...');
       const res: any = await User.requestVerification();
-      console.log('[verify-email] Resend response:', res);
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
       console.error('[verify-email] Resend failed:', e);
@@ -116,7 +111,6 @@ export default function VerifyEmailScreen() {
   };
 
   const onContinue = async () => {
-    console.log('[verify-email] User clicked Continue, proceeding immediately...');
     // No need to manually route - AuthProvider will detect user state and redirect
     router.replace('/(tabs)/feed' as any);
   };

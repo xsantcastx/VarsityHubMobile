@@ -11,7 +11,6 @@ export default function OnboardingIndex() {
   useEffect(() => { 
     // Don't navigate until AsyncStorage has loaded
     if (!isLoaded || hasNavigated) {
-      console.log('[OnboardingIndex] Waiting... isLoaded:', isLoaded, 'hasNavigated:', hasNavigated);
       return;
     }
     
@@ -32,7 +31,6 @@ export default function OnboardingIndex() {
     // Progress is 0-based index, so progress=8 means step 10
     const targetRoute = stepRoutes[progress] || stepRoutes[0];
     
-    console.log('[OnboardingIndex] Navigating to:', targetRoute, 'Progress:', progress, 'State:', JSON.stringify(state).substring(0, 200));
     
     setHasNavigated(true);
     router.replace(targetRoute as any);

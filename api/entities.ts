@@ -68,6 +68,7 @@ export const Game = {
       limit?: number;
       lat?: number;
       lng?: number;
+      distance?: number;
       dateFrom?: string;
       dateTo?: string;
       approvalStatus?: 'pending' | 'approved' | 'rejected';
@@ -79,6 +80,7 @@ export const Game = {
     if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
     if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
     if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
+    if (typeof options?.distance === 'number') params.push(`distance=${encodeURIComponent(String(options.distance))}`);
     if (options?.dateFrom) params.push(`from=${encodeURIComponent(options.dateFrom)}`);
     if (options?.dateTo) params.push(`to=${encodeURIComponent(options.dateTo)}`);
     if (options?.approvalStatus) params.push(`approval_status=${encodeURIComponent(options.approvalStatus)}`);

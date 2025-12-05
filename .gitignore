@@ -66,3 +66,6 @@ server/.env.railway.api
 app-example
 
 .vercel
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

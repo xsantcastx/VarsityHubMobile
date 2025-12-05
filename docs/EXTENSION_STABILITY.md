@@ -1,0 +1,21 @@
+## VS Code Extension Stability Review
+
+| Extension ID | Purpose in workspace | Configuration reference | Current status | Notes / Next steps |
+|--------------|---------------------|--------------------------|----------------|--------------------|
+| `sentry.sentry` | Provides inline Sentry issue context and DSN-driven debugging. | `.vscode/settings.json:7-10` uses `${env:SENTRY_DSN}` so no credentials are stored in the repo. | ✅ Enabled and stable. Only relies on env vars provided locally. | Keep local `SENTRY_DSN` scoped to non-production projects when possible. |
+| `rangav.vscode-thunder-client` | Lightweight REST client for hitting VarsityHub APIs. | `.vscode/thunder-client.json:1-44` lists three requests hitting the Railway production API. | ✅ Working as exported. No secrets are baked in—auth token uses `env.TOKEN`. | Rotate `env.TOKEN` regularly and avoid exporting new collections with embedded tokens. |
+| `github.vscode-github-actions` | Surfacing workflow runs and logs. | No repo-specific config; relies on VS Code settings. | ✅ Stable—no logs/errors recorded in repo. | Ensure GitHub auth scopes stay minimal (read-only workflow). |
+| `ms-azuretools.vscode-docker` | Dockerfile/docker-compose tooling. | No repo overrides. | ✅ Idle unless you open the Docker view. | Safe to keep installed; no background network calls without Docker contexts configured. |
+| `msjsdiag.vscode-react-native` | Debugger & commands for React Native CLI. | `.vscode/launch.json:18-33` defines iOS/Android launch configs that rely on this extension. | ✅ Functional; no custom scripts. | When executing, confirm Metro bundler is running to avoid stale sessions. |
+| `expo.vscode-expo-tools` | Expo CLI helper (snippets, device picker). | `.vscode/launch.json:34-43` references `node_modules/expo/bin/expo.js`. | ✅ Stable as long as local Expo CLI is installed via npm/yarn. | Run `npx expo doctor` if the extension reports environment issues. |
+| `snyk-security.snyk-vulnerability-scanner` | SCA/SAST scans via VS Code language server. | `.vscode/settings.json:11-13` now disables it to avoid the `command 'snyk.navigateToRange' already exists` crash. | ⛔ Disabled per workspace to prevent instability. | If you need editor findings later: reinstall the latest extension, then set `snyk.enabled` back to `true`. In the meantime use CLI/CI (`npx snyk test`). |
+
+### How we verified stability
+1. Reviewed `.vscode/extensions.json:2-9` to ensure only expected first-party or widely-used extensions are recommended.
+2. Audited `.vscode/settings.json:7-24`, `.vscode/launch.json:1-43`, and `.vscode/thunder-client.json:1-44` for hidden commands, remote script hooks, or secrets—none found.
+3. Documented each extension’s role plus any required user actions (e.g., keeping environment tokens external).
+
+### Suggested follow-ups
+1. Run `Developer: Show Running Extensions` inside VS Code occasionally to confirm nothing unexpected activates.
+2. When enabling Snyk again, log out/in via the Command Palette so the language server can fetch your org ID instead of looping.
+3. Keep workspace recommendations minimal; if a future extension causes issues, add it here with its status so the team has a single source of truth.

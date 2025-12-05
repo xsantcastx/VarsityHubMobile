@@ -35,7 +35,6 @@ export function useProfilePosts(sort: 'newest' | 'most_upvoted' | 'most_commente
   const refresh = useCallback(async (userId: string) => {
     // Prevent concurrent requests
     if (requestInFlight.current) {
-      console.log('[useProfilePosts] Request already in flight, skipping');
       return;
     }
     

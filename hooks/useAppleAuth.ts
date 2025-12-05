@@ -22,8 +22,6 @@ export function useAppleAuth() {
     setError(null);
     setLoading(true);
     try {
-      console.log('[Apple Auth] Starting Apple sign in...');
-      console.log('[Apple Auth] Calling AppleAuthentication.signInAsync...');
       
       // Determine availability: if Apple Sign In isn't available (e.g., Simulator),
       // fall back to a mock credential to allow local dev flows.
@@ -31,7 +29,6 @@ export function useAppleAuth() {
       
       let credential;
       if (isSimulator) {
-        console.log('[Apple Auth] SIMULATOR MODE - using mock credential');
         // Create a mock credential for testing
         credential = {
           user: 'sim-test-user-' + Date.now(),
@@ -72,7 +69,6 @@ export function useAppleAuth() {
 
           // Second attempt: retry with no scopes (sometimes fixes unknown auth errors)
           try {
-            console.log('[Apple Auth] Retrying Apple sign in with no scopes...');
             credential = await attemptNativeSignIn([]);
           } catch (retryErr: any) {
             console.error('[Apple Auth] signInAsync retry error (no scopes):', {
@@ -84,7 +80,6 @@ export function useAppleAuth() {
           }
         }
       }
-      console.log('[Apple Auth] Got credential:', { user: credential.user, hasToken: !!credential.identityToken });
 
       // Prefer identityToken. In Simulator this can be null; fall back to authorizationCode
       // or a stable dev-only token derived from credential.user so local auth works.
@@ -94,7 +89,6 @@ export function useAppleAuth() {
         throw new Error('Apple sign-in did not provide a token');
       }
 
-      console.log('[Apple Auth] Sending token to backend...');
       // Send token to your backend (mock accepts any non-empty string in dev)
       // Retry logic for network issues and timeouts
       let res: any = null;
@@ -104,7 +98,6 @@ export function useAppleAuth() {
       while (attempts < maxAttempts) {
         try {
           res = await User.loginViaApple(identityToken);
-          console.log('[Apple Auth] Backend response:', { hasToken: !!res?.access_token, needsOnboarding: res?.needs_onboarding });
           break;
         } catch (networkErr: any) {
           attempts++;
@@ -116,7 +109,6 @@ export function useAppleAuth() {
             networkErr?.status === 0;
           
           if (isRetryable && attempts < maxAttempts) {
-            console.log(`[Apple Auth] Retryable error (${networkErr?.message}), retry ${attempts}/${maxAttempts}...`);
             await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
           } else {
             console.error('[Apple Auth] Non-retryable error or max attempts reached');
@@ -136,11 +128,9 @@ export function useAppleAuth() {
       // Dev-only fallback: if native Apple auth fails on device, use mock token path
       if (__DEV__ && Platform.OS === 'ios') {
         try {
-          console.log('[Apple Auth] Dev fallback: attempting server login with sim token...');
           const devToken = `sim-device-${Date.now()}`;
           const res = await User.loginViaApple(devToken);
           if (res?.access_token) {
-            console.log('[Apple Auth] Dev fallback succeeded');
             return res as any;
           }
         } catch (fallbackErr) {

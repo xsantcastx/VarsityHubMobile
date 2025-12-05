@@ -35,7 +35,6 @@ export default function UserProfileScreen() {
 
   const load = useCallback(async () => {
     if (!params.id) { setError('No user id'); setLoading(false); return; }
-    console.log('Loading user profile for id:', params.id);
     setLoading(true); setError(null);
     try {
       // Fetch current user and the public profile for target id
@@ -51,7 +50,6 @@ export default function UserProfileScreen() {
         setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
       } catch (_error) {}
       const u = await User.getPublic(String(params.id));
-      console.log('Loaded user profile:', u);
       setUser(u);
       const page = await User.postsForProfile(String(params.id), { limit: 10, sort: 'newest' });
       setPosts(page.items || []);

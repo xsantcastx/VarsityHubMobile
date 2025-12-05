@@ -75,6 +75,7 @@ export default function CreatePostScreen() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
+  const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
 
   // Rotate placeholder prompts
   useEffect(() => {
@@ -120,7 +121,10 @@ export default function CreatePostScreen() {
   // Auto-suggest nearest event based on time and location
   // Backend already filters by distance/date, limits to ~10 candidates for efficiency
   useEffect(() => {
-    if (hasAutoSuggested || selectedGameId) return;
+    if (selectedGameId || hasAutoSuggested) return;
+
+    // If we have permission but no coordinates yet, wait before attempting auto-suggest
+    if (permissionGranted && !locationReady) return;
     
     (async () => {
       try {
@@ -134,7 +138,7 @@ export default function CreatePostScreen() {
           dateFrom: now.toISOString(),
           dateTo: sevenDaysLater.toISOString(),
         };
-        if (location?.latitude && location?.longitude) {
+        if (locationReady && location?.latitude && location?.longitude) {
           options.lat = location.latitude;
           options.lng = location.longitude;
           options.distance = 50;
@@ -165,7 +169,7 @@ export default function CreatePostScreen() {
         setHasAutoSuggested(true);
       }
     })();
-  }, [location?.latitude, location?.longitude, selectedGameId, hasAutoSuggested]);
+  }, [locationReady, permissionGranted, selectedGameId, hasAutoSuggested, location?.latitude, location?.longitude]);
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
     const r = await ImagePicker.launchImageLibraryAsync({

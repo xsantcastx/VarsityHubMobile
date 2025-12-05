@@ -103,21 +103,17 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   }, []);
   const onNavLeft = useCallback(() => {
     if (Date.now() < skipTapUntil.current) return;
-    console.log('⬅️ Left navigation triggered');
     goPrev();
   }, [goPrev]);
   const onNavRight = useCallback(() => {
     if (Date.now() < skipTapUntil.current) return;
-    console.log('➡️ Right navigation triggered');
     goNext();
   }, [goNext]);
 
   // Handle delete story
   const handleDelete = useCallback(async () => {
-    console.log('🗑️ DELETE BUTTON PRESSED!');
     const item = items[current];
     if (!item || !gameId || deleting) {
-      console.log('Delete aborted:', { hasItem: !!item, hasGameId: !!gameId, deleting });
       return;
     }
 
@@ -130,27 +126,22 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            console.log('Delete confirmed, deleting story:', item.id);
             setDeleting(true);
             try {
               await Game.deleteMedia(gameId, item.id);
-              console.log('Story deleted successfully');
               // Call parent's onDelete callback if provided
               if (onDelete) {
                 onDelete(item.id);
               }
               // If this was the last item, close the viewer
               if (items.length === 1) {
-                console.log('Last story deleted, closing viewer');
                 // Defer onClose to avoid setState during render
                 setTimeout(() => onClose(), 0);
               } else {
                 // Move to next item or previous if at the end
                 if (current >= items.length - 1) {
-                  console.log('Moving to previous story');
                   goPrev();
                 } else {
-                  console.log('Moving to next story');
                   goNext();
                 }
               }
@@ -216,7 +207,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   
   // Debug logging
   if (__DEV__) {
-    console.log('StoriesViewer - Delete button check:', {
       currentUserId,
       itemUserId: item?.user_id,
       canDelete,
@@ -268,7 +258,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
             {showDeleteButton && (
               <Pressable 
                 onPress={(e) => {
-                  console.log('🗑️ Delete button onPress triggered');
                   e?.stopPropagation?.();
                   handleDelete();
                 }}
@@ -854,8 +843,6 @@ const GameDetailsScreen = () => {
         location = gameRecord.location || null;
         description = gameRecord.description || null;
         bannerCandidate = gameRecord.banner_url || null; // Check game banner_url first
-        console.log('Game record banner_url:', gameRecord.banner_url);
-        console.log('Banner candidate set to:', bannerCandidate);
         cover = gameRecord.cover_image_url || null;
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
@@ -1079,20 +1066,17 @@ const GameDetailsScreen = () => {
               }
               if (isSampleId(vm.gameId)) {
                 // Local-only story for sample games; do not call backend
-                console.log('[story] Camera - sample ID detected, adding locally only');
                 setVm((prev) => {
                   if (!prev) return prev;
                   const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
-                console.log('[story] Camera - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
                 await Game.addStory(vm.gameId, storyPayload);
-                console.log('[story] Camera - story registered successfully');
                 try {
                   await loadGameById(vm.gameId);
                   Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
@@ -1134,28 +1118,23 @@ const GameDetailsScreen = () => {
               const ensured = await (await import('../../utils/ensureUploadableUri')).ensureUploadableUri(uri, mimeType);
               uri = ensured.uri;
               
-              console.log('[story] Gallery - uploading to:', base + '/uploads', '| file:', fileName, '| mime:', mimeType);
               const uploaded = await uploadFile(base, uri, fileName, mimeType);
-              console.log('[story] Gallery - upload response:', uploaded);
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
               }
               if (isSampleId(vm.gameId)) {
-                console.log('[story] Gallery - sample ID detected, adding locally only');
                 setVm((prev) => {
                   if (!prev) return prev;
                   const newItem: MediaItem = { id: String(Date.now()), url: mediaUrl, kind: (mimeType?.startsWith('video') ? 'video' : 'photo') as any };
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
-                console.log('[story] Gallery - registering story with game:', vm.gameId, '| media_url:', mediaUrl);
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
                 await Game.addStory(vm.gameId, storyPayload);
-                console.log('[story] Gallery - story registered successfully');
                 try {
                   await loadGameById(vm.gameId);
                   Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');

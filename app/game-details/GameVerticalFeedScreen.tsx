@@ -520,7 +520,6 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     // which can otherwise trigger re-renders and lead to "maximum update depth" loops.
     _resetRunCount.current += 1;
     if (__DEV__) {
-      console.debug('GameVerticalFeedScreen.reset effect run', { run: _resetRunCount.current, gameId, usingInitial });
       if (_resetRunCount.current > 5) console.debug('GameVerticalFeedScreen reset effect executed repeatedly', { run: _resetRunCount.current, gameId, usingInitial });
     }
     setIfDifferent(setPosts, []);

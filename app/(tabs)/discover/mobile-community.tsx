@@ -98,6 +98,7 @@ export default function CommunityDiscoverScreen() {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
+  const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
   const showPrecisionBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
 
   const toFeedPost = useCallback((p: any): FeedPost => {
@@ -137,20 +138,10 @@ export default function CommunityDiscoverScreen() {
     setViewerOpen(true);
   }, [toFeedPost]);
 
-  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (!silent) setLoading(true);
-    setError(null);
+  const loadGames = useCallback(async (user: any) => {
     try {
-      let user: any = null;
-      try {
-        user = await User.me();
-        setMe(user);
-      } catch (err) {
-        if (__DEV__) console.warn('Discover load: unable to fetch user', err);
-      }
       const gamesData = await Game.list('-date');
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
-      // If user has a zip, prioritize games that mention it in location metadata
       const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
       if (zip) {
         const withZip: GameItem[] = [];
@@ -163,31 +154,37 @@ export default function CommunityDiscoverScreen() {
       }
       setGames(normalizedGames);
       setZipDirectory(buildZipDirectory(normalizedGames));
+    } catch (gameError) {
+      if (__DEV__) console.error('Discover load: failed to fetch games', gameError);
+      setError('Unable to load events right now. Pull to refresh to retry.');
+      setGames([]);
+      setZipDirectory([]);
+    }
+  }, []);
 
-      // Lightweight personalization: following posts preview and nearby people
+  const loadPersonalization = useCallback(async (user: any) => {
+    setPersonalizationNotice(null);
+    try {
+      let items: any[] = [];
       try {
-        // Use trending for Discover; fallback to latest on error
-        let items: any[] = [];
-        try {
-          const trending = await Post.trendingPage(undefined, 20);
-          items = Array.isArray(trending.items) ? trending.items : [];
-        } catch (_error) {
-          const postsPage = await Post.listPage(undefined, 20, '-created_date');
-          items = Array.isArray(postsPage.items) ? postsPage.items : [];
-        }
-        const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
-        const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
-        setFollowingPosts(followingOnly.slice(0, 12));
-        setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
-      } catch (_error) {}
+        const trending = await Post.trendingPage(undefined, 20);
+        items = Array.isArray(trending.items) ? trending.items : [];
+      } catch (_error) {
+        const postsPage = await Post.listPage(undefined, 20, '-created_date');
+        items = Array.isArray(postsPage.items) ? postsPage.items : [];
+      }
+      const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
+      const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
+      setFollowingPosts(followingOnly.slice(0, 12));
+      setDiscoverPosts((nonFollowing.length ? nonFollowing : items).slice(0, 12));
+
+      // Nearby people: prefer school/league if present, else zip
       try {
-        // Nearby people: prefer school/league if present, else zip
         const school = user?.preferences?.school || user?.school || null;
         const league = user?.preferences?.league || user?.league || null;
         const zipQ = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
         if (school || league) {
           const q = String(school || league);
-          // Use Team API allMembers as a proxy for school/league members if supported
           const members = await Team.allMembers(q);
           const arr = Array.isArray(members) ? members : (Array.isArray((members as any)?.items) ? (members as any).items : []);
           setNearbyPeople(arr.slice(0, 20));
@@ -198,16 +195,37 @@ export default function CommunityDiscoverScreen() {
         } else {
           setNearbyPeople([]);
         }
-      } catch (e) {}
-    } catch (e: any) {
-      if (__DEV__) console.error('Failed to load discover data', e);
-      setError('Unable to load discover. Sign in may be required.');
-      setGames([]);
-      setZipDirectory([]);
-    } finally {
-      if (!silent) setLoading(false);
+      } catch (peopleError) {
+        if (__DEV__) console.warn('Discover load: nearby people failed', peopleError);
+        setNearbyPeople([]);
+      }
+    } catch (personalizationError) {
+      if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
+      setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');
     }
   }, []);
+
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    setPersonalizationNotice(null);
+
+    let user: any = null;
+    try {
+      user = await User.me();
+      setMe(user);
+    } catch (err) {
+      if (__DEV__) console.warn('Discover load: unable to fetch user', err);
+      setMe(null);
+    }
+
+    await Promise.allSettled([
+      loadGames(user),
+      loadPersonalization(user),
+    ]);
+
+    if (!silent) setLoading(false);
+  }, [loadGames, loadPersonalization]);
 
   useEffect(() => {
     void load().catch(() => {});
@@ -627,6 +645,10 @@ export default function CommunityDiscoverScreen() {
         </Pressable>
       </View>
 
+      {personalizationNotice ? (
+        <Text style={[styles.noticeText, { color: Colors[colorScheme].mutedText }]}>{personalizationNotice}</Text>
+      ) : null}
+
       <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>{tab === 'following' ? 'From people you follow' : 'Discover new posts'}</Text>
       {(tab === 'following' ? followingPosts : discoverPosts).length === 0 ? (
         <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{tab === 'following' ? 'Follow people to see their posts here.' : 'New posts will appear here soon.'}</Text>
@@ -887,6 +909,7 @@ const styles = StyleSheet.create({
   center: { paddingVertical: 24, alignItems: 'center' },
   helper: { color: '#6b7280', marginBottom: 10 },
   mutedSmall: { color: '#6b7280', marginBottom: 10, fontSize: 12 },
+  noticeText: { fontSize: 13, marginBottom: 4 },
   sectionTitle: { fontWeight: '800', marginTop: 8 },
   error: { color: '#b91c1c', marginBottom: 8 },
   calendarSection: {

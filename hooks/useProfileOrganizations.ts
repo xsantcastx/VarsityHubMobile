@@ -1,5 +1,5 @@
 import { Organization, Team } from '@/api/entities';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface UseProfileOrganizationsResult {
   organizations: any[];
@@ -14,6 +14,7 @@ export interface UseProfileOrganizationsResult {
 export function useProfileOrganizations(userId: string | null | undefined): UseProfileOrganizationsResult {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const requestInFlight = useRef(false);
 
   useEffect(() => {
     if (!userId) {
@@ -25,6 +26,10 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
     const abortController = new AbortController();
 
     const loadOrganizations = async () => {
+      if (requestInFlight.current) {
+        return;
+      }
+      requestInFlight.current = true;
       setLoading(true);
 
       try {
@@ -105,6 +110,7 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
         console.error('[useProfileOrganizations] Failed to load organizations:', error);
         // Don't throw - just log and leave organizations empty
       } finally {
+        requestInFlight.current = false;
         if (!cancelled) {
           setLoading(false);
         }
@@ -116,6 +122,7 @@ export function useProfileOrganizations(userId: string | null | undefined): UseP
     return () => {
       cancelled = true;
       abortController.abort();
+      requestInFlight.current = false;
     };
   }, [userId]);
 
