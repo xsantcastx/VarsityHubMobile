@@ -4,13 +4,90 @@ import { sendBillingNoticeEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
-import { calculateStripeFee, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
+import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
 export const paymentsRouter = Router();
+
+const formatUsd = (cents?: number | null) => {
+  if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
+  return `$${(cents / 100).toFixed(2)}`;
+};
+
+async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
+  if (fallbackEmail && fallbackEmail.includes('@')) return fallbackEmail;
+  if (!userId) return null;
+  const user = await prisma.user.findUnique({ where: { id: String(userId) }, select: { email: true } });
+  return user?.email || null;
+}
+
+async function sendAdPaymentEmail({
+  userId,
+  fallbackEmail,
+  adId,
+  dates,
+  totalCents,
+}: {
+  userId?: string | null;
+  fallbackEmail?: string | null;
+  adId: string;
+  dates: string[];
+  totalCents?: number | null;
+}) {
+  const email = await getUserEmail(userId, fallbackEmail);
+  if (!email) return;
+  const amount = formatUsd(totalCents);
+  const perks = [
+    `Ad #${adId}`,
+    dates.length ? `Dates: ${dates.join(', ')}` : null,
+  ].filter(Boolean) as string[];
+  try {
+    await sendBillingNoticeEmail({
+      to: email,
+      type: 'payment_succeeded',
+      planName: 'Ad Reservation',
+      amount,
+      perks,
+    });
+  } catch (err) {
+    console.warn('[payments] Unable to send ad payment email:', (err as any)?.message || err);
+  }
+}
+
+async function sendSubscriptionEmail({
+  userId,
+  fallbackEmail,
+  plan,
+  totalCents,
+}: {
+  userId?: string | null;
+  fallbackEmail?: string | null;
+  plan: string;
+  totalCents?: number | null;
+}) {
+  const email = await getUserEmail(userId, fallbackEmail);
+  if (!email) return;
+  const planName = plan === 'veteran' ? 'Veteran Membership' : plan === 'legend' ? 'Legend Membership' : 'VarsityHub Subscription';
+  const perks = plan === 'veteran'
+    ? ['Add unlimited teams beyond the first two', 'Priority scheduling support']
+    : plan === 'legend'
+      ? ['Unlimited teams included', 'Annual discounted pricing']
+      : ['Premium access activated'];
+  try {
+    await sendBillingNoticeEmail({
+      to: email,
+      type: 'payment_succeeded',
+      planName,
+      amount: formatUsd(totalCents),
+      perks,
+    });
+  } catch (err) {
+    console.warn('[payments] Unable to send subscription email:', (err as any)?.message || err);
+  }
+}
 
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
@@ -764,6 +841,13 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
       const session = await stripe.checkout.sessions.retrieve(session_id);
 
       if (!session) return res.status(404).json({ error: 'Session not found' });
+      const metaUserId = session.metadata?.user_id;
+      if (!metaUserId) {
+        return res.status(403).json({ error: 'Session metadata missing user' });
+      }
+      if (String(metaUserId) !== String(req.user!.id)) {
+        return res.status(403).json({ error: 'Session does not belong to this user' });
+      }
       if (session.payment_status !== 'paid') {
         return res.status(202).json({ pending: true, payment_status: session.payment_status, status: session.status });
       }
@@ -789,6 +873,15 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   });
   
   const meta = session.metadata || {};
+  const transactionLog = await getTransactionBySession(session.id);
+  const alreadyCompleted = transactionLog?.status === 'COMPLETED';
+  const shouldSendEmail = !alreadyCompleted;
+  const metadataUserId = meta.user_id ? String(meta.user_id) : null;
+  const inferredUserId = metadataUserId || (transactionLog?.user_id ? String(transactionLog.user_id) : null);
+  const fallbackEmail = transactionLog?.user?.email || transactionLog?.user_email || (session.customer_details?.email ?? null);
+  const totalCents = typeof session.amount_total === 'number'
+    ? session.amount_total
+    : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
   try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
@@ -821,6 +914,15 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       await updateTransactionStatus(session.id, 'COMPLETED', {
         stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
       });
+      if (shouldSendEmail) {
+        await sendAdPaymentEmail({
+          userId: inferredUserId,
+          fallbackEmail,
+          adId: String(ad_id),
+          dates,
+          totalCents,
+        });
+      }
     } catch (e) {
       console.error('[payments] Error processing ad reservation payment', {
         ad_id,
@@ -890,6 +992,14 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
           stripeSubscriptionId: session.subscription ? String(session.subscription) : undefined,
         });
+        if (shouldSendEmail) {
+          await sendSubscriptionEmail({
+            userId,
+            fallbackEmail,
+            plan,
+            totalCents,
+          });
+        }
       } catch (err) {
         console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
       }
@@ -984,6 +1094,3 @@ paymentsRouter.get('/cancel', (_req, res) => {
   </body>
 </html>`);
 });
-
-
-
