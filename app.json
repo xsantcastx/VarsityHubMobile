@@ -83,8 +83,7 @@
       "expo-font",
       "expo-audio",
       "expo-apple-authentication",
-      "expo-asset",
-      "sentry-expo"
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

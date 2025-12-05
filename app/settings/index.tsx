@@ -464,7 +464,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                       <NavRow title="Restart Onboarding" onPress={() => {
                         Alert.alert('Restart Onboarding', 'You will be taken back to onboarding.', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Restart', onPress: () => { restartOnboarding(); } }
+                          { text: 'Restart', onPress: () => { void restartOnboarding(); } }
                         ]);
                       }} />
                     </SectionCard>
