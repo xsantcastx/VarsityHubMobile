@@ -1,0 +1,9 @@
+2025-12-05 01:11:02 ========================================
+2025-12-05 01:11:02 VarsityHub Overnight Health Check
+2025-12-05 01:11:02 Target API: https://api-production-8ac3.up.railway.app
+2025-12-05 01:11:02 Log file: overnight-health-20251205-011102/health.log
+2025-12-05 01:11:02 ========================================
+2025-12-05 01:11:02 → Core service health (GET /health)
+2025-12-05 01:11:02 ✗ Request failed (curl error)
+2025-12-05 01:11:02 
+2025-12-05 01:11:02 Health checks complete.

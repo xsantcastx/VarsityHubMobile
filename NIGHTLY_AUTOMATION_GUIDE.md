@@ -45,6 +45,9 @@ python3 /tmp/find-empty-catches.py
 # API smoke tests
 bash /tmp/api-smoke-tests.sh
 
+# Health endpoint sampler (new)
+./overnight-health-check.sh
+
 # Lint baseline (requires npm)
 cd /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 npx eslint . --format=json > overnight-results/lint.json
@@ -55,6 +58,20 @@ npx tsc --noEmit
 # npm audit
 npm audit --json
 ```
+
+### Option D: 24/7 Health Sampler
+The repo now includes `overnight-health-check.sh`, a lightweight script that curls the production API overnight and logs results for Stripe/SMTP/Sentry/database signals.
+
+```
+./overnight-health-check.sh
+# or customize
+API_URL=https://staging.api vars \
+AUTH_TOKEN=abc EXTRA_ENDPOINTS="GET /support/ping" ./overnight-health-check.sh
+```
+
+**Output:** `overnight-health-YYYYMMDD-HHMMSS/health.log` with HTTP codes and payloads (it warns if `/health` doesn’t report `stripe`, `smtp`, `sentry`, `database` as `true`).
+
+Use it as a cron job alongside the sweeps to catch downtime immediately.
 
 ---
 
