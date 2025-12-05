@@ -19,14 +19,12 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
   const [filter, setFilter] = useState<string>('none');
   const [stickers, setStickers] = useState<Sticker[]>([]);
   const viewShotRef = useRef<ViewShot | null>(null);
-  const [imgSize, setImgSize] = useState<{w:number,h:number} | null>(null);
   const CANVAS_HEIGHT = 320;
 
   React.useEffect(() => {
     setBaseUri(imageUri);
     setFilter('none');
     setStickers([]);
-    setImgSize(null);
   }, [imageUri, visible]);
 
   const addSticker = (emoji: string) => {

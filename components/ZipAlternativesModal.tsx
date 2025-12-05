@@ -103,7 +103,7 @@ export function ZipAlternativesModal({
             <Text style={[styles.listTitle, { color: Colors[colorScheme].text }]}>
               Available Nearby Zip Codes
             </Text>
-            {alternatives.map((alt, index) => (
+            {alternatives.map((alt) => (
               <Pressable
                 key={alt.zip}
                 style={[

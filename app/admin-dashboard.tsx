@@ -2,7 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,15 +27,14 @@ interface DashboardStats {
 
 export default function AdminDashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: _authLoading } = useRequireAdmin();
-  const router = useRouter();
+  const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
 
   const loadStats = useCallback(async (showRefreshing = false) => {
-      if (!isAdmin) return;
+    if (!isAdmin) return;
     if (showRefreshing) setRefreshing(true);
     else setLoading(true);
     setError(null);
@@ -70,11 +69,11 @@ export default function AdminDashboardScreen() {
   }, [isAdmin]);
 
   useEffect(() => {
-    loadStats();
+    void loadStats();
   }, [loadStats]);
 
   const onRefresh = () => {
-    loadStats(true);
+    void loadStats(true);
   };
 
   const StatCard = ({ title, value, subtitle, icon, color, onPress }: any) => (
@@ -153,7 +152,7 @@ export default function AdminDashboardScreen() {
           <Text style={[styles.errorText, { color: '#EF4444' }]}>{error}</Text>
           <Pressable 
             style={[styles.retryButton, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => loadStats()}
+            onPress={() => { void loadStats(); }}
           >
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>

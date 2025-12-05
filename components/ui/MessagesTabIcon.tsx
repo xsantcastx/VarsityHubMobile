@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
 import { IconSymbol } from '@/components/ui/IconSymbol';
+import { useEffect, useState } from 'react';
+import { Text, View } from 'react-native';
 // @ts-ignore
 import { Message } from '@/api/entities';
 
@@ -14,10 +14,10 @@ export default function MessagesTabIcon({ color }: { color: string }) {
         if (!alive) return;
         const count = (list || []).filter((m: any) => !m.read).length;
         setUnread(count);
-      } catch (_error) {}
+      } catch {}
     };
-    load();
-    const id = setInterval(load, 30000);
+    void load();
+    const id = setInterval(() => void load(), 30000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 

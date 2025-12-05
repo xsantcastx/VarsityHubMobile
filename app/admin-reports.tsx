@@ -45,7 +45,7 @@ interface ReportStats {
 
 export default function AdminReportsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-    const { isAdmin, loading: _authLoading } = useRequireAdmin();
+  const { isAdmin, loading: adminLoading } = useRequireAdmin();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -97,11 +97,11 @@ export default function AdminReportsScreen() {
   }, [filterStatus]);
 
   useEffect(() => {
-    loadReports();
+    void loadReports();
   }, [loadReports]);
 
   const onRefresh = () => {
-    loadReports(true);
+    void loadReports(true);
   };
 
   const toggleSelectReport = (id: string) => {
@@ -140,7 +140,7 @@ export default function AdminReportsScreen() {
         throw new Error('Failed to update report');
       }
 
-      loadReports(true);
+      await loadReports(true);
       Alert.alert('Success', 'Report updated successfully');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update report');
@@ -175,7 +175,7 @@ export default function AdminReportsScreen() {
 
       const data = await response.json();
       setSelectedReports(new Set());
-      loadReports(true);
+      await loadReports(true);
       Alert.alert('Success', `Updated ${data.updated} reports`);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update reports');
@@ -216,7 +216,7 @@ export default function AdminReportsScreen() {
 
               const data = await response.json();
               setSelectedReports(new Set());
-              loadReports(true);
+              await loadReports(true);
               Alert.alert('Success', `Deleted ${data.deleted} reports`);
             } catch (e: any) {
               Alert.alert('Error', e?.message || 'Failed to delete reports');
@@ -311,6 +311,30 @@ export default function AdminReportsScreen() {
     );
   };
 
+  if (adminLoading) {
+    return (
+      <SafeAreaView
+        edges={['top']}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+      >
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView
+        edges={['top']}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+      >
+        <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
+          Admin access required
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView 
       edges={['top']}
@@ -356,7 +380,7 @@ export default function AdminReportsScreen() {
             <Text style={[styles.errorText, { color: colorScheme === 'dark' ? '#F87171' : '#EF4444' }]}>
               {error}
             </Text>
-            <Pressable style={styles.retryButton} onPress={() => loadReports()}>
+            <Pressable style={styles.retryButton} onPress={() => void loadReports()}>
               <Text style={styles.retryButtonText}>Try Again</Text>
             </Pressable>
           </View>
