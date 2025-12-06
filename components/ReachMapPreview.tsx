@@ -1,3 +1,4 @@
+import { geocodeLocation } from '@/api/geocoding';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,60 +43,57 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
     setLoading(true);
     setError(null);
 
-    // Geocode ZIP code to lat/lng using Google Geocoding API
-    // Note: This is a simple implementation. In production, you might want to:
-    // 1. Cache results to avoid repeated API calls
-    // 2. Use a backend endpoint to protect API keys
-    // 3. Add rate limiting
-    const geocodeZip = async () => {
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const MAX_ATTEMPTS = 3;
+
+    const geocodeZip = async (attempt: number) => {
       try {
-        // Using Nominatim (OpenStreetMap) for free geocoding
-        // Alternative: Use Google Geocoding API with your key
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(trimmed)}&countrycodes=us,ca&format=json&limit=1`,
-          {
-            headers: {
-              'User-Agent': 'VarsityHub/1.0'
-            }
-          }
-        );
+        const result = await geocodeLocation(trimmed);
 
-        if (!response.ok) {
-          throw new Error('Geocoding failed');
-        }
-
-        const data = await response.json();
-        
         if (!mounted) return;
 
-        if (data && data.length > 0) {
+        if (result) {
           setLocation({
-            latitude: parseFloat(data[0].lat),
-            longitude: parseFloat(data[0].lon),
+            latitude: result.latitude,
+            longitude: result.longitude,
           });
           setError(null);
         } else {
           setLocation(null);
           setError('ZIP code not found');
         }
-      } catch (err) {
+        setLoading(false);
+      } catch (err: any) {
         if (!mounted) return;
         console.error('Geocoding error:', err);
+
+        if (err?.status === 404) {
+          setLocation(null);
+          setError('ZIP code not found');
+          setLoading(false);
+          return;
+        }
+
+        if (attempt + 1 < MAX_ATTEMPTS) {
+          const retryDelay = Math.min(2000, (attempt + 1) * 700);
+          const retryTimer = setTimeout(() => geocodeZip(attempt + 1), retryDelay);
+          timers.push(retryTimer);
+          return;
+        }
+
         setError('Unable to locate ZIP code');
         setLocation(null);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
     // Debounce: wait 500ms after user stops typing
-    const timer = setTimeout(geocodeZip, 500);
+    const timer = setTimeout(() => geocodeZip(0), 500);
+    timers.push(timer);
 
     return () => {
       mounted = false;
-      clearTimeout(timer);
+      timers.forEach(clearTimeout);
     };
   }, [zipCode]);
 

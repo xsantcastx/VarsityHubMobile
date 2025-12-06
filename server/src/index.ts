@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
@@ -56,17 +57,62 @@ app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin
 app.use(helmet({ contentSecurityPolicy: false }));
 
-const allowed = (process.env.ALLOWED_ORIGINS || '*')
+const isProd = process.env.NODE_ENV === 'production';
+const defaultProdOrigins = [
+  'https://varsityhub.app',
+  'https://app.varsityhub.app',
+  'https://lime.varsityhub.app',
+  'https://lime-productions.varsityhub.app',
+];
+const defaultDevOrigins = [
+  'http://localhost:3000',
+  'http://localhost:8081',
+  'http://localhost:19006',
+  'http://127.0.0.1:3000',
+];
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean);
+const hasWildcardOrigin = envAllowedOrigins.some((origin) => origin === '*');
+if (hasWildcardOrigin) {
+  const message = '[cors] ALLOWED_ORIGINS includes "*"; configure explicit origins instead.';
+  if (isProd) {
+    throw new Error(`${message} Wildcards are not permitted in production.`);
+  }
+  console.warn(`${message} Wildcards are only allowed during development.`);
+}
+const wildcardOriginMatchers = [
+  /^https?:\/\/localhost(:\d+)?$/,
+  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  /^https:\/\/([a-z0-9-]+\.)*varsityhub\.app$/,
+];
+const allowedOrigins = Array.from(
+  new Set([
+    ...defaultProdOrigins,
+    ...(isProd ? [] : defaultDevOrigins),
+    ...envAllowedOrigins.filter((origin) => origin !== '*'),
+  ])
+).filter(Boolean);
+if (isProd && allowedOrigins.length === 0) {
+  throw new Error('[cors] No allowed origins configured for production environment.');
+}
+const isAllowedOrigin = (origin?: string | null) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
+};
 const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
-    if (!origin || allowed.includes('*') || allowed.includes(origin)) return cb(null, true);
+    if (isAllowedOrigin(origin)) {
+      return cb(null, true);
+    }
+    debugLog(`[cors] blocked origin ${origin}`);
     return cb(new Error('Not allowed by CORS'));
   },
   credentials: false,
 };
+debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));
 
 // Disable ETag generation globally (simplest)
@@ -81,20 +127,18 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 };
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
-import expressPkg from 'express';
-import { debugLog } from './lib/debugLog.js';
 
 // Special raw body parser for Stripe webhooks (payments + legacy billing path)
 const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
 rawBodyPaths.forEach((path) => {
-  app.use(path, expressPkg.raw({ type: 'application/json' }));
+  app.use(path, express.raw({ type: 'application/json' }));
 });
 
 app.use((req, res, next) => {
   if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
     return next();
   }
-  return expressPkg.json()(req, res, next);
+  return express.json()(req, res, next);
 });
 
 app.use(authMiddleware);
@@ -105,7 +149,7 @@ app.use(
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     next();
   },
-  expressPkg.static(path.resolve(process.cwd(), 'uploads'))
+  express.static(path.resolve(process.cwd(), 'uploads'))
 );
 
 const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
@@ -182,4 +226,3 @@ addSentryErrorHandler(app);
 app.listen(PORT, HOST, () => {
   debugLog(`API listening on http://${HOST}:${PORT}`);
 });
-

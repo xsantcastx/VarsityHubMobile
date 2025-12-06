@@ -28,7 +28,11 @@
     "server:db:seed": "cd server && npm run seed",
     "server:db:studio": "cd server && npx prisma studio",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No automated tests are defined yet - skipping.\""
+    "test": "echo \"No automated tests are defined yet - skipping.\"",
+    "test:smoke": "playwright test",
+    "test:smoke:ui": "playwright test --ui",
+    "test:smoke:headed": "playwright test --headed",
+    "test:smoke:debug": "playwright test --debug"
   },
   "dependencies": {
     "@base44/sdk": "^0.7.0",
@@ -97,6 +101,7 @@
     "typescript": "~5.9.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.40.1",
     "@react-native-community/cli": "^20.0.2",
     "@typescript-eslint/eslint-plugin": "^8.48.1",
     "@typescript-eslint/parser": "^8.48.1",
