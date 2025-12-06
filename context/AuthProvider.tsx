@@ -11,6 +11,7 @@
  */
 
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -80,6 +81,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Register for push notifications
+  const setupPushNotifications = useCallback(async (userId: string) => {
+    try {
+      // 1. Request permission from user
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('[PushNotifications] Permission denied by user');
+        return;
+      }
+
+      // 2. Get project ID from app config
+      let projectId = null;
+      try {
+        const appJson = require('../app.json');
+        projectId = appJson?.expo?.extra?.eas?.projectId;
+      } catch {
+        console.error('[PushNotifications] Could not load app.json for projectId');
+      }
+
+      if (!projectId) {
+        console.error('[PushNotifications] EXPO_PROJECT_ID not found in app.json');
+        return;
+      }
+
+      // 3. Get Expo push token
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: projectId,
+      });
+      
+      const token = tokenData.data;
+      console.log('[PushNotifications] Got push token:', token.substring(0, 30) + '...');
+
+      // 4. Save token to backend
+      await User.updatePreferences({ 
+        push_token: token,
+        notifications_enabled: true
+      });
+      
+      console.log('[PushNotifications] ✅ Push token saved to backend');
+    } catch (error: any) {
+      console.error('[PushNotifications] Failed to setup:', error?.message || error);
+      // Don't block app - push notifications are optional
+    }
+  }, []);
+
   // Check authentication
   const checkAuth = useCallback(
     async (options?: { email?: string; pendingVerification?: boolean }) => {
@@ -101,13 +147,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me: any = await User.me();
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
+
+        // Setup push notifications after successful auth
+        setupPushNotifications(me.id);
+
         return me;
       } catch (err: any) {
         setUser(null);
         throw err;
       }
     },
-    []
+    [setupPushNotifications]
   );
 
   // Sign out
