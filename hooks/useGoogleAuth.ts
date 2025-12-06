@@ -100,9 +100,12 @@ export function useGoogleAuth() {
   );
 
   const redirectUri = useMemo(() => {
+    let uri = '';
     try {
       if (shouldUseProxy && PROJECT_FULL_NAME) {
-        return AuthSession.getRedirectUrl();
+        uri = AuthSession.getRedirectUrl();
+        console.log('[google-auth] Using Expo proxy redirect:', uri);
+        return uri;
       }
     } catch (err) {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
@@ -111,14 +114,17 @@ export function useGoogleAuth() {
     // For production iOS with web client, use web redirect
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
     if (isStandaloneIOS) {
-      // Use the configured web domain for OAuth redirect
-      return `${appConfig.webBaseUrl}/auth/google/callback`;
+      uri = `${appConfig.webBaseUrl}/auth/google/callback`;
+      console.log('[google-auth] Using production web redirect (standalone):', uri);
+      return uri;
     }
     
-    return makeRedirectUri({
+    uri = makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: appConfig.appScheme,
     });
+    console.log('[google-auth] Using custom scheme redirect:', uri, '(app scheme:', appConfig.appScheme, ')');
+    return uri;
   }, []);
 
   const redirectOptions = useMemo(() => {
@@ -175,20 +181,34 @@ export function useGoogleAuth() {
     setError(null);
     setLoading(true);
     try {
+      console.log('[google-auth] Starting Google sign-in...');
+      console.log('[google-auth] Using redirect URI:', redirectUri);
+      console.log('[google-auth] Request config:', requestConfig);
+      
       const response = await promptAsync();
+      console.log('[google-auth] Response from Google:', response);
+      
       if (response.type !== 'success' || !response.authentication?.idToken) {
-        throw new Error(response.type === 'dismiss' ? 'Google sign-in cancelled' : 'Google sign-in failed');
+        const errorMsg = response.type === 'dismiss' 
+          ? 'Google sign-in cancelled' 
+          : `Google sign-in failed: ${response.type}`;
+        console.error('[google-auth]', errorMsg, response);
+        throw new Error(errorMsg);
       }
+      
+      console.log('[google-auth] Got idToken, sending to server...');
       const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
+      console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {
       const message = err?.message || 'Unable to sign in with Google';
+      console.error('[google-auth] Error:', message, err);
       setError(message);
       throw err instanceof Error ? err : new Error(message);
     } finally {
       setLoading(false);
     }
-  }, [isConfigured, promptAsync, request]);
+  }, [isConfigured, promptAsync, request, redirectUri, requestConfig]);
 
   return {
     ready: isConfigured && !!request,
