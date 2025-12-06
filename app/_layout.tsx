@@ -1,9 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
-import { Stack, useRootNavigationState } from 'expo-router';
+import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -30,6 +30,7 @@ initSentry();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -64,6 +65,57 @@ export default function RootLayout() {
       lightColor: '#2563EB',
     }).catch(() => {});
   }, []);
+
+  // Handle notification taps
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      
+      if (!data || !data.type) {
+        console.log('[Notifications] Received notification with no data');
+        return;
+      }
+
+      console.log('[Notifications] User tapped notification:', data.type);
+
+      // Navigate based on notification type
+      try {
+        switch (data.type) {
+          case 'new_message':
+            console.log('[Notifications] Navigating to messages');
+            router.push('/messages');
+            break;
+
+          case 'post_interaction':
+            if (data.post_id) {
+              console.log('[Notifications] Navigating to post:', data.post_id);
+              router.push({
+                pathname: '/post-detail',
+                params: { id: data.post_id },
+              } as any);
+            }
+            break;
+
+          case 'new_follower':
+            if (data.follower_id) {
+              console.log('[Notifications] Navigating to profile:', data.follower_id);
+              router.push({
+                pathname: '/user-profile',
+                params: { userId: data.follower_id },
+              } as any);
+            }
+            break;
+
+          default:
+            console.log('[Notifications] Unknown notification type:', data.type);
+        }
+      } catch (error) {
+        console.error('[Notifications] Navigation error:', error);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [router]);
 
   if (!loaded || !navState?.key) {
     return (
