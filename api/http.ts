@@ -1,3 +1,4 @@
+import { getConfig, getEnvValue } from '@/config/env';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
 import { router } from 'expo-router';
 import { Platform } from 'react-native';
@@ -8,23 +9,11 @@ export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
 export function getApiBaseUrl(): string {
-  // Expo packs env vars under process.env at runtime
-  const env = (typeof process !== 'undefined' ? (process as any).env || {} : {}) as any;
-  const envUrl = (env && env.EXPO_PUBLIC_API_URL) || '';
-  // Default to forcing remote API unless explicitly disabled
-  const forceRemote = String(env?.EXPO_PUBLIC_FORCE_REMOTE_API ?? 'true').toLowerCase() === 'true';
+  const config = getConfig();
+  const envUrl = getEnvValue('EXPO_PUBLIC_API_URL');
+  const forceRemote = config.forceRemoteApi;
+  let url = config.apiUrl || envUrl || 'https://api-production-8ac3.up.railway.app';
 
-  // In development, use the env URL if provided, otherwise fall back to production
-  let url: string;
-  // Prefer remote API by default to avoid 127.0.0.1 issues on device
-  const defaultUrl = 'https://api-production-8ac3.up.railway.app';
-  if (__DEV__ && !forceRemote) {
-    // Dev may point to local if explicitly allowed and provided
-    url = envUrl || defaultUrl;
-  } else {
-    url = envUrl || defaultUrl;
-  }
-  
   // Handle simulator networking (only for actual localhost, not LAN IPs)
   if (__DEV__ && !forceRemote && url.startsWith('http://localhost')) {
     if (Platform.OS === 'android') {
@@ -36,7 +25,6 @@ export function getApiBaseUrl(): string {
       url = url.replace('http://localhost', 'http://127.0.0.1');
     }
   }
-  
   const finalUrl = url.replace(/\/$/, '');
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (global as any))) {
     (global as any).__VH_LOGGED_API_BASE = true;

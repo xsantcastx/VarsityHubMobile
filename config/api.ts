@@ -1,7 +1,10 @@
 // API Configuration for VarsityHub
 // Handles both development and production environments
 
+import { getConfig } from '@/config/env';
 import { getApiBaseUrl } from '../api/http';
+
+const appConfig = getConfig();
 export const API_BASE_URL = getApiBaseUrl();
 
 export const API_TIMEOUT = 10000; // 10 seconds
@@ -9,7 +12,7 @@ export const API_TIMEOUT = 10000; // 10 seconds
 // Debug logging
 console.log('🔗 API Configuration:');
 console.log('  Base URL:', API_BASE_URL);
-console.log('  Environment:', process.env.EXPO_PUBLIC_NODE_ENV || 'production');
+console.log('  Environment:', appConfig.nodeEnv || 'production');
 console.log('  Timeout:', API_TIMEOUT + 'ms');
 
 // API health check function

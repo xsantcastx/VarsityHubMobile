@@ -1,3 +1,4 @@
+import { getConfig } from '@/config/env';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +12,8 @@ import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
+
+const appConfig = getConfig();
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id?: string; username?: string }>();
@@ -43,10 +46,8 @@ export default function UserProfileScreen() {
         setMe(current);
         
         // Check if current user is admin
-        const adminEmails = (process.env.EXPO_PUBLIC_ADMIN_EMAILS || '')
-          .split(',')
-          .map(e => e.trim().toLowerCase())
-          .filter(Boolean);
+        const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : [])
+          .map((e) => e.toLowerCase());
         setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (_error: any) {}

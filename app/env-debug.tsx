@@ -1,13 +1,14 @@
+import { getEnvValue } from '@/config/env';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getApiBaseUrl } from '../api/http';
 
 export default function EnvDebugScreen() {
   const envVars = {
-    'EXPO_PUBLIC_API_URL': process.env.EXPO_PUBLIC_API_URL,
-    'EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID': process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    'EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID': process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID': process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    'EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID': process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID,
+    EXPO_PUBLIC_API_URL: getEnvValue('EXPO_PUBLIC_API_URL'),
+    EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: getEnvValue('EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID'),
+    EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: getEnvValue('EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID'),
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: getEnvValue('EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID'),
+    EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID: getEnvValue('EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID'),
   };
 
   const apiBaseUrl = getApiBaseUrl();

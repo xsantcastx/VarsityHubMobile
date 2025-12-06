@@ -42,6 +42,11 @@ VarsityHubMobile/
 
 ⚠️ **Never commit these files to Git!** They're in `.gitignore`.
 
+### Runtime Access Pattern
+
+- The Expo app now reads all public env values through `config/env.ts`. Import `getConfig()` or `getEnvValue()` instead of reaching for `process.env` directly—this keeps defaults, Expo extra values, and fallbacks consistent across screens, hooks, and utilities.
+- The backend (Express) still consumes `process.env` as usual; no changes required there.
+
 ---
 
 ## Frontend Environment (.env)
