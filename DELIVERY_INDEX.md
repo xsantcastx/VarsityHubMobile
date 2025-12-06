@@ -43,6 +43,15 @@
 |------|---------|
 | **app.json** | Added homepage, privacy, supportURL, runtimeVersion |
 
+### 🤖 Android Parity (NEW)
+| Item | Purpose |
+|------|---------|
+| **RELEASE_READY_ANDROID.md** | Google Play submission runbook |
+| **DELIVERY_FOUNDATION_ANDROID.md** | Android-specific readiness checklist |
+| **ANDROID_KEYSTORE_SETUP.md** | Keystore + signing guide |
+| **scripts/build-release-android.sh** | One-command Gradle release build |
+| **scripts/pre-submission-check-android.sh** | Android validation checklist |
+
 ---
 
 ## 📊 CURRENT STATE
@@ -86,6 +95,15 @@
 ├─ Database:                 ⏳ PENDING (production setup)
 ├─ Email Service:            ⏳ PENDING (SendGrid config)
 └─ Payment Processing:       ⏳ PENDING (Stripe config)
+```
+
+```
+🤖 Android Build System
+├─ bundleRelease task:        ⏳ Run ./scripts/build-release-android.sh
+├─ Signed keystore:           ⏳ Configure via ANDROID_KEYSTORE_SETUP.md
+├─ Play Console metadata:     ⏳ Needs screenshots + descriptions
+├─ Data safety questionnaire: ⏳ Complete in Play Console
+└─ Security scan:             ⏳ snyk_code_scan (shared with iOS)
 ```
 
 ---

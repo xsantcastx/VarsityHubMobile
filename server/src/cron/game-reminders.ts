@@ -8,9 +8,10 @@
  */
 
 import { notifyUpcomingGames } from '../lib/notifications.js';
+import { debugLog } from '../lib/debugLog.js';
 
 async function runGameReminders() {
-  console.log(`[${new Date().toISOString()}] Running game reminder notifications...`);
+  debugLog(`[${new Date().toISOString()}] Running game reminder notifications...`);
   
   try {
     // Check for games starting in 12 hours
@@ -19,7 +20,7 @@ async function runGameReminders() {
     // Check for games starting in 1 hour
     await notifyUpcomingGames(1);
     
-    console.log(`[${new Date().toISOString()}] Game reminders completed successfully`);
+    debugLog(`[${new Date().toISOString()}] Game reminders completed successfully`);
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Error running game reminders:`, error);
     process.exit(1);

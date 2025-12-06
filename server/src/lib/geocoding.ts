@@ -12,6 +12,7 @@
  */
 
 import { prisma } from './prisma.js';
+import { debugLog } from './debugLog.js';
 
 // In-memory cache for geocoded locations (location string -> coordinates)
 const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
@@ -155,7 +156,7 @@ export async function geocodeGame(gameId: string, location?: string) {
       },
     });
 
-    console.log(`✅ Geocoded game ${gameId}: ${coords.latitude}, ${coords.longitude}`);
+    debugLog(`✅ Geocoded game ${gameId}: ${coords.latitude}, ${coords.longitude}`);
     return updated;
   } catch (error) {
     console.error(`Error geocoding game ${gameId}:`, error);
@@ -207,7 +208,7 @@ export async function geocodeEvent(eventId: string, location?: string) {
       },
     });
 
-    console.log(`✅ Geocoded event ${eventId}: ${coords.latitude}, ${coords.longitude}`);
+    debugLog(`✅ Geocoded event ${eventId}: ${coords.latitude}, ${coords.longitude}`);
     return updated;
   } catch (error) {
     console.error(`Error geocoding event ${eventId}:`, error);
@@ -242,7 +243,7 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
       take: limit,
     });
 
-    console.log(`📍 Found ${games.length} games to geocode`);
+    debugLog(`📍 Found ${games.length} games to geocode`);
 
     let successCount = 0;
     let failedCount = 0;
@@ -254,15 +255,15 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
       try {
         const result = await geocodeGame(game.id, game.location);
         if (result) {
-          console.log(`✅ "${game.title}" → ${game.location}`);
+          debugLog(`✅ "${game.title}" → ${game.location}`);
           successCount++;
         } else {
-          console.log(`❌ Failed: "${game.title}" - ${game.location}`);
+          debugLog(`❌ Failed: "${game.title}" - ${game.location}`);
           failedCount++;
           errors.push(`Failed to geocode "${game.title}"`);
         }
       } catch (error: any) {
-        console.log(`❌ Error: "${game.title}" - ${error.message}`);
+        debugLog(`❌ Error: "${game.title}" - ${error.message}`);
         failedCount++;
         errors.push(`Error geocoding "${game.title}": ${error.message}`);
       }
@@ -271,7 +272,7 @@ export async function geocodeAllGames(limit: number = 100): Promise<{
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`✅ Successfully geocoded ${successCount}/${games.length} games`);
+    debugLog(`✅ Successfully geocoded ${successCount}/${games.length} games`);
     
     return {
       success: successCount,
@@ -313,7 +314,7 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
       take: limit,
     });
 
-    console.log(`📍 Found ${events.length} events to geocode`);
+    debugLog(`📍 Found ${events.length} events to geocode`);
 
     let successCount = 0;
     for (const event of events) {
@@ -328,7 +329,7 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`✅ Successfully geocoded ${successCount}/${events.length} events`);
+    debugLog(`✅ Successfully geocoded ${successCount}/${events.length} events`);
     return successCount;
   } catch (error) {
     console.error('Error in batch geocoding events:', error);
@@ -341,7 +342,7 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
  */
 export function clearGeocodeCache(): void {
   geocodeCache.clear();
-  console.log('🗑️ Geocoding cache cleared');
+  debugLog('🗑️ Geocoding cache cleared');
 }
 
 /**

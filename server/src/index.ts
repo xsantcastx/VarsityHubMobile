@@ -82,6 +82,7 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
 import expressPkg from 'express';
+import { debugLog } from './lib/debugLog.js';
 
 // Special raw body parser for Stripe webhooks (payments + legacy billing path)
 const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
@@ -131,7 +132,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     persistAuthorization: true,
   },
 }));
-console.log('📚 API documentation available at /api-docs');
+debugLog('📚 API documentation available at /api-docs');
 
 app.use('/auth', authLimiter, authRouter);
 app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
@@ -167,8 +168,8 @@ app.use('/promos', noStore, apiLimiter, promosRouter);
 if (process.env.NODE_ENV !== 'production') {
   app.use('/test-notifications', testNotificationsRouter);
   app.use('/test-emails', testEmailsRouter);
-  console.log('📱 Test notification endpoints available at /test-notifications/*');
-  console.log('📧 Test email endpoints available at /test-emails/*');
+  debugLog('📱 Test notification endpoints available at /test-notifications/*');
+  debugLog('📧 Test email endpoints available at /test-emails/*');
 }
 
 const PORT = Number(process.env.PORT || 4000);
@@ -179,6 +180,6 @@ const HOST: string = process.env.HOST || '0.0.0.0';
 addSentryErrorHandler(app);
 
 app.listen(PORT, HOST, () => {
-  console.log(`API listening on http://${HOST}:${PORT}`);
+  debugLog(`API listening on http://${HOST}:${PORT}`);
 });
 

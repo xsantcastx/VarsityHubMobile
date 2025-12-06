@@ -1,5 +1,6 @@
 import type { Twilio } from 'twilio';
 import twilio from 'twilio';
+import { debugLog } from './debugLog.js';
 
 // Initialize Twilio client
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -15,9 +16,9 @@ let twilioClient: Twilio | null = null;
 
 if (isTwilioConfigured()) {
   twilioClient = twilio(accountSid, authToken);
-  console.log('✅ Twilio configured - SMS verification enabled');
+  debugLog('✅ Twilio configured - SMS verification enabled');
 } else {
-  console.log('⚠️ Twilio not configured - SMS verification disabled (email only)');
+  debugLog('⚠️ Twilio not configured - SMS verification disabled (email only)');
 }
 
 /**
@@ -25,7 +26,7 @@ if (isTwilioConfigured()) {
  */
 export async function sendSmsVerificationCode(phoneNumber: string, code: string): Promise<boolean> {
   if (!isTwilioConfigured()) {
-    console.log('[twilio] Twilio not configured - skipping SMS');
+    debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
@@ -43,7 +44,7 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
       to: phoneNumber,
     });
 
-    console.log(`[twilio] ✅ SMS sent successfully to ${phoneNumber}`);
+    debugLog(`[twilio] ✅ SMS sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
     console.error(`[twilio] ❌ Failed to send SMS to ${phoneNumber}:`, error?.message || error);
@@ -56,7 +57,7 @@ export async function sendSmsVerificationCode(phoneNumber: string, code: string)
  */
 export async function sendSmsPasswordReset(phoneNumber: string, code: string): Promise<boolean> {
   if (!isTwilioConfigured() || !twilioClient) {
-    console.log('[twilio] Twilio not configured - skipping SMS');
+    debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
@@ -69,7 +70,7 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
       to: phoneNumber,
     });
 
-    console.log(`[twilio] ✅ Password reset SMS sent successfully to ${phoneNumber}`);
+    debugLog(`[twilio] ✅ Password reset SMS sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
     console.error(`[twilio] ❌ Failed to send password reset SMS to ${phoneNumber}:`, error?.message || error);
@@ -82,7 +83,7 @@ export async function sendSmsPasswordReset(phoneNumber: string, code: string): P
  */
 export async function sendSmsNotification(phoneNumber: string, message: string): Promise<boolean> {
   if (!isTwilioConfigured() || !twilioClient) {
-    console.log('[twilio] Twilio not configured - skipping SMS');
+    debugLog('[twilio] Twilio not configured - skipping SMS');
     return false;
   }
 
@@ -93,7 +94,7 @@ export async function sendSmsNotification(phoneNumber: string, message: string):
       to: phoneNumber,
     });
 
-    console.log(`[twilio] ✅ SMS notification sent successfully to ${phoneNumber}`);
+    debugLog(`[twilio] ✅ SMS notification sent successfully to ${phoneNumber}`);
     return true;
   } catch (error: any) {
     console.error(`[twilio] ❌ Failed to send SMS notification to ${phoneNumber}:`, error?.message || error);

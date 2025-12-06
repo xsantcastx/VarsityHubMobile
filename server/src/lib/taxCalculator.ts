@@ -1,3 +1,4 @@
+import { debugLog } from './debugLog.js';
 /**
  * Tax Calculator
  * 
@@ -166,7 +167,7 @@ export function calculateSalesTax(amountCents: number, zipCode: string): number 
   const taxRate = STATE_TAX_RATES[state] || 0;
   const taxCents = Math.round(amountCents * taxRate);
   
-  console.log(`[tax] ${zipCode} → ${state} → ${(taxRate * 100).toFixed(2)}% → $${(taxCents / 100).toFixed(2)}`);
+  debugLog(`[tax] ${zipCode} → ${state} → ${(taxRate * 100).toFixed(2)}% → $${(taxCents / 100).toFixed(2)}`);
   
   return taxCents;
 }

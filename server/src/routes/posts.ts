@@ -70,7 +70,7 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     followingIds = new Set((follows as Array<{ following_id: string }>).map((f) => f.following_id));
     
     // Debug logging for follow relationships
-    console.log('[posts] Follow debug:', { 
+    debugLog('[posts] Follow debug:', { 
       currentUserId, 
       authorIds, 
       followingIds: Array.from(followingIds),
@@ -173,6 +173,7 @@ const createPostSchema = z
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
+import { debugLog } from '../lib/debugLog.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -231,7 +232,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       });
     }
 
-    console.log(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
+    debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
   }
 
   const post = await prisma.post.create({

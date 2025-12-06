@@ -5,6 +5,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const gamesRouter = Router();
 
@@ -281,7 +282,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         gameData.location = homeTeam.venue_address || `${homeTeam.city || ''}, ${homeTeam.state || ''}`.trim();
         gameData.latitude = homeTeam.venue_lat;
         gameData.longitude = homeTeam.venue_lng;
-        console.log(`✅ Using home team location: ${gameData.location}`);
+        debugLog(`✅ Using home team location: ${gameData.location}`);
       }
     }
 
@@ -293,7 +294,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
         if (coords) {
           gameData.latitude = coords.latitude;
           gameData.longitude = coords.longitude;
-          console.log(`✅ Auto-geocoded game location: ${parsed.data.location} → ${coords.latitude}, ${coords.longitude}`);
+          debugLog(`✅ Auto-geocoded game location: ${parsed.data.location} → ${coords.latitude}, ${coords.longitude}`);
         }
       } catch (geocodeError) {
         console.warn('Auto-geocoding failed, continuing without coordinates:', geocodeError);
@@ -325,7 +326,7 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     } else if (isAdmin) {
       // Admin can create events for any team
       isCoach = true;
-      console.log(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
+      debugLog(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
     }
     
     // Auto-approve if coach/admin, otherwise set to pending
@@ -614,7 +615,7 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
     // Delete the story
     await prisma.story.delete({ where: { id: mediaId } });
     
-    console.log(`✅ User ${req.user.id} deleted story ${mediaId} from game ${gameId}`);
+    debugLog(`✅ User ${req.user.id} deleted story ${mediaId} from game ${gameId}`);
     res.json({ message: 'Story deleted successfully' });
   } catch (error) {
     console.error('Error deleting story:', error);
