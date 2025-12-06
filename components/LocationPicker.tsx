@@ -1,3 +1,4 @@
+import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
@@ -23,7 +24,7 @@ export default function LocationPicker({
 }: LocationPickerProps) {
   const colorScheme = useColorScheme() ?? 'light';
 
-  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const apiKey = getConfig().mapsKey || '';
 
   // Always use simple text input for now to avoid GooglePlacesAutocomplete crashes
   if (!apiKey || true) {

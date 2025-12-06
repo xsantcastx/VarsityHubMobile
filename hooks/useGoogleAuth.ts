@@ -1,4 +1,5 @@
 import { User } from '@/api/entities';
+import { getConfig } from '@/config/env';
 import * as Application from 'expo-application';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
@@ -24,18 +25,31 @@ try {
 
 type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
 
+const appConfig = getConfig();
+
 const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
-  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined;
-  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
-  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined;
-  const expoClientId = process.env.EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID || undefined;
+  const { google } = appConfig;
+  const androidClientId = google.androidClientId;
+  const iosClientId = google.iosClientId;
+  const webClientId = google.webClientId;
+  const expoClientId = google.expoClientId;
 
   const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
   const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
 
-  // For dev simulator or standalone iOS builds, use web client with full redirect flow
-  // This works with varsityhub.app domain OAuth configuration
-  if ((isDevSimulator || isStandaloneIOS) && webClientId) {
+  // For dev simulator, use Expo Client ID (registered with auth.expo.io)
+  // For standalone iOS builds, use web client with varsityhub.app domain
+  if (isDevSimulator && expoClientId) {
+    return {
+      androidClientId: expoClientId,
+      iosClientId: expoClientId,
+      webClientId: expoClientId,
+      expoClientId,
+      forceWebClient: false,
+    } as const;
+  }
+
+  if (isStandaloneIOS && webClientId) {
     return {
       androidClientId: webClientId,
       iosClientId: webClientId,
@@ -48,7 +62,7 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   return { androidClientId, iosClientId, webClientId, expoClientId, forceWebClient: false } as const;
 };
 
-const FORCE_PROXY_FLAG = process.env.EXPO_PUBLIC_GOOGLE_FORCE_PROXY === '1';
+const FORCE_PROXY_FLAG = appConfig.google.forceProxy;
 const FALLBACK_PROJECT_FULL_NAME = '@lime_prod/VarsityHubMobile';
 const expoConfig: any = Constants.expoConfig ?? {};
 const expoSlug: string | undefined = expoConfig.slug || expoConfig.name;
@@ -60,8 +74,7 @@ const derivedProjectFullName =
     : typeof expoSlug === 'string'
       ? `${expoOwner ? `@${expoOwner}` : '@anonymous'}/${expoSlug}`
       : undefined;
-const PROJECT_FULL_NAME =
-  process.env.EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
+const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
 
 if (PROJECT_FULL_NAME && sessionUrlProvider?.getRedirectUrl) {
   const originalGetRedirectUrl = sessionUrlProvider.getRedirectUrl.bind(sessionUrlProvider);
@@ -99,12 +112,12 @@ export function useGoogleAuth() {
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
     if (isStandaloneIOS) {
       // Use the configured web domain for OAuth redirect
-      return `https://varsityhub.app/auth/google/callback`;
+      return `${appConfig.webBaseUrl}/auth/google/callback`;
     }
     
     return makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
-      scheme: process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile',
+      scheme: appConfig.appScheme,
     });
   }, []);
 

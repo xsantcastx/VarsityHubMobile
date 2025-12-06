@@ -1,0 +1,219 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+› Auto signing app using team(s): B5H8F69RW5
+› Planning build
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Preparing Pods/react-native-maps-ReactNativeMapsPrivacy » ResourceBundle-ReactNativeMapsPrivacy-react-native-maps-Info.plist
+› Copying   react-native-maps/ReactNativeMapsPrivacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/react-native-maps/ios/PrivacyInfo.xcprivacy
+› Preparing Pods/react-native-google-maps-GoogleMapsPrivacy » ResourceBundle-GoogleMapsPrivacy-react-native-google-maps-Info.plist
+› Copying   react-native-google-maps/GoogleMapsPrivacy.bundle/GoogleMapsPrivacy.bundle ➜ node_modules/react-native-maps/ios/AirGoogleMaps/Resources/GoogleMapsPrivacy.bundle
+› Preparing Pods/lottie-react-native-Lottie_React_Native_Privacy » ResourceBundle-Lottie_React_Native_Privacy-lottie-react-native-Info.plist
+› Copying   lottie-react-native/Lottie_React_Native_Privacy.bundle/PrivacyInfo.xcprivacy ➜ node_modules/lottie-react-native/ios/PrivacyInfo.xcprivacy
+› Preparing Pods/lottie-ios-LottiePrivacyInfo » ResourceBundle-LottiePrivacyInfo-lottie-ios-Info.plist
+› Copying   lottie-ios/LottiePrivacyInfo.bundle/PrivacyInfo.xcprivacy ➜ node_modules/lottie-ios/Sources/PrivacyInfo.xcprivacy
+› Compiling expo-image Pods/libwebp » sharpyuv_csp.c
+› Compiling expo-image Pods/libwebp » yuv_sse41.c
+› Compiling expo-image Pods/libwebp » yuv_sse2.c
+› Compiling expo-image Pods/libwebp » yuv_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » yuv_mips32.c
+› Compiling expo-image Pods/libwebp » upsampling_sse41.c
+› Compiling expo-image Pods/libwebp » upsampling_sse2.c
+› Compiling expo-image Pods/libwebp » upsampling_msa.c
+› Compiling expo-image Pods/libwebp » upsampling_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » upsampling.c
+› Compiling expo-image Pods/libwebp » tree_enc.c
+› Compiling expo-image Pods/libwebp » tree_dec.c
+› Compiling expo-image Pods/libwebp » thread_utils.c
+› Compiling expo-image Pods/libwebp » syntax_enc.c
+› Compiling expo-image Pods/libwebp » ssim_sse2.c
+› Compiling expo-image Pods/libwebp » sharpyuv_sse2.c
+› Compiling expo-image Pods/libwebp » sharpyuv_gamma.c
+› Compiling expo-image Pods/libwebp » sharpyuv_cpu.c
+› Compiling expo-image Pods/libwebp » rescaler_sse2.c
+› Compiling expo-image Pods/libwebp » rescaler_msa.c
+› Compiling expo-image Pods/libwebp » rescaler_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » rescaler_mips32.c
+› Compiling expo-image Pods/libwebp » rescaler.c
+› Compiling expo-image Pods/libwebp » random_utils.c
+› Compiling expo-image Pods/libwebp » quant_levels_dec_utils.c
+› Compiling expo-image Pods/libwebp » quant_dec.c
+› Compiling expo-image Pods/libwebp » picture_tools_enc.c
+› Compiling expo-image Pods/libwebp » lossless_sse41.c
+› Compiling expo-image Pods/libwebp » lossless_sse2.c
+› Compiling expo-image Pods/libwebp » lossless_msa.c
+› Compiling expo-image Pods/libwebp » lossless_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » lossless_enc_sse41.c
+› Compiling expo-image Pods/libwebp » lossless_enc_sse2.c
+› Compiling expo-image Pods/libwebp » lossless_enc_msa.c
+› Compiling expo-image Pods/libwebp » lossless_enc_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » iterator_enc.c
+› Compiling expo-image Pods/libwebp » filters_sse2.c
+› Compiling expo-image Pods/libwebp » filters_msa.c
+› Compiling expo-image Pods/libwebp » filters_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » filter_enc.c
+› Compiling expo-image Pods/libwebp » yuv.c
+› Compiling expo-image Pods/libwebp » webp_enc.c
+› Compiling expo-image Pods/libwebp » webp_dec.c
+› Compiling expo-image Pods/libwebp » vp8l_enc.c
+› Compiling expo-image Pods/libwebp » vp8l_dec.c
+› Compiling expo-image Pods/libwebp » vp8_dec.c
+› Compiling expo-image Pods/libwebp » utils.c
+› Compiling expo-image Pods/libwebp » token_enc.c
+› Compiling expo-image Pods/libwebp » ssim.c
+› Compiling expo-image Pods/libwebp » sharpyuv_dsp.c
+› Compiling expo-image Pods/libwebp » sharpyuv.c
+› Compiling expo-image Pods/libwebp » rescaler_utils.c
+› Compiling expo-image Pods/libwebp » quant_levels_utils.c
+› Compiling expo-image Pods/libwebp » predictor_enc.c
+› Compiling expo-image Pods/libwebp » picture_rescale_enc.c
+› Compiling expo-image Pods/libwebp » picture_psnr_enc.c
+› Compiling expo-image Pods/libwebp » picture_enc.c
+› Compiling expo-image Pods/libwebp » picture_csp_enc.c
+› Compiling expo-image Pods/libwebp » palette.c
+› Compiling expo-image Pods/libwebp » near_lossless_enc.c
+› Compiling expo-image Pods/libwebp » muxread.c
+› Compiling expo-image Pods/libwebp » muxinternal.c
+› Compiling expo-image Pods/libwebp » muxedit.c
+› Compiling expo-image Pods/libwebp » yuv_neon.c
+› Compiling expo-image Pods/libwebp » upsampling_neon.c
+› Compiling expo-image Pods/libwebp » sharpyuv_neon.c
+› Compiling expo-image Pods/libwebp » rescaler_neon.c
+› Compiling expo-image Pods/libwebp » quant_enc.c
+› Compiling expo-image Pods/libwebp » lossless_neon.c
+› Compiling expo-image Pods/libwebp » lossless_enc_neon.c
+› Compiling expo-image Pods/libwebp » lossless_enc_mips32.c
+› Compiling expo-image Pods/libwebp » lossless_enc.c
+› Compiling expo-image Pods/libwebp » lossless.c
+› Compiling expo-image Pods/libwebp » io_dec.c
+› Compiling expo-image Pods/libwebp » idec_dec.c
+› Compiling expo-image Pods/libwebp » huffman_utils.c
+› Compiling expo-image Pods/libwebp » huffman_encode_utils.c
+› Compiling expo-image Pods/libwebp » histogram_enc.c
+› Compiling expo-image Pods/libwebp » frame_enc.c
+› Compiling expo-image Pods/libwebp » frame_dec.c
+› Compiling expo-image Pods/libwebp » filters_utils.c
+› Compiling expo-image Pods/libwebp » filters_neon.c
+› Compiling expo-image Pods/libwebp » filters.c
+› Compiling expo-image Pods/libwebp » enc_sse41.c
+› Compiling expo-image Pods/libwebp » enc_sse2.c
+› Compiling expo-image Pods/libwebp » enc_neon.c
+› Compiling expo-image Pods/libwebp » enc_msa.c
+› Compiling expo-image Pods/libwebp » enc_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » enc_mips32.c
+› Compiling expo-image Pods/libwebp » enc.c
+› Compiling expo-image Pods/libwebp » demux.c
+› Compiling expo-image Pods/libwebp » dec_sse41.c
+› Compiling expo-image Pods/libwebp » dec_sse2.c
+› Compiling expo-image Pods/libwebp » dec_neon.c
+› Compiling expo-image Pods/libwebp » dec_msa.c
+› Compiling expo-image Pods/libwebp » dec_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » dec_mips32.c
+› Compiling expo-image Pods/libwebp » dec_clip_tables.c
+› Compiling expo-image Pods/libwebp » dec.c
+› Compiling expo-image Pods/libwebp » cpu.c
+› Compiling expo-image Pods/libwebp » cost_sse2.c
+› Compiling expo-image Pods/libwebp » cost_neon.c
+› Compiling expo-image Pods/libwebp » cost_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » cost_mips32.c
+› Compiling expo-image Pods/libwebp » cost_enc.c
+› Compiling expo-image Pods/libwebp » cost.c
+› Compiling expo-image Pods/libwebp » config_enc.c
+› Compiling expo-image Pods/libwebp » color_cache_utils.c
+› Compiling expo-image Pods/libwebp » buffer_dec.c
+› Compiling expo-image Pods/libwebp » bit_writer_utils.c
+› Compiling expo-image Pods/libwebp » bit_reader_utils.c
+› Compiling expo-image Pods/libwebp » backward_references_cost_enc.c
+› Compiling expo-image Pods/libwebp » backward_references_enc.c
+› Compiling expo-image Pods/libwebp » anim_encode.c
+› Compiling expo-image Pods/libwebp » anim_decode.c
+› Compiling expo-image Pods/libwebp » analysis_enc.c
+› Compiling expo-image Pods/libwebp » alpha_processing_sse41.c
+› Compiling expo-image Pods/libwebp » alpha_processing_sse2.c
+› Compiling expo-image Pods/libwebp » alpha_processing_neon.c
+› Compiling expo-image Pods/libwebp » alpha_processing_mips_dsp_r2.c
+› Compiling expo-image Pods/libwebp » alpha_processing.c
+› Compiling expo-image Pods/libwebp » alpha_dec.c
+› Compiling expo-image Pods/libwebp » alpha_enc.c
+› Compiling expo-image Pods/libwebp » libwebp-dummy.m
+› Packaging expo-image Pods/libwebp » liblibwebp.a
+› Compiling lottie-ios Pods/lottie-ios » lottie-ios-dummy.m
+› Compiling expo-image Pods/libdav1d » libdav1d-dummy.m
+› Compiling expo-image Pods/libdav1d » cpu.c
+› Compiling expo-image Pods/libdav1d » wedge.c
+› Compiling expo-image Pods/libdav1d » tables.c
+› Compiling expo-image Pods/libdav1d » scan.c
+› Compiling expo-image Pods/libdav1d » qm.c
+› Compiling expo-image Pods/libdav1d » lf_mask.c
+› Compiling expo-image Pods/libdav1d » itx_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » itx_tmpl.c
+› Compiling expo-image Pods/libdav1d » itx_1d.c
+› Compiling expo-image Pods/libdav1d » getbits.c
+› Compiling expo-image Pods/libdav1d » filmgrain_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » filmgrain_tmpl.c
+› Compiling expo-image Pods/libdav1d » dequant_tables.c
+› Compiling expo-image Pods/libdav1d » warpmv.c
+› Compiling expo-image Pods/libdav1d » thread_task.c
+› Compiling expo-image Pods/libdav1d » refmvs.c
+› Compiling expo-image Pods/libdav1d » ref.c
+› Compiling expo-image Pods/libdav1d » recon_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » recon_tmpl.c
+› Compiling expo-image Pods/libdav1d » picture.c
+› Compiling expo-image Pods/libdav1d » obu.c
+› Compiling expo-image Pods/libdav1d » msac.c
+› Compiling expo-image Pods/libdav1d » mem.c
+› Compiling expo-image Pods/libdav1d » mc_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » mc_tmpl.c
+› Compiling expo-image Pods/libdav1d » lr_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » lr_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » looprestoration_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » looprestoration_tmpl.c
+› Compiling expo-image Pods/libdav1d » loopfilter_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » loopfilter_tmpl.c
+› Compiling expo-image Pods/libdav1d » log.c
+› Compiling expo-image Pods/libdav1d » lib.c
+› Compiling expo-image Pods/libdav1d » lf_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » lf_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » ipred_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » ipred_tmpl.c
+› Compiling expo-image Pods/libdav1d » ipred_prepare_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » ipred_prepare_tmpl.c
+› Compiling expo-image Pods/libdav1d » intra_edge.c
+› Compiling expo-image Pods/libdav1d » fg_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » fg_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » data.c
+› Compiling expo-image Pods/libdav1d » cdf.c
+› Compiling expo-image Pods/libdav1d » cdef_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » cdef_tmpl.c
+› Compiling expo-image Pods/libdav1d » cdef_apply_tmpl_16.c
+› Compiling expo-image Pods/libdav1d » cdef_apply_tmpl.c
+› Compiling expo-image Pods/libdav1d » decode.c
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNDeps] Replace React Native Core for the right configuration, if needed
+› Creating  Pods/react-native-maps-ReactNativeMapsPrivacy » ReactNativeMapsPrivacy.bundle
+› Creating  Pods/react-native-google-maps-GoogleMapsPrivacy » GoogleMapsPrivacy.bundle
+› Creating  Pods/lottie-react-native-Lottie_React_Native_Privacy » Lottie_React_Native_Privacy.bundle
+› Compiling Pods/libavif » write.c
+› Compiling Pods/libavif » utils.c
+› Compiling Pods/libavif » scale.c
+› Compiling Pods/libavif » reformat_libyuv.c
+› Compiling Pods/libavif » reformat_libsharpyuv.c
+› Compiling Pods/libavif » reformat.c
+› Compiling expo-image Pods/libdav1d » cpu.c
+› Compiling Pods/libavif » rawdata.c
+› Compiling Pods/libavif » obu.c
+› Compiling Pods/libavif » io.c
+› Compiling Pods/libavif » exif.c
+› Compiling Pods/libavif » diag.c
+› Compiling Pods/libavif » colr.c
+› Compiling Pods/libavif » codec_dav1d.c
+› Compiling Pods/libavif » avif.c
+› Compiling Pods/libavif » alpha.c
+› Packaging expo-image Pods/libdav1d » liblibdav1d.a
+› Compiling Pods/libavif » mem.c
+› Creating  Pods/lottie-ios-LottiePrivacyInfo » LottiePrivacyInfo.bundle
+› Compiling Pods/libavif » stream.c
+› Compiling Pods/libavif » read.c
+› Packaging lottie-ios Pods/lottie-ios » liblottie-ios.a
+› Preparing Pods/expo-dev-menu-EXDevMenu » ResourceBundle-EXDevMenu-expo-dev-menu-Info.plist

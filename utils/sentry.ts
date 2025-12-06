@@ -1,8 +1,10 @@
+import { getConfig } from '@/config/env';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN || '';
+const appConfig = getConfig();
+const SENTRY_DSN = appConfig.sentryDsn || '';
 const isPlaceholderDsn = (dsn: string) => {
   const lower = dsn.toLowerCase();
   return (
@@ -20,7 +22,7 @@ export function initSentry() {
 
   Sentry.init({
     dsn: SENTRY_DSN,
-    environment: process.env.EXPO_PUBLIC_NODE_ENV || 'development',
+    environment: appConfig.nodeEnv || 'development',
     debug: false,
     tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
     beforeSend(event, hint) {

@@ -71,7 +71,7 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
         <ViewShot ref={(r) => { viewShotRef.current = r; }} style={styles.canvas} options={{ format: 'png', quality: 0.95 }}>
           <View style={[styles.canvasInner, { height: CANVAS_HEIGHT, backgroundColor: Colors[colorScheme].surface }] }>
             {baseUri ? (
-              <MeasuredImage uri={baseUri} onSize={(w,h) => setImgSize({w,h})} maxW={Dimensions.get('window').width - 48} maxH={CANVAS_HEIGHT - 24} />
+              <MeasuredImage uri={baseUri} maxW={Dimensions.get('window').width - 48} maxH={CANVAS_HEIGHT - 24} />
             ) : (
               <View style={styles.empty}><Text style={{ color: Colors[colorScheme].mutedText }}>No image</Text></View>
             )}
@@ -107,13 +107,13 @@ export default function ImageEditor({ visible, imageUri, onSave, onClose }: Prop
   );
 }
 
-function MeasuredImage({ uri, onSize, maxW = 300, maxH = 240 }: { uri: string; onSize: (w:number,h:number)=>void; maxW?: number; maxH?: number }){
+function MeasuredImage({ uri, maxW = 300, maxH = 240 }: { uri: string; maxW?: number; maxH?: number }){
   const [size, setSize] = useState<{w:number,h:number}|null>(null);
   useEffect(()=>{
     let mounted = true;
-    Image.getSize(uri, (w,h)=> { if (mounted) { setSize({w,h}); onSize(w,h); } }, (e) => { console.warn('getSize failed', e); });
+    Image.getSize(uri, (w,h)=> { if (mounted) { setSize({w,h}); } }, (e) => { console.warn('getSize failed', e); });
     return () => { mounted = false; };
-  },[onSize, uri]);
+  },[uri]);
 
   if (!size) {
     return <View style={{ width: maxW, height: maxH, alignItems: 'center', justifyContent: 'center' }}><Text>Loading…</Text></View>;

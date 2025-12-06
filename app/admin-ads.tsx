@@ -3,7 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ type AdStatus = 'draft' | 'pending' | 'approved' | 'rejected';
 
 export default function AdminAdsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const router = useRouter();
   const { isAdmin, loading: _authLoading } = useRequireAdmin();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

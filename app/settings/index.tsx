@@ -1,5 +1,6 @@
 
             import Switch from '@/components/ui/switch';
+import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import { Stack, useRouter } from 'expo-router';
@@ -9,6 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
             // @ts-ignore JS exports
             import { User } from '@/api/entities';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+
+const appConfig = getConfig();
 
             type Preferences = {
               notifications: { game_event_reminders: boolean; team_updates: boolean; comments_upvotes: boolean };
@@ -168,10 +171,8 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                     setEmail(me?.email || null);
                     
                     // Check if user is admin (email-based)
-                    const adminEmails = (process.env.EXPO_PUBLIC_ADMIN_EMAILS || 'emilmancero@gmail.com')
-                      .split(',')
-                      .map(e => e.trim().toLowerCase())
-                      .filter(Boolean);
+                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
+                      .map((e) => e.toLowerCase());
                     setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
                     
                     const serverPrefs = (me && me.preferences) || {};
@@ -430,7 +431,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                             const v = String(val || '').trim();
                             if (v !== 'DELETE') { Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.'); return; }
                             try {
-                              const res = await fetch((process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') + '/users/me', { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
+                              const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                               const ok = res.ok;
                               if (!ok) throw new Error('Failed');
                             // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -450,7 +451,7 @@ import { useOnboardingOptional } from '@/context/OnboardingContext';
                             { text: 'Confirm', style: 'destructive', onPress: async () => {
                               // Simple confirm-only for Android fallback
                               try {
-                                const res = await fetch((process as any).env?.EXPO_PUBLIC_API_URL?.replace(/\/$/, '') + '/users/me', { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
+                                const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                                 if (!res.ok) throw new Error('Failed');
                               // eslint-disable-next-line @typescript-eslint/no-unused-vars
                               } catch (_e: any) { Alert.alert('Delete failed', 'Could not delete your account.'); return; }

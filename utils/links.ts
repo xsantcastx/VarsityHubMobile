@@ -3,9 +3,12 @@
  * Provides canonical URLs for sharing events, games, posts, and profiles
  */
 import Constants from 'expo-constants';
+import { getConfig } from '@/config/env';
 
-const WEB_BASE_URL: string = (Constants?.expoConfig as any)?.extra?.appBaseUrl || process.env.EXPO_PUBLIC_WEB_BASE_URL || process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.app';
-const APP_SCHEME = process.env.EXPO_PUBLIC_APP_SCHEME || 'varsityhubmobile';
+const appConfig = getConfig();
+const WEB_BASE_URL: string =
+  (Constants?.expoConfig as any)?.extra?.appBaseUrl || appConfig.webBaseUrl || 'https://varsityhub.app';
+const APP_SCHEME = appConfig.appScheme || 'varsityhubmobile';
 
 export interface ShareableLink {
   /** Universal web URL (for sharing outside the app) */
