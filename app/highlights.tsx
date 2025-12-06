@@ -591,7 +591,7 @@ export default function HighlightsScreen() {
       />
       
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: 12, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+      <View style={[styles.header, { paddingTop: 0, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
         </View>

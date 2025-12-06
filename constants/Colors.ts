@@ -22,15 +22,15 @@ export const Colors = {
   },
   dark: {
     text: '#F5F5F5',
-    background: '#000000',
-    card: '#0B0B0B',
-    surface: '#121212',
-    border: '#262626',
-    mutedText: '#B3B3B3',
-    elevated: '#0B0B0B',
+    background: '#0f172a',  // Dark navy blue (slate-900)
+    card: '#1e293b',        // Slightly lighter navy (slate-800)
+    surface: '#1e293b',
+    border: '#334155',      // Slate-700 for better contrast
+    mutedText: '#94a3b8',   // Slate-400
+    elevated: '#1e293b',
     tint: tintColorDark,
-    icon: '#D1D5DB',
-    tabIconDefault: '#D1D5DB',
+    icon: '#cbd5e1',        // Slate-300
+    tabIconDefault: '#94a3b8',
     tabIconSelected: tintColorDark,
   },
 };
