@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 
-import { EventMapData, EventMapProps } from './EventMap.types';
+import { EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
 
@@ -233,20 +233,30 @@ export default function EventMap({
             activeOpacity={0.9}
           >
             <Ionicons
-              name="calendar-outline"
+              name="map-outline"
               size={48}
-              color={Colors[colorScheme].icon}
+              color={Colors[colorScheme].tint}
             />
             <Text style={[styles.noEventsTitle, { color: Colors[colorScheme].text }]}>
-              No Events with Locations
+              No Games with Locations Yet
             </Text>
             <Text
-              style={[styles.noEventsDescription, { color: Colors[colorScheme].icon }]}
+              style={[styles.noEventsDescription, { color: Colors[colorScheme].mutedText }]}
             >
-              Events will appear here once they have location data
+              Games will appear on the map once they have location data added. Teams can add locations when creating games.
             </Text>
+            <View style={styles.emptyStateHints}>
+              <View style={styles.hint}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
+                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations</Text>
+              </View>
+              <View style={styles.hint}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors[colorScheme].tint} />
+                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Follow teams near you</Text>
+              </View>
+            </View>
             <Text
-              style={[styles.noEventsDismiss, { color: Colors[colorScheme].icon }]}
+              style={[styles.noEventsDismiss, { color: Colors[colorScheme].mutedText }]}
             >
               Tap to dismiss
             </Text>
@@ -352,7 +362,22 @@ const styles = StyleSheet.create({
   noEventsDescription: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
+  },
+  emptyStateHints: {
+    gap: 8,
+    marginBottom: 12,
+    width: '100%',
+  },
+  hint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  hintText: {
+    fontSize: 13,
+    flex: 1,
   },
   noEventsDismiss: {
     fontSize: 12,
