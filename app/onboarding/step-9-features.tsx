@@ -4,11 +4,12 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useAuth } from '@/context/AuthProvider';
 import * as Location from 'expo-location';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -17,6 +18,7 @@ export default function Step9Features() {
   const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
+  const { registerPushToken } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,6 +26,26 @@ export default function Step9Features() {
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
   const returnToConfirmation = params.returnToConfirmation === 'true';
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!notificationsEnabled) return;
+
+    (async () => {
+      const granted = await registerPushToken();
+      if (!cancelled && !granted) {
+        setNotificationsEnabled(false);
+        Alert.alert(
+          'Notifications Disabled',
+          'We could not enable push notifications. You can turn them on later from device settings.'
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [notificationsEnabled, registerPushToken]);
 
   const enableLocation = async () => {
     if (locationEnabled) {
@@ -47,6 +69,27 @@ export default function Step9Features() {
       Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.');
     }
   };
+
+  const handleNotificationsToggle = useCallback(
+    async (value: boolean) => {
+      if (value) {
+        const granted = await registerPushToken();
+        if (granted) {
+          setNotificationsEnabled(true);
+        } else {
+          setNotificationsEnabled(false);
+          Alert.alert(
+            'Notifications Disabled',
+            'We could not enable push notifications. You can turn them on later from device settings.'
+          );
+        }
+        return;
+      }
+
+      setNotificationsEnabled(false);
+    },
+    [registerPushToken]
+  );
 
   const onContinue = async () => {
     setSaving(true);
@@ -148,7 +191,7 @@ export default function Step9Features() {
             </View>
             <Switch
               value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
+              onValueChange={handleNotificationsToggle}
               trackColor={{ 
                 false: Colors[colorScheme].border, 
                 true: '#ef4444' 
@@ -320,7 +363,4 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
 });
-
-
-
 

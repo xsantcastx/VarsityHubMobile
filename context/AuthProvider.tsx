@@ -10,8 +10,8 @@
  * - Email verification: detected and routed centrally; verify-email screen shows user context
  */
 
-import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -37,6 +37,7 @@ interface AuthContextType {
   isAdmin: boolean;
   checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
+  registerPushToken: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,14 +82,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const lastPushRegistrationRef = React.useRef<string | null>(null);
+
   // Register for push notifications
   const setupPushNotifications = useCallback(async (userId: string) => {
+    if (!userId) return false;
+    if (lastPushRegistrationRef.current === userId) {
+      // Already registered for this user during this session
+      return true;
+    }
+
     try {
-      // 1. Request permission from user
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
+      // 1. Check existing permissions
+      let permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status !== 'granted') {
+        permissions = await Notifications.requestPermissionsAsync();
+      }
+
+      if (permissions.status !== 'granted') {
         console.log('[PushNotifications] Permission denied by user');
-        return;
+        return false;
       }
 
       // 2. Get project ID from app config
@@ -102,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!projectId) {
         console.error('[PushNotifications] EXPO_PROJECT_ID not found in app.json');
-        return;
+        return false;
       }
 
       // 3. Get Expo push token
@@ -120,9 +133,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       
       console.log('[PushNotifications] ✅ Push token saved to backend');
+      lastPushRegistrationRef.current = userId;
+      return true;
     } catch (error: any) {
       console.error('[PushNotifications] Failed to setup:', error?.message || error);
       // Don't block app - push notifications are optional
+      return false;
     }
   }, []);
 
@@ -149,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
         // Setup push notifications after successful auth
-        setupPushNotifications(me.id);
+        void setupPushNotifications(me.id);
 
         return me;
       } catch (err: any) {
@@ -166,6 +182,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPendingVerificationEmail(null);
     router.replace('/sign-in');
   }, [router]);
+
+  const registerPushToken = useCallback(async () => {
+    if (!user?.id) return false;
+    return setupPushNotifications(user.id);
+  }, [setupPushNotifications, user?.id]);
 
   // Initial auth check
   useEffect(() => {
@@ -270,6 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin,
     checkAuth,
     signOut,
+    registerPushToken,
   };
 
   return (
