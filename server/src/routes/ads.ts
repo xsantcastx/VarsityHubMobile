@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const adsRouter = Router();
 
@@ -51,7 +52,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   const all = String(req.query.all || '') === '1';
   const where: any = {};
   
-  console.log('[ads] GET / query params:', { 
+  debugLog('[ads] GET / query params:', { 
     mine, 
     contactEmail, 
     all, 
@@ -65,7 +66,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
       return res.status(401).json({ error: 'Auth required' });
     }
     where.user_id = req.user.id;
-    console.log('[ads] GET / filtering by user_id:', req.user.id);
+    debugLog('[ads] GET / filtering by user_id:', req.user.id);
   } else if (contactEmail) {
     where.contact_email = contactEmail;
   } else if (all) {
@@ -73,11 +74,11 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'Admin only' });
     // return all ads
     const list = await prisma.ad.findMany({ orderBy: { created_at: 'desc' } });
-    console.log('[ads] GET / admin all ads count:', list.length);
+    debugLog('[ads] GET / admin all ads count:', list.length);
     return res.json(list);
   } else {
     // SECURITY: Default to requiring authentication and returning user's ads only
-    console.log('[ads] GET / no filter provided, defaulting to user ads only');
+    debugLog('[ads] GET / no filter provided, defaulting to user ads only');
     if (!req.user?.id) {
       console.warn('[ads] GET / no filter and no user authenticated, returning empty');
       return res.json([]);
@@ -87,7 +88,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
   }
   
   const list = await prisma.ad.findMany({ where, orderBy: { created_at: 'desc' } });
-  console.log('[ads] GET / returning ads:', { 
+  debugLog('[ads] GET / returning ads:', { 
     count: list.length, 
     where,
     adIds: list.map(a => a.id),
@@ -106,7 +107,7 @@ adsRouter.get('/for-feed', async (req, res) => {
   const start = new Date(dateISO + 'T00:00:00.000Z');
   const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
-  console.log('[ads] for-feed query:', { dateParam, dateISO, zip, limit, start, next });
+  debugLog('[ads] for-feed query:', { dateParam, dateISO, zip, limit, start, next });
 
   const whereAd: any = {
     payment_status: 'paid',
@@ -114,7 +115,7 @@ adsRouter.get('/for-feed', async (req, res) => {
   };
   if (zip) whereAd.target_zip_code = zip;
 
-  console.log('[ads] for-feed where clause for ads:', whereAd);
+  debugLog('[ads] for-feed where clause for ads:', whereAd);
 
   const ads = await prisma.ad.findMany({
     where: {
@@ -130,7 +131,7 @@ adsRouter.get('/for-feed', async (req, res) => {
     },
   });
 
-  console.log('[ads] for-feed found ads:', { 
+  debugLog('[ads] for-feed found ads:', { 
     count: ads.length, 
     ads: ads.map(ad => ({
       id: ad.id,
@@ -172,7 +173,7 @@ adsRouter.put('/:id', async (req: AuthedRequest, res) => {
 // Delete an Ad (owner-only if authenticated)
 adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  console.log('[ads] DELETE /:id request', { id, userId: req.user?.id });
+  debugLog('[ads] DELETE /:id request', { id, userId: req.user?.id });
   
   const existing = await prisma.ad.findUnique({ where: { id } });
   if (!existing) {
@@ -193,11 +194,11 @@ adsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res)
   try {
     // First delete all reservations for this ad
     await prisma.adReservation.deleteMany({ where: { ad_id: id } });
-    console.log('[ads] DELETE /:id - Deleted reservations', { id });
+    debugLog('[ads] DELETE /:id - Deleted reservations', { id });
     
     // Then delete the ad itself
     await prisma.ad.delete({ where: { id } });
-    console.log('[ads] DELETE /:id - Ad deleted successfully', { id });
+    debugLog('[ads] DELETE /:id - Ad deleted successfully', { id });
     
     return res.json({ ok: true, message: 'Ad deleted successfully' });
   } catch (error) {
@@ -217,12 +218,12 @@ adsRouter.get('/reservations', async (req, res) => {
   if (to) where.date.lte = to;
   if (adId) where.ad_id = adId;
   
-  console.log('[ads] GET /reservations query:', { from, to, adId, where });
+  debugLog('[ads] GET /reservations query:', { from, to, adId, where });
   
   const list = await prisma.adReservation.findMany({ where, orderBy: { date: 'asc' } });
   const dates = list.map((r) => r.date.toISOString().slice(0, 10));
   
-  console.log('[ads] Found reservations:', { 
+  debugLog('[ads] Found reservations:', { 
     adId, 
     count: list.length, 
     rawDates: list.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() })),

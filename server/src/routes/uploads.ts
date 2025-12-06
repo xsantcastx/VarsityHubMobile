@@ -4,6 +4,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cloudinary, getCloudinaryFolder, isCloudinaryConfigured } from '../lib/cloudinary.js';
+import { debugLog } from '../lib/debugLog.js';
 
 // Extend Request type to include multer file
 interface MulterRequest extends Request {
@@ -18,9 +19,9 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const useCloudinary = isCloudinaryConfigured();
 
 if (useCloudinary) {
-  console.log('✅ Cloudinary configured - using cloud storage');
+  debugLog('✅ Cloudinary configured - using cloud storage');
 } else {
-  console.log('⚠️  Cloudinary not configured - using local disk storage (ephemeral on Railway!)');
+  debugLog('⚠️  Cloudinary not configured - using local disk storage (ephemeral on Railway!)');
 }
 
 // Local disk storage (fallback)
@@ -75,7 +76,7 @@ export const uploadsRouter = Router();
 
 // Add error logging middleware
 uploadsRouter.use((req, res, next) => {
-  console.log('[uploads] Incoming request:', {
+  debugLog('[uploads] Incoming request:', {
     method: req.method,
     path: req.path,
     headers: req.headers,
@@ -97,7 +98,7 @@ uploadsRouter.post('/', upload.single('file'), (req: MulterRequest, res) => {
     url = (req.file as any).path; // Cloudinary URL
     type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
     
-    console.log('[uploads] Cloudinary upload:', {
+    debugLog('[uploads] Cloudinary upload:', {
       originalname: req.file.originalname,
       cloudinary_url: url,
       mimetype: req.file.mimetype,
@@ -111,7 +112,7 @@ uploadsRouter.post('/', upload.single('file'), (req: MulterRequest, res) => {
     type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
     
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[uploads] Local disk upload:', {
+      debugLog('[uploads] Local disk upload:', {
         originalname: req.file.originalname,
         filename: req.file.filename,
         mimetype: req.file.mimetype,

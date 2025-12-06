@@ -23,6 +23,7 @@ export {
 
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
+import { debugLog } from './debugLog.js';
 
 const expo = new Expo();
 
@@ -45,14 +46,14 @@ export async function sendPushNotification(
     });
 
     if (!user) {
-      console.log(`User ${userId} not found`);
+      debugLog(`User ${userId} not found`);
       return;
     }
 
     // Check if notifications are enabled
     const prefs = user.preferences as any;
     if (prefs && prefs.notifications_enabled === false) {
-      console.log(`Notifications disabled for user ${userId}`);
+      debugLog(`Notifications disabled for user ${userId}`);
       return;
     }
 
@@ -60,7 +61,7 @@ export async function sendPushNotification(
     const pushToken = prefs?.push_token as string;
     
     if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
-      console.log(`Invalid or missing push token for user ${userId}`);
+      debugLog(`Invalid or missing push token for user ${userId}`);
       return;
     }
 
@@ -86,7 +87,7 @@ export async function sendPushNotification(
       }
     }
 
-    console.log(`Sent notification to user ${userId}: ${title}`);
+    debugLog(`Sent notification to user ${userId}: ${title}`);
   } catch (error) {
     console.error(`Failed to send notification to user ${userId}:`, error);
   }
@@ -208,7 +209,7 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
     },
   });
 
-  console.log(`Found ${upcomingEvents.length} events happening in ${hoursBeforeGame} hours`);
+  debugLog(`Found ${upcomingEvents.length} events happening in ${hoursBeforeGame} hours`);
 
   // Send notifications to all RSVPd users
   for (const event of upcomingEvents) {
@@ -255,9 +256,9 @@ export async function scheduleGameReminders(eventId: string, userId: string): Pr
 
   // In a real implementation, you would use a job queue (Bull, Agenda, etc.)
   // For now, we log that reminders should be scheduled
-  console.log(`📅 Scheduled game reminders for user ${userId} for event ${eventId} (${event.title})`);
-  console.log(`  - 12-hour reminder: ${new Date(new Date(event.date).getTime() - 12 * 60 * 60 * 1000).toISOString()}`);
-  console.log(`  - 1-hour reminder: ${new Date(new Date(event.date).getTime() - 1 * 60 * 60 * 1000).toISOString()}`);
+  debugLog(`📅 Scheduled game reminders for user ${userId} for event ${eventId} (${event.title})`);
+  debugLog(`  - 12-hour reminder: ${new Date(new Date(event.date).getTime() - 12 * 60 * 60 * 1000).toISOString()}`);
+  debugLog(`  - 1-hour reminder: ${new Date(new Date(event.date).getTime() - 1 * 60 * 60 * 1000).toISOString()}`);
 }
 
 /**
@@ -265,5 +266,5 @@ export async function scheduleGameReminders(eventId: string, userId: string): Pr
  */
 export async function cancelGameReminders(eventId: string, userId: string): Promise<void> {
   // In a real implementation, you would cancel the scheduled jobs
-  console.log(`❌ Cancelled game reminders for user ${userId} for event ${eventId}`);
+  debugLog(`❌ Cancelled game reminders for user ${userId} for event ${eventId}`);
 }

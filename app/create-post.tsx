@@ -403,15 +403,15 @@ export default function CreatePostScreen() {
         <View style={styles.mediaSection}>
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Add Media</Text>
           <View style={styles.tilesRow}>
-            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => pickFromLibrary('image')} accessibilityLabel="Gallery">
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => pickFromLibrary('image')} accessibilityLabel="Photo Gallery">
               <Ionicons name="image-outline" size={24} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Gallery</Text>
+              <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Photo</Text>
             </Pressable>
             <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
               <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
             </Pressable>
-            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => captureWithCamera('video')} accessibilityLabel="Video">
+            <Pressable style={[styles.tile, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => pickFromLibrary('video')} accessibilityLabel="Video Gallery">
               <Ionicons name="videocam-outline" size={24} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Video</Text>
             </Pressable>

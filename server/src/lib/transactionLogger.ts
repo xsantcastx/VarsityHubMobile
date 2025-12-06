@@ -7,6 +7,7 @@
 
 import { TransactionStatus, TransactionType } from '@prisma/client';
 import { prisma } from './prisma.js';
+import { debugLog } from './debugLog.js';
 
 export interface TransactionLogData {
   // Transaction identification
@@ -79,7 +80,7 @@ export async function logTransaction(data: TransactionLogData) {
       },
     });
     
-    console.log(`[transaction-log] Created log ${log.id} for ${data.transactionType}`);
+    debugLog(`[transaction-log] Created log ${log.id} for ${data.transactionType}`);
     return log;
   } catch (error) {
     console.error('[transaction-log] Failed to log transaction:', error);
@@ -118,7 +119,7 @@ export async function updateTransactionStatus(
       data: updateData,
     });
     
-    console.log(`[transaction-log] Updated log ${log.id} to ${status}`);
+    debugLog(`[transaction-log] Updated log ${log.id} to ${status}`);
     return log;
   } catch (error) {
     console.error('[transaction-log] Failed to update transaction:', error);

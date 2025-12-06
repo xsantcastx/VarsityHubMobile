@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
+import { debugLog } from './debugLog.js';
 
 // Initialize SendGrid
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
@@ -58,7 +59,7 @@ export function initEmailService() {
   if (missing.length) {
     console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
   } else {
-    console.log('✅ SendGrid email service initialized (all required templates configured)');
+    debugLog('✅ SendGrid email service initialized (all required templates configured)');
   }
 }
 
@@ -82,7 +83,7 @@ export async function sendVerificationEmail(email: string, token: string, userNa
         verification_code: token,
       },
     });
-    console.log(`✅ Verification email sent to ${email}`);
+    debugLog(`✅ Verification email sent to ${email}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send verification email:', error);
@@ -109,7 +110,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
         expires_in: '30 minutes',
       },
     });
-    console.log(`✅ Password reset email sent to ${email}`);
+    debugLog(`✅ Password reset email sent to ${email}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send password reset email:', error);
@@ -155,7 +156,7 @@ export async function sendTeamInviteEmail(params: {
         primary_color: params.primaryColor || '#2563EB',
       },
     });
-    console.log(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
+    debugLog(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send team invite:', error);
@@ -195,7 +196,7 @@ export async function sendOrganizationInviteEmail(params: {
         primary_color: params.primaryColor || '#2563EB',
       },
     });
-    console.log(`✅ Organization invite sent to ${params.to} for ${params.organizationName}`);
+    debugLog(`✅ Organization invite sent to ${params.to} for ${params.organizationName}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send organization invite:', error);
@@ -232,7 +233,7 @@ export async function sendAbuseReportNotification(params: {
         submitted_at: new Date().toLocaleString(),
       },
     });
-    console.log(`✅ Abuse report sent to customer service from ${params.reporterEmail}`);
+    debugLog(`✅ Abuse report sent to customer service from ${params.reporterEmail}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send abuse report:', error);
@@ -272,7 +273,7 @@ export async function sendJoinRequestToAdmin(params: {
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       },
     });
-    console.log(`✅ Join request notification sent to ${params.adminEmail}`);
+    debugLog(`✅ Join request notification sent to ${params.adminEmail}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send join request notification:', error);
@@ -308,7 +309,7 @@ export async function sendJoinRequestApproved(params: {
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       },
     });
-    console.log(`✅ Join request approved notification sent to ${params.userEmail}`);
+    debugLog(`✅ Join request approved notification sent to ${params.userEmail}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send join request approved notification:', error);
@@ -343,7 +344,7 @@ export async function sendJoinRequestDenied(params: {
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       },
     });
-    console.log(`✅ Join request denied notification sent to ${params.userEmail}`);
+    debugLog(`✅ Join request denied notification sent to ${params.userEmail}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send join request denied notification:', error);
@@ -376,7 +377,7 @@ export async function sendOrganizationApprovalEmail(params: {
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       },
     });
-    console.log(`✅ Organization approval email sent to ${params.to}`);
+    debugLog(`✅ Organization approval email sent to ${params.to}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send organization approval email:', error);
@@ -409,7 +410,7 @@ export async function sendOrganizationDenialEmail(params: {
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
       },
     });
-    console.log(`✅ Organization denial email sent to ${params.to}`);
+    debugLog(`✅ Organization denial email sent to ${params.to}`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send organization denial email:', error);
@@ -445,7 +446,7 @@ export async function sendContentModerationEmail(params: {
         next_steps: params.nextSteps || 'If you believe this is a mistake, reply to this email and we'll review it.',
       },
     });
-    console.log(`✅ Content moderation email sent to ${params.to} (action: ${params.action})`);
+    debugLog(`✅ Content moderation email sent to ${params.to} (action: ${params.action})`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send content moderation email:', error);
@@ -486,7 +487,7 @@ export async function sendBillingNoticeEmail(params: {
         perks: params.perks || [],
       },
     });
-    console.log(`✅ Billing notice sent to ${params.to} (type: ${params.type})`);
+    debugLog(`✅ Billing notice sent to ${params.to} (type: ${params.type})`);
     return true;
   } catch (error) {
     console.error('❌ Failed to send billing notice:', error);

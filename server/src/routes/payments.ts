@@ -7,6 +7,7 @@ import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -153,7 +154,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     throw membershipError(400, 'You already have this subscription plan');
   }
 
-  console.log(`[payments] Plan upgrade: ${currentPlan} → ${chosen} for user ${userId}`);
+  debugLog(`[payments] Plan upgrade: ${currentPlan} → ${chosen} for user ${userId}`);
 
   // Check for recent payments to prevent duplicates
   try {
@@ -169,7 +170,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     );
 
     if (recentUserSession) {
-      console.log('[payments] Recent PAID session found, updating user preferences from Stripe session');
+      debugLog('[payments] Recent PAID session found, updating user preferences from Stripe session');
       // Update user preferences from the recent successful session
       await finalizeFromSession(recentUserSession);
       throw membershipError(400, 'Payment already processed recently');
@@ -240,7 +241,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       sessionConfig.discounts = [{
         promotion_code: promoCode.trim(),
       }];
-      console.log(`[payments] Applying promo code to subscription: ${promoCode.trim()}`);
+      debugLog(`[payments] Applying promo code to subscription: ${promoCode.trim()}`);
     } catch (promoErr) {
       console.warn('[payments] Failed to apply promo code:', promoErr);
       // Continue without promo code rather than failing
@@ -587,7 +588,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         quantity: billable,
       });
       
-      console.log(`[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`);
+      debugLog(`[payments] Updated subscription ${subscriptionId} billable quantity to ${billable} (total teams ${team_count})`);
       
       return res.json({ 
         ok: true, 
@@ -729,7 +730,7 @@ paymentsRouter.post('/debug/reset-to-rookie', requireVerified as any, async (req
 
     await prisma.user.update({ where: { id: userId }, data: { preferences: nextPrefs } });
 
-    console.log(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
+    debugLog(`[payments] Reset user ${userId} to rookie plan (debug endpoint)`);
     
     return res.json({ 
       ok: true, 
@@ -751,7 +752,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    console.log('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
+    debugLog('🔍 Admin-initiated bulk reset of unpaid subscriptions...');
 
     // Get all users and filter in JavaScript (simpler than complex Prisma query)
     const allUsers = await prisma.user.findMany({
@@ -772,7 +773,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
       return (plan === 'veteran' || plan === 'legend') && !subscriptionId;
     });
 
-    console.log(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
+    debugLog(`Found ${usersToReset.length} users with paid plans but no subscription ID`);
 
     if (usersToReset.length === 0) {
       return res.json({ 
@@ -804,7 +805,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
           data: { preferences: nextPrefs } 
         });
 
-        console.log(`✅ Admin reset: ${user.email} to rookie plan`);
+        debugLog(`✅ Admin reset: ${user.email} to rookie plan`);
         resetUsers.push({
           email: user.email,
           name: user.display_name,
@@ -816,7 +817,7 @@ paymentsRouter.post('/admin/reset-unpaid-subscriptions', requireVerified as any,
       }
     }
 
-    console.log(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
+    debugLog(`[payments] Admin bulk reset completed: ${resetCount}/${usersToReset.length} users`);
     
     return res.json({ 
       ok: true, 
@@ -865,7 +866,7 @@ paymentsRouter.post('/finalize-session', expressPkg.json(), requireVerified as a
 
 // Optional helper to finalize payment based on a Checkout Session's metadata (fallback if webhook is not configured)
 async function finalizeFromSession(session: Stripe.Checkout.Session) {
-  console.log('[payments] finalizeFromSession called', {
+  debugLog('[payments] finalizeFromSession called', {
     session_id: session.id,
     payment_status: session.payment_status,
     status: session.status,
@@ -886,7 +887,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   let dates: string[] = [];
   try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
   if (ad_id && Array.isArray(dates) && dates.length) {
-    console.log('[payments] Processing ad reservation payment', {
+    debugLog('[payments] Processing ad reservation payment', {
       ad_id,
       dates,
       session_id: session.id,
@@ -903,7 +904,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         }),
         prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
-      console.log('[payments] Ad reservation payment completed successfully', {
+      debugLog('[payments] Ad reservation payment completed successfully', {
         ad_id,
         dates,
         session_id: session.id,
@@ -945,7 +946,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   if (isMembership && userId && plan.length > 0) {
     // Only finalize if payment was actually successful
     const paid = session.payment_status === 'paid';
-    console.log('[payments] finalize membership check', { 
+    debugLog('[payments] finalize membership check', { 
       session_id: session.id, 
       payment_status: session.payment_status, 
       status: session.status, 

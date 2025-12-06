@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import type { Express } from 'express';
+import { debugLog } from './debugLog.js';
 
 /**
  * Initialize Sentry error tracking
@@ -9,7 +10,7 @@ export function initSentry(app: Express) {
   const environment = process.env.NODE_ENV || 'development';
 
   if (!dsn) {
-    console.log('⚠️ Sentry DSN not configured - error tracking disabled');
+    debugLog('⚠️ Sentry DSN not configured - error tracking disabled');
     return;
   }
 
@@ -40,7 +41,7 @@ export function initSentry(app: Express) {
   // Tracing middleware
   app.use(Sentry.Handlers.tracingHandler());
 
-  console.log(`✅ Sentry initialized for ${environment} environment`);
+  debugLog(`✅ Sentry initialized for ${environment} environment`);
 }
 
 /**

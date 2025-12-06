@@ -6,6 +6,7 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const teamsRouter = Router();
 
@@ -326,7 +327,7 @@ const updateSchema = z.object({
   venue_address: z.string().optional(),
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
-  console.log('[Teams PUT] Received update request:', JSON.stringify(req.body));
+  debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
@@ -369,7 +370,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.venue_lng !== undefined) updateData.venue_lng = parsed.data.venue_lng;
   if (parsed.data.venue_address !== undefined) updateData.venue_address = parsed.data.venue_address;
   
-  console.log('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
+  debugLog('[Teams PUT] Prepared update data:', JSON.stringify(updateData));
   
   try {
     const updatedTeam = await prisma.team.update({
@@ -386,7 +387,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
         },
       },
     });
-    console.log('[Teams PUT] Update successful');
+    debugLog('[Teams PUT] Update successful');
     // Return a compact team object including organization and logo/avatar fields for client convenience
     return res.json({
       id: updatedTeam.id,

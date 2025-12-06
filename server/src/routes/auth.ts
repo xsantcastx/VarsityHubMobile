@@ -6,6 +6,7 @@ import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -47,7 +48,7 @@ const registerSchema = z.object({
 
 authRouter.post('/register', async (req, res) => {
   const start = Date.now();
-  console.log('[register] Incoming request');
+  debugLog('[register] Incoming request');
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, password, display_name, role } = parsed.data;
@@ -55,7 +56,7 @@ authRouter.post('/register', async (req, res) => {
   
   // Prevent duplicate accounts - check if email already exists
   // Users can create multiple accounts with different emails, but not duplicate the same email
-  console.log('[register] Checking for existing user');
+  debugLog('[register] Checking for existing user');
   let exists;
   try {
     exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
@@ -77,7 +78,7 @@ authRouter.post('/register', async (req, res) => {
     ...(isAdmin && { is_admin: true })
   };
   
-  console.log('[register] Creating user record');
+  debugLog('[register] Creating user record');
   let user;
   try {
     user = await prisma.user.create({ 
@@ -97,7 +98,7 @@ authRouter.post('/register', async (req, res) => {
   }
   const access_token = signJwt({ id: user.id });
   try { 
-    console.log('[email] Sending verification email to:', email);
+    debugLog('[email] Sending verification email to:', email);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
     const EMAIL_TIMEOUT_MS = 5000;
     const timed = await Promise.race([
@@ -109,7 +110,7 @@ authRouter.post('/register', async (req, res) => {
     } else if (timed === false) {
       console.warn('[email] Verification email skipped (SendGrid not configured)');
     } else {
-      console.log('[email] Verification email sent successfully');
+      debugLog('[email] Verification email sent successfully');
     }
   } catch (e) { 
     console.error('[email] Email send failed:', e);
@@ -117,7 +118,7 @@ authRouter.post('/register', async (req, res) => {
   }
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
-  console.log('[register] Completed in', Date.now() - start, 'ms');
+  debugLog('[register] Completed in', Date.now() - start, 'ms');
   return res.status(201).json(payload);
 });
 
@@ -282,7 +283,7 @@ authRouter.post('/apple', async (req, res) => {
       // For now, we'll accept any token and extract a pseudo-ID
       // TODO: Implement proper Apple token verification in production
       appleId = `apple_${Buffer.from(identity_token).toString('base64').substring(0, 32)}`;
-      console.log('[auth/apple] Processing Apple sign-in (production verification not yet implemented)');
+      debugLog('[auth/apple] Processing Apple sign-in (production verification not yet implemented)');
     }
 
     if (!appleId) {
@@ -361,14 +362,14 @@ authRouter.post('/password/forgot', async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim();
-  console.log('[password-reset] Looking for user:', email);
+  debugLog('[password-reset] Looking for user:', email);
   const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
   const payload: any = { ok: true };
   if (!user) {
-    console.log('[password-reset] No user found for:', email);
+    debugLog('[password-reset] No user found for:', email);
     return res.json(payload);
   }
-  console.log('[password-reset] User found:', user.id, user.email);
+  debugLog('[password-reset] User found:', user.id, user.email);
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expires = new Date(Date.now() + 30 * 60 * 1000);
@@ -382,12 +383,12 @@ authRouter.post('/password/forgot', async (req, res) => {
   });
 
   try {
-    console.log('[email] Sending password reset email to:', user.email);
+    debugLog('[email] Sending password reset email to:', user.email);
     const sent = await sendPasswordResetEmail(user.email, code);
     if (!sent) {
       console.warn('[email] Password reset email skipped (SendGrid not configured)');
     } else {
-      console.log('[email] Password reset email sent successfully');
+      debugLog('[email] Password reset email sent successfully');
     }
   } catch (e) {
     console.error('[email] Password reset email failed:', e);
@@ -758,7 +759,7 @@ authRouter.post('/test-email', async (req, res) => {
   }
   
   try {
-    console.log('[email-test] Testing email functionality...');
+    debugLog('[email-test] Testing email functionality...');
     const sent = await sendVerificationEmail(email, '123456', 'VarsityHub Tester');
     if (!sent) {
       return res.status(503).json({ success: false, error: 'SendGrid not configured' });

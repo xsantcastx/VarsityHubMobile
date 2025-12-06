@@ -5,6 +5,7 @@ import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const organizationsRouter = Router();
 
@@ -441,7 +442,7 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
   const orgType = String((req.query as any).org_type || '').trim();
   const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
   
-  console.log('🔍 Organization search request:', { query, sport, orgType, limit });
+  debugLog('🔍 Organization search request:', { query, sport, orgType, limit });
   
   if (!query) {
     return res.status(400).json({ error: 'query parameter is required' });
@@ -485,7 +486,7 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
     },
   });
   
-  console.log(`✅ Found ${organizations.length} organizations matching "${query}"`);
+  debugLog(`✅ Found ${organizations.length} organizations matching "${query}"`);
   return res.json(organizations);
 });
 
