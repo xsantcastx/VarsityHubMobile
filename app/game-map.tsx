@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game } from '@/api/entities';
@@ -39,11 +39,20 @@ export default function GameMapScreen() {
         setUserLocation({ latitude: lat, longitude: lng });
       }
 
-      // Fetch games from API
-      const gamesResponse = await Game.list().catch(() => ({ items: [] }));
+      // Fetch nearby games - pass lat/lng to get distance-sorted results
+      const options: any = {};
+      if (lat && lng) {
+        options.lat = lat;
+        options.lng = lng;
+        options.distance = 100; // 100 mile radius
+      }
+      
+      const gamesResponse = await Game.list('-date', options).catch(() => ({ items: [] }));
       const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.items || []);
 
       // Transform games to EventMapData format
+      // Note: Include all games, not just those with coordinates
+      // The map will show those with coordinates, empty state will encourage users to add locations
       const mappedEvents: EventMapData[] = gamesList
         .filter((game: any) => game.latitude && game.longitude)
         .map((game: any) => ({
@@ -59,7 +68,7 @@ export default function GameMapScreen() {
       setEvents(mappedEvents);
     } catch (error) {
       console.error('Error loading games:', error);
-      Alert.alert('Error', 'Unable to load games. Please try again.');
+      // Don't show alert - just load empty map
     } finally {
       setLoading(false);
     }
@@ -90,21 +99,17 @@ export default function GameMapScreen() {
       />
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-          <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
+        // Show map with loading indicator while fetching games
+        <View style={styles.container}>
+          <EventMap events={[]} onEventPress={handleEventPress} showUserLocation={true} />
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
+            <Text style={[styles.loadingText, { color: Colors[colorScheme].text }]}>Loading nearby games...</Text>
+          </View>
         </View>
-      ) : events.length > 0 ? (
-        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} />
       ) : (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="map" size={40} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No mapped games yet</Text>
-          <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>Try Discover or follow teams near you.</Text>
-          <Pressable onPress={() => void router.push('/(tabs)/discover')} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors[colorScheme].tint }}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Open Discover</Text>
-          </Pressable>
-        </View>
+        // Always show map, whether games exist or not
+        <EventMap events={events} onEventPress={handleEventPress} showUserLocation={true} />
       )}
     </SafeAreaView>
   );
@@ -116,6 +121,17 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    gap: 16,
   },
   loadingContainer: {
     flex: 1,
