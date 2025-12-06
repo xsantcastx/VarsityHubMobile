@@ -178,9 +178,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sign out
   const signOut = useCallback(async () => {
-    setUser(null);
-    setPendingVerificationEmail(null);
-    router.replace('/sign-in');
+    try {
+      await auth.logout();
+    } catch (error) {
+      console.warn('[auth] Failed to clear persisted session during sign out:', error);
+    } finally {
+      setUser(null);
+      setPendingVerificationEmail(null);
+      lastPushRegistrationRef.current = null;
+      router.replace('/sign-in');
+    }
   }, [router]);
 
   const registerPushToken = useCallback(async () => {
