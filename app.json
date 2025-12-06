@@ -29,7 +29,7 @@
       "bundleIdentifier": "com.xsantcastx.varsityhub",
       "usesAppleSignIn": true,
       "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY_HERE"
+        "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
       }
     },
     "android": {
@@ -49,7 +49,7 @@
       "package": "com.xsantcastx.varsityhub",
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY_HERE"
+          "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
         }
       }
     },
