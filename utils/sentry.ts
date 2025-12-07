@@ -31,7 +31,6 @@ export function initSentry() {
       dsn: SENTRY_DSN,
       environment: appConfig.nodeEnv || 'development',
       debug: false,
-      enableInExpoDevelopment: false, // Disable in Expo development
       tracesSampleRate: 0.2, // 20% of transactions for performance monitoring
       beforeSend(event, hint) {
         // Disable error reporting in development to avoid blocking UI

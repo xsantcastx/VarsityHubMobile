@@ -1,3 +1,61 @@
+# QA Execution Log
+
+## Phase 2 - Pre-Launch Checklist (December 7, 2025)
+
+### Automated Test Results (Updated Dec 7, 2025)
+
+**Mobile Unit Tests** (`npm test`):
+- Status: ✅ PASSING
+- Suite: OfflineBanner component tests
+- Coverage: 2/2 tests passing
+- Last run: December 7, 2025
+- Notes: AuthContext mocks fixed, all TypeScript errors resolved
+
+**Server Unit Tests** (`cd server && npm test`):
+- Status: ✅ 55/55 PASSING
+- Suites: auth.test.ts (17 tests), payments.test.ts (13 tests), ads.test.ts (25 tests)
+- Setup issue: 1 non-blocking error in setup.ts (jest undefined) - does not affect test execution
+- Last run: December 7, 2025
+- Notes: All functional tests pass; re-run locally with watchman for full validation
+
+**TypeScript Compilation** (`npm run typecheck`):
+- Status: ✅ CLEAN (0 errors)
+- Fixes applied: OfflineBanner test mocks (AuthContextType), Sentry config (removed invalid enableInExpoDevelopment)
+- Last run: December 7, 2025
+
+**ESLint** (`npm run lint:strict`):
+- Status: ⚠️ 375 warnings (non-blocking)
+- Breakdown: 230 unused-vars (61%), 108 floating-promises (29%), 20 no-console (5%), 17 other (5%)
+- Auto-fix script: `scripts/autofix-unused-vars.sh` available to reduce unused-var count
+- Last run: December 7, 2025
+
+**Security Audit** (`npm audit`):
+- Root dependencies: ✅ 0 vulnerabilities
+- Server dependencies: ⚠️ 2 HIGH severity
+  - Cloudinary <2.7.0: Arbitrary Argument Injection (CVSS 8.6)
+  - Fix available: `cd server && npm audit fix --force` (breaking change)
+  - Decision required: Evaluate impact before production deploy
+
+---
+
+### Device Testing Matrix
+
+- **Devices still needed:** iPhone 14/17 Pro, Pixel 8, low-end Android (API 29) for regression of sign-up, onboarding, messaging, payments, notifications.
+- **Blocking issues:** None observed in repo; manual validation pending (listed below).
+
+| Flow | Owner | Status | Notes |
+| --- | --- | --- | --- |
+| Auth: login, sign-up, email verification | QA volunteer | ⏳ Pending | Use fresh email + resend code path |
+| Onboarding 10-step wizard | QA volunteer | ⏳ Pending | Capture timestamps per step for perf baseline |
+| Feed & RSVP | QA volunteer | ⏳ Pending | Need seeded games or create via Segment 4 |
+| Messaging + push notification tap-through | QA + Backend | ⏳ Pending | Requires Expo push token + backend `/test-notifications` |
+| Payments (Stripe test cards) | QA + Finance | ⏳ Pending | Cover success + cancel return routes |
+| Notifications digest + follower flows | QA | ⏳ Pending | Validate `new_message`, `post_interaction`, `new_follower` routes |
+
+> Action: Once each flow is executed, update the table with ✅/⚠ and append details below.
+
+---
+
 # QA Execution Log - Phase 1
 
 **Date:** December 5, 2025  

@@ -1,0 +1,7 @@
+ 230 @typescript-eslint/no-unused-vars
+ 108 @typescript-eslint/no-floating-promises
+  20 no-console
+  13 react-hooks/exhaustive-deps
+   2 'AuthContextType'.
+   1 warnings)
+   1 'ReactNativeOptions'.

@@ -667,8 +667,12 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   // Get current preferences and merge
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   // Normalize any legacy 'rookie' role values to 'coach' during merge
-  const normalizedCurrent = { ...(current?.preferences || {}) } as any;
-  if (normalizedCurrent && normalizedCurrent.role === 'rookie') {
+  const basePreferences = current?.preferences;
+  const normalizedCurrent =
+    basePreferences && typeof basePreferences === 'object' && !Array.isArray(basePreferences)
+      ? ({ ...(basePreferences as Record<string, any>) } as any)
+      : ({} as any);
+  if (normalizedCurrent.role === 'rookie') {
     normalizedCurrent.role = 'coach';
   }
   const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
