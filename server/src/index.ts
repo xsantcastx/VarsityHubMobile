@@ -104,15 +104,15 @@ const isAllowedOrigin = (origin?: string | null) => {
 };
 const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
-    if (isAllowedOrigin(origin)) {
-      return cb(null, true);
+    const allowed = isAllowedOrigin(origin);
+    if (!allowed && origin) {
+      console.log(`[cors] blocked origin: ${origin}`);
     }
-    debugLog(`[cors] blocked origin ${origin}`);
-    return cb(null, false);
+    cb(null, allowed);
   },
   credentials: false,
 };
-debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
+console.log(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));
 
 // Disable ETag generation globally (simplest)
