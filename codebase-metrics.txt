@@ -1,0 +1,84 @@
+📊 Codebase Metrics - VarsityHub Mobile
+Generated: 2025-12-06
+
+═══════════════════════════════════════════════════════════════════
+
+## File Counts
+- Total Code Files: 364
+  - TypeScript/JavaScript files (excluding node_modules, builds)
+
+## Lines of Code
+- Total LOC: 84,247 lines
+  - app/: 51,833 lines (61.5%)
+  - server/: 14,872 lines (17.7%)
+  - components/: 11,448 lines (13.6%)
+  - Other (hooks/, utils/, config/, etc.): 6,094 lines (7.2%)
+
+## ESLint Warnings (Baseline)
+- Total: 360 warnings
+  - @typescript-eslint/no-unused-vars: 230 (63.9%)
+  - @typescript-eslint/no-floating-promises: 108 (30.0%)
+  - no-console: 20 (5.6%)
+  - react-hooks/exhaustive-deps: 13 (3.6%)
+
+## TypeScript Errors
+- Total: 3 errors
+  - components/__tests__/OfflineBanner.test.tsx: 2 (incomplete AuthContext mock)
+  - utils/sentry.ts: 1 (invalid ReactNativeOptions property)
+
+## Test Coverage
+- Server Unit Tests: 55 passing (3 suites)
+  - auth.test.ts: 17 tests (password hashing, verification codes, validation)
+  - payments.test.ts: 13 tests (price calculation, membership, transactions)
+  - ads.test.ts: 25 tests (ad creation, status, geographic validation)
+- Setup File: 1 failing (jest not defined in setup.ts)
+
+## Security Vulnerabilities (npm audit)
+- Root Dependencies: 0 vulnerabilities ✅
+- Server Dependencies: 2 HIGH severity
+  - cloudinary <2.7.0: Arbitrary Argument Injection (CVSS 8.6)
+  - multer-storage-cloudinary >=3.0.0: Depends on vulnerable cloudinary
+  - Fix: npm audit fix --force (breaking change to v2.2.1)
+
+## Automated Testing Infrastructure
+- Playwright: Configured with 3 smoke tests
+  - Chromium browser installed
+  - Tests: App load, navigation, error capture
+  - Status: Ready to run (requires Metro on :8081)
+
+## Known Issues
+1. Poll/Voting Scalability (GameDetailsScreen.tsx)
+   - 6 race conditions documented in POLL_SCALABILITY_AUDIT.md
+   - 5 prioritized fixes identified
+   - Status: Awaiting implementation
+
+2. TypeScript Compilation Blockers
+   - Test file mocks incomplete (OfflineBanner.test.tsx)
+   - Sentry config using invalid option (enableInExpoDevelopment)
+   - Status: Requires fix before production build
+
+3. Cloudinary Security Vulnerability
+   - CVE: GHSA-g4mf-96x5-5m2c (Argument Injection)
+   - Impact: High (CVSS 8.6)
+   - Status: Fix available (breaking change)
+
+═══════════════════════════════════════════════════════════════════
+
+## Technical Debt Summary
+- **Code Quality**: 360 ESLint warnings (230 unused vars = 63%)
+- **Type Safety**: 3 TypeScript errors blocking builds
+- **Security**: 2 HIGH vulnerabilities in server dependencies
+- **Testing**: 1 Jest setup error, 55 passing tests
+
+## Recommendations
+1. Priority 1: Fix TypeScript errors (test mocks, Sentry config)
+2. Priority 2: Address Cloudinary vulnerability (evaluate breaking changes)
+3. Priority 3: Run auto-fix script for unused variables (reduce 230 → ~50)
+4. Priority 4: Fix no-floating-promises (108 warnings, add await/void)
+5. Priority 5: Implement poll scalability fixes (6 race conditions)
+
+## Automation Scripts Available
+- scripts/autofix-unused-vars.sh: Auto-prefix unused vars with _
+- scripts/start-overnight.sh: Existing overnight build script
+- scripts/clean-console-logs.sh: Remove console.log statements
+- tests/smoke.spec.ts: Playwright smoke tests (3 tests)

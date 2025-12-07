@@ -108,7 +108,7 @@ const corsOptions: cors.CorsOptions = {
       return cb(null, true);
     }
     debugLog(`[cors] blocked origin ${origin}`);
-    return cb(new Error('Not allowed by CORS'));
+    return cb(null, false);
   },
   credentials: false,
 };

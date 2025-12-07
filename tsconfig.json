@@ -34,7 +34,8 @@
     },
     "types": [
       "react",
-      "react-native"
+      "react-native",
+      "jest"
     ]
   },
   "include": [
@@ -46,6 +47,9 @@
     "constants/**/*.tsx",
     "hooks/**/*.ts",
     "hooks/**/*.tsx",
+    "__tests__/**/*.ts",
+    "__tests__/**/*.tsx",
+    "jest.setup.ts",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

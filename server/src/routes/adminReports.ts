@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
-import { sendContentModerationEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -106,22 +105,6 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
     `Changed report status to ${status}`,
     { status, resolution_note, reporter: report.reporter.email }
   );
-  
-  // Send moderation outcome email if content was removed/flagged
-  if (status === 'resolved' && report.reported_content_id) {
-    const post = await prisma.post.findUnique({ 
-      where: { id: report.reported_content_id }, 
-      select: { author_id: true, author: { select: { email: true } } } 
-    });
-    if (post?.author?.email) {
-      await sendContentModerationEmail({
-        to: post.author.email,
-        action: 'removed',
-        postId: report.reported_content_id,
-        reason: resolution_note || 'Violation of community guidelines',
-      }).catch(err => console.warn('[moderation-email] Send failed:', err));
-    }
-  }
   
   return res.json({ report });
 });

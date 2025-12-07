@@ -675,6 +675,8 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
     isCoach = !!membership;
   }
   
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(String((req.user as any)?.role || '').toUpperCase());
+
   if (!isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }

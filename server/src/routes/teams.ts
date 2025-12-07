@@ -680,9 +680,8 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
               organizationName: null,
               role: inv.role,
               inviterName: inviter?.display_name || 'Team Owner',
-                          teamHeroUrl: team.hero_image || undefined,
-                          teamLogoUrl: team.avatar || undefined,
-                          primaryColor: (team.brand_colors as any)?.primary || undefined,
+              teamHeroUrl: team.logo_url || undefined,
+              teamLogoUrl: team.avatar_url || undefined,
             });
           } catch (_error) {
             /* ignore */
@@ -743,9 +742,8 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       teamName: team.name,
       organizationName: null,
       role: role || 'member',
-        teamHeroUrl: team.hero_image || undefined,
-        teamLogoUrl: team.avatar || undefined,
-        primaryColor: (team.brand_colors as any)?.primary || undefined,
+      teamHeroUrl: team.logo_url || undefined,
+      teamLogoUrl: team.avatar_url || undefined,
       inviterName: inviter?.display_name || 'Team Owner',
     });
   } catch (_error) {}

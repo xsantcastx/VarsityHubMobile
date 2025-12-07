@@ -1,0 +1,76 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "cloudinary": {
+      "name": "cloudinary",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        {
+          "source": 1109723,
+          "name": "cloudinary",
+          "dependency": "cloudinary",
+          "title": "Cloudinary Node SDK is vulnerable to Arbitrary Argument Injection through parameters that include an ampersand",
+          "url": "https://github.com/advisories/GHSA-g4mf-96x5-5m2c",
+          "severity": "high",
+          "cwe": [
+            "CWE-88"
+          ],
+          "cvss": {
+            "score": 8.6,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:H/A:L"
+          },
+          "range": "<2.7.0"
+        }
+      ],
+      "effects": [
+        "multer-storage-cloudinary"
+      ],
+      "range": "<2.7.0",
+      "nodes": [
+        "node_modules/cloudinary"
+      ],
+      "fixAvailable": {
+        "name": "multer-storage-cloudinary",
+        "version": "2.2.1",
+        "isSemVerMajor": true
+      }
+    },
+    "multer-storage-cloudinary": {
+      "name": "multer-storage-cloudinary",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "cloudinary"
+      ],
+      "effects": [],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/multer-storage-cloudinary"
+      ],
+      "fixAvailable": {
+        "name": "multer-storage-cloudinary",
+        "version": "2.2.1",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 2,
+      "critical": 0,
+      "total": 2
+    },
+    "dependencies": {
+      "prod": 842,
+      "dev": 256,
+      "optional": 40,
+      "peer": 17,
+      "peerOptional": 0,
+      "total": 1124
+    }
+  }
+}

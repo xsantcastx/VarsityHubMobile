@@ -1,0 +1,16 @@
+# npm audit report
+
+cloudinary  <2.7.0
+Severity: high
+Cloudinary Node SDK is vulnerable to Arbitrary Argument Injection through parameters that include an ampersand - https://github.com/advisories/GHSA-g4mf-96x5-5m2c
+fix available via `npm audit fix --force`
+Will install multer-storage-cloudinary@2.2.1, which is a breaking change
+node_modules/cloudinary
+  multer-storage-cloudinary  >=3.0.0
+  Depends on vulnerable versions of cloudinary
+  node_modules/multer-storage-cloudinary
+
+2 high severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force

@@ -443,7 +443,7 @@ export async function sendContentModerationEmail(params: {
         action: params.action,
         post_id: params.postId || '',
         reason: params.reason || '',
-        next_steps: params.nextSteps || 'If you believe this is a mistake, reply to this email and we'll review it.',
+        next_steps: params.nextSteps || "If you believe this is a mistake, reply to this email and we'll review it.",
       },
     });
     debugLog(`✅ Content moderation email sent to ${params.to} (action: ${params.action})`);

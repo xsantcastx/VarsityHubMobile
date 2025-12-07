@@ -105,9 +105,9 @@ This keeps your environments separate!
 
 ### What Changed:
 
-1. **New Package**: `cloudinary` + `multer-storage-cloudinary`
-2. **New Config**: `server/src/lib/cloudinary.ts`
-3. **Updated Routes**: `server/src/routes/uploads.ts`
+1. **Secure Upload Pipeline**: Files stream through `server/src/lib/cloudinary.ts` using signed REST calls (no vulnerable SDKs).
+2. **Updated Routes**: `server/src/routes/uploads.ts` now buffers uploads in memory and pushes them directly to Cloudinary when configured.
+3. **Fallback Logic**: If credentials are missing, uploads fall back to local disk (ephemeral) exactly as before.
 
 ### Fallback Behavior:
 
