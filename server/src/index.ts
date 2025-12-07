@@ -103,16 +103,10 @@ const isAllowedOrigin = (origin?: string | null) => {
   return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
 };
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, cb) => {
-    const allowed = isAllowedOrigin(origin);
-    if (!allowed && origin) {
-      console.log(`[cors] blocked origin: ${origin}`);
-    }
-    cb(null, allowed);
-  },
+  origin: true,  // Allow all origins temporarily to unblock web app
   credentials: false,
 };
-console.log(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
+console.log(`[cors] TEMPORARILY ALLOWING ALL ORIGINS FOR DEBUGGING`);
 app.use(cors(corsOptions));
 
 // Disable ETag generation globally (simplest)
