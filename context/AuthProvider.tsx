@@ -64,6 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navState = useRootNavigationState();
   
   const lastRedirectRef = React.useRef<string | null>(null);
+  const segmentsRef = React.useRef(segments);
+  
+  // Update segments ref on every render
+  React.useEffect(() => {
+    segmentsRef.current = segments;
+  }, [segments]);
 
   // Derived state
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
@@ -241,9 +247,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Routing logic (runs after auth check completes)
   useEffect(() => {
-    if (initializing || !navState?.key) return;
+    if (initializing) return;
 
-    const firstSegment = Array.isArray(segments) && segments.length ? String(segments[0]) : '';
+    const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(firstSegment);
 
