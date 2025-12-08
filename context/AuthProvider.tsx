@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, segments, navState?.key, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router]);
 
   const value: AuthContextType = {
     user,
