@@ -42,6 +42,35 @@ import { testNotificationsRouter } from './routes/test-notifications.js';
 
 const app = express();
 
+// Validate required environment variables at startup
+function validateEnvironmentVariables() {
+  const requiredVars = [
+    'DATABASE_URL',
+    'JWT_SECRET',
+    'ALLOWED_ORIGINS',
+    'CLOUDINARY_CLOUD_NAME',
+    'CLOUDINARY_API_KEY',
+    'CLOUDINARY_API_SECRET',
+    'TWILIO_ACCOUNT_SID',
+    'TWILIO_AUTH_TOKEN',
+    'TWILIO_FROM_PHONE',
+    'TWILIO_VERIFY_SERVICE_SID',
+    'SENDGRID_API_KEY',
+  ];
+
+  const missing = requiredVars.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    const errorMsg = `❌ Missing required environment variables:\n${missing.map((v) => `   - ${v}`).join('\n')}\n\nPlease check your .env file and ensure all variables are set.`;
+    console.error(errorMsg);
+    throw new Error(`Environment validation failed: ${missing.join(', ')}`);
+  }
+
+  console.log(`✅ Environment validation: ${requiredVars.length} required variables loaded`);
+}
+
+validateEnvironmentVariables();
+
 // Initialize Sentry for error tracking (must be before other middleware)
 initSentry(app);
 
@@ -103,10 +132,10 @@ const isAllowedOrigin = (origin?: string | null) => {
   return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
 };
 const corsOptions: cors.CorsOptions = {
-  origin: true,  // Allow all origins temporarily to unblock web app
+  origin: isAllowedOrigin,
   credentials: false,
 };
-console.log(`[cors] TEMPORARILY ALLOWING ALL ORIGINS FOR DEBUGGING`);
+console.log(`[cors] Configured with ${allowedOrigins.length} allowed origin(s)`);
 app.use(cors(corsOptions));
 
 // Disable ETag generation globally (simplest)

@@ -1,0 +1,5 @@
+npm error Missing script: "web"
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: /Users/varsityhub/.npm/_logs/2025-12-07T23_51_52_668Z-debug-0.log

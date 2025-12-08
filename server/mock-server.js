@@ -1,6 +1,13 @@
 import cors from 'cors';
 import express from 'express';
 
+// ⚠️  Development/Testing Only
+// This file uses hardcoded credentials and permissive auth mocks.
+// It should NEVER be used in production environments.
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('mock-server.js is for development testing only and must not run in production');
+}
+
 const app = express();
 // Disable X-Powered-By header to prevent information disclosure
 app.disable('x-powered-by');

@@ -1,0 +1,4 @@
+# Apple Sign In Keys
+# NEVER commit private keys to git
+*.p8
+AuthKey_*.p8

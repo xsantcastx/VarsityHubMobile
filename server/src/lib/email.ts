@@ -1,9 +1,10 @@
-import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 import { debugLog } from './debugLog.js';
 
 // Initialize SendGrid
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+// Default from email and base URL are safe non-secret values used only for fallback
+// Production environments override these with ENV variables
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 

@@ -1,6 +1,10 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
+// ⚠️  Test File Only
+// This file contains hardcoded test passwords and fixtures.
+// These are NOT production credentials and pose no security risk.
+// snyk:ignore
 describe('Authentication', () => {
   describe('Password Hashing', () => {
     it('should hash passwords with bcrypt', async () => {

@@ -2,11 +2,11 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
+import { debugLog } from '../lib/debugLog.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { debugLog } from '../lib/debugLog.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -463,8 +463,9 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
 
 const updateMeSchema = z.object({
   display_name: z.string().min(1).max(120).optional(),
-  avatar_url: z.string().url().optional(),
-  bio: z.string().max(1000).optional(),
+  username: z.string().min(1).max(50).optional(),
+  avatar_url: z.string().url().optional().nullable(),
+  bio: z.string().max(1000).optional().nullable(),
   preferences: z.any().optional(),
 });
 
