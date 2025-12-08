@@ -10,6 +10,7 @@
  * - Email verification: detected and routed centrally; verify-email screen shows user context
  */
 
+import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
@@ -28,7 +29,7 @@ interface AuthUser {
   };
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user: AuthUser | null;
   pendingVerificationEmail: string | null;
   loading: boolean;
@@ -87,6 +88,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Register for push notifications
   const setupPushNotifications = useCallback(async (userId: string) => {
     if (!userId) return false;
+    if (!Device.isDevice) {
+      console.log('[PushNotifications] Skipping setup on simulator/emulator');
+      return false;
+    }
     if (lastPushRegistrationRef.current === userId) {
       // Already registered for this user during this session
       return true;

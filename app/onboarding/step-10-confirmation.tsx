@@ -8,12 +8,14 @@ import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useAuth } from '@/context/AuthProvider';
 import { useEffect } from 'react';
 import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step10Confirmation() {
   const router = useRouter();
   const { state: ob, clearOnboarding, setProgress, setState: setOB, progress } = useOnboarding();
+  const { checkAuth } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
 
@@ -47,6 +49,13 @@ export default function Step10Confirmation() {
         required: true,
         route: '/onboarding/step-2-basic',
         description: 'Set username, date of birth, and location'
+      },
+      {
+        label: 'Username',
+        completed: !!ob.username,
+        required: true,
+        route: '/onboarding/step-7-profile',
+        description: 'Choose a unique username'
       },
       {
         label: 'Plan Selected',
@@ -196,13 +205,21 @@ export default function Step10Confirmation() {
       // Log the payload before sending
       
       // Final submission to backend - mark onboarding as complete
-      await User.completeOnboarding(completionPayload);
+      const completeResult = await User.completeOnboarding(completionPayload);
+      console.log('[Onboarding][Step10] Completion response:', completeResult);
+
+      // CRITICAL: Force refresh of user data to get onboarding_completed flag from server
+      // This ensures the AuthProvider knows onboarding is complete and won't redirect back
+      await checkAuth();
       
-      // Clear onboarding state
+      // Add a small delay to ensure auth state has propagated
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Clear onboarding local state
       clearOnboarding();
       
-      // Navigate to main app - use router.push to ensure proper navigation
-      router.push('/(tabs)');
+      // Navigate to main app - router.push REPLACES the stack, preventing back navigation
+      router.replace('/(tabs)');
     } catch (e: any) {
       console.error('Onboarding completion error:', e);
       Alert.alert('Setup Failed', e?.message || 'Please try again or contact support.');

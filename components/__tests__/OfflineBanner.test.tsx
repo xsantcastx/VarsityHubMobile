@@ -1,5 +1,6 @@
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
+import type { AuthContextType } from '@/context/AuthProvider';
 import { useAuth } from '@/context/AuthProvider';
 import { OfflineBanner } from '../OfflineBanner';
 
@@ -13,23 +14,26 @@ jest.mock('@/hooks/useColorScheme', () => ({
 
 const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 
+const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextType => ({
+  user: null,
+  pendingVerificationEmail: null,
+  loading: false,
+  isAdmin: false,
+  healthOk: true,
+  healthError: null,
+  checkAuth: jest.fn(),
+  signOut: jest.fn(),
+  registerPushToken: jest.fn(),
+  ...overrides,
+});
+
 describe('OfflineBanner', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   it('renders nothing when API health is OK', () => {
-    mockedUseAuth.mockReturnValue({
-      user: null,
-      pendingVerificationEmail: null,
-      loading: false,
-      isAdmin: false,
-      healthOk: true,
-      healthError: null,
-      checkAuth: jest.fn(),
-      signOut: jest.fn(),
-      registerPushToken: jest.fn(),
-    });
+    mockedUseAuth.mockReturnValue(createAuthMock());
 
     const { toJSON } = render(<OfflineBanner />);
     expect(toJSON()).toBeNull();
@@ -37,17 +41,13 @@ describe('OfflineBanner', () => {
 
   it('shows error banner and retries authentication when pressed', async () => {
     const checkAuth = jest.fn().mockResolvedValue(undefined);
-    mockedUseAuth.mockReturnValue({
-      user: null,
-      pendingVerificationEmail: null,
-      loading: false,
-      isAdmin: false,
-      healthOk: false,
-      healthError: 'API unreachable',
-      checkAuth,
-      signOut: jest.fn(),
-      registerPushToken: jest.fn(),
-    });
+    mockedUseAuth.mockReturnValue(
+      createAuthMock({
+        healthOk: false,
+        healthError: 'API unreachable',
+        checkAuth,
+      })
+    );
 
     const { getByText } = render(<OfflineBanner />);
 

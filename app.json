@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "VarsityHub",
-    "slug": "VarsityHubMobile",
+    "slug": "varsityhub",
     "owner": "xsantcastx",
     "version": "1.0.1",
     "orientation": "portrait",
@@ -48,7 +48,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "com.xsantcastx.varsityhub",
       "config": {
@@ -95,7 +96,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dd17922e-328b-42af-a083-95eab643113a"
+        "projectId": "cd6f657a-7afe-4c46-abfa-59cd86a1df81"
       }
     }
   }

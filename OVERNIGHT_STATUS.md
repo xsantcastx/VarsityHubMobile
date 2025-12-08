@@ -102,6 +102,14 @@ All logs stored in `/overnight-results/`:
   - These are warnings, not errors—won't block CI/builds
   - Cleanup recommended but not urgent for release
 
+**Backend Health Sweep** → `overnight-results/health-check-20251208-125713.log`  
+- ❌ Could not connect to `http://localhost:4000/health` (server not running)  
+- ✅ Action: Start the backend (`cd server && npm run dev`) before the next automation run so the health checks and API smoke tests succeed.
+
+**Web Error Monitor** → `overnight-results/web-errors-20251208-125739.log`  
+- ❌ Metro/web server not reachable at `http://localhost:8081`  
+- ✅ Action: Launch the bundler (`npm run web -- --clear`) to resume browser monitoring and capture console/network errors.
+
 ---
 
 ## 🎯 Morning Action Checklist

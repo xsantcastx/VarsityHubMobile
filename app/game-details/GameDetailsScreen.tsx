@@ -1224,8 +1224,9 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;
     const hasVotes = total > 0;
-    const targetA = hasVotes ? Math.max(1, Math.min(100, _voteSummary?.pctA ?? 0)) : 50;
-    const targetB = hasVotes ? Math.max(1, Math.min(100, _voteSummary?.pctB ?? 0)) : 50;
+    // Allow true 0%/100% edges so a single vote can fully own the bar or split evenly for large volumes
+    const targetA = hasVotes ? Math.max(0, Math.min(100, _voteSummary?.pctA ?? 0)) : 50;
+    const targetB = hasVotes ? Math.max(0, Math.min(100, _voteSummary?.pctB ?? 0)) : 50;
     const dur = prefersReducedMotion ? 0 : 400;
     Animated.parallel([
       Animated.timing(voteAnimated.A, { toValue: targetA, duration: prefersReducedMotion ? 0 : 200, useNativeDriver: false }),

@@ -10,6 +10,7 @@ import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-nat
 import { User } from '@/api/entities';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -18,10 +19,13 @@ export default function Step9Features() {
   const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
-  const { registerPushToken } = useAuth();
+  const { registerPushToken, checkAuth } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  // Push notifications can't be provisioned on iOS Simulator, so default to off there
+  const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
   const [saving, setSaving] = useState(false);
+
+  const isDevice = Device.isDevice;
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -29,7 +33,8 @@ export default function Step9Features() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!notificationsEnabled) return;
+    // Skip auto-registration on simulators or when the toggle is off
+    if (!notificationsEnabled || !isDevice) return;
 
     (async () => {
       const granted = await registerPushToken();
@@ -73,6 +78,17 @@ export default function Step9Features() {
   const handleNotificationsToggle = useCallback(
     (value: boolean) => {
       console.log('Push notifications toggle clicked:', value);
+
+      if (value && !isDevice) {
+        // Simulators can't receive push tokens; avoid failing the flow with a noisy alert
+        Alert.alert(
+          'Device Required',
+          'Push notifications can only be enabled on a physical device. Please test on an iPhone or Android phone.'
+        );
+        setNotificationsEnabled(false);
+        return;
+      }
+
       setNotificationsEnabled(value);
       
       if (value) {
@@ -88,7 +104,7 @@ export default function Step9Features() {
         });
       }
     },
-    [registerPushToken]
+    [isDevice, registerPushToken]
   );
 
   const onContinue = async () => {
@@ -127,6 +143,8 @@ export default function Step9Features() {
           messaging_policy_accepted: true
         });
         
+        // Refresh auth state so onboarding_completed flag updates immediately
+        await checkAuth();
         clearOnboarding();
         router.replace('/(tabs)/feed');
         return;
@@ -363,4 +381,3 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
 });
-

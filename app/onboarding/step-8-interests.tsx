@@ -43,16 +43,19 @@ export default function Step8Interests() {
     if (!sel.length) { Alert.alert('Select at least one option'); return; }
     setSaving(true);
     try {
-      // Save to onboarding context
+      // IMPORTANT: Save to onboarding context FIRST (persists to AsyncStorage immediately)
       setOB((prev) => ({ ...prev, primary_intents: sel as any }));
       
-      // Save to backend
+      // Then save to backend
       await User.updatePreferences({ primary_intents: sel });
+      
       setProgress(7); // step-9 is index 7
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');
     } catch (e: any) {
+      // Revert state if backend save fails
+      console.error('[Step8] Failed to save interests:', e);
       Alert.alert('Failed to save', e?.message || 'Try again');
     } finally { setSaving(false); }
   };

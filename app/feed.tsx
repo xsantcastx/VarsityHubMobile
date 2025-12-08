@@ -826,21 +826,39 @@ export default function FeedScreen() {
                         style={[
                           styles.promoPlaceholder,
                           {
-                            backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#EFF6FF',
-                            borderColor: colorScheme === 'dark' ? '#334155' : '#BFDBFE',
+                            backgroundColor: colorScheme === 'dark' ? '#111827' : '#F5F9FF',
+                            borderColor: colorScheme === 'dark' ? '#1F2937' : '#C7DBFF',
                           }
                         ]}
                         onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
                       >
-                        <Ionicons name="megaphone" size={48} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.promoTitle, { color: colorScheme === 'dark' ? '#93C5FD' : '#1E40AF' }]}>
+                        <View style={[
+                          styles.promoIcon,
+                          { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB' },
+                        ]} />
+                        <View style={{ flex: 1, paddingRight: 12 }}>
+                          <Text style={[
+                            styles.promoTitle,
+                            { color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A' },
+                          ]}>
                             Reserve Your Ad Space Now
                           </Text>
+                          <Text style={[
+                            styles.promoSubtitle,
+                            { color: colorScheme === 'dark' ? '#94A3B8' : '#64748B' },
+                          ]}>
+                            Promote your program, fundraiser, or business to local fans.
+                          </Text>
                         </View>
-                        <View style={styles.promoteCtaBanner}>
-                          <Ionicons name="arrow-forward" size={18} color="#ffffff" />
+                        <View style={[
+                          styles.promoteCtaBanner,
+                          { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
+                        ]}>
+                          <View style={[
+                            styles.promoteCtaIcon,
+                            { borderColor: '#FFFFFF' },
+                          ]} />
                           <Text style={styles.promoteCtaText}>Click Here</Text>
                         </View>
                       </Pressable>
@@ -1345,35 +1363,50 @@ const styles = StyleSheet.create({
   },
   promoPlaceholder: {
     width: '100%',
-    aspectRatio: 3.5,
+    minHeight: 120,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'solid',
+  },
+  promoIcon: {
+    width: 40,
+    height: 40,
     borderWidth: 2,
-    borderStyle: 'dashed',
+    borderRadius: 10,
+    flexShrink: 0,
   },
   promoTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
+    marginBottom: 2,
   },
   promoSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   promoteCtaBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: '#2563EB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 100,
+    flexShrink: 0,
+  },
+  promoteCtaIcon: {
+    width: 16,
+    height: 16,
+    borderWidth: 1.5,
+    borderRadius: 3,
   },
   adInfo: {
     padding: 16,
@@ -1401,8 +1434,8 @@ const styles = StyleSheet.create({
   },
   promoteCtaText: {
     color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
+    fontWeight: '600',
+    fontSize: 13,
   },
   gridItem: {
     flex: 1,
@@ -1626,6 +1659,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
 

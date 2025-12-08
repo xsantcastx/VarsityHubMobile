@@ -1,5 +1,8 @@
 # System Status Summary - December 5, 2025
 
+## 🔴 Blocking: Secrets Rotation Required
+Real credentials were committed earlier. Rotate every provider secret (SendGrid, Twilio, Stripe, Cloudinary, DB, FROM_EMAIL) using `docs/SECRETS_ROTATION_CHECKLIST.md` before any release or QA sign-off.
+
 ## ✅ ALL CRITICAL SYSTEMS VERIFIED
 
 ### Messaging 💬

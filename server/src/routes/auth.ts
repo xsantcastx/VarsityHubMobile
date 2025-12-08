@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { isSendGridConfigured, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -116,8 +116,15 @@ authRouter.post('/register', async (req, res) => {
     console.error('[email] Email send failed:', e);
     req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); 
   }
+  const sendGridReady = isSendGridConfigured();
+  const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
   const payload: any = { access_token, user: sanitizeUser(user) };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  if (shouldReturnDevCode) {
+    payload.dev_verification_code = code;
+    if (!sendGridReady) {
+      payload.email_hint = 'SendGrid not configured—code returned directly.';
+    }
+  }
   debugLog('[register] Completed in', Date.now() - start, 'ms');
   return res.status(201).json(payload);
 });
@@ -140,9 +147,17 @@ authRouter.post('/login', async (req, res) => {
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  
+  // ADMIN BYPASS: Admin accounts (emilmancero@gmail.com) skip onboarding
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes(sanitizedEmail);
+  
   const access_token = signJwt({ id: user.id });
   const sanitized = sanitizeUser(user);
-  const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
+  
+  // Admin users never need onboarding; everyone else checks onboarding_completed
+  const needsOnboarding = isAdmin ? false : (sanitized?.preferences?.onboarding_completed === false);
+  
   const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
@@ -450,11 +465,14 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
   if (!user) return res.status(404).json({ error: 'Not found' });
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+  
+  // IMPORTANT: Admin accounts bypass onboarding requirement
+  // They always have onboarding_completed = true regardless of actual preference
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
     is_parent: false,
     zip_code: null,
-    onboarding_completed: true,
+    onboarding_completed: is_admin ? true : false,
   };
   const prefs = mergePreferences(defaults, (user as any).preferences || {});
   const { password_hash, ...rest } = user as any;
@@ -712,8 +730,15 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   } catch (e) {
     req.log?.warn?.({ err: e }, 'Email send failed');
   }
+  const sendGridReady = isSendGridConfigured();
+  const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
   const payload: any = { ok: true };
-  if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
+  if (shouldReturnDevCode) {
+    payload.dev_verification_code = code;
+    if (!sendGridReady) {
+      payload.email_hint = 'SendGrid not configured—code returned directly.';
+    }
+  }
   rec.last = now; rec.count += 1; verifyRate.set(key, rec);
   return res.json(payload);
 });

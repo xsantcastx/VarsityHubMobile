@@ -81,6 +81,17 @@ export default function Step7Profile() {
   };
 
   const onContinue = async () => {
+    // Validate username is required
+    if (!username || username.trim().length === 0) {
+      Alert.alert('Username Required', 'Please enter a username to continue.');
+      return;
+    }
+
+    if (username.trim().length < 3) {
+      Alert.alert('Username Too Short', 'Username must be at least 3 characters.');
+      return;
+    }
+
     setSaving(true);
     try {
       // Save to context
@@ -225,7 +236,7 @@ export default function Step7Profile() {
           <PrimaryButton 
             label={saving ? 'Saving Profile...' : 'Continue'} 
             onPress={onContinue} 
-            disabled={saving || uploading} 
+            disabled={saving || uploading || !username.trim()} 
             loading={saving} 
           />
         </View>
