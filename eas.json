@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "projectPath": "ios/VarsityHub.xcworkspace",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
         "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
@@ -25,6 +26,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "projectPath": "ios/VarsityHub.xcworkspace",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
         "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
@@ -43,6 +45,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "projectPath": "ios/VarsityHub.xcworkspace",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
         "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
