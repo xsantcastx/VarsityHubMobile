@@ -1,66 +1,12 @@
 # Snyk Policy File (.snyk)
-# This file defines security policies for the VarsityHub Mobile project
+# Supports: version, ignore, patch
 # Documentation: https://docs.snyk.io/snyk-cli/test-for-vulnerabilities/the-.snyk-file
 
 version: v1.25.0
-
-# Ignore rules (known accepted risks)
-# Format:
-# CVE-YYYY-XXXXX:
-#   reason: "Explanation of why this is ignored"
-#   expires: "2025-12-31T00:00:00Z"
-# 
-# Example:
-# SNYK-JS-PACKAGE-000000:
-#   reason: "Transitive dependency in unmaintained package, mitigated by input validation"
-#   expires: "2025-12-31T00:00:00Z"
 
 ignore:
   SNYK-JS-SENTRYCORE-14105053:
     reason: "Transitive dependency in @sentry/react-native@7.7.0. Fixed in @sentry/core@10.27.0 but react-native version pins older Sentry. Pending upstream release."
     expires: "2025-12-31T23:59:59Z"
 
-# Patch rules (fixes to apply)
 patch: {}
-
-# Remediation strategy
-remediation:
-  upgrade: true
-  patch: true
-  reachability: true
-
-# Severity threshold for Snyk tests
-severity-threshold: high
-
-# Exclude patterns from scanning
-exclude:
-  code:
-    - node_modules/**
-    - dist/**
-    - build/**
-    - .expo/**
-    - ios/Pods/**
-    - android/build/**
-    - coverage/**
-  paths:
-    - "**/test/**"
-    - "**/tests/**"
-    - "**/spec/**"
-    - "**/node_modules/**"
-    - "**/.expo/**"
-
-# Detection settings
-detection:
-  reachability: true
-
-# Language-specific settings
-language-settings:
-  javascript:
-    lockFileUpdate: true
-    strictOutOfSync: true
-
-# Fail-on settings for CI/CD
-fail-on:
-  upgradable: false
-  patchable: false
-  vulnBase: true
