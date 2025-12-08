@@ -1336,7 +1336,7 @@ const GameDetailsScreen = () => {
 
   const handleVote = useCallback(
     async (team: VoteOption) => {
-      if (!vm?.gameId || vm.isPast || voteBusy) return;
+      if (!vm?.gameId || vm.isPast) return;
 
       let rollback: VoteSummary | null = null;
       setVoteSummary((prev) => {
@@ -1386,7 +1386,7 @@ const GameDetailsScreen = () => {
   );
 
   const handleClearVote = useCallback(async () => {
-    if (!vm?.gameId || vm.isPast || voteBusy) return;
+    if (!vm?.gameId || vm.isPast) return;
 
     let rollback: VoteSummary | null = null;
     setVoteSummary((prev) => {
