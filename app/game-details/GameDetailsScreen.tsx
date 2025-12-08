@@ -1153,6 +1153,11 @@ const GameDetailsScreen = () => {
       setVoteSummary(null);
       return;
     }
+    // For sample games, don't make API call
+    if (isSampleId(vm.gameId)) {
+      setVoteSummary(buildVoteSummary(0, 0, null));
+      return;
+    }
     try {
       const res: any = await retryWithBackoff(() => Game.votesSummary(vm.gameId!), {
         maxRetries: 2,
@@ -1348,6 +1353,12 @@ const GameDetailsScreen = () => {
         return buildVoteSummary(nextA, nextB, team);
       });
 
+      // For sample games, just update local state and don't call API
+      if (isSampleId(vm.gameId)) {
+        setVoteBusy(false);
+        return;
+      }
+
       setVoteBusy(true);
       try {
         const res: any = await retryWithBackoff(() => Game.castVote(vm.gameId!, team), {
@@ -1371,7 +1382,7 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.isPast, voteBusy, router, _refreshVotes],
+    [vm?.gameId, vm?.isPast, router],
   );
 
   const handleClearVote = useCallback(async () => {
@@ -1385,6 +1396,12 @@ const GameDetailsScreen = () => {
       const nextB = prev.userVote === 'B' ? Math.max(0, prev.teamB - 1) : prev.teamB;
       return buildVoteSummary(nextA, nextB, null);
     });
+
+    // For sample games, just update local state and don't call API
+    if (isSampleId(vm.gameId)) {
+      setVoteBusy(false);
+      return;
+    }
 
     setVoteBusy(true);
     try {
@@ -1405,7 +1422,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [vm?.gameId, vm?.isPast, voteBusy, _voteSummary, router]);
+  }, [vm?.gameId, vm?.isPast, router]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map((m) => ({ 
@@ -1912,12 +1929,12 @@ const renderBanner = () => {
               {/* Removed the under-game actions row (Reviews, Stories, Share) per request */}
               <View style={styles.secondaryActionsRow}>
                 <Pressable
-                  style={[styles.actionBtn, !vm?.gameId ? styles.actionBtnDisabled : null]}
+                  style={[styles.actionBtn, !vm?.gameId || storyBusy ? styles.actionBtnDisabled : null]}
                   onPress={handleAddStory}
-                  disabled={!vm?.gameId}
+                  disabled={!vm?.gameId || storyBusy}
                 >
-                  <Ionicons name="add-circle-outline" size={16} color={Colors[colorScheme].tint} />
-                  <Text style={styles.actionText}>Add Story</Text>
+                  <Ionicons name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} size={16} color={Colors[colorScheme].tint} />
+                  <Text style={styles.actionText}>{storyBusy ? 'Post' : '+'}</Text>
                 </Pressable>
               </View>
               {showPreciseBanner ? (
