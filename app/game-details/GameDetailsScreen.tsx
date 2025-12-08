@@ -1934,7 +1934,7 @@ const renderBanner = () => {
                   disabled={!vm?.gameId || storyBusy}
                 >
                   <Ionicons name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} size={16} color={Colors[colorScheme].tint} />
-                  <Text style={styles.actionText}>{storyBusy ? 'Post' : '+'}</Text>
+                  <Text style={styles.actionText}>Add Story</Text>
                 </Pressable>
               </View>
               {showPreciseBanner ? (
