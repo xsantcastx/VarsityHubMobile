@@ -65,30 +65,27 @@ export default function VerifyEmailScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      const result = await User.verifyEmail(code.trim());
+      await User.verifyEmail(code.trim());
       setInfo('✅ Email verified successfully!');
-      setCode(''); // Clear the code input
+      setCode('');
       setIsVerified(true);
       
-      // After successful verification, call checkAuth to populate user state
-      // AuthProvider will detect onboarding_completed and route accordingly
+      // After successful verification, refresh auth state and navigate
       try {
-        if (__DEV__) console.log('[verify-email] Calling checkAuth after verification...');
+        if (__DEV__) console.log('[verify-email] Refreshing auth after verification...');
         await checkAuth();
-        // checkAuth will update user state, and AuthProvider will auto-route
         
-        // Auto-redirect after 2 seconds to give user time to see success message
+        // Give user brief moment to see success, then navigate
         setTimeout(() => {
-          if (__DEV__) console.log('[verify-email] Auto-redirecting after verification...');
-          // Don't need to manually route - AuthProvider will handle it based on user state
-        }, 2000);
+          router.replace('/onboarding/step-1-role');
+        }, 1500);
       } catch (userError) {
-        console.error('[verify-email] Failed to get user info after verification:', userError);
-        // Still show success but user needs to retry
-        setInfo('✅ Email verified! Please check your account.');
+        console.error('[verify-email] Failed to refresh auth:', userError);
+        setError('Verification successful but failed to load profile. Please sign in again.');
+        setTimeout(() => router.replace('/sign-in'), 2000);
       }
     } catch (e: any) {
-      console.error('[verify-email] Verification failed:', e);
+      console.error('[verify-email] Verification error:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
     } finally {
@@ -111,8 +108,8 @@ export default function VerifyEmailScreen() {
   };
 
   const onContinue = async () => {
-    // No need to manually route - AuthProvider will detect user state and redirect
-    router.replace('/(tabs)/feed' as any);
+    // Navigate to onboarding after email verification
+    router.replace('/onboarding/step-1-role');
   };
 
   return (
@@ -172,7 +169,11 @@ export default function VerifyEmailScreen() {
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
         </Button>
       ) : (
-        <Button onPress={onVerify} disabled={loading || code.trim().length < 4} style={styles.verifyButton}>
+        <Button 
+          onPress={onVerify}
+          disabled={loading || code.trim().length < 4} 
+          style={styles.verifyButton}
+        >
           {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
         </Button>
       )}

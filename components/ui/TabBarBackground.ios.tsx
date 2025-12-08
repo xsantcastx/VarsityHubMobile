@@ -12,7 +12,7 @@ export default function BlurTabBarBackground() {
       <View
         style={[
           StyleSheet.absoluteFill,
-          { backgroundColor: '#000', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#262626' },
+          { backgroundColor: '#0f172a', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155' },
         ]}
       />
     );

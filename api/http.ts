@@ -1,6 +1,5 @@
 import { getConfig, getEnvValue } from '@/config/env';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { router } from 'expo-router';
 import { Platform } from 'react-native';
 
 let tokenCache: string | null = null;
@@ -90,12 +89,10 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       const err: any = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
       err.data = data;
-      // Auth-aware redirect for protected endpoints
+      // Clear token on auth errors and let AuthProvider handle session loss
       if (err.status === 401 || err.status === 403) {
-        // clear token cache and route to sign-in preserving next
         try { clearAuthToken(); } catch (_error) {}
-        const next = encodeURIComponent(path);
-        try { router.push(`/sign-in?next=${next}` as any); } catch (_error) {}
+        // Don't router.push here; AuthProvider will redirect if user is truly unauthenticated.
       }
       throw err;
     }

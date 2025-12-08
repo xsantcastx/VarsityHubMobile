@@ -7,6 +7,7 @@ const config = getDefaultConfig(__dirname);
 config.resolver.alias = {
   ...config.resolver.alias,
   'is-arrayish': path.resolve(__dirname, 'shims/is-arrayish.js'),
+  'react-native-maps': path.resolve(__dirname, 'shims/react-native-maps.js'),
 };
 
 // Shim deprecated React Native modules to prevent errors

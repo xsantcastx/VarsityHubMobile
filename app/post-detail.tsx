@@ -22,8 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
-import { Ionicons } from '@expo/vector-icons';
 import { useShareLink } from '@/hooks/useShareLink';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
   // Fullscreen Media Styles
   fullscreenContainer: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0f172a',
     justifyContent: 'center',
     alignItems: 'center',
   },

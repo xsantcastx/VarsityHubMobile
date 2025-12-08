@@ -53,11 +53,11 @@ export default function OnboardingLayout({
   };
 
   const colors = {
-    background: isDark ? '#000000' : '#FFFFFF',
+    background: isDark ? '#0f172a' : '#FFFFFF',
     text: isDark ? '#F9FAFB' : '#111827',
     textMuted: isDark ? '#9CA3AF' : '#6B7280',
-    border: isDark ? '#374151' : '#E5E7EB',
-    headerBg: isDark ? '#000000' : '#FFFFFF',
+    border: isDark ? '#334155' : '#E5E7EB',
+    headerBg: isDark ? '#0f172a' : '#FFFFFF',
     primary: isDark ? '#60A5FA' : '#2563EB',
     primaryMuted: isDark ? '#1E40AF' : '#D1E0FF',
   };

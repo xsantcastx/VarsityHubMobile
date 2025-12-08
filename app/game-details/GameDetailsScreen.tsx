@@ -2309,7 +2309,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 30,
-    backgroundColor: colorScheme === 'dark' ? '#000' : '#000',
+    backgroundColor: colorScheme === 'dark' ? '#0f172a' : '#000',
     paddingBottom: 8,
     marginBottom: 12,
   },
@@ -2743,7 +2743,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   viewerContent: { width: '90%', aspectRatio: 3 / 4, maxHeight: '80%' },
   viewerMedia: { width: '100%', height: '100%', borderRadius: 16 },
   // Story viewer styles
-  storyViewerRoot: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+  storyViewerRoot: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' },
   storyViewerTopBar: { position: 'absolute', left: 12, right: 12, top: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, zIndex: 1000 },
   storyTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 1001 },
   storyTopLabel: { color: '#fff', fontWeight: '800' },
@@ -2878,8 +2878,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   vsTeamPct: { fontSize: 18, fontWeight: '900', color: Colors[colorScheme].text },
   vsTeamVotes: { fontSize: 12, color: Colors[colorScheme].mutedText, marginTop: 4 },
   vsDivider: { width: 12 },
-  vsPctBarWrap: { width: '100%', height: 6, backgroundColor: '#e6eefc', borderRadius: 6, overflow: 'hidden', marginTop: 8 },
-  vsPctBarFill: { height: '100%', backgroundColor: '#1e40af', width: '0%' },
+  vsPctBarWrap: { 
+    width: '100%', 
+    height: 8, 
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(37,99,235,0.15)', 
+    borderRadius: 6, 
+    overflow: 'hidden', 
+    marginTop: 8 
+  },
+  vsPctBarFill: { 
+    height: '100%', 
+    backgroundColor: colorScheme === 'dark' ? '#60a5fa' : '#2563eb', 
+    width: '0%' 
+  },
   // Posts Grid Styles
   postsGridContainer: {
     marginTop: 12,

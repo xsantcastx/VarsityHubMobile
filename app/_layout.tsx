@@ -18,6 +18,14 @@ import { initSentry } from '@/utils/sentry';
 // Initialize Sentry before app renders
 initSentry();
 
+// Initialize testing monitor on web (only in development)
+if (Platform.OS === 'web' && __DEV__) {
+  import('@/utils/testingMonitor.web').then(({ testingMonitor }) => {
+    testingMonitor.start();
+    console.log('🔍 Web Testing Monitor Active - Tracking all errors');
+  });
+}
+
 // Dev-only smoke test disabled - use Sentry dashboard to verify
 // if (__DEV__) {
 //   try {

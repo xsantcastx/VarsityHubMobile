@@ -24,6 +24,7 @@ export default function Step7Profile() {
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const colorScheme = useColorScheme() ?? 'light';
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -33,9 +34,10 @@ export default function Step7Profile() {
 
   useEffect(() => {
     setAvatar(ob.avatar_url ?? null);
+    setUsername(ob.username ?? '');
     setBio(ob.bio ?? '');
     setInterests(ob.sports_interests ?? []);
-  }, [ob.avatar_url, ob.bio, ob.sports_interests]);
+  }, [ob.avatar_url, ob.username, ob.bio, ob.sports_interests]);
 
   const toggleInterest = (i: string) => {
     setInterests((prev) => {
@@ -85,13 +87,15 @@ export default function Step7Profile() {
       setOB((prev) => ({ 
         ...prev, 
         avatar_url: avatar || undefined,
+        username: username || undefined,
         bio: bio || undefined,
         sports_interests: interests as any
       }));
       
       // Save to backend
       await User.patchMe({ 
-        avatar_url: avatar || undefined, 
+        avatar_url: avatar || undefined,
+        username: username || undefined, 
         bio: bio || undefined, 
         preferences: { sports_interests: interests } 
       });
@@ -152,6 +156,19 @@ export default function Step7Profile() {
             </Text>
           </Pressable>
         </View>
+
+        {/* Username Section */}
+        <Text style={styles.sectionTitle}>Username</Text>
+        <Text style={styles.sectionDescription}>
+          Choose a unique username
+        </Text>
+        <Input 
+          value={username} 
+          onChangeText={setUsername} 
+          placeholder="e.g., shamgod_00"
+          autoCapitalize="none"
+          style={styles.usernameInput}
+        />
 
         {/* Bio/Tagline Section */}
         <Text style={styles.sectionTitle}>Bio / Tagline</Text>
@@ -291,6 +308,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontSize: 13,
     marginBottom: 10,
     lineHeight: 18,
+  },
+  
+  // Username Section
+  usernameInput: {
+    marginBottom: 20,
   },
   
   // Bio Section

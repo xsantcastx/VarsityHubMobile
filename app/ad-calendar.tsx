@@ -646,7 +646,14 @@ export default function AdCalendarScreen() {
               textDisabledColor: Colors[colorScheme].mutedText,
               monthTextColor: Colors[colorScheme].text,
               textMonthFontWeight: '700',
-            }}
+              arrowColor: Colors[colorScheme].tint,
+              textDayFontFamily: 'system',
+              textMonthFontFamily: 'system',
+              textDayHeaderFontFamily: 'system',
+              textDayFontSize: 14,
+              textMonthFontSize: 16,
+              textDayHeaderFontSize: 13,
+            } as any}
           />
           <Text style={[styles.calendarHint, { color: Colors[colorScheme].mutedText }]}>Booking available up to 8 weeks in advance</Text>
 

@@ -1,0 +1,47 @@
+
+> varsityhub-server@0.1.0 dev
+> tsx watch src/index.ts
+
+[env] DATABASE_URL (masked preview): postgresql://postgres:***@localhost:5432/varsityhub?sslmode=disable
+✅ Cloudinary configured - using cloud storage
+✅ Twilio configured - SMS verification enabled
+✅ Environment validation: 11 required variables loaded
+⚠️ Sentry DSN not configured - error tracking disabled
+[email] SendGrid template IDs missing: org_invite, join_request_admin, join_request_approved, join_request_denied
+[cors] Configured with 10 allowed origin(s)
+📚 API documentation available at /api-docs
+📱 Test notification endpoints available at /test-notifications/*
+📧 Test email endpoints available at /test-emails/*
+API listening on http://0.0.0.0:4000
+[01:11:34.031] INFO (49757): request aborted
+    req: {
+      "id": 2,
+      "method": "GET",
+      "url": "/health",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:4000",
+        "user-agent": "curl/8.7.1",
+        "accept": "*/*"
+      },
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 53789
+    }
+    res: {
+      "statusCode": null,
+      "headers": {
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=15552000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0"
+      }
+    }
+    responseTime: 503371

@@ -1,0 +1,58 @@
+
+> varsityhubmobile@1.0.1 web
+> expo start --web
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.6% (2653/3302)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 86.9% (3520/3775)
+λ Bundled 3279ms node_modules/expo-router/node/render.js (3878 modules)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3846/3846)
+[http] API base: https://api-production-8ac3.up.railway.app {
+  envUrl: 'https://api-production-8ac3.up.railway.app',
+  forceRemote: true,
+  platform: 'web'
+}
+🔍 Testing Monitor: Skipping (no window object)
+🔍 Web Testing Monitor Active - Tracking all errors
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3846/3846)
+Web Bundled 7142ms node_modules/expo-router/entry.js (3846 modules)
+Web Bundled 1378ms node_modules/expo-router/entry.js (3848 modules)
+Web Bundled 3ms utils/testingMonitor.web.ts (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 65ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+🔍 Testing Monitor: Skipping (no window object)
+🔍 Web Testing Monitor Active - Tracking all errors
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1694ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 116ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+🔍 Testing Monitor: Skipping (no window object)
+🔍 Web Testing Monitor Active - Tracking all errors
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2844ms node_modules/expo-router/entry.js (1 module)
+Error: Cannot pipe to a closed or destroyed stream
+    at pipelineImpl (node:internal/streams/pipeline:264:15)
+    at node:stream/promises:31:5
+    at new Promise (<anonymous>)
+    at pipeline (node:stream/promises:20:10)
+    at respond (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo-server/src/vendor/http.ts:138:19)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo-server/src/vendor/http.ts:68:13
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)

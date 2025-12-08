@@ -4,12 +4,12 @@ import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { useOnboarding } from '@/context/OnboardingContext';
 import { useAuth } from '@/context/AuthProvider';
+import { useOnboarding } from '@/context/OnboardingContext';
 import * as Location from 'expo-location';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -71,22 +71,22 @@ export default function Step9Features() {
   };
 
   const handleNotificationsToggle = useCallback(
-    async (value: boolean) => {
+    (value: boolean) => {
+      console.log('Push notifications toggle clicked:', value);
+      setNotificationsEnabled(value);
+      
       if (value) {
-        const granted = await registerPushToken();
-        if (granted) {
-          setNotificationsEnabled(true);
-        } else {
-          setNotificationsEnabled(false);
-          Alert.alert(
-            'Notifications Disabled',
-            'We could not enable push notifications. You can turn them on later from device settings.'
-          );
-        }
-        return;
+        // Request permissions asynchronously without blocking UI
+        registerPushToken().then((granted) => {
+          if (!granted) {
+            setNotificationsEnabled(false);
+            Alert.alert(
+              'Notifications Disabled',
+              'We could not enable push notifications. You can turn them on later from device settings.'
+            );
+          }
+        });
       }
-
-      setNotificationsEnabled(false);
     },
     [registerPushToken]
   );

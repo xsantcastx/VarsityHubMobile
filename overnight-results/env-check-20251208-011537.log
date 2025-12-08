@@ -1,0 +1,47 @@
+🔍 VarsityHub Production Environment Verification
+==================================================
+
+📱 Mobile App Environment Variables
+-----------------------------------
+[0;32m✅ EXPO_PUBLIC_SENTRY_DSN[0m - Set
+[0;32m✅ EXPO_PUBLIC_API_URL[0m - Set
+[0;32m✅ EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID[0m - Set
+[0;32m✅ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID[0m - Set
+[0;32m✅ EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID[0m - Set
+[0;32m✅ EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY[0m - Set
+[0;32m✅ EXPO_PUBLIC_ADMIN_EMAILS[0m - Set
+
+🖥️  Server Environment Variables (Railway)
+----------------------------------------
+[1;33m⚠️  DATABASE_URL[0m - Contains placeholder value
+[0;32m✅ JWT_SECRET[0m - Set
+[1;33m⚠️  SENDGRID_API_KEY[0m - Contains placeholder value
+[1;33m⚠️  SENDGRID_VERIFICATION_TEMPLATE_ID[0m - Contains placeholder value
+[1;33m⚠️  SENDGRID_PASSWORD_RESET_TEMPLATE_ID[0m - Contains placeholder value
+[1;33m⚠️  SENDGRID_TEAM_INVITE_TEMPLATE_ID[0m - Contains placeholder value
+[1;33m⚠️  SENDGRID_ORG_INVITE_TEMPLATE_ID[0m - Not set (optional)
+[1;33m⚠️  SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID[0m - Not set (optional)
+[1;33m⚠️  SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID[0m - Not set (optional)
+[1;33m⚠️  SENDGRID_JOIN_REQUEST_DENIED_TEMPLATE_ID[0m - Not set (optional)
+[0;32m✅ CLOUDINARY_CLOUD_NAME[0m - Set
+[0;32m✅ CLOUDINARY_API_KEY[0m - Set
+[0;32m✅ CLOUDINARY_API_SECRET[0m - Set
+[0;32m✅ STRIPE_SECRET_KEY[0m - Set
+[0;32m✅ STRIPE_WEBHOOK_SECRET[0m - Set
+[1;33m⚠️  TWILIO_ACCOUNT_SID[0m - Contains placeholder value
+[0;32m✅ TWILIO_AUTH_TOKEN[0m - Set
+[1;33m⚠️  TWILIO_PHONE_NUMBER[0m - Not set (optional)
+[1;33m⚠️  TWILIO_VERIFY_SERVICE_SID[0m - Contains placeholder value
+[0;32m✅ ALLOWED_ORIGINS[0m - Set
+[1;33m⚠️  APPLE_BUNDLE_ID[0m - Not set (optional)
+[1;33m⚠️  APPLE_TEAM_ID[0m - Not set (optional)
+[1;33m⚠️  APPLE_KEY_ID[0m - Not set (optional)
+[1;33m⚠️  SENTRY_DSN[0m - Not set (optional)
+[0;32m✅ STRIPE_PRICE_VETERAN[0m - Set
+[0;32m✅ STRIPE_PRICE_LEGEND[0m - Set
+[1;33m⚠️  CUSTOMER_SERVICE_EMAIL[0m - Not set (optional)
+[1;33m⚠️  FROM_EMAIL[0m - Contains placeholder value
+==================================================
+Summary:
+[1;33m⚠️  8 variables have placeholder values[0m
+   Review and update before production deployment
