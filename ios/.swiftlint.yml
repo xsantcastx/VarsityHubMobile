@@ -1,0 +1,92 @@
+---
+# SwiftLint Configuration for VarsityHub iOS Project
+# Provides code style enforcement and static analysis as you type in Xcode
+
+# Enabled rules (opt-in rules to enforce)
+opt_in_rules:
+  - closure_spacing
+  - closure_end_indentation
+  - empty_count
+  - explicit_init
+  - fatal_error_message
+  - file_header
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - legacy_random
+  - number_separator
+  - operator_usage_whitespace
+  - overridden_super_call
+  - pattern_matching_keywords
+  - sorted_first_last
+  - switch_case_on_newline
+  - trailing_closure
+  - unneeded_break_in_switch
+  - yoda_condition
+
+# Disabled rules (rules to explicitly disable)
+disabled_rules:
+  - nesting
+  - function_parameter_count
+  - line_length
+  - type_body_length
+  - cyclomatic_complexity
+
+# Rule Configurations
+line_length:
+  warning: 180
+  error: 200
+
+function_body_length:
+  warning: 100
+  error: 200
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 500
+  error: 1000
+
+identifier_name:
+  min_length:
+    warning: 1
+    error: 1
+  max_length:
+    warning: 40
+    error: 60
+  excluded: 
+    - i
+    - j
+    - k
+    - x
+    - y
+    - z
+    - id
+    - a
+    - b
+
+number_separator:
+  minimum_length: 5
+
+force_cast: warning
+force_try: warning
+force_unwrapping: warning
+
+# Excluded paths (don't lint these)
+excluded:
+  - Pods
+  - Pods-VarsityHub
+  - build
+  - .build
+  - .git
+  - Carthage
+  - Generated
+  - Vendor
+
+# Include rules for Swift version
+swift_version: 5.8
+
+# Warnings treatment
+strict: false
