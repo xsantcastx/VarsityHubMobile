@@ -48,7 +48,7 @@
     "@react-navigation/native": "^7.1.6",
     "@react-navigation/native-stack": "^7.3.2",
     "@sentry/core": "^10.29.0",
-    "@sentry/react-native": "^7.7.0",
+    "@sentry/react-native": "~7.2.0",
     "@types/react": "~19.1.10",
     "date-fns": "^4.1.0",
     "expo": "~54.0.25",
@@ -79,9 +79,10 @@
     "expo-status-bar": "~3.0.8",
     "expo-symbols": "~1.0.7",
     "expo-system-ui": "~6.0.8",
-    "expo-updates": "~29.0.13",
+    "expo-updates": "~29.0.15",
     "expo-video": "~3.0.14",
     "expo-web-browser": "~15.0.9",
+    "jest-expo": "~54.0.14",
     "lottie-ios": "4.5.0",
     "lottie-react-native": "~7.3.1",
     "react": "19.1.0",
@@ -112,11 +113,16 @@
     "cross-env": "^10.1.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-native": "^4.0.0",
-    "jest-expo": "^51.0.4",
+    "jest-expo": "~54.0.14",
     "react-test-renderer": "^19.1.0"
   },
   "private": true,
   "prisma": {
     "schema": "server/prisma/schema.prisma"
+  },
+  "overrides": {
+    "react-native-calendars": {
+      "react-native-safe-area-context": "5.6.2"
+    }
   }
 }

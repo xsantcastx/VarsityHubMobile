@@ -14,9 +14,6 @@
     },
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
-    "homepage": "https://varsityhub.app",
-    "privacy": "https://varsityhub.app/privacy",
-    "supportURL": "https://varsityhub.app/support",
     "runtimeVersion": "1.0.0",
     "ios": {
       "supportsTablet": true,
