@@ -837,7 +837,7 @@ export default function FeedScreen() {
                           styles.promoIcon,
                           { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
                         ]}>
-                          <Ionicons name="image" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                          <Ionicons name="image-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[
@@ -861,7 +861,7 @@ export default function FeedScreen() {
                             styles.promoteCtaIcon,
                             { borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
                           ]}>
-                            <Ionicons name="open" size={12} color="#FFFFFF" />
+                            <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
                           </View>
                           <Text style={styles.promoteCtaText}>Click Here</Text>
                         </View>
