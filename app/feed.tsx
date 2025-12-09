@@ -835,8 +835,10 @@ export default function FeedScreen() {
                       >
                         <View style={[
                           styles.promoIcon,
-                          { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB' },
-                        ]} />
+                          { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
+                        ]}>
+                          <Ionicons name="image" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                        </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[
                             styles.promoTitle,
@@ -857,8 +859,10 @@ export default function FeedScreen() {
                         ]}>
                           <View style={[
                             styles.promoteCtaIcon,
-                            { borderColor: '#FFFFFF' },
-                          ]} />
+                            { borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
+                          ]}>
+                            <Ionicons name="open" size={12} color="#FFFFFF" />
+                          </View>
                           <Text style={styles.promoteCtaText}>Click Here</Text>
                         </View>
                       </Pressable>
