@@ -15,15 +15,23 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
 
+const devLog = (...args: unknown[]) => {
+  if (__DEV__) {
+    console.log(...args);
+  }
+};
+
 // Initialize Sentry before app renders
 initSentry();
 
 // Initialize testing monitor on web (only in development)
 if (Platform.OS === 'web' && __DEV__) {
-  import('@/utils/testingMonitor.web').then(({ testingMonitor }) => {
-    testingMonitor.start();
-    console.log('🔍 Web Testing Monitor Active - Tracking all errors');
-  });
+  void import('@/utils/testingMonitor.web')
+    .then(({ testingMonitor }) => {
+      testingMonitor.start();
+      devLog('🔍 Web Testing Monitor Active - Tracking all errors');
+    })
+    .catch(error => devLog('Testing monitor failed to start', error));
 }
 
 // Dev-only smoke test disabled - use Sentry dashboard to verify
@@ -80,23 +88,23 @@ export default function RootLayout() {
       const data = response.notification.request.content.data;
       
       if (!data || !data.type) {
-        console.log('[Notifications] Received notification with no data');
+        devLog('[Notifications] Received notification with no data');
         return;
       }
 
-      console.log('[Notifications] User tapped notification:', data.type);
+      devLog('[Notifications] User tapped notification:', data.type);
 
       // Navigate based on notification type
       try {
         switch (data.type) {
           case 'new_message':
-            console.log('[Notifications] Navigating to messages');
+            devLog('[Notifications] Navigating to messages');
             router.push('/messages');
             break;
 
           case 'post_interaction':
             if (data.post_id) {
-              console.log('[Notifications] Navigating to post:', data.post_id);
+              devLog('[Notifications] Navigating to post:', data.post_id);
               router.push({
                 pathname: '/post-detail',
                 params: { id: data.post_id },
@@ -106,7 +114,7 @@ export default function RootLayout() {
 
           case 'new_follower':
             if (data.follower_id) {
-              console.log('[Notifications] Navigating to profile:', data.follower_id);
+              devLog('[Notifications] Navigating to profile:', data.follower_id);
               router.push({
                 pathname: '/user-profile',
                 params: { userId: data.follower_id },
@@ -115,7 +123,7 @@ export default function RootLayout() {
             break;
 
           default:
-            console.log('[Notifications] Unknown notification type:', data.type);
+            devLog('[Notifications] Unknown notification type:', data.type);
         }
       } catch (error) {
         console.error('[Notifications] Navigation error:', error);

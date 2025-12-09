@@ -77,7 +77,7 @@ export default function CommunityDiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
+  const { location: _location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
@@ -459,12 +459,6 @@ export default function CommunityDiscoverScreen() {
         <Calendar
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
-            // Filter and show games for selected date
-            const gamesOnDate = games.filter(g => {
-              if (!g.date) return false;
-              const gameDate = new Date(g.date).toISOString().split('T')[0];
-              return gameDate === day.dateString;
-            });
           }}
           markedDates={useMemo(() => {
             const marked: Record<string, any> = {};
@@ -662,9 +656,10 @@ export default function CommunityDiscoverScreen() {
                 <View style={styles.postHeaderRow}>
                   <Pressable
                     style={styles.postHeaderLeft}
-                    onPress={() => { if (!authorId) return;
+                    onPress={() => {
+                      if (!authorId) return;
                       // Navigate to the specific user's profile, not own profile
-                      void void void router.push(`/user-profile?id=${authorId}`);
+                      void router.push(`/user-profile?id=${authorId}`);
                     }}
                   >
                     <View style={styles.postAvatarWrap}>
