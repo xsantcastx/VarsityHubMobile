@@ -168,7 +168,7 @@ export default function RoleOnboardingScreen() {
   // Fan-specific actions - consumption focused
   const fanActions: OnboardingAction[] = [
     {
-      icon: 'flame',
+      icon: 'star',
       title: 'Discover Teams',
       description: 'Find and follow your favorite high school teams',
       route: '/favorites',
@@ -189,7 +189,7 @@ export default function RoleOnboardingScreen() {
       gradient: ['#8b5cf6', '#7c3aed'],
     },
     {
-      icon: 'chatbubbles',
+      icon: 'chatbubble',
       title: 'Connect & Share',
       description: 'Post reviews, engage with other fans',
       route: '/create-post',
@@ -221,7 +221,7 @@ export default function RoleOnboardingScreen() {
       gradient: ['#059669', '#047857'],
     },
     {
-      icon: 'stats-chart',
+      icon: 'trending-up',
       title: 'Track Performance',
       description: 'View stats, game results, and analytics',
       route: '/season-stats',
@@ -246,7 +246,7 @@ export default function RoleOnboardingScreen() {
       gradient: ['#8b5cf6', '#7c3aed'],
     },
     {
-      icon: 'bar-chart',
+      icon: 'trending-up',
       title: 'Season Analytics',
       description: 'Detailed performance metrics and reports',
       route: '/season-stats',
@@ -264,7 +264,7 @@ export default function RoleOnboardingScreen() {
   // Legend Coach actions - premium tier (unlimited everything)
   const legendActions: OnboardingAction[] = [
     {
-      icon: 'infinite',
+      icon: 'sparkles',
       title: 'Unlimited Teams',
       description: 'Manage unlimited teams across all sports',
       route: '/manage-teams',
@@ -285,7 +285,7 @@ export default function RoleOnboardingScreen() {
       gradient: ['#10b981', '#059669'],
     },
     {
-      icon: 'shield-checkmark',
+      icon: 'shield',
       title: 'Priority Support',
       description: 'Direct access to VarsityHub team for assistance',
       route: '/help',
@@ -437,7 +437,7 @@ export default function RoleOnboardingScreen() {
             disabled={saving}
           >
             <View style={[styles.accountIconContainer, { backgroundColor: '#7c3aed20' }]}>
-              <Ionicons name="infinite" size={32} color="#7c3aed" />
+              <Ionicons name="sparkles" size={32} color="#7c3aed" />
             </View>
             <View style={styles.accountTypeInfo}>
               <View style={styles.legendBadge}>

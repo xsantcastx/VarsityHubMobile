@@ -271,11 +271,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       const needsOnboarding = user.preferences?.onboarding_completed === false;
 
-      // If needs onboarding and not already there
+      // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
         if (lastRedirectRef.current !== '/onboarding/step-1-role') {
           lastRedirectRef.current = '/onboarding/step-1-role';
           router.replace('/onboarding/step-1-role');
+        }
+        return;
+      }
+
+      // If onboarding is complete and user is still on onboarding route, send to main app
+      if (!needsOnboarding && firstSegment === 'onboarding') {
+        const landingRoute = '/(tabs)';
+        if (lastRedirectRef.current !== landingRoute) {
+          lastRedirectRef.current = landingRoute;
+          router.replace(landingRoute as any);
         }
         return;
       }

@@ -7,8 +7,8 @@ import { Alert, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
-import { useOnboarding } from '@/context/OnboardingContext';
 import { useAuth } from '@/context/AuthProvider';
+import { useOnboarding } from '@/context/OnboardingContext';
 import { useEffect } from 'react';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -210,7 +210,16 @@ export default function Step10Confirmation() {
 
       // CRITICAL: Force refresh of user data to get onboarding_completed flag from server
       // This ensures the AuthProvider knows onboarding is complete and won't redirect back
-      await checkAuth();
+      try {
+        const updatedUser: any = await checkAuth();
+        // Validate that the backend has marked onboarding as complete
+        if (updatedUser?.preferences?.onboarding_completed !== true) {
+          console.warn('[Onboarding][Step10] WARNING: Server did not return onboarding_completed=true. This may cause a redirect loop.');
+        }
+      } catch (e) {
+        console.error('[Onboarding][Step10] Failed to refresh user after completion:', e);
+        // Continue anyway - AuthProvider will handle the redirect on next cycle
+      }
       
       // Add a small delay to ensure auth state has propagated
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -219,6 +228,7 @@ export default function Step10Confirmation() {
       clearOnboarding();
       
       // Navigate to main app - router.push REPLACES the stack, preventing back navigation
+      // Use replace() instead of push() to clear the onboarding stack
       router.replace('/(tabs)');
     } catch (e: any) {
       console.error('Onboarding completion error:', e);

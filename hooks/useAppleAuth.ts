@@ -93,43 +93,56 @@ export function useAppleAuth() {
       let res: any = null;
       let attempts = 0;
       const maxAttempts = 3;
+      let lastError: any = null;
       
       while (attempts < maxAttempts) {
         try {
           res = await User.loginViaApple(identityToken);
-          break;
+          if (res?.access_token) {
+            return res;
+          }
+          // If no access token in response, treat as server error and retry
+          lastError = new Error('No access token in response');
+          attempts++;
         } catch (networkErr: any) {
+          lastError = networkErr;
           attempts++;
           const isRetryable = 
             networkErr?.message?.includes('Network request failed') ||
             networkErr?.message?.includes('timeout') ||
             networkErr?.message?.includes('server did not respond') ||
             networkErr?.status === 408 ||
-            networkErr?.status === 0;
+            networkErr?.status === 0 ||
+            networkErr?.status === 500 ||
+            networkErr?.status === 502 ||
+            networkErr?.status === 503;
           
           if (isRetryable && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
-          } else {
-            console.error('[Apple Auth] Non-retryable error or max attempts reached');
-            throw networkErr;
+            const delayMs = 1000 * Math.pow(2, attempts - 1); // exponential backoff: 1s, 2s, 4s
+            console.log(`[Apple Auth] Retry attempt ${attempts}/${maxAttempts} after ${delayMs}ms`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
           }
         }
       }
 
-      if (res?.access_token) {
-        return res;
-      } else {
-        throw new Error('Invalid login response from server');
+      // All retries exhausted
+      if (lastError) {
+        throw lastError;
       }
+      throw new Error('Invalid login response from server');
     } catch (err: any) {
       console.error('[Apple Auth] Error:', err);
       const message = err?.message || 'Apple sign-in failed';
-      // Dev-only fallback: if native Apple auth fails on device, use mock token path
+      
+      // Dev-only fallback: if native Apple auth fails, use a dev token
+      // This is CRITICAL for simulator testing where Apple auth isn't available
       if (__DEV__ && Platform.OS === 'ios') {
         try {
-          const devToken = `sim-device-${Date.now()}`;
+          console.log('[Apple Auth] Attempting dev fallback auth...');
+          const devToken = `sim-dev-${Date.now()}`;
           const res = await User.loginViaApple(devToken);
           if (res?.access_token) {
+            console.log('[Apple Auth] Dev fallback succeeded');
             return res as any;
           }
         } catch (fallbackErr) {

@@ -1,0 +1,83 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+› Opening exp+varsityhubmobile://expo-development-client/?url=http%3A%2F%2F192.168.50.31%3A8081 on iPhone 17 Pro
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+iOS Bundled 1912ms node_modules/expo-router/entry.js (4125 modules)
+ LOG  [sentry] Skipping initialization in development mode
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}
+ LOG  [PushNotifications] Skipping setup on simulator/emulator
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS Bundled 234ms node_modules/expo-router/entry.js (1 module)
+ LOG  [sentry] Skipping initialization in development mode
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}
+ DEBUG  [sentry] captureException skipped in dev: [Error: Unauthorized]
+ ERROR  [http] Request failed: {"error": "Unauthorized", "url": "https://api-production-8ac3.up.railway.app/me"} 
+
+Code: http.ts
+[0m [90m 100 |[39m   } [36mcatch[39m (error[33m:[39m any) {
+ [90m 101 |[39m     clearTimeout(timeoutId)[33m;[39m
+[31m[1m>[22m[39m[90m 102 |[39m     console[33m.[39merror([32m'[http] Request failed:'[39m[33m,[39m { url[33m:[39m base [33m+[39m path[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m
+ [90m     |[39m                  [31m[1m^[22m[39m
+ [90m 103 |[39m     [36mif[39m (error[33m.[39mname [33m===[39m [32m'AbortError'[39m) {
+ [90m 104 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m([32m'Request timeout - server did not respond'[39m)[33m;[39m
+ [90m 105 |[39m       err[33m.[39mstatus [33m=[39m [35m408[39m[33m;[39m[0m
+Call Stack
+  request (api/http.ts:102:18)
+ DEBUG  [sentry] captureException skipped in dev: [Error: Unauthorized]
+ ERROR  [http] Request failed: {"error": "Unauthorized", "url": "https://api-production-8ac3.up.railway.app/me"} 
+
+Code: http.ts
+[0m [90m 100 |[39m   } [36mcatch[39m (error[33m:[39m any) {
+ [90m 101 |[39m     clearTimeout(timeoutId)[33m;[39m
+[31m[1m>[22m[39m[90m 102 |[39m     console[33m.[39merror([32m'[http] Request failed:'[39m[33m,[39m { url[33m:[39m base [33m+[39m path[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m
+ [90m     |[39m                  [31m[1m^[22m[39m
+ [90m 103 |[39m     [36mif[39m (error[33m.[39mname [33m===[39m [32m'AbortError'[39m) {
+ [90m 104 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m([32m'Request timeout - server did not respond'[39m)[33m;[39m
+ [90m 105 |[39m       err[33m.[39mstatus [33m=[39m [35m408[39m[33m;[39m[0m
+Call Stack
+  request (api/http.ts:102:18)
+ LOG  [google-auth] Using Expo proxy redirect: https://auth.expo.io/@xsantcastx/varsityhub
+ DEBUG  [sentry] captureException skipped in dev: [Error: Failed to authenticate with Apple]
+ ERROR  [http] Request failed: {"error": "Failed to authenticate with Apple", "url": "https://api-production-8ac3.up.railway.app/auth/apple"} 
+
+Code: http.ts
+[0m [90m 100 |[39m   } [36mcatch[39m (error[33m:[39m any) {
+ [90m 101 |[39m     clearTimeout(timeoutId)[33m;[39m
+[31m[1m>[22m[39m[90m 102 |[39m     console[33m.[39merror([32m'[http] Request failed:'[39m[33m,[39m { url[33m:[39m base [33m+[39m path[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m
+ [90m     |[39m                  [31m[1m^[22m[39m
+ [90m 103 |[39m     [36mif[39m (error[33m.[39mname [33m===[39m [32m'AbortError'[39m) {
+ [90m 104 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m([32m'Request timeout - server did not respond'[39m)[33m;[39m
+ [90m 105 |[39m       err[33m.[39mstatus [33m=[39m [35m408[39m[33m;[39m[0m
+Call Stack
+  request (api/http.ts:102:18)
+ ERROR  [Apple Auth] Error: [Error: Failed to authenticate with Apple] 
+
+Code: http.ts
+[0m [90m 87 |[39m     [36mif[39m ([33m![39mres[33m.[39mok) {
+ [90m 88 |[39m       [36mconst[39m msg [33m=[39m ct[33m.[39mincludes([32m'application/json'[39m) [33m?[39m (data [33m&&[39m (data[33m.[39merror [33m||[39m data[33m.[39mmessage)) [33m:[39m ([36mtypeof[39m data [33m===[39m [32m'string'[39m [33m?[39m data [33m:[39m [36mnull[39m)[33m;[39m
+[31m[1m>[22m[39m[90m 89 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m(msg [33m||[39m [32m`HTTP ${res.status}`[39m)[33m;[39m
+ [90m    |[39m                                 [31m[1m^[22m[39m
+ [90m 90 |[39m       err[33m.[39mstatus [33m=[39m res[33m.[39mstatus[33m;[39m
+ [90m 91 |[39m       err[33m.[39mdata [33m=[39m data[33m;[39m
+ [90m 92 |[39m       [90m// Clear token on auth errors and let AuthProvider handle session loss[39m[0m
+Call Stack
+  request (api/http.ts:89:33)
+ ERROR  [Apple Auth] Non-retryable error or max attempts reached 
+
+Code: useAppleAuth.ts
+[0m [90m 111 |[39m             [36mawait[39m [36mnew[39m [33mPromise[39m(resolve [33m=>[39m setTimeout(resolve[33m,[39m [35m2000[39m [33m*[39m attempts))[33m;[39m
+ [90m 112 |[39m           } [36melse[39m {
+[31m[1m>[22m[39m[90m 113 |[39m             console[33m.[39merror([32m'[Apple Auth] Non-retryable error or max attempts reached'[39m)[33m;[39m
+ [90m     |[39m                          [31m[1m^[22m[39m
+ [90m 114 |[39m             [36mthrow[39m networkErr[33m;[39m
+ [90m 115 |[39m           }
+ [90m 116 |[39m         }[0m
+Call Stack
+  signInWithApple (hooks/useAppleAuth.ts:113:26)
+ LOG  [sign-in] Apple login successful, calling checkAuth
+ LOG  [PushNotifications] Skipping setup on simulator/emulator
+ LOG  Push notifications toggle clicked: true
+ LOG  [PushNotifications] Skipping setup on simulator/emulator

@@ -135,11 +135,11 @@ export default function SignInScreen() {
     try {
       const response: any = await signInWithApple();
       
-      if (!response?.user?.email && !response?.email) {
-        const errMsg = `Apple sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
+      if (!response?.user && !response?.email) {
+        const errMsg = `Apple sign-in: missing user in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
         if (__DEV__) console.error(errMsg);
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
-        setError('Failed to retrieve email from Apple');
+        setError('Failed to complete sign-in. Please try again.');
         return;
       }
 
