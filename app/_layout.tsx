@@ -145,7 +145,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <AuthProvider>
+          <AuthProvider navReady={!!navState?.key}>
             <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
               <OfflineBanner />
               <Stack screenOptions={{ headerShown: false }}>

@@ -13,7 +13,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
@@ -52,7 +52,12 @@ export function useAuth() {
   return context;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+interface AuthProviderProps {
+  children: React.ReactNode;
+  navReady: boolean;
+}
+
+export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +70,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const router = useRouter();
   const segments = useSegments();
-  const navState = useRootNavigationState();
   
   const lastRedirectRef = React.useRef<string | null>(null);
   const segmentsRef = React.useRef(segments);
@@ -226,18 +230,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initial auth check
   useEffect(() => {
-    if (!navState?.key) return;
+    if (!navReady) {
+      console.log('[AuthProvider] Waiting for navigation state...');
+      return;
+    }
 
+    console.log('[AuthProvider] Navigation ready, starting auth check');
     let mounted = true;
 
     (async () => {
       // 1. Check health first
+      console.log('[AuthProvider] Checking backend health...');
       const healthy = await checkHealth();
+      console.log('[AuthProvider] Health check result:', healthy);
       
       if (!mounted) return;
 
       // 2. If backend is down, we can't authenticate
       if (!healthy) {
+        console.log('[AuthProvider] Backend unhealthy, stopping initialization');
         setLoading(false);
         setInitializing(false);
         // Don't redirect - let user see offline banner
@@ -245,13 +256,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 3. Check auth status
+      console.log('[AuthProvider] Checking authentication...');
       try {
         await checkAuth();
+        console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
+        console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
         // Auth failed - user not logged in
         // Don't redirect here - let the routing logic below handle it
       } finally {
         if (mounted) {
+          console.log('[AuthProvider] Initialization complete');
           setLoading(false);
           setInitializing(false);
         }
@@ -261,7 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [navState?.key, checkHealth, checkAuth]);
+  }, [navReady, checkHealth, checkAuth]);
 
   // Load onboarding completion flag from AsyncStorage once on mount
   useEffect(() => {
@@ -285,14 +300,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Routing logic (runs after auth check completes)
   useEffect(() => {
-    if (initializing) return;
+    if (initializing) {
+      console.log('[AuthProvider] Still initializing, skipping routing');
+      return;
+    }
 
     const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
     const isPublic = publicRoutes.has(firstSegment);
 
+    console.log('[AuthProvider] Routing check - segment:', firstSegment, 'user:', !!user, 'pendingVerif:', !!pendingVerificationEmail);
+
     // If backend is unhealthy, don't do any redirects
     if (!healthOk) {
+      console.log('[AuthProvider] Backend unhealthy, skipping routing');
       return;
     }
 
@@ -349,11 +370,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Unauthenticated routing
     if (!user && !pendingVerificationEmail && !isPublic) {
       if (lastRedirectRef.current !== '/sign-in') {
+        console.log('[AuthProvider] Redirecting to sign-in (unauthenticated)');
         lastRedirectRef.current = '/sign-in';
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, hasCompletedOnboarding]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
 
   const value: AuthContextType = {
     user,
