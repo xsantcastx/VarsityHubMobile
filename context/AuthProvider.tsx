@@ -278,23 +278,45 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     };
   }, [navReady, checkHealth, checkAuth]);
 
+  // Safety timeout - force initialization complete after 5 seconds
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (initializing) {
+        console.warn('[AuthProvider] ⚠️ Initialization timeout (5s) - forcing completion');
+        setLoading(false);
+        setInitializing(false);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timeout);
+  }, [initializing]);
+
   // Load onboarding completion flag from AsyncStorage once on mount
   useEffect(() => {
     let mounted = true;
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[Auth] AsyncStorage timeout - assuming onboarding incomplete');
+        setHasCompletedOnboarding(false);
+      }
+    }, 2000);
 
     (async () => {
       try {
         const storedValue = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        clearTimeout(timeout);
         if (mounted) {
           setHasCompletedOnboarding(storedValue === 'true');
         }
       } catch (error) {
+        clearTimeout(timeout);
         console.warn('[Auth] Failed to load onboarding flag from storage:', error);
       }
     })();
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
     };
   }, []);
 

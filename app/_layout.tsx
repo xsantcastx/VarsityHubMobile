@@ -133,7 +133,7 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, [router]);
 
-  if (!loaded || !navState?.key) {
+  if (!loaded) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
         <ActivityIndicator />
