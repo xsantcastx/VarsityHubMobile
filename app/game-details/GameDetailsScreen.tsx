@@ -2494,7 +2494,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
 
 
   voteWrapper: {
-    marginTop: -2,
+    marginTop: -16,
     paddingHorizontal: 16,
     paddingTop: 2,
     paddingBottom: 8,
@@ -2601,7 +2601,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteLabelsAbove: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 8,
     paddingHorizontal: 8,
     minHeight: 32,
   },
