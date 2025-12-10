@@ -1526,17 +1526,25 @@ const renderVoteSection = () => {
     !showFloatLabelA &&
     !showFloatLabelB &&
     windowWidth - 32 >= 280;
+  
+  // Determine winning team
+  const isWinningA = hasVotes && pctA > pctB;
+  const isWinningB = hasVotes && pctB > pctA;
 
   return (
     <View style={styles.voteWrapper}>
       {/* Labels above the voting bars */}
       <View style={styles.voteLabelsAbove}>
         {!showFloatLabelA ? (
-          <View style={styles.voteLabelAboveLeft}>
+          <View style={[
+            styles.voteLabelAboveLeft,
+            isWinningA && styles.voteLabelWinning,
+          ]}>
             <Text
               style={[
                 styles.voteLabelAboveText,
                 selectedTeam === 'A' ? null : styles.voteLabelTextDim,
+                isWinningA && styles.voteLabelWinningText,
               ]}
               numberOfLines={1}
             >
@@ -1547,11 +1555,15 @@ const renderVoteSection = () => {
           <View style={styles.voteLabelAboveLeft} />
         )}
         {!showFloatLabelB ? (
-          <View style={styles.voteLabelAboveRight}>
+          <View style={[
+            styles.voteLabelAboveRight,
+            isWinningB && styles.voteLabelWinning,
+          ]}>
             <Text
               style={[
                 styles.voteLabelAboveText,
                 selectedTeam === 'B' ? null : styles.voteLabelTextDim,
+                isWinningB && styles.voteLabelWinningText,
               ]}
               numberOfLines={1}
             >
@@ -2602,10 +2614,22 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: 16,
   },
+  voteLabelWinning: {
+    borderWidth: 2,
+    borderColor: Colors[colorScheme].tint,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: `${Colors[colorScheme].tint}10`,
+  },
   voteLabelAboveText: {
     color: '#6B7280',
     fontWeight: '600',
     fontSize: 12,
+  },
+  voteLabelWinningText: {
+    color: Colors[colorScheme].tint,
+    fontWeight: '700',
   },
   voteCaptionInline: {
     color: 'rgba(255,255,255,0.85)',
