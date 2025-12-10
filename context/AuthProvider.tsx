@@ -10,6 +10,7 @@
  * - Email verification: detected and routed centrally; verify-email screen shows user context
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
@@ -58,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
+
+  const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
   
   const router = useRouter();
   const segments = useSegments();
@@ -176,8 +180,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
         // If server confirms onboarding complete, persist locally
-        if (me?.preferences?.onboarding_completed === true && !onboardingCompletedOnce) {
-          setOnboardingCompletedOnce(true);
+        if (me?.preferences?.onboarding_completed === true && !hasCompletedOnboarding) {
+          setHasCompletedOnboarding(true);
           await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
         }
 
@@ -190,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
-    [setupPushNotifications, onboardingCompletedOnce]
+    [setupPushNotifications, hasCompletedOnboarding]
   );
 
   // Sign out
@@ -202,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setPendingVerificationEmail(null);
-      setOnboardingCompletedOnce(false);
+      setHasCompletedOnboarding(false);
       await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
@@ -253,6 +257,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [navState?.key, checkHealth, checkAuth]);
 
+  // Load onboarding completion flag from AsyncStorage once on mount
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      try {
+        const storedValue = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        if (mounted) {
+          setHasCompletedOnboarding(storedValue === 'true');
+        }
+      } catch (error) {
+        console.warn('[Auth] Failed to load onboarding flag from storage:', error);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Routing logic (runs after auth check completes)
   useEffect(() => {
     if (initializing) return;
@@ -278,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Authenticated routing
     if (user) {
       // Check if onboarding is needed: server says incomplete AND local flag not set
-      const needsOnboarding = user.preferences?.onboarding_completed === false && !onboardingCompletedOnce;
+      const needsOnboarding = user.preferences?.onboarding_completed === false && !hasCompletedOnboarding;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -317,7 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, hasCompletedOnboarding]);
 
   const value: AuthContextType = {
     user,
