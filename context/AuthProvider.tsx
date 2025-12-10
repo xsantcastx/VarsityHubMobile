@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
-    [setupPushNotifications]
+    [setupPushNotifications, onboardingCompletedOnce]
   );
 
   // Sign out
