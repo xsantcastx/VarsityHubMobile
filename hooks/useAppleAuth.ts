@@ -10,11 +10,22 @@ export function useAppleAuth() {
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState<boolean>(false);
 
+  // Check Apple Auth availability once on mount
+  // IMPORTANT: Just checking availability should NOT trigger the auth dialog
   useEffect(() => {
     let mounted = true;
-    AppleAuthentication.isAvailableAsync()
-      .then(v => { if (mounted) setAvailable(Boolean(v)); })
-      .catch(() => { if (mounted) setAvailable(false); });
+    (async () => {
+      try {
+        const isAvailable = await AppleAuthentication.isAvailableAsync();
+        if (mounted) {
+          setAvailable(Boolean(isAvailable));
+          console.log('[Apple Auth] Availability check result:', isAvailable);
+        }
+      } catch (err) {
+        console.warn('[Apple Auth] Availability check failed:', err);
+        if (mounted) setAvailable(false);
+      }
+    })();
     return () => { mounted = false; };
   }, []);
 
@@ -22,6 +33,7 @@ export function useAppleAuth() {
     setError(null);
     setLoading(true);
     try {
+      console.log('[Apple Auth] signInWithApple called, available:', available);
       
       // Determine availability: if Apple Sign In isn't available (e.g., Simulator),
       // fall back to a mock credential to allow local dev flows.
@@ -29,6 +41,7 @@ export function useAppleAuth() {
       
       let credential;
       if (isSimulator) {
+        console.log('[Apple Auth] Using simulator mock credential');
         // Create a mock credential for testing
         credential = {
           user: 'sim-test-user-' + Date.now(),
@@ -41,40 +54,71 @@ export function useAppleAuth() {
         };
       } else {
         const attemptNativeSignIn = async (scopes: any[]) => {
+          console.log('[Apple Auth] Attempting native sign-in with scopes:', scopes);
           return AppleAuthentication.signInAsync({ requestedScopes: scopes });
         };
 
         try {
           // First attempt with standard scopes
+          console.log('[Apple Auth] Starting Apple authentication dialog...');
           credential = await attemptNativeSignIn([
             AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
             AppleAuthentication.AppleAuthenticationScope.EMAIL,
           ]);
+          console.log('[Apple Auth] Got credential from native sign-in');
         } catch (appleErr: any) {
           // Log detailed error for diagnostics
+          const errCode = String(appleErr?.code || '').toLowerCase();
+          const errMsg = String(appleErr?.message || '').toLowerCase();
+          
           console.error('[Apple Auth] signInAsync error (scoped):', {
             code: appleErr?.code,
             domain: appleErr?.domain,
             message: appleErr?.message,
-            nativeStack: appleErr?.nativeStack?
-              (Array.isArray(appleErr.nativeStack) ? appleErr.nativeStack.slice(0, 5) : appleErr.nativeStack) : undefined,
           });
 
-          const code = String(appleErr?.code || '').toLowerCase();
-          const msg = String(appleErr?.message || '').toLowerCase();
-          const isCanceled = code.includes('canceled') || msg.includes('canceled') || msg.includes('cancelled');
+          // Check if user actually canceled
+          const isCanceled = 
+            errCode.includes('canceled') || 
+            errCode.includes('cancelled') ||
+            errCode === 'err_request_canceled' ||
+            errMsg.includes('canceled') || 
+            errMsg.includes('cancelled') ||
+            errMsg.includes('user canceled');
 
-          if (isCanceled) throw appleErr; // propagate cancel handling
+          if (isCanceled) {
+            console.log('[Apple Auth] User canceled sign-in (not an error)');
+            throw new Error('User canceled Apple sign-in');
+          }
 
           // Second attempt: retry with no scopes (sometimes fixes unknown auth errors)
           try {
+            console.log('[Apple Auth] Retrying with no scopes...');
             credential = await attemptNativeSignIn([]);
+            console.log('[Apple Auth] Got credential from retry');
           } catch (retryErr: any) {
+            const retryCode = String(retryErr?.code || '').toLowerCase();
+            const retryMsg = String(retryErr?.message || '').toLowerCase();
+            
             console.error('[Apple Auth] signInAsync retry error (no scopes):', {
               code: retryErr?.code,
               domain: retryErr?.domain,
               message: retryErr?.message,
             });
+
+            // Check if this is also a cancellation
+            const isRetryCanceled = 
+              retryCode.includes('canceled') || 
+              retryCode.includes('cancelled') ||
+              retryCode === 'err_request_canceled' ||
+              retryMsg.includes('canceled') || 
+              retryMsg.includes('cancelled');
+            
+            if (isRetryCanceled) {
+              console.log('[Apple Auth] User canceled on retry (not an error)');
+              throw new Error('User canceled Apple sign-in');
+            }
+
             throw retryErr; // bubble up for general handler
           }
         }
@@ -131,8 +175,23 @@ export function useAppleAuth() {
       }
       throw new Error('Invalid login response from server');
     } catch (err: any) {
-      console.error('[Apple Auth] Error:', err);
       const message = err?.message || 'Apple sign-in failed';
+      const code = String(err?.code || '').toLowerCase();
+      
+      // Check if this is a user cancellation (not an error)
+      const isCanceled = 
+        message.toLowerCase().includes('cancel') ||
+        code.includes('canceled') ||
+        code.includes('cancelled') ||
+        code === 'err_request_canceled';
+      
+      if (isCanceled) {
+        console.log('[Apple Auth] User canceled sign-in (not showing error)');
+        // Don't set error or log exception - user initiated cancellation
+        throw err;
+      }
+      
+      console.error('[Apple Auth] Error:', err);
       
       // Dev-only fallback: if native Apple auth fails, use a dev token
       // This is CRITICAL for simulator testing where Apple auth isn't available
@@ -149,11 +208,6 @@ export function useAppleAuth() {
           console.error('[Apple Auth] Dev fallback failed:', fallbackErr);
           // continue to normal error mapping below
         }
-      }
-      
-      // Don't show error for user cancellation
-      if (message.toLowerCase().includes('cancel')) {
-        throw new Error('Apple sign-in cancelled');
       }
       
       // User-friendly timeout message

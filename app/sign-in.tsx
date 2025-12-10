@@ -149,7 +149,16 @@ export default function SignInScreen() {
       // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';
-      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+      const code = String(e?.code || '').toLowerCase();
+      
+      // Silently ignore user cancellation (not an error)
+      if (
+        message.toLowerCase().includes('cancel') ||
+        code.includes('canceled') ||
+        code.includes('cancelled') ||
+        code === 'err_request_canceled'
+      ) {
+        console.log('[sign-in] User canceled Apple sign-in (ignoring)');
         return;
       }
       
