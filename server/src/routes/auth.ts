@@ -474,7 +474,8 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     zip_code: null,
     onboarding_completed: is_admin ? true : false,
   };
-  const prefs = mergePreferences(defaults, (user as any).preferences || {});
+  // CRITICAL: Admin overrides come SECOND so they take precedence over DB values
+  const prefs = mergePreferences((user as any).preferences || {}, defaults);
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, preferences: prefs, is_admin });
 });
