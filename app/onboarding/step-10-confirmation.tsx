@@ -207,14 +207,20 @@ export default function Step10Confirmation() {
       // Final submission to backend - mark onboarding as complete
       const completeResult = await User.completeOnboarding(completionPayload);
       console.log('[Onboarding][Step10] Completion response:', completeResult);
-
       // CRITICAL: Force refresh of user data to get onboarding_completed flag from server
       // This ensures the AuthProvider knows onboarding is complete and won't redirect back
       try {
         const updatedUser: any = await checkAuth();
+        console.log('[Onboarding][Step10] Updated user after completion:', {
+          email: updatedUser?.email,
+          onboarding_completed: updatedUser?.preferences?.onboarding_completed,
+          fullPrefs: updatedUser?.preferences
+        });
         // Validate that the backend has marked onboarding as complete
         if (updatedUser?.preferences?.onboarding_completed !== true) {
-          console.warn('[Onboarding][Step10] WARNING: Server did not return onboarding_completed=true. This may cause a redirect loop.');
+          console.warn('[Onboarding][Step10] WARNING: Server did not return onboarding_completed=true. Response was:', updatedUser?.preferences?.onboarding_completed);
+        } else {
+          console.log('[Onboarding][Step10] ✅ Server confirmed onboarding_completed=true');
         }
       } catch (e) {
         console.error('[Onboarding][Step10] Failed to refresh user after completion:', e);
@@ -222,13 +228,14 @@ export default function Step10Confirmation() {
       }
       
       // Add a small delay to ensure auth state has propagated
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Clear onboarding local state
       clearOnboarding();
       
       // Navigate to main app - router.push REPLACES the stack, preventing back navigation
       // Use replace() instead of push() to clear the onboarding stack
+      console.log('[Onboarding][Step10] Navigating to main app at /(tabs)');
       router.replace('/(tabs)');
     } catch (e: any) {
       console.error('Onboarding completion error:', e);

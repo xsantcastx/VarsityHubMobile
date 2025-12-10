@@ -351,16 +351,16 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Authenticated routing
     if (user) {
       // SERVER IS SOURCE OF TRUTH for onboarding completion
-      // If server says onboarding_completed = true, user HAS completed onboarding
-      // If server says onboarding_completed = false, user needs to complete it
-      // Local AsyncStorage flag is ONLY used as optimization when server is slow/offline
-      const serverSaysComplete = user.preferences?.onboarding_completed === true;
+      // IMPORTANT: Default to NOT requiring onboarding unless server EXPLICITLY says false
+      // This prevents infinite loops when the server field is null/undefined/missing
+      const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
       
       // Show onboarding ONLY if server explicitly says false (incomplete)
-      const needsOnboarding = user.preferences?.onboarding_completed === false;
+      const needsOnboarding = serverSaysIncomplete;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
+        console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
         if (lastRedirectRef.current !== '/onboarding/step-1-role') {
           lastRedirectRef.current = '/onboarding/step-1-role';
           router.replace('/onboarding/step-1-role');
@@ -370,6 +370,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
       // If onboarding is complete and user is still on onboarding route, send to main app
       if (!needsOnboarding && firstSegment === 'onboarding') {
+        console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
           lastRedirectRef.current = landingRoute;
