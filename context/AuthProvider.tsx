@@ -175,6 +175,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
+        // If server confirms onboarding complete, persist locally
+        if (me?.preferences?.onboarding_completed === true && !onboardingCompletedOnce) {
+          setOnboardingCompletedOnce(true);
+          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+        }
+
         // Setup push notifications after successful auth
         void setupPushNotifications(me.id);
 
@@ -184,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
-    [setupPushNotifications]
+    [setupPushNotifications, onboardingCompletedOnce]
   );
 
   // Sign out
@@ -196,6 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setPendingVerificationEmail(null);
+      setOnboardingCompletedOnce(false);
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
@@ -269,8 +277,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated routing
     if (user) {
-      // Check if onboarding is needed on the server
-      const needsOnboarding = user.preferences?.onboarding_completed === false;
+      // Check if onboarding is needed: server says incomplete AND local flag not set
+      const needsOnboarding = user.preferences?.onboarding_completed === false && !onboardingCompletedOnce;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -309,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce]);
 
   const value: AuthContextType = {
     user,
