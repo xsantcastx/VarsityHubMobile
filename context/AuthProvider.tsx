@@ -12,6 +12,7 @@
 
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
@@ -42,6 +43,7 @@ export interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
+   const [onboardingCompletedOnce, setOnboardingCompletedOnce] = useState<boolean>(false);
   const [initializing, setInitializing] = useState(true);
   
   const router = useRouter();
@@ -73,6 +76,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Derived state
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+
+  // Load local onboarding completion sentinel to avoid repeat onboarding if backend lags
+  useEffect(() => {
+    (async () => {
+      try {
+        const flag = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
+        setOnboardingCompletedOnce(flag === 'true');
+      } catch (e) {
+        console.warn('[Auth] Failed to read onboarding sentinel', e);
+      }
+    })();
+  }, []);
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -175,6 +190,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
+        // If user just completed onboarding, mark it locally
+        if (me?.preferences?.onboarding_completed === true && !onboardingCompletedOnce) {
+          setOnboardingCompletedOnce(true);
+          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+        }
+
         // Setup push notifications after successful auth
         void setupPushNotifications(me.id);
 
@@ -269,7 +290,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated routing
     if (user) {
-      const needsOnboarding = user.preferences?.onboarding_completed === false;
+      // Check if onboarding is needed on the server, OR if user just completed it locally
+      const needsOnboarding = user.preferences?.onboarding_completed === false && !onboardingCompletedOnce;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -308,7 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce]);
 
   const value: AuthContextType = {
     user,
