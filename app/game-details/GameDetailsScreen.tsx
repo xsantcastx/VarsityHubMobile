@@ -427,6 +427,20 @@ const computeIsPast = (iso?: string | null) => {
   return d.getTime() < Date.now();
 };
 
+const canAddStory = (eventIso?: string | null) => {
+  // Stories can only be added within 24 hours before the event starts
+  if (!eventIso) return false;
+  const eventDate = new Date(eventIso);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  
+  const now = Date.now();
+  const eventTime = eventDate.getTime();
+  const twentyFourHoursBeforeEvent = eventTime - (24 * 60 * 60 * 1000);
+  
+  // Can add story if we're within 24 hours before the event and event hasn't passed
+  return now >= twentyFourHoursBeforeEvent && now <= eventTime;
+};
+
 const capCount = (count?: number | null, capacity?: number | null) => {
   if (typeof count !== 'number') return null;
   if (typeof capacity === 'number' && capacity >= 0) return Math.min(count, capacity);
@@ -1926,16 +1940,34 @@ const renderBanner = () => {
                 </Pressable>
               ) : null}
 
-              {/* Removed the under-game actions row (Reviews, Stories, Share) per request */}
+              {/* Add Story Section - Only available 24hrs before event */}
               <View style={styles.secondaryActionsRow}>
-                <Pressable
-                  style={[styles.actionBtn, !vm?.gameId || storyBusy ? styles.actionBtnDisabled : null]}
-                  onPress={handleAddStory}
-                  disabled={!vm?.gameId || storyBusy}
-                >
-                  <Ionicons name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} size={16} color={Colors[colorScheme].tint} />
-                  <Text style={styles.actionText}>Add Story</Text>
-                </Pressable>
+                {(() => {
+                  const storyEnabled = canAddStory(vm?.date);
+                  return (
+                    <>
+                      <Pressable
+                        style={[styles.actionBtn, (!vm?.gameId || storyBusy || !storyEnabled) ? styles.actionBtnDisabled : null]}
+                        onPress={handleAddStory}
+                        disabled={!vm?.gameId || storyBusy || !storyEnabled}
+                      >
+                        <Ionicons 
+                          name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
+                          size={16} 
+                          color={storyEnabled ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
+                        />
+                        <Text style={[styles.actionText, !storyEnabled && { color: Colors[colorScheme].mutedText }]}>
+                          Add Story
+                        </Text>
+                      </Pressable>
+                      {!storyEnabled && vm?.date && (
+                        <Text style={styles.storyHelpText}>
+                          📍 Stories open 24hrs before event
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
               </View>
               {showPreciseBanner ? (
                 <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
@@ -1984,8 +2016,19 @@ const renderBanner = () => {
                 }}
               >
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Posts</Text>
-                  <Text style={styles.sectionSubtitle}>{postsSubtitle}</Text>
+                  <View>
+                    <Text style={styles.sectionTitle}>Posts</Text>
+                    <Text style={styles.sectionSubtitle}>{postsSubtitle}</Text>
+                  </View>
+                  <Pressable 
+                    style={styles.addPostButton}
+                    onPress={() => {
+                      // TODO: Navigate to create post screen with game context
+                      router.push(`/create-post?gameId=${vm?.gameId || vm?.eventId}`);
+                    }}
+                  >
+                    <Ionicons name="add-circle" size={28} color={Colors[colorScheme].tint} />
+                  </Pressable>
                 </View>
                 {postsCount > 0 ? (
                    <View style={styles.postsGridContainer}>
@@ -2114,12 +2157,23 @@ const renderBanner = () => {
                 ) : (
                   <View>
                     <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
-                    <View style={styles.postsGrid}>
-                      {[1, 2, 3].map((i) => (
-                        <View key={i} style={[styles.gridItem, styles.gridItemEmpty]}>
+                    <View style={styles.postsMasonryGrid}>
+                      <View style={styles.masonryColumn}>
+                        <View style={[styles.masonryItem, styles.gridItemEmpty, { height: 240 }]}>
                           <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
                         </View>
-                      ))}
+                        <View style={[styles.masonryItem, styles.gridItemEmpty, { height: 200 }]}>
+                          <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
+                        </View>
+                      </View>
+                      <View style={styles.masonryColumn}>
+                        <View style={[styles.masonryItem, styles.gridItemEmpty, { height: 180 }]}>
+                          <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
+                        </View>
+                        <View style={[styles.masonryItem, styles.gridItemEmpty, { height: 220 }]}>
+                          <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
+                        </View>
+                      </View>
                     </View>
                   </View>
                 )}
@@ -2706,7 +2760,15 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  secondaryActionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  secondaryActionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' },
+  storyHelpText: { 
+    fontSize: 12, 
+    color: Colors[colorScheme].mutedText, 
+    fontWeight: '600', 
+    marginTop: 4,
+    width: '100%',
+    textAlign: 'center'
+  },
   preciseBanner: {
     flexDirection: 'row',
     gap: 12,
@@ -2753,6 +2815,16 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   tabTextOn: { color: Colors[colorScheme].tint },
   section: { marginBottom: 24 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  addPostButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: Colors[colorScheme].surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, marginBottom: 8 },
   sectionSubtitle: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
   sectionHelper: { marginBottom: 12 },
