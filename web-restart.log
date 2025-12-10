@@ -1,0 +1,87 @@
+
+> varsityhubmobile@1.0.1 web
+> expo start --web --clear
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Recrawled this watch 29 times, most recently because:
+MustScanSubDirs UserDroppedTo resolve, please review the information on
+https://facebook.github.io/watchman/docs/troubleshooting.html#recrawl
+To clear this warning, run:
+`watchman watch-del '/Users/varsityhub/Desktop/CODE/VarsityHubMobile' ; watchman watch-project '/Users/varsityhub/Desktop/CODE/VarsityHubMobile'`
+
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ node_modules/expo-router/node/render.js ▓▓▓░░░░░░░░░░░░░ 23.6% (283/582)
+Web node_modules/expo-router/entry.js ▓▓▓░░░░░░░░░░░░░ 22.3% (127/423)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓░░░░░░░░░ 48.2% ( 695/1209)
+Web node_modules/expo-router/entry.js ▓▓▓▓░░░░░░░░░░░░ 25.8% (283/578)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓░░░░░░░░░ 48.2% ( 807/1370)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓░░░░░░░░░░ 37.8% ( 582/1168)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 68.4% (1437/1950)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 52.5% (1112/1534)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 68.4% (1915/2324)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 59.3% (1535/2059)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 70.8% (2366/3015)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 70.8% (2026/2407)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 70.8% (2644/3306)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 73.1% (2416/3174)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 86.2% (3426/3730)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 89.6% (3542/3742)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.5% (3829/3897)
+λ Bundled 31507ms node_modules/expo-router/node/render.js (3928 modules)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3848/3848)
+[http] API base: https://api-production-8ac3.up.railway.app {
+  envUrl: 'https://api-production-8ac3.up.railway.app',
+  forceRemote: true,
+  platform: 'web'
+}
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3848/3848)
+Web Bundled 35908ms node_modules/expo-router/entry.js (3848 modules)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 43.9% (457/967)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 62.6% (1986/2631)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 91.5% (3568/3731)
+Web Bundled 11146ms node_modules/expo-router/entry.js (3850 modules)
+ LOG  [web] Logs will appear in the browser console
+λ Bundled 109ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1234ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 330ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1971ms node_modules/expo-router/entry.js (1 module)
+Web Bundled 206ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+› Detected a change in metro.config.js. Restart the server to see the new results.
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 105ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2460ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 59ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1511ms node_modules/expo-router/entry.js (1 module)

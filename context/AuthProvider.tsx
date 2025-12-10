@@ -179,10 +179,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
-        // If server confirms onboarding complete, persist locally
-        if (me?.preferences?.onboarding_completed === true && !hasCompletedOnboarding) {
+        // ALWAYS sync local flag with server truth
+        const serverComplete = me?.preferences?.onboarding_completed === true;
+        if (serverComplete && !hasCompletedOnboarding) {
           setHasCompletedOnboarding(true);
           await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+        } else if (!serverComplete && hasCompletedOnboarding) {
+          // Server says incomplete but local says complete - trust server, clear local
+          setHasCompletedOnboarding(false);
+          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
         }
 
         // Setup push notifications after successful auth
@@ -191,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return me;
       } catch (err: any) {
         setUser(null);
+        // Don't clear onboarding flag on auth error - keep it for when user logs back in
         throw err;
       }
     },
@@ -301,8 +307,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated routing
     if (user) {
-      // Check if onboarding is needed: server says incomplete AND local flag not set
-      const needsOnboarding = user.preferences?.onboarding_completed === false && !hasCompletedOnboarding;
+      // SERVER IS SOURCE OF TRUTH for onboarding completion
+      // If server says onboarding_completed = true, user HAS completed onboarding
+      // If server says onboarding_completed = false, user needs to complete it
+      // Local AsyncStorage flag is ONLY used as optimization when server is slow/offline
+      const serverSaysComplete = user.preferences?.onboarding_completed === true;
+      
+      // Show onboarding ONLY if server explicitly says false (incomplete)
+      const needsOnboarding = user.preferences?.onboarding_completed === false;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {

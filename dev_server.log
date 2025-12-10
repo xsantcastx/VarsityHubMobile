@@ -1,0 +1,52 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Recrawled this watch 11 times, most recently because:
+MustScanSubDirs UserDroppedTo resolve, please review the information on
+https://facebook.github.io/watchman/docs/troubleshooting.html#recrawl
+To clear this warning, run:
+`watchman watch-del '/Users/varsityhub/Desktop/CODE/VarsityHubMobile' ; watchman watch-project '/Users/varsityhub/Desktop/CODE/VarsityHubMobile'`
+
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 76.0% (2509/2956)
+iOS Bundled 7014ms node_modules/expo-router/entry.js (4116 modules)
+iOS node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (4116/4116)
+ WARN  [sentry] No valid DSN; crash reporting disabled
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}
+ LOG  [google-auth] Using Expo proxy redirect: https://auth.expo.io/@xsantcastx/VarsityHubMobile
+ ERROR  [http] Request failed: {"error": "Unauthorized", "url": "https://api-production-8ac3.up.railway.app/me"} 
+
+Code: http.ts
+[0m [90m 103 |[39m   } [36mcatch[39m (error[33m:[39m any) {
+ [90m 104 |[39m     clearTimeout(timeoutId)[33m;[39m
+[31m[1m>[22m[39m[90m 105 |[39m     console[33m.[39merror([32m'[http] Request failed:'[39m[33m,[39m { url[33m:[39m base [33m+[39m path[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m
+ [90m     |[39m                  [31m[1m^[22m[39m
+ [90m 106 |[39m     [36mif[39m (error[33m.[39mname [33m===[39m [32m'AbortError'[39m) {
+ [90m 107 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m([32m'Request timeout - server did not respond'[39m)[33m;[39m
+ [90m 108 |[39m       err[33m.[39mstatus [33m=[39m [35m408[39m[33m;[39m[0m
+Call Stack
+  request (api/http.ts:105:18)
+ ERROR  [sentry] Capturing exception: [Error: Unauthorized] 
+
+Code: http.ts
+[0m [90m 88 |[39m     [36mif[39m ([33m![39mres[33m.[39mok) {
+ [90m 89 |[39m       [36mconst[39m msg [33m=[39m ct[33m.[39mincludes([32m'application/json'[39m) [33m?[39m (data [33m&&[39m (data[33m.[39merror [33m||[39m data[33m.[39mmessage)) [33m:[39m ([36mtypeof[39m data [33m===[39m [32m'string'[39m [33m?[39m data [33m:[39m [36mnull[39m)[33m;[39m
+[31m[1m>[22m[39m[90m 90 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m(msg [33m||[39m [32m`HTTP ${res.status}`[39m)[33m;[39m
+ [90m    |[39m                                 [31m[1m^[22m[39m
+ [90m 91 |[39m       err[33m.[39mstatus [33m=[39m res[33m.[39mstatus[33m;[39m
+ [90m 92 |[39m       err[33m.[39mdata [33m=[39m data[33m;[39m
+ [90m 93 |[39m       [90m// Auth-aware redirect for protected endpoints[39m[0m
+Call Stack
+  request (api/http.ts:90:33)
+ LOG  [sign-in] Apple login successful, calling checkAuth
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS Bundled 262ms node_modules/expo-router/entry.js (1 module)
+ WARN  [sentry] No valid DSN; crash reporting disabled
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS Bundled 229ms node_modules/expo-router/entry.js (1 module)
+ WARN  [sentry] No valid DSN; crash reporting disabled
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}

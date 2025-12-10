@@ -1,0 +1,158 @@
+
+> varsityhubmobile@1.0.1 web
+> expo start --web
+
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.0% (2204/2687)
+λ node_modules/expo-router/node/render.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 70.6% (2587/3312)
+λ Bundled 3641ms node_modules/expo-router/node/render.js (3928 modules)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3848/3848)
+[http] API base: https://api-production-8ac3.up.railway.app {
+  envUrl: 'https://api-production-8ac3.up.railway.app',
+  forceRemote: true,
+  platform: 'web'
+}
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3848/3848)
+Web Bundled 7681ms node_modules/expo-router/entry.js (3848 modules)
+Web Bundled 1010ms node_modules/expo-router/entry.js (3744 modules)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 94ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1105ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 274ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1657ms node_modules/expo-router/entry.js (1 module)
+Web Bundled 174ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 60ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1264ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 56ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1582ms node_modules/expo-router/entry.js (1 module)
+λ Bundled 159ms node_modules/expo-router/node/render.js (1 module)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 44.8% (291/555)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 44.8% (291/555)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2395ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 46.6% ( 726/1303)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 65.0% (1555/2059)
+λ Bundled 150ms node_modules/expo-router/node/render.js (1 module)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.9% (2112/2474)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.9% (2151/2629)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2802ms node_modules/expo-router/entry.js (1 module)
+Web Bundled 19762ms node_modules/expo-router/entry.js (3856 modules)
+TypeError: Invalid URL
+    at new URL (node:internal/url:826:25)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/CorsMiddleware.ts:23:34
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ContextModuleSourceMapsMiddleware.ts:29:7
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at ExpoGoManifestHandlerMiddleware.checkBrowserRequestAsync (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ManifestMiddleware.ts:366:11)
+    at ExpoGoManifestHandlerMiddleware.handleRequestAsync (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ManifestMiddleware.ts:383:20)
+    at internalMiddleware (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ExpoMiddleware.ts:44:27)
+TypeError: Invalid URL
+    at new URL (node:internal/url:826:25)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/CorsMiddleware.ts:23:34
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ContextModuleSourceMapsMiddleware.ts:29:7
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at middleware (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ExpoMiddleware.ts:62:16)
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 105ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1652ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 59ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 2192ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 176ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 165ms node_modules/expo-router/entry.js (1 module)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ Bundled 131ms node_modules/expo-router/node/render.js (1 module)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1794ms node_modules/expo-router/entry.js (1 module)
+Web Bundled 232ms node_modules/expo-router/entry.js (1 module)
+TypeError: Invalid URL
+    at new URL (node:internal/url:826:25)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/CorsMiddleware.ts:23:34
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ContextModuleSourceMapsMiddleware.ts:29:7
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at ExpoGoManifestHandlerMiddleware.checkBrowserRequestAsync (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ManifestMiddleware.ts:366:11)
+    at ExpoGoManifestHandlerMiddleware.handleRequestAsync (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ManifestMiddleware.ts:383:20)
+    at internalMiddleware (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ExpoMiddleware.ts:44:27)
+TypeError: Invalid URL
+    at new URL (node:internal/url:826:25)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/CorsMiddleware.ts:23:34
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at /Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ContextModuleSourceMapsMiddleware.ts:29:7
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+    at middleware (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/expo/node_modules/@expo/cli/src/start/server/middleware/ExpoMiddleware.ts:62:16)
+    at call (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:239:7)
+    at next (/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/connect/index.js:183:5)
+ LOG  [web] Logs will appear in the browser console

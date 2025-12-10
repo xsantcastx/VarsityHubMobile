@@ -1,0 +1,1 @@
+zsh: command not found: mcp_snyk_snyk_code_scan
