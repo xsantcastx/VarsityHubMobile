@@ -1989,61 +1989,126 @@ const renderBanner = () => {
                 </View>
                 {postsCount > 0 ? (
                    <View style={styles.postsGridContainer}>
-                   <View style={styles.postsGrid}>
-                     {(vm?.posts || []).map((post: any, index: number) => {
-                       const thumb = post.media_url;
-                       const isVideo = !!thumb && VIDEO_EXT.test(thumb);
-                       const likes = post.upvotes_count ?? 0;
-                       const comments = post.comments_count ?? post._count?.comments ?? 0;
-                       return (
-                         <Pressable
-                           key={post.id || index}
-                           style={styles.gridItem}
-                           onPress={() => { void void void router.push(`/post-detail?id=${post.id}`);
-                           }}
-                         >
-                           {thumb ? (
-                             <View style={styles.gridImageContainer}>
-                               <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                               <View style={styles.gridImageOverlay} />
-                             </View>
-                           ) : (
-                             <View style={[styles.gridImage, styles.gridImageFallback]}>
-                               <LinearGradient 
-                                 colors={["#667eea", "#764ba2", "#f093fb"]} 
-                                 style={StyleSheet.absoluteFillObject as any} 
-                                 start={{ x: 0, y: 0 }} 
-                                 end={{ x: 1, y: 1 }}
-                               />
-                               <View style={styles.textPostOverlay}>
-                                 <Text numberOfLines={4} style={styles.gridTextOnly}>
-                                   {String(post.caption || post.content || '').trim() || 'Post'}
-                                 </Text>
+                   <View style={styles.postsMasonryGrid}>
+                     {/* Column 1 */}
+                     <View style={styles.masonryColumn}>
+                       {(vm?.posts || [])
+                         .filter((_: any, index: number) => index % 2 === 0)
+                         .map((post: any, index: number) => {
+                           const thumb = post.media_url;
+                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const likes = post.upvotes_count ?? 0;
+                           const comments = post.comments_count ?? post._count?.comments ?? 0;
+                           // Vary heights: alternate between tall, medium, and short
+                           const heightVariant = index % 3;
+                           const itemHeight = heightVariant === 0 ? 280 : heightVariant === 1 ? 200 : 240;
+                           return (
+                             <Pressable
+                               key={post.id || index}
+                               style={[styles.masonryItem, { height: itemHeight }]}
+                               onPress={() => { void router.push(`/post-detail?id=${post.id}`); }}
+                             >
+                               {thumb ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : (
+                                 <View style={[styles.gridImage, styles.gridImageFallback]}>
+                                   <LinearGradient 
+                                     colors={["#667eea", "#764ba2", "#f093fb"]} 
+                                     style={StyleSheet.absoluteFillObject as any} 
+                                     start={{ x: 0, y: 0 }} 
+                                     end={{ x: 1, y: 1 }}
+                                   />
+                                   <View style={styles.textPostOverlay}>
+                                     <Text numberOfLines={6} style={styles.gridTextOnly}>
+                                       {String(post.caption || post.content || '').trim() || 'Post'}
+                                     </Text>
+                                   </View>
+                                 </View>
+                               )}
+                               <View style={styles.gridCounts}>
+                                 <View style={styles.gridCountItem}>
+                                   <Ionicons name="arrow-up" size={12} color="#fff" />
+                                   <Text style={styles.gridCountText}>{likes}</Text>
+                                 </View>
+                                 <View style={styles.gridCountItem}>
+                                   <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                                   <Text style={styles.gridCountText}>{comments}</Text>
+                                 </View>
                                </View>
-                             </View>
-                           )}
-                           {/* Counts overlay */}
-                           <View style={styles.gridCounts}>
-                             <View style={styles.gridCountItem}>
-                               <Ionicons name="arrow-up" size={12} color="#fff" />
-                               <Text style={styles.gridCountText}>{likes}</Text>
-                             </View>
-                             <View style={styles.gridCountItem}>
-                               <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                               <Text style={styles.gridCountText}>{comments}</Text>
-                             </View>
-                           </View>
-                           {/* Media type badge */}
-                           <View style={styles.gridIconBadge}>
-                             {isVideo ? (
-                               <Ionicons name="videocam-outline" size={16} color="#fff" />
-                             ) : (
-                               <Ionicons name="camera-outline" size={16} color="#fff" />
-                             )}
-                           </View>
-                         </Pressable>
-                       );
-                     })}
+                               <View style={styles.gridIconBadge}>
+                                 {isVideo ? (
+                                   <Ionicons name="videocam-outline" size={16} color="#fff" />
+                                 ) : (
+                                   <Ionicons name="camera-outline" size={16} color="#fff" />
+                                 )}
+                               </View>
+                             </Pressable>
+                           );
+                         })}
+                     </View>
+                     
+                     {/* Column 2 */}
+                     <View style={styles.masonryColumn}>
+                       {(vm?.posts || [])
+                         .filter((_: any, index: number) => index % 2 === 1)
+                         .map((post: any, index: number) => {
+                           const thumb = post.media_url;
+                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const likes = post.upvotes_count ?? 0;
+                           const comments = post.comments_count ?? post._count?.comments ?? 0;
+                           // Offset the height pattern for visual variety
+                           const heightVariant = (index + 1) % 3;
+                           const itemHeight = heightVariant === 0 ? 240 : heightVariant === 1 ? 280 : 200;
+                           return (
+                             <Pressable
+                               key={post.id || index}
+                               style={[styles.masonryItem, { height: itemHeight }]}
+                               onPress={() => { void router.push(`/post-detail?id=${post.id}`); }}
+                             >
+                               {thumb ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : (
+                                 <View style={[styles.gridImage, styles.gridImageFallback]}>
+                                   <LinearGradient 
+                                     colors={["#667eea", "#764ba2", "#f093fb"]} 
+                                     style={StyleSheet.absoluteFillObject as any} 
+                                     start={{ x: 0, y: 0 }} 
+                                     end={{ x: 1, y: 1 }}
+                                   />
+                                   <View style={styles.textPostOverlay}>
+                                     <Text numberOfLines={6} style={styles.gridTextOnly}>
+                                       {String(post.caption || post.content || '').trim() || 'Post'}
+                                     </Text>
+                                   </View>
+                                 </View>
+                               )}
+                               <View style={styles.gridCounts}>
+                                 <View style={styles.gridCountItem}>
+                                   <Ionicons name="arrow-up" size={12} color="#fff" />
+                                   <Text style={styles.gridCountText}>{likes}</Text>
+                                 </View>
+                                 <View style={styles.gridCountItem}>
+                                   <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                                   <Text style={styles.gridCountText}>{comments}</Text>
+                                 </View>
+                               </View>
+                               <View style={styles.gridIconBadge}>
+                                 {isVideo ? (
+                                   <Ionicons name="videocam-outline" size={16} color="#fff" />
+                                 ) : (
+                                   <Ionicons name="camera-outline" size={16} color="#fff" />
+                                 )}
+                               </View>
+                             </Pressable>
+                           );
+                         })}
+                     </View>
                    </View>
                  </View>
                 ) : (
@@ -2912,6 +2977,24 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   // Posts Grid Styles
   postsGridContainer: {
     marginTop: 12,
+  },
+  postsMasonryGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  masonryColumn: {
+    flex: 1,
+    gap: 8,
+  },
+  masonryItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: Colors[colorScheme].surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   postsGrid: {
     flexDirection: 'row',
