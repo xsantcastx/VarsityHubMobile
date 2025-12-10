@@ -59,7 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
-   const [onboardingCompletedOnce, setOnboardingCompletedOnce] = useState<boolean>(false);
+  const [onboardingCompletedOnce, setOnboardingCompletedOnce] = useState<boolean>(false);
+  const [onboardingFlagLoaded, setOnboardingFlagLoaded] = useState<boolean>(false);
   const [initializing, setInitializing] = useState(true);
   
   const router = useRouter();
@@ -85,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOnboardingCompletedOnce(flag === 'true');
       } catch (e) {
         console.warn('[Auth] Failed to read onboarding sentinel', e);
+      } finally {
+        setOnboardingFlagLoaded(true);
       }
     })();
   }, []);
@@ -270,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Routing logic (runs after auth check completes)
   useEffect(() => {
-    if (initializing) return;
+    if (initializing || !onboardingFlagLoaded) return;
 
     const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
@@ -332,7 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce, onboardingFlagLoaded]);
 
   const value: AuthContextType = {
     user,
