@@ -9,31 +9,11 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
-// Simple in-memory rate limiting for auth endpoints
-// DISABLED IN DEV: Allows unlimited login attempts during development
+// Rate limiting DISABLED for development - allows unlimited login attempts
 const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
-const MAX_AUTH_ATTEMPTS = process.env.NODE_ENV === 'production' ? 5 : 999999; // Unlimited in dev
-const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function checkAuthRateLimit(identifier: string): boolean {
-  // Dev mode: always allow
-  if (process.env.NODE_ENV !== 'production') {
-    return true;
-  }
-
-  const now = Date.now();
-  const record = authRate.get(identifier);
-  
-  if (!record || now > record.resetAt) {
-    authRate.set(identifier, { attempts: 1, resetAt: now + AUTH_WINDOW_MS });
-    return true;
-  }
-  
-  if (record.attempts >= MAX_AUTH_ATTEMPTS) {
-    return false;
-  }
-  
-  record.attempts++;
+  // Always allow - rate limiting disabled
   return true;
 }
 
