@@ -1,9 +1,0 @@
-Found invalid character in eas.json.
-  56 |       "ios": {
-  57 |         "resourceClass": "m-medium"
-> 58 |       },ndroid": {
-     |              ^
-  59 |         "resourceClass": "medium"
-  60 |       }
-  61 |     }
-    Error: build command failed.

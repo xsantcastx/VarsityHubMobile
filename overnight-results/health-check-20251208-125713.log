@@ -1,1 +1,0 @@
-[Mon Dec  8 17:57:34 UTC 2025] ERROR: Backend health check failed - could not connect to http://localhost:4000/health. Ensure 'npm run dev' is running before next sweep.

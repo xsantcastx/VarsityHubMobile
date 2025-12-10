@@ -1,6 +1,0 @@
-🔍 VarsityHub Web Testing - Error Report
-========================================
-
-❌ Web app is NOT running at http://localhost:8081
-
-Start it with: npm run web
