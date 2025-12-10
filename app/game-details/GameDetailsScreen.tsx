@@ -1504,12 +1504,8 @@ const renderVoteSection = () => {
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
   const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
-  const leftLabel = `${teamALabel} ${Math.round(pctA)}%`;
-  const rightLabel = `${teamBLabel} ${Math.round(pctB)}%`;
   const pressDisabled = Boolean(vm?.isPast) || voteBusy;
   const selectedTeam = summary.userVote ?? null;
-  const showFloatLabelA = pctA < 12;
-  const showFloatLabelB = pctB < 12;
   const votesWord = total === 1 ? 'vote' : 'votes';
   const pickLabel = (
     selectedTeam === 'A'
@@ -1521,60 +1517,9 @@ const renderVoteSection = () => {
   const caption = _voteSummary
     ? `${total} ${votesWord} ${pickLabel ? `• Your pick: ${pickLabel}` : "• You haven't voted"}`
     : 'Loading votes...';
-  const showInlineCaption =
-    caption !== 'Loading votes...' &&
-    !showFloatLabelA &&
-    !showFloatLabelB &&
-    windowWidth - 32 >= 280;
-  
-  // Determine winning team
-  const isWinningA = hasVotes && pctA > pctB;
-  const isWinningB = hasVotes && pctB > pctA;
 
   return (
     <View style={styles.voteWrapper}>
-      {/* Labels above the voting bars */}
-      <View style={styles.voteLabelsAbove}>
-        {!showFloatLabelA ? (
-          <View style={[
-            styles.voteLabelAboveLeft,
-            isWinningA && styles.voteLabelWinning,
-          ]}>
-            <Text
-              style={[
-                styles.voteLabelAboveText,
-                selectedTeam === 'A' ? null : styles.voteLabelTextDim,
-                isWinningA && styles.voteLabelWinningText,
-              ]}
-              numberOfLines={1}
-            >
-              {leftLabel}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.voteLabelAboveLeft} />
-        )}
-        {!showFloatLabelB ? (
-          <View style={[
-            styles.voteLabelAboveRight,
-            isWinningB && styles.voteLabelWinning,
-          ]}>
-            <Text
-              style={[
-                styles.voteLabelAboveText,
-                selectedTeam === 'B' ? null : styles.voteLabelTextDim,
-                isWinningB && styles.voteLabelWinningText,
-              ]}
-              numberOfLines={1}
-            >
-              {rightLabel}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.voteLabelAboveRight} />
-        )}
-      </View>
-      
       <View
         style={[
           styles.voteBar,
@@ -1582,7 +1527,7 @@ const renderVoteSection = () => {
         ]}
       >
         <Animated.View
-          style={[styles.voteFill, styles.voteFillA, { flex: voteAnimated.A }]}
+          style={[styles.voteFill, styles.voteFillA, { width: `${pctA}%` }]}
         >
           <LinearGradient
             colors={['rgba(255,255,255,0.32)', 'rgba(255,255,255,0)']}
@@ -1590,9 +1535,14 @@ const renderVoteSection = () => {
             end={{ x: 0, y: 1 }}
             style={styles.voteFillHighlight}
           />
+          {pctA > 15 && (
+            <Text style={styles.voteTextInside}>
+              {teamALabel} {Math.round(pctA)}%
+            </Text>
+          )}
         </Animated.View>
         <Animated.View
-          style={[styles.voteFill, styles.voteFillB, { flex: voteAnimated.B }]}
+          style={[styles.voteFill, styles.voteFillB, { width: `${pctB}%` }]}
         >
           <LinearGradient
             colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
@@ -1600,13 +1550,13 @@ const renderVoteSection = () => {
             end={{ x: 0, y: 1 }}
             style={styles.voteFillHighlight}
           />
+          {pctB > 15 && (
+            <Text style={styles.voteTextInside}>
+              {teamBLabel} {Math.round(pctB)}%
+            </Text>
+          )}
         </Animated.View>
 
-        {showInlineCaption ? (
-          <View style={styles.voteLabelCenter}>
-            <Text style={styles.voteCaptionInline}>{caption}</Text>
-          </View>
-        ) : null}
         <View
           style={styles.voteTouchLayer}
           pointerEvents={pressDisabled ? 'none' : 'auto'}
@@ -1631,19 +1581,7 @@ const renderVoteSection = () => {
           />
         </View>
       </View>
-      {showFloatLabelA ? (
-        <View style={[styles.voteFloatPill, styles.voteFloatLeft]}>
-          <Text style={styles.voteFloatText}>{leftLabel}</Text>
-        </View>
-      ) : null}
-      {showFloatLabelB ? (
-        <View style={[styles.voteFloatPill, styles.voteFloatRight]}>
-          <Text style={styles.voteFloatText}>{rightLabel}</Text>
-        </View>
-      ) : null}
-      {showInlineCaption ? null : (
-        <Text style={styles.voteCaptionBelow}>{caption}</Text>
-      )}
+      <Text style={styles.voteCaptionBelow}>{caption}</Text>
     </View>
   );
 };
@@ -2565,7 +2503,13 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   sheetStatValue: { fontSize: 18, fontWeight: '800', color: Colors[colorScheme].text },
   sheetStatLabel: { marginTop: 2, fontSize: 12, color: Colors[colorScheme].mutedText, fontWeight: '600' },
-  voteFill: { height: '100%', overflow: 'hidden' },
+  voteFill: { 
+    height: '100%', 
+    overflow: 'hidden',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   voteFillA: {
     backgroundColor: '#2563EB',
     borderTopLeftRadius: 12,
@@ -2598,6 +2542,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   voteLabelText: { color: '#FFFFFF', fontWeight: '700', fontSize: 12 },
   voteLabelTextDim: { opacity: 0.7 },
+  voteTextInside: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+    textAlign: 'center',
+  },
   voteLabelsAbove: {
     flexDirection: 'row',
     justifyContent: 'space-between',
