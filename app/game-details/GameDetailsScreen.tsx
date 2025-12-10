@@ -2435,8 +2435,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginTop: -16,
     paddingHorizontal: 16,
     paddingTop: 2,
-    paddingBottom: 8,
-    marginBottom: 12,
+    paddingBottom: 0,
+    marginBottom: 24,
   },
   voteBar: {
     position: 'relative',
@@ -2450,6 +2450,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
+    marginBottom: 8,
   },
   voteBarDisabled: { opacity: 0.65 },
   // RSVP sheet styles
@@ -2589,10 +2590,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     textAlign: 'center',
   },
   voteCaptionBelow: {
-    marginTop: 6,
+    marginTop: 0,
+    marginBottom: 16,
     textAlign: 'center',
     color: '#6B7280',
     fontWeight: '600',
+    fontSize: 13,
     paddingHorizontal: 12,
   },
   voteTouchLayer: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
