@@ -2796,7 +2796,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: 'white', fontWeight: '700' },
-  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginTop: 40, marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginTop: 8, marginBottom: 6 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
