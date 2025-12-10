@@ -2601,8 +2601,9 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteLabelsAbove: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 16,
     paddingHorizontal: 8,
+    minHeight: 32,
   },
   voteLabelAboveLeft: {
     flex: 1,
