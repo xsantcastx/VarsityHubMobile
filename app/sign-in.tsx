@@ -247,6 +247,8 @@ export default function SignInScreen() {
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
                 keyboardType="email-address"
                 placeholderTextColor={palette.mutedText}
                 style={[
@@ -267,6 +269,8 @@ export default function SignInScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
                 placeholderTextColor={palette.mutedText}
                 style={[
                   styles.input,
