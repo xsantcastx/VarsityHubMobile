@@ -217,6 +217,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setPendingVerificationEmail(null);
+      setOnboardingCompletedOnce(false); // Reset onboarding flag when switching accounts
+      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY); // Clear from device storage too
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
