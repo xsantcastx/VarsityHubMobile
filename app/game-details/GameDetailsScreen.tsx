@@ -1163,8 +1163,14 @@ const GameDetailsScreen = () => {
   }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
 
   const _refreshVotes = useCallback(async () => {
+    // Event-only pages (no gameId) get local vote state
     if (!vm?.gameId) {
-      setVoteSummary(null);
+      // If we have an eventId, show poll with local state
+      if (vm?.eventId) {
+        setVoteSummary(buildVoteSummary(0, 0, null));
+      } else {
+        setVoteSummary(null);
+      }
       return;
     }
     // For sample games, don't make API call
@@ -1182,7 +1188,7 @@ const GameDetailsScreen = () => {
     } catch (err) {
       console.warn('Failed to load game votes', err);
     }
-  }, [vm?.gameId]);
+  }, [vm?.gameId, vm?.eventId]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -1350,7 +1356,9 @@ const GameDetailsScreen = () => {
 
   const handleVote = useCallback(
     async (team: VoteOption) => {
-      if (!vm?.gameId || vm.isPast) return;
+      if (vm.isPast) return;
+      // Event-only pages (no gameId) only update local state
+      const isEventOnly = !vm?.gameId && vm?.eventId;
 
       let rollback: VoteSummary | null = null;
       setVoteSummary((prev) => {
@@ -1367,11 +1375,13 @@ const GameDetailsScreen = () => {
         return buildVoteSummary(nextA, nextB, team);
       });
 
-      // For sample games, just update local state and don't call API
-      if (isSampleId(vm.gameId)) {
+      // For event-only or sample games, just update local state and don't call API
+      if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
         setVoteBusy(false);
         return;
       }
+
+      if (!vm?.gameId) return; // Safety check
 
       setVoteBusy(true);
       try {
@@ -1396,11 +1406,13 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-    [vm?.gameId, vm?.isPast, router],
+    [vm?.gameId, vm?.eventId, vm?.isPast, router],
   );
 
   const handleClearVote = useCallback(async () => {
-    if (!vm?.gameId || vm.isPast) return;
+    if (vm.isPast) return;
+    // Event-only pages (no gameId) only update local state
+    const isEventOnly = !vm?.gameId && vm?.eventId;
 
     let rollback: VoteSummary | null = null;
     setVoteSummary((prev) => {
@@ -1411,11 +1423,13 @@ const GameDetailsScreen = () => {
       return buildVoteSummary(nextA, nextB, null);
     });
 
-    // For sample games, just update local state and don't call API
-    if (isSampleId(vm.gameId)) {
+    // For event-only or sample games, just update local state and don't call API
+    if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
       setVoteBusy(false);
       return;
     }
+
+    if (!vm?.gameId) return; // Safety check
 
     setVoteBusy(true);
     try {
@@ -1483,7 +1497,8 @@ const GameDetailsScreen = () => {
 
 
 const renderVoteSection = () => {
-  if (!vm?.gameId) return null;
+  // Show poll if we have a gameId OR an eventId
+  if (!vm?.gameId && !vm?.eventId) return null;
   const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
   const total = summary.total ?? 0;
   const hasVotes = total > 0;
