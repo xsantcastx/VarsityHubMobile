@@ -5,28 +5,55 @@
 const fs = require('fs');
 const path = require('path');
 
-const target = path.join(__dirname, '..', 'node_modules', 'expo-router', 'build', 'views', 'Sitemap.js');
+const sitemapTarget = path.join(__dirname, '..', '..', 'node_modules', 'expo-router', 'build', 'views', 'Sitemap.js');
+const tutorialTarget = path.join(__dirname, '..', '..', 'node_modules', 'expo-router', 'build', 'onboard', 'Tutorial.js');
 
 try {
-  if (!fs.existsSync(target)) {
-    console.log('[patch-router-sitemap] Target not found, skipping:', target);
-    process.exit(0);
-  }
-  let src = fs.readFileSync(target, 'utf8');
-  const before = src;
-
-  // Remove individual shadow/elevation lines in styles.header
-  src = src.replace(/\n\s*shadowColor:\s*['\"][^'\"]+['\"],?/g, '\n');
-  src = src.replace(/\n\s*shadowOffset:\s*\{[^}]*\},?/g, '\n');
-  src = src.replace(/\n\s*shadowOpacity:\s*[^,]+,?/g, '\n');
-  src = src.replace(/\n\s*shadowRadius:\s*[^,]+,?/g, '\n');
-  src = src.replace(/\n\s*elevation:\s*[^,]+,?/g, '\n');
-
-  if (src !== before) {
-    fs.writeFileSync(target, src, 'utf8');
-    console.log('[patch-router-sitemap] Patched expo-router Sitemap.js to remove shadows');
+  // Patch Sitemap.js
+  if (!fs.existsSync(sitemapTarget)) {
+    console.log('[patch-router-sitemap] Sitemap target not found, skipping:', sitemapTarget);
   } else {
-    console.log('[patch-router-sitemap] No changes needed');
+    let src = fs.readFileSync(sitemapTarget, 'utf8');
+    const before = src;
+
+    // Remove individual shadow/elevation lines in styles.header
+    src = src.replace(/\n\s*shadowColor:\s*['\"][^'\"]+['\"],?/g, '\n');
+    src = src.replace(/\n\s*shadowOffset:\s*\{[^}]*\},?/g, '\n');
+    src = src.replace(/\n\s*shadowOpacity:\s*[^,]+,?/g, '\n');
+    src = src.replace(/\n\s*shadowRadius:\s*[^,]+,?/g, '\n');
+    src = src.replace(/\n\s*elevation:\s*[^,]+,?/g, '\n');
+
+    // Remove problematic image require() calls that reference missing assets
+    src = src.replace(/return <react_native_1\.Image style=\{styles\.image\} source=\{require\(['"]expo-router\/assets\/pkg\.png['"]\)\}\/>;/g, 'return null;');
+    src = src.replace(/return <react_native_1\.Image style=\{styles\.image\} source=\{require\(['"]expo-router\/assets\/forward\.png['"]\)\}\/>;/g, 'return null;');
+
+    if (src !== before) {
+      fs.writeFileSync(sitemapTarget, src, 'utf8');
+      console.log('[patch-router-sitemap] Patched Sitemap.js');
+    } else {
+      console.log('[patch-router-sitemap] Sitemap.js - no changes needed');
+    }
+  }
+
+  // Patch Tutorial.js to remove missing asset
+  if (!fs.existsSync(tutorialTarget)) {
+    console.log('[patch-router-sitemap] Tutorial target not found, skipping:', tutorialTarget);
+  } else {
+    let tutSrc = fs.readFileSync(tutorialTarget, 'utf8');
+    const tutBefore = tutSrc;
+
+    // Remove the logotype image require - replace with null
+    tutSrc = tutSrc.replace(
+      /<react_native_1\.Image style=\{styles\.logotype\} source=\{require\(['"]expo-router\/assets\/logotype\.png['"]\)\}\/>/g,
+      '<react_native_1.View style={styles.logotype} />'
+    );
+
+    if (tutSrc !== tutBefore) {
+      fs.writeFileSync(tutorialTarget, tutSrc, 'utf8');
+      console.log('[patch-router-sitemap] Removed logotype image from Tutorial');
+    } else {
+      console.log('[patch-router-sitemap] Tutorial.js - no changes needed');
+    }
   }
 } catch (err) {
   console.warn('[patch-router-sitemap] Failed to patch:', err.message);

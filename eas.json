@@ -17,7 +17,8 @@
         "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "bundleIdentifier": "com.xsantcastx.varsityhub"
       },
       "android": {
         "resourceClass": "medium"

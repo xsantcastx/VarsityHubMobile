@@ -69,3 +69,18 @@ app-example
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
+
+# Build logs and overnight artifacts
+eas-build-*.log
+jest-results.log
+lint-warnings-summary.txt
+overnight-results/
+*.ipa
+build-*.ipa
+
+# Test/output artifacts
+coverage/
+coverage-*/
+playwright-report/
+test-results/
+*.coverage
