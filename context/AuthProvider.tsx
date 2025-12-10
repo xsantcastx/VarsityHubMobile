@@ -10,7 +10,6 @@
  * - Email verification: detected and routed centrally; verify-email screen shows user context
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useRootNavigationState, useRouter, useSegments } from 'expo-router';
@@ -43,7 +42,6 @@ export interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -59,8 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [healthOk, setHealthOk] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [onboardingCompletedOnce, setOnboardingCompletedOnce] = useState<boolean>(false);
-  const [onboardingFlagLoaded, setOnboardingFlagLoaded] = useState<boolean>(false);
   const [initializing, setInitializing] = useState(true);
   
   const router = useRouter();
@@ -77,20 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Derived state
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
-
-  // Load local onboarding completion sentinel to avoid repeat onboarding if backend lags
-  useEffect(() => {
-    (async () => {
-      try {
-        const flag = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-        setOnboardingCompletedOnce(flag === 'true');
-      } catch (e) {
-        console.warn('[Auth] Failed to read onboarding sentinel', e);
-      } finally {
-        setOnboardingFlagLoaded(true);
-      }
-    })();
-  }, []);
 
   // Check backend health (once on startup)
   const checkHealth = useCallback(async () => {
@@ -193,12 +175,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
-        // If user just completed onboarding, mark it locally
-        if (me?.preferences?.onboarding_completed === true && !onboardingCompletedOnce) {
-          setOnboardingCompletedOnce(true);
-          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-        }
-
         // Setup push notifications after successful auth
         void setupPushNotifications(me.id);
 
@@ -208,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
     },
-    [setupPushNotifications, onboardingCompletedOnce]
+    [setupPushNotifications]
   );
 
   // Sign out
@@ -220,8 +196,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setPendingVerificationEmail(null);
-      setOnboardingCompletedOnce(false); // Reset onboarding flag when switching accounts
-      await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY); // Clear from device storage too
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');
     }
@@ -273,7 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Routing logic (runs after auth check completes)
   useEffect(() => {
-    if (initializing || !onboardingFlagLoaded) return;
+    if (initializing) return;
 
     const firstSegment = Array.isArray(segmentsRef.current) && segmentsRef.current.length ? String(segmentsRef.current[0]) : '';
     const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-email', 'forgot-password', 'reset-password']);
@@ -295,8 +269,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Authenticated routing
     if (user) {
-      // Check if onboarding is needed on the server, OR if user just completed it locally
-      const needsOnboarding = user.preferences?.onboarding_completed === false && !onboardingCompletedOnce;
+      // Check if onboarding is needed on the server
+      const needsOnboarding = user.preferences?.onboarding_completed === false;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -335,7 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router, onboardingCompletedOnce, onboardingFlagLoaded]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, navState?.key, router]);
 
   const value: AuthContextType = {
     user,
