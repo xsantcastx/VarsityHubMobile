@@ -2619,8 +2619,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors[colorScheme].tint,
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     backgroundColor: `${Colors[colorScheme].tint}10`,
   },
   voteLabelAboveText: {
