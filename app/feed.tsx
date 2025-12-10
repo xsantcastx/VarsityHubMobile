@@ -287,8 +287,8 @@ export default function FeedScreen() {
         const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
         normalizedGames = [
           {
-            id: 'sample-warriors-lakers',
-            title: 'Golden State Warriors vs. Los Angeles Lakers',
+            id: 'sample-warriors-cavaliers',
+            title: 'Golden State Warriors vs. Cleveland Cavaliers',
             date: addDays(2),
             location: 'Chase Center, San Francisco, CA 94158',
             cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
