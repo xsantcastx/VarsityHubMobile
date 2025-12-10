@@ -4,6 +4,15 @@
 
 ---
 
+### Overnight Injection – December 10, 2025 @ 02:10 EST
+
+- ✅ **Build 1.0.1 (37)** uploaded to App Store Connect at 01:54 AM and is currently **Processing** for TestFlight (artifact source: `0cfff7f2-5ea3-4e39-bc5d-fa1af06b9891`). Internal testers can install as soon as Apple flips it to “Ready to Test.”
+- ✅ `npm run lint`, `npm test`, and `npm run typecheck` all completed (371 lint warnings, 0 lint errors; Jest suite 2/2 passing; TypeScript clean). Logs appended to `lint-overnight-results.log`, `jest-results.log`, and `typecheck-results.log`.
+- ⚠️ **Next build dependency**: Expo is still using provisioning profile `4b58ca01-9699-44f3-91e5-c778490e2172`. Before kicking off another iOS build, run `npx eas credentials -p ios --skip-credentials-json` → remove the profile → “Set up new provisioning profile” so the regenerated profile includes Push + Sign in with Apple entitlements.
+- 📌 **QA focus** for the morning crew: verify push notifications + Apple Sign-In on the fresh TestFlight build, run the smoke list recorded in `QA_EXECUTION_LOG.md`, and note regressions for follow-up.
+
+---
+
 ## 🚨 Critical Blocker
 
 **Production Build Failing**: Archive step fails due to provisioning profile mismatch

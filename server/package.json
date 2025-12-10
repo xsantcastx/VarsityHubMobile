@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx prisma generate && tsc -p .",
+    "build": "npx prisma generate && npx tsc -p .",
     "start": "node dist/index.js",
     "postinstall": "npx prisma generate",
     "railway:deploy": "npx prisma generate && npm run build",
@@ -62,7 +62,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/jwk-to-pem": "^2.0.3",
     "@types/multer": "^2.0.0",
-    "@types/node": "^20.11.30",
+    "@types/node": "^20.19.26",
     "@types/nodemailer": "^7.0.1",
     "@types/react-native-maps": "^0.24.1",
     "@types/swagger-ui-express": "^4.1.6",
@@ -71,7 +71,7 @@
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.3"
+    "typescript": "^5.9.3"
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

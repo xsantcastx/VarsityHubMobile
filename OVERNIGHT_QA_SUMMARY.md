@@ -1,5 +1,18 @@
 # Overnight QA Automation Summary - December 8/9, 2025
 
+## Latest Run – December 10, 2025 @ 02:00 EST
+
+- **Build Status**: `1.0.1 (37)` uploaded to App Store Connect at 01:54 AM and is now in **Processing** (internal TestFlight testers can install as soon as Apple finishes processing). Artifact: https://expo.dev/artifacts/eas/2B7arveT3Q8urJVogjj5TB.ipa  
+- **Queued Build**: `6b345e0b-8880-4bba-80d7-8e5512d7a5aa` remains in progress on Expo. Cancel if the new provisioning profile needs to be applied immediately.
+- **Lint**: `npm run lint` completed in ~2 s with 371 warnings / 0 errors (log timestamp appended to `lint-overnight-results.log`). Hot spots remain `app/team-contacts.tsx`, `app/feed.tsx`, and `app/game-details/*` for unused vars + floating promises.
+- **Tests**: `npm test` passed 2/2 specs (OfflineBanner suite). `jest-results.log` updated.
+- **TypeScript**: `npm run typecheck` passed with no diagnostics. `typecheck-results.log` updated.
+- **Action Items (overnight)**:  
+  1. Regenerate the App Store provisioning profile via `npx eas credentials -p ios --skip-credentials-json` → “Set up new provisioning profile” to replace the cached `4b58ca01…` profile without Push/Apple Sign-In entitlements.  
+  2. Capture TestFlight tester instructions + QA priorities in `MORNING_HANDOFF.md` before handoff.
+
+---
+
 **Date**: December 8/9, 2025 (Overnight Build Session)
 **Timestamp**: 12:17 AM - 12:30 AM  
 **Build #27 ID**: TBD (in progress)
