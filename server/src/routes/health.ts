@@ -26,7 +26,7 @@ healthRouter.get('/', (req, res) => {
   };
 
   const allConfigured = Object.entries(integrations)
-    .filter(([key]) => !['twilio', 'sentry'].includes(key)) // Optional services
+    .filter(([key]) => !['twilio', 'sentry', 'sendgrid'].includes(key)) // Optional services
     .every(([, value]) => value);
 
   res.json({
