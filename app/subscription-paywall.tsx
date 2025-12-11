@@ -27,7 +27,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SubscriptionPaywallScreen() {
-  const router = useRouter();
+  const _router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);

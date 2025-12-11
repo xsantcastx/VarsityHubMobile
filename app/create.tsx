@@ -14,7 +14,7 @@ export default function CreateScreen() {
   useEffect(() => { (async () => { try { const u = await User.me(); setMe(u); } catch (_error) {} })(); }, []);
   const go = (path: string) => {
     if (!verified) return void router.push('/verify-email');
-    router.push(path as any);
+    void router.push(path as any);
   };
 
   const safeBack = () => {

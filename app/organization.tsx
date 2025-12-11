@@ -253,7 +253,7 @@ export default function OrganizationScreen() {
               <GameCard
                 key={game.id}
                 game={game}
-                onPress={() => router.push(`/game-details?id=${game.id}` as any)}
+                onPress={() => void router.push(`/game-details?id=${game.id}` as any)}
               />
             ))}
           </View>

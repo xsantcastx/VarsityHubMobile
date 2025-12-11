@@ -45,13 +45,10 @@ export default function OnboardingFinish() {
       
       // Mark onboarding as complete on server before navigating
       try {
-        console.log('[Onboarding][Finish] Marking onboarding as complete');
+        // Marking onboarding as complete
         await User.completeOnboarding({});
         const updatedUser: any = await checkAuth();
-        console.log('[Onboarding][Finish] Onboarding marked complete, user:', {
-          email: updatedUser?.email,
-          onboarding_completed: updatedUser?.preferences?.onboarding_completed,
-        });
+        // Onboarding marked complete
       } catch (completeErr) {
         console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
         // Continue anyway - will let AuthProvider handle it
@@ -74,13 +71,9 @@ export default function OnboardingFinish() {
   const skip = async () => {
     // Mark onboarding as complete even when skipping email verification
     try {
-      console.log('[Onboarding][Finish] Skipping - marking onboarding as complete');
       await User.completeOnboarding({});
       const updatedUser: any = await checkAuth();
-      console.log('[Onboarding][Finish] Onboarding marked complete, user:', {
-        email: updatedUser?.email,
-        onboarding_completed: updatedUser?.preferences?.onboarding_completed,
-      });
+      // Onboarding marked complete during skip
     } catch (completeErr) {
       console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
     }

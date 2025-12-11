@@ -190,7 +190,7 @@ export default function CreateTeamScreen() {
         if (mounted) setLimitsLoading(false);
       }
     };
-    loadLimits();
+    void loadLimits();
     return () => {
       mounted = false;
     };
@@ -212,7 +212,7 @@ export default function CreateTeamScreen() {
       let user;
       try { 
         user = await User.me(); 
-      } catch (_error) { 
+      } catch { 
         Alert.alert('Sign in required', 'Please sign in to create a team.'); 
         setSubmitting(false); 
         return; 
@@ -234,7 +234,7 @@ export default function CreateTeamScreen() {
         const refreshedLimits: TeamLimitSummary = await Team.limits();
         latestLimits = refreshedLimits;
         setTeamLimits(latestLimits);
-      } catch (err) {
+      } catch {
         // non-blocking
       }
       const teamCount = latestLimits?.owned_teams ?? user?._count?.teams ?? 0;
@@ -280,7 +280,9 @@ export default function CreateTeamScreen() {
                         await proceedWithTeamCreation(me);
                         return;
                       }
-                    } catch (err) {}
+                    } catch {
+                      // ignore retry errors; user will see follow-up alert below
+                    }
                     Alert.alert(
                       'Complete Payment',
                       'We could not confirm your upgrade yet. If you completed payment, please try creating your team again. Otherwise, finish checkout and retry.'
@@ -338,7 +340,7 @@ export default function CreateTeamScreen() {
     }
   };
   
-  const proceedWithTeamCreation = async (user?: any) => {
+  const proceedWithTeamCreation = async (_user?: any) => {
     try {
       let logoUrl = null;
       
