@@ -39,15 +39,8 @@ export default function GameMapScreen() {
         setUserLocation({ latitude: lat, longitude: lng });
       }
 
-      // Fetch nearby games - pass lat/lng to get distance-sorted results
-      const options: any = {};
-      if (lat && lng) {
-        options.lat = lat;
-        options.lng = lng;
-        options.distance = 100; // 100 mile radius
-      }
-      
-      const gamesResponse = await Game.list('-date', options).catch(() => ({ items: [] }));
+      // Fetch ALL games worldwide - no location filter
+      const gamesResponse = await Game.list('-date', {}).catch(() => ({ items: [] }));
       const gamesList = Array.isArray(gamesResponse) ? gamesResponse : (gamesResponse?.items || []);
 
       // Transform games to EventMapData format
