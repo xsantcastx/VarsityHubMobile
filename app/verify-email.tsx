@@ -124,6 +124,8 @@ export default function VerifyEmailScreen() {
     if (devCode) {
       setCode(devCode);
       setInfo(`Using dev code ${devCode}`);
+      // Auto-verify with dev code
+      setTimeout(() => onVerify(), 500);
       return;
     }
 
@@ -131,6 +133,8 @@ export default function VerifyEmailScreen() {
       setDevCode(configuredDevCode);
       setCode(configuredDevCode);
       setInfo(`Using configured dev code ${configuredDevCode}`);
+      // Auto-verify with dev code
+      setTimeout(() => onVerify(), 500);
       return;
     }
 
@@ -143,6 +147,8 @@ export default function VerifyEmailScreen() {
         setDevCode(res.dev_verification_code);
         setCode(res.dev_verification_code);
         setInfo(`Using dev code ${res.dev_verification_code}`);
+        // Auto-verify with fetched dev code
+        setTimeout(() => onVerify(), 500);
       } else {
         setInfo('Dev code unavailable. Check backend configuration.');
       }

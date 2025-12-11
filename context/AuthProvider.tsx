@@ -361,12 +361,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     // Authenticated routing
     if (user) {
       // SERVER IS SOURCE OF TRUTH for onboarding completion
-      // IMPORTANT: Default to NOT requiring onboarding unless server EXPLICITLY says false
-      // This prevents infinite loops when the server field is null/undefined/missing
+      // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
+      // Regular users are marked false if they haven't completed onboarding
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
       
-      // Show onboarding ONLY if server explicitly says false AND we haven't recorded completion locally
-      const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
+      // Onboarding is only required if server explicitly says false
+      // Remove dependency on AsyncStorage to avoid race conditions on app restart
+      const needsOnboarding = serverSaysIncomplete;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -408,7 +409,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         router.replace('/sign-in');
       }
     }
-  }, [user, pendingVerificationEmail, initializing, healthOk, router, hasCompletedOnboarding]);
+  }, [user, pendingVerificationEmail, initializing, healthOk, router]);
 
   const value: AuthContextType = {
     user,

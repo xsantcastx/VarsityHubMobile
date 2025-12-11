@@ -135,6 +135,17 @@ model Game {
   approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
   approved_at     DateTime?
   
+  // Tournament fields
+  tournament_organization_id String?
+  tournament_organization    Organization? @relation("TournamentGames", fields: [tournament_organization_id], references: [id], onDelete: SetNull)
+  
+  group           String?        // For tournament groups (e.g., "Group A")
+  round           String?        // For tournament rounds (e.g., "Group Stage", "Quarterfinal")
+  stadium         String?        // Tournament stadium name
+  stadium_name    String?        // Tournament stadium (legacy field)
+  stadium_capacity Int?          // Stadium capacity
+  banner_image_url String?       // For tournament match banners
+  
   created_at      DateTime @default(now())
 
   // Back-relations
@@ -147,6 +158,7 @@ model Game {
   @@index([latitude, longitude])
   @@index([home_team_id])
   @@index([away_team_id])
+  @@index([tournament_organization_id])
 }
 
 model Post {
@@ -553,24 +565,47 @@ model Organization {
   id          String   @id @default(cuid())
   name        String
   description String?
+  type        String   @default("organization") // organization | tournament
   sport       String?
-  org_type    String?  // school | club | league | other
+  org_type    String?  // school | club | league | tournament | other
+  logo_url    String?  // For tournaments
   location    String?  // City, State format
   zip_code    String?  // For nearby search
   season_start DateTime?
   season_end  DateTime?
   status      String   @default("active")
+  created_by  String?  // User ID of tournament creator
+  
+  // Tournament-specific fields
+  is_tournament         Boolean?        @default(false)
+  tournament_format     String?         // GROUP_STAGE | KNOCKOUT | ROUND_ROBIN
+  tournament_start_date DateTime?
+  tournament_end_date   DateTime?
+  tournament_location   String?
+  tournament_rules      String?
+  tournament_logo_url   String?
+  
+  stadium_name    String?
+  capacity        Int?
+  opened_year     Int?
+  latitude        Float?
+  longitude       Float?
+  
   created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   teams       Team[]
   memberships OrganizationMembership[]
   invites     OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
+  games       Game[]   @relation("TournamentGames")
   
   @@unique([name, zip_code])
   @@index([zip_code])
   @@index([location])
+  @@index([type])
 }
+
 
 model OrganizationJoinRequest {
   id              String   @id @default(cuid())

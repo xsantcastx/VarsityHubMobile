@@ -138,6 +138,21 @@ authRouter.post('/login', async (req, res) => {
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(sanitizedEmail);
   
+  // Only update onboarding_completed if user is new or missing the flag
+  const currentPrefs = (user as any)?.preferences || {};
+  const needsPreferenceUpdate = currentPrefs.onboarding_completed === undefined || currentPrefs.onboarding_completed === null;
+  
+  let updatedUser = user;
+  if (needsPreferenceUpdate) {
+    updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        preferences: mergePreferences(currentPrefs, { onboarding_completed: true }),
+      },
+    });
+    Object.assign(user, updatedUser);
+  }
+  
   const access_token = signJwt({ id: user.id });
   const sanitized = sanitizeUser(user);
   
@@ -201,7 +216,10 @@ authRouter.post('/google', async (req, res) => {
         const currentPrefs = (existingByEmail as any)?.preferences || {};
         const prefPatch: Record<string, unknown> = {};
         if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
+        // Only set onboarding_completed if user is missing the flag
+        if (currentPrefs.onboarding_completed === undefined || currentPrefs.onboarding_completed === null) {
+          prefPatch.onboarding_completed = true;
+        }
         const updates: any = {
           google_id: googleId,
           email_verified: true,
@@ -307,7 +325,10 @@ authRouter.post('/apple', async (req, res) => {
         const currentPrefs = (existingByEmail as any)?.preferences || {};
         const prefPatch: Record<string, unknown> = {};
         if (typeof currentPrefs.role !== 'string') prefPatch.role = 'fan';
-        if (typeof currentPrefs.onboarding_completed === 'undefined') prefPatch.onboarding_completed = false;
+        // Only set onboarding_completed if user is missing the flag
+        if (currentPrefs.onboarding_completed === undefined || currentPrefs.onboarding_completed === null) {
+          prefPatch.onboarding_completed = true;
+        }
         
         const updates: any = {
           apple_id: appleId,
@@ -709,12 +730,21 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   if (user.email_verified) return res.json({ ok: true, already_verified: true });
+  
+  // Admin bypass: no rate limiting for admin emails
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes(user.email.toLowerCase());
+  
   const now = Date.now();
   const key = user.id;
   const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
   if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
-  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
-  if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+  
+  // Skip rate limiting for admin users
+  if (!isAdmin) {
+    if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
+    if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+  }
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
