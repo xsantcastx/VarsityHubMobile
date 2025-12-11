@@ -9,6 +9,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 type LeagueTeam = {
   id: string;
@@ -55,6 +57,29 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'schedule' | 'feed'>('teams');
   const [isFollowing, setIsFollowing] = useState(false);
+
+  // Swipe gesture handler
+  const translateX = useSharedValue(0);
+  const swipeGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      // Only allow positive swipes (left to right)
+      if (event.translationX > 0) {
+        translateX.value = event.translationX;
+      }
+    })
+    .onEnd((event) => {
+      // If swipe distance is > 100px, go back
+      if (event.translationX > 100) {
+        router.back();
+      } else {
+        // Snap back to original position
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   const loadOrganization = useCallback(async () => {
     setLoading(true);
@@ -288,82 +313,86 @@ export default function OrganizationScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <Stack.Screen options={{ title: `Organization`, headerShown: true }} />
-      
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.organizationCard, { backgroundColor: theme.card }]}>
-            <View style={styles.organizationContent}>
-              <Ionicons name="business" size={48} color={theme.tint} />
-              <View style={styles.organizationInfo}>
-                <Text style={[styles.organizationName, { color: theme.text }]}>
-                  Organization
-                </Text>
-                <Text style={[styles.organizationId, { color: theme.mutedText }]}>
-                  ID: {organizationId?.substring(0, 8)}...
-                </Text>
+    <GestureDetector gesture={swipeGesture}>
+      <Animated.View style={[{ flex: 1 }, animatedStyle]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+          <Stack.Screen options={{ title: `Organization`, headerShown: true }} />
+          
+          <ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={[styles.organizationCard, { backgroundColor: theme.card }]}>
+                <View style={styles.organizationContent}>
+                  <Ionicons name="business" size={48} color={theme.tint} />
+                  <View style={styles.organizationInfo}>
+                    <Text style={[styles.organizationName, { color: theme.text }]}>
+                      Organization
+                    </Text>
+                    <Text style={[styles.organizationId, { color: theme.mutedText }]}>
+                      ID: {organizationId?.substring(0, 8)}...
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
-          </View>
-        </View>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={[styles.stat, { borderColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.tint }]}>
-              {teams.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Teams</Text>
-          </View>
-          <View style={[styles.stat, { borderColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.tint }]}>
-              {games.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Games</Text>
-          </View>
-          <View style={[styles.stat, { borderColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.tint }]}>
-              {posts.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Posts</Text>
-          </View>
-        </View>
+            {/* Stats */}
+            <View style={styles.statsContainer}>
+              <View style={[styles.stat, { borderColor: theme.border }]}>
+                <Text style={[styles.statValue, { color: theme.tint }]}>
+                  {teams.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Teams</Text>
+              </View>
+              <View style={[styles.stat, { borderColor: theme.border }]}>
+                <Text style={[styles.statValue, { color: theme.tint }]}>
+                  {games.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Games</Text>
+              </View>
+              <View style={[styles.stat, { borderColor: theme.border }]}>
+                <Text style={[styles.statValue, { color: theme.tint }]}>
+                  {posts.length}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Posts</Text>
+              </View>
+            </View>
 
-        {/* Tabs */}
-        <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-          {(['teams', 'schedule', 'feed'] as const).map((tab) => (
-            <Pressable
-              key={tab}
-              onPress={() => setActiveTab(tab)}
-              style={[
-                styles.tab,
-                activeTab === tab && { borderBottomColor: theme.tint, borderBottomWidth: 3 },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: activeTab === tab ? theme.tint : theme.mutedText },
-                ]}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+            {/* Tabs */}
+            <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+              {(['teams', 'schedule', 'feed'] as const).map((tab) => (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  style={[
+                    styles.tab,
+                    activeTab === tab && { borderBottomColor: theme.tint, borderBottomWidth: 3 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabLabel,
+                      { color: activeTab === tab ? theme.tint : theme.mutedText },
+                    ]}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
-        {/* Tab Content */}
-        <View style={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}>
-          {renderTabContent()}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+            {/* Tab Content */}
+            <View style={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}>
+              {renderTabContent()}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
