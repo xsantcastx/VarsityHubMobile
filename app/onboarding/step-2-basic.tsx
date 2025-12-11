@@ -165,7 +165,7 @@ export default function Step2Basic() {
       subtitle="We'll set up your account with a username and preferences"
       onBack={onBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
-      onVerifyEmail={() => router.push('/verify-email')}
+      onVerifyEmail={() => void router.push('/verify-email')}
     >
       <Stack.Screen options={{ headerShown: false }} />
       

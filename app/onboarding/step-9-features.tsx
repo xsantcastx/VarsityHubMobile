@@ -101,8 +101,9 @@ export default function Step9Features() {
               'We could not enable push notifications. You can turn them on later from device settings.'
             );
           }
+        }).catch(() => {
+          setNotificationsEnabled(false);
         });
-      }
     },
     [isDevice, registerPushToken]
   );
