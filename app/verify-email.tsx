@@ -42,8 +42,22 @@ export default function VerifyEmailScreen() {
   const onVerify = async () => {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
+    
+    const startTime = Date.now();
+    const email = pendingVerificationEmail || user?.email;
+    
     try {
+      if (__DEV__) console.log(`[verify-email] Verifying code for ${email}...`);
+      
       await User.verifyEmail(code.trim());
+      const verifyDuration = Date.now() - startTime;
+      
+      if (__DEV__) console.log(`[verify-email] ✅ Code verified in ${verifyDuration}ms`);
+      captureException(new Error(`[TELEMETRY] Email verified in ${verifyDuration}ms`), {
+        tags: { context: 'verify-email-success', duration_ms: String(verifyDuration) },
+        extra: { email },
+      });
+      
       setInfo('✅ Email verified successfully!');
       setCode('');
       setIsVerified(true);
@@ -64,9 +78,10 @@ export default function VerifyEmailScreen() {
             await markOnboardingCompleteLocally();
           }
         } catch (profileError) {
+          console.error('[verify-email] Failed to fetch profile:', profileError);
           captureException(
             typeof profileError === 'string' ? new Error(profileError) : (profileError as Error),
-            { tags: { context: 'verify-email-profile' } }
+            { tags: { context: 'verify-email-profile' }, extra: { email } }
           );
         }
 
@@ -77,16 +92,17 @@ export default function VerifyEmailScreen() {
         console.error('[verify-email] Failed to refresh auth:', userError);
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
-          { tags: { context: 'verify-email-refresh' } }
+          { tags: { context: 'verify-email-refresh' }, extra: { email } }
         );
         setError('Verification successful but failed to load profile. Please sign in again.');
         setTimeout(() => router.replace('/sign-in'), 2000);
       }
     } catch (e: any) {
-      console.error('[verify-email] Verification error:', e);
+      const errorDuration = Date.now() - startTime;
+      console.error(`[verify-email] Verification error after ${errorDuration}ms:`, e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-verify' },
-        extra: { email: pendingVerificationEmail || user?.email },
+        tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
+        extra: { email, code_length: String(code).length },
       });
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
@@ -97,19 +113,34 @@ export default function VerifyEmailScreen() {
 
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
+    
+    const startTime = Date.now();
+    const email = pendingVerificationEmail || user?.email;
+    
     try {
+      if (__DEV__) console.log(`[verify-email] Requesting new code for ${email}...`);
+      
       const res: any = await User.requestVerification();
+      const resendDuration = Date.now() - startTime;
+      
+      if (__DEV__) console.log(`[verify-email] ✅ Code requested in ${resendDuration}ms`);
+      captureException(new Error(`[TELEMETRY] Resend requested in ${resendDuration}ms`), {
+        tags: { context: 'verify-email-resend-success', duration_ms: String(resendDuration) },
+        extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
+      });
+      
       if (res?.dev_verification_code) {
         setDevCode(res.dev_verification_code);
         setInfo(`Code sent (dev: ${res.dev_verification_code})`);
       } else {
-        setInfo('Code sent');
+        setInfo('Code sent to your email');
       }
     } catch (e: any) {
-      console.error('[verify-email] Resend failed:', e);
+      const resendDuration = Date.now() - startTime;
+      console.error(`[verify-email] Resend failed after ${resendDuration}ms:`, e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-resend' },
-        extra: { email: pendingVerificationEmail || user?.email },
+        tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
+        extra: { email, error_code: e?.data?.error },
       });
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);

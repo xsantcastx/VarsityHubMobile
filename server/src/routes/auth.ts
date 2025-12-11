@@ -755,10 +755,15 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
 
 // Request a new email verification code (authenticated)
 authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
+  const requestStartTime = Date.now();
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  if (user.email_verified) return res.json({ ok: true, already_verified: true });
+  if (user.email_verified) {
+    debugLog(`[verify/request] ${user.email} already verified`);
+    return res.json({ ok: true, already_verified: true });
+  }
   
   // Admin bypass: no rate limiting for admin emails
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -771,28 +776,59 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
   
   // Skip rate limiting for admin users
   if (!isAdmin) {
-    if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
-    if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+    if (now - rec.last < 30_000) {
+      debugLog(`[verify/request] Rate limit hit for ${user.email} (30s cooldown)`);
+      return res.status(429).json({ error: 'Please wait before requesting another code' });
+    }
+    if (rec.count >= 5) {
+      debugLog(`[verify/request] Rate limit hit for ${user.email} (5/hour exceeded)`);
+      return res.status(429).json({ error: 'Too many requests' });
+    }
   }
+  
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
-  await prisma.user.update({ where: { id: user.id }, data: { email_verification_code: code, email_verification_expires: exp } });
+  
+  await prisma.user.update({ 
+    where: { id: user.id }, 
+    data: { email_verification_code: code, email_verification_expires: exp } 
+  });
+  
+  // Attempt to send verification email
+  let emailSent = false;
   try {
-    const sent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
-    if (!sent) console.warn('[email] Verification email skipped (SendGrid not configured)');
+    const emailStartTime = Date.now();
+    emailSent = await sendVerificationEmail(user.email, code, user.display_name || user.email.split('@')[0]);
+    const emailDuration = Date.now() - emailStartTime;
+    
+    if (emailSent) {
+      debugLog(`[verify/request] ✅ Email sent to ${user.email} in ${emailDuration}ms`);
+    } else {
+      console.warn(`[verify/request] ⚠️ Email send returned false (SendGrid not configured) for ${user.email}`);
+    }
   } catch (e) {
-    req.log?.warn?.({ err: e }, 'Email send failed');
+    console.error(`[verify/request] ❌ Email send failed for ${user.email}:`, e);
+    // Continue - return code anyway for dev/testing
   }
+  
   const sendGridReady = isSendGridConfigured();
   const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
   const payload: any = { ok: true };
+  
   if (shouldReturnDevCode) {
     payload.dev_verification_code = code;
     if (!sendGridReady) {
       payload.email_hint = 'SendGrid not configured—code returned directly.';
     }
   }
-  rec.last = now; rec.count += 1; verifyRate.set(key, rec);
+  
+  rec.last = now; 
+  rec.count += 1; 
+  verifyRate.set(key, rec);
+  
+  const totalDuration = Date.now() - requestStartTime;
+  debugLog(`[verify/request] ✅ Response ready for ${user.email} in ${totalDuration}ms (email_sent=${emailSent}, dev_mode=${shouldReturnDevCode})`);
+  
   return res.json(payload);
 });
 
@@ -803,18 +839,51 @@ authRouter.post('/verify/send', async (req: AuthedRequest, res) => {
 
 // Verify code (authenticated)
 authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
+  const requestStartTime = Date.now();
+  
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const schema = z.object({ code: z.string().min(4).max(8) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  
   const { code } = parsed.data;
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
-  if (user.email_verified) return res.json({ ok: true, already_verified: true });
-  if (!user.email_verification_code || !user.email_verification_expires) return res.status(400).json({ error: 'No verification in progress' });
-  if (new Date() > user.email_verification_expires) return res.status(400).json({ error: 'Code expired' });
-  if (String(code) !== String(user.email_verification_code)) return res.status(400).json({ error: 'Invalid code' });
-  const updated = await prisma.user.update({ where: { id: user.id }, data: { email_verified: true, email_verification_code: null, email_verification_expires: null } });
+  
+  if (user.email_verified) {
+    debugLog(`[verify/confirm] ${user.email} already verified`);
+    return res.json({ ok: true, already_verified: true });
+  }
+  
+  if (!user.email_verification_code || !user.email_verification_expires) {
+    debugLog(`[verify/confirm] ❌ No verification in progress for ${user.email}`);
+    return res.status(400).json({ error: 'No verification in progress' });
+  }
+  
+  if (new Date() > user.email_verification_expires) {
+    const expiredSince = Date.now() - user.email_verification_expires.getTime();
+    debugLog(`[verify/confirm] ❌ Code expired for ${user.email} (${expiredSince}ms ago)`);
+    return res.status(400).json({ error: 'Code expired' });
+  }
+  
+  if (String(code) !== String(user.email_verification_code)) {
+    const attemptDuration = Date.now() - requestStartTime;
+    debugLog(`[verify/confirm] ❌ Invalid code for ${user.email} (attempt: ${attemptDuration}ms)`);
+    return res.status(400).json({ error: 'Invalid code' });
+  }
+  
+  const updated = await prisma.user.update({ 
+    where: { id: user.id }, 
+    data: { 
+      email_verified: true, 
+      email_verification_code: null, 
+      email_verification_expires: null 
+    } 
+  });
+  
+  const totalDuration = Date.now() - requestStartTime;
+  debugLog(`[verify/confirm] ✅ Email verified for ${user.email} in ${totalDuration}ms`);
+  
   return res.json({ ok: true, user: sanitizeUser(updated) });
 });
 
