@@ -114,38 +114,7 @@ export default function OnboardingFinish() {
             <Text style={styles.cardTitle}>Verify your email to unlock messaging & RSVPs</Text>
             <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
-              <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={verify} disabled={verifying} loading={verifying} />
-            </View>
-            <PrimaryButton label="Skip for now" onPress={skip} />
-          </View>
-        )}
-      </View>
-    </SafeAreaView>
-  );
-}
-
-  const verified = !!me?.email_verified;
-  return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <Stack.Screen options={{ title: 'Finish' }} />
-      <OnboardingBackHeader
-        title="Email Verification"
-        subtitle="Enter the 6-digit code to finish onboarding"
-      />
-      <View style={{ padding: 16, gap: 12 }}>
-        <Text style={styles.title}>You’re all set! 🎉</Text>
-        {verified ? (
-          <>
-            <Text style={styles.muted}>Your email is verified. Enjoy Varsity Hub!</Text>
-            <PrimaryButton label="Go to Feed" onPress={() => void router.replace('/(tabs)/feed')} />
-          </>
-        ) : (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Verify your email to unlock messaging & RSVPs</Text>
-            <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
+              <PrimaryButton label={cooldown>0 ? \`Resend in \${cooldown}s\` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
               <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={verify} disabled={verifying} loading={verifying} />
             </View>
             <PrimaryButton label="Skip for now" onPress={skip} />
