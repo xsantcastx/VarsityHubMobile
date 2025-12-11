@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { isSendGridConfigured, sendPasswordResetEmail, sendVerificationEmail, sendCoachOnboardingEmail, sendFanWelcomeEmail } from '../lib/email.js';
+import { isSendGridConfigured, sendCoachOnboardingEmail, sendFanWelcomeEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';

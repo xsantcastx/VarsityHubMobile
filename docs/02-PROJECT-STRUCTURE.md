@@ -108,17 +108,17 @@ app/
 │   └── profile.tsx        # Profile tab (/profile)
 │
 ├── onboarding/            # Onboarding flow
-│   ├── _layout.tsx        # Onboarding layout
-│   ├── step-1.tsx         # Name & Bio
-│   ├── step-2.tsx         # Profile Picture
-│   ├── step-3.tsx         # Cover Photo
-│   ├── step-4.tsx         # Location
-│   ├── step-5.tsx         # Sports Selection
-│   ├── step-6.tsx         # Roles Selection
-│   ├── step-7.tsx         # School/Organization
-│   ├── step-8.tsx         # Core Values
-│   ├── step-9.tsx         # Subscription
-│   └── step-10.tsx        # Complete
+│   ├── _layout.tsx                # Shared layout + progress indicator
+│   ├── step-1-role.tsx            # Pick role (coach, athlete, fan, etc.)
+│   ├── step-2-basic.tsx           # Basic info & profile photo
+│   ├── step-3-plan.tsx            # Plan selection
+│   ├── step-4-organization.tsx    # Organization details
+│   ├── step-6-authorized-users.tsx # Invite authorized staff (step-5 removed)
+│   ├── step-7-profile.tsx         # Personal profile polish
+│   ├── step-8-interests.tsx       # Interests & preferences
+│   ├── step-9-features.tsx        # Feature opt-ins
+│   ├── step-10-confirmation.tsx   # Confirmation screen
+│   └── finish.tsx                 # Final hand-off / navigation bridge
 │
 ├── settings/              # Settings screens
 │   ├── index.tsx          # Main settings

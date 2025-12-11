@@ -98,7 +98,6 @@ app/onboarding/step-10-confirmation.tsx
 app/onboarding/step-2-basic.tsx
 app/onboarding/step-3-plan.tsx
 app/onboarding/step-4-organization.tsx
-app/onboarding/step-5-teams.tsx
 app/onboarding/step-6-authorized-users.tsx
 app/onboarding/step-7-profile.tsx
 app/onboarding/step-8-interests.tsx

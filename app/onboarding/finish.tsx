@@ -1,15 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
 import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { useAuth } from '@/context/AuthProvider';
 import { Type } from '@/ui/tokens';
 import { getApiBaseUrl } from '../../api/http';
-import { useAuth } from '@/context/AuthProvider';
 
 export default function OnboardingFinish() {
   const router = useRouter();

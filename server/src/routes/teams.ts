@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { debugLog } from '../lib/debugLog.js';
 import { sendTeamInviteEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
 
 export const teamsRouter = Router();
 

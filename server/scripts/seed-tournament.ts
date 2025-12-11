@@ -85,16 +85,13 @@ async function seedTournament() {
   ];
 
   for (const gameData of games) {
+    const gameId = `fifa-${gameData.home_team.toLowerCase().replace(/\s+/g, '-')}-vs-${gameData.away_team.toLowerCase().replace(/\s+/g, '-')}-${gameData.date.getTime()}`;
+    
     const game = await prisma.game.upsert({
-      where: {
-        home_team_away_team_date: {
-          home_team: gameData.home_team,
-          away_team: gameData.away_team,
-          date: gameData.date,
-        },
-      },
+      where: { id: gameId },
       update: { tournament_organization_id: tournament.id },
       create: {
+        id: gameId,
         title: `${gameData.home_team} vs ${gameData.away_team}`,
         home_team: gameData.home_team,
         away_team: gameData.away_team,

@@ -1,9 +1,3 @@
-/*
-  Warnings:
-
-  - Added the required column `updated_at` to the `Organization` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- AlterTable
 ALTER TABLE "Game" ADD COLUMN     "group" TEXT,
 ADD COLUMN     "round" TEXT,
@@ -18,7 +12,11 @@ ADD COLUMN     "logo_url" TEXT,
 ADD COLUMN     "opened_year" INTEGER,
 ADD COLUMN     "stadium_name" TEXT,
 ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'organization',
-ADD COLUMN     "updated_at" TIMESTAMP(3) NOT NULL;
+ADD COLUMN     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- Backfill existing organizations then drop default to let Prisma manage updates
+UPDATE "Organization" SET "updated_at" = CURRENT_TIMESTAMP WHERE "updated_at" IS NULL;
+ALTER TABLE "Organization" ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- CreateIndex
 CREATE INDEX "Game_tournament_id_idx" ON "Game"("tournament_id");
