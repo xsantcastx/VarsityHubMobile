@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -10,25 +10,26 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { captureException } from '@/utils/sentry';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ devCode?: string }>();
-  const { pendingVerificationEmail, checkAuth } = useAuth();
+  const { pendingVerificationEmail, checkAuth, user, markOnboardingCompleteLocally } = useAuth();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
+  const [devCodeLoading, setDevCodeLoading] = useState(false);
 
-  // Redirect if user is not pending verification
-  useEffect(() => {
-    if (!pendingVerificationEmail) {
-      router.replace('/sign-in');
-    }
-  }, [pendingVerificationEmail, router]);
+  const devVerificationEnabled = useMemo(() => {
+    if (__DEV__) return true;
+    return process.env.EXPO_PUBLIC_ENABLE_DEV_VERIFY === 'true';
+  }, []);
+  const configuredDevCode = process.env.EXPO_PUBLIC_DEV_VERIFICATION_CODE;
 
   // Load dev code from params if available
   useEffect(() => {
@@ -37,29 +38,6 @@ export default function VerifyEmailScreen() {
       setCode(params.devCode);
     }
   }, [params.devCode]);
-
-  const openEmailApp = async () => {
-    try {
-      // Try to open native email app
-      let url = '';
-      if (Platform.OS === 'ios') {
-        url = 'message://'; // iOS Mail app
-      } else if (Platform.OS === 'android') {
-        url = 'mailto:'; // Android email apps
-      }
-      
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        // Fallback to generic email URL
-        await Linking.openURL('mailto:');
-      }
-    } catch (_error) {
-      console.error('Failed to open email app:', error);
-      setInfo('Please check your email app manually');
-    }
-  };
 
   const onVerify = async () => {
     if (!code.trim()) return;
@@ -74,18 +52,42 @@ export default function VerifyEmailScreen() {
       try {
         if (__DEV__) console.log('[verify-email] Refreshing auth after verification...');
         await checkAuth();
-        
-        // Give user brief moment to see success, then navigate
+
+        let destination: any = '/(tabs)/feed';
+        try {
+          const refreshed: any = await User.me();
+          const resolvedRole = refreshed?.preferences?.role || refreshed?.role || (user as any)?.preferences?.role;
+          const isFan = !resolvedRole || resolvedRole === 'fan';
+          if (!isFan) {
+            destination = '/onboarding/step-1-role';
+          } else {
+            await markOnboardingCompleteLocally();
+          }
+        } catch (profileError) {
+          captureException(
+            typeof profileError === 'string' ? new Error(profileError) : (profileError as Error),
+            { tags: { context: 'verify-email-profile' } }
+          );
+        }
+
         setTimeout(() => {
-          router.replace('/onboarding/step-1-role');
-        }, 1500);
+          router.replace(destination);
+        }, 1200);
       } catch (userError) {
         console.error('[verify-email] Failed to refresh auth:', userError);
+        captureException(
+          typeof userError === 'string' ? new Error(userError) : (userError as Error),
+          { tags: { context: 'verify-email-refresh' } }
+        );
         setError('Verification successful but failed to load profile. Please sign in again.');
         setTimeout(() => router.replace('/sign-in'), 2000);
       }
     } catch (e: any) {
       console.error('[verify-email] Verification error:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'verify-email-verify' },
+        extra: { email: pendingVerificationEmail || user?.email },
+      });
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
     } finally {
@@ -97,13 +99,62 @@ export default function VerifyEmailScreen() {
     setLoading(true); setError(null); setInfo(null);
     try {
       const res: any = await User.requestVerification();
-      setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
+      if (res?.dev_verification_code) {
+        setDevCode(res.dev_verification_code);
+        setInfo(`Code sent (dev: ${res.dev_verification_code})`);
+      } else {
+        setInfo('Code sent');
+      }
     } catch (e: any) {
       console.error('[verify-email] Resend failed:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'verify-email-resend' },
+        extra: { email: pendingVerificationEmail || user?.email },
+      });
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUseDevCode = async () => {
+    if (!devVerificationEnabled) return;
+
+    if (devCode) {
+      setCode(devCode);
+      setInfo(`Using dev code ${devCode}`);
+      return;
+    }
+
+    if (configuredDevCode) {
+      setDevCode(configuredDevCode);
+      setCode(configuredDevCode);
+      setInfo(`Using configured dev code ${configuredDevCode}`);
+      return;
+    }
+
+    setDevCodeLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res: any = await User.requestVerification();
+      if (res?.dev_verification_code) {
+        setDevCode(res.dev_verification_code);
+        setCode(res.dev_verification_code);
+        setInfo(`Using dev code ${res.dev_verification_code}`);
+      } else {
+        setInfo('Dev code unavailable. Check backend configuration.');
+      }
+    } catch (e: any) {
+      console.error('[verify-email] Dev code fetch failed:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'verify-email-dev-code' },
+      });
+      const errorMsg = e?.message || e?.data?.error || 'Failed to fetch dev code';
+      setError(errorMsg);
+    } finally {
+      setDevCodeLoading(false);
     }
   };
 
@@ -137,7 +188,7 @@ export default function VerifyEmailScreen() {
       
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-        We sent a 6-digit verification code to your email address. 
+        We sent a 6-digit verification code to {pendingVerificationEmail || user?.email || 'your email address'}. 
         Enter the code below to complete your registration.
       </Text>
       
@@ -163,6 +214,19 @@ export default function VerifyEmailScreen() {
           style={styles.codeInput}
         />
       </View>
+
+      {devVerificationEnabled && (
+        <Pressable
+          style={[styles.devButton, devCodeLoading && styles.devButtonDisabled]}
+          onPress={handleUseDevCode}
+          disabled={devCodeLoading}
+        >
+          <Ionicons name="bug-outline" size={16} color="#065F46" />
+          <Text style={styles.devButtonText}>
+            {devCodeLoading ? 'Fetching dev code...' : 'Use dev code (testing only)'}
+          </Text>
+        </Pressable>
+      )}
       
       {isVerified ? (
         <Button onPress={onContinue} style={styles.verifyButton}>
@@ -255,4 +319,22 @@ const styles = StyleSheet.create({
   },
   devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
+  devButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#D1FAE5',
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  devButtonDisabled: {
+    opacity: 0.6,
+  },
+  devButtonText: {
+    color: '#065F46',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 });

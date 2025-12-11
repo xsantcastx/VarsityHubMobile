@@ -24,6 +24,10 @@ export {
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
+import {
+  buildNewMessageNotificationPayload,
+  buildPostInteractionNotificationPayload,
+} from './notificationHelpers.js';
 
 const expo = new Expo();
 
@@ -102,16 +106,8 @@ export async function notifyNewMessage(
   senderName: string,
   messagePreview: string
 ): Promise<void> {
-  await sendPushNotification(
-    recipientId,
-    `New message from ${senderName}`,
-    messagePreview.substring(0, 100),
-    {
-      type: 'new_message',
-      sender_id: senderId,
-      screen: 'messages',
-    }
-  );
+  const payload = buildNewMessageNotificationPayload(senderId, senderName, messagePreview);
+  await sendPushNotification(recipientId, payload.title, payload.body, payload.data);
 }
 
 /**
@@ -129,25 +125,8 @@ export async function notifyPostInteraction(
     return;
   }
 
-  const titles = {
-    like: `${actorName} liked your post`,
-    comment: `${actorName} commented on your post`,
-    share: `${actorName} shared your post`,
-  };
-
-  await sendPushNotification(
-    postAuthorId,
-    titles[interactionType],
-    `Tap to view`,
-    {
-      type: 'post_interaction',
-      interaction_type: interactionType,
-      actor_id: actorId,
-      post_id: postId,
-      screen: 'post-detail',
-      post_id_param: postId,
-    }
-  );
+  const payload = buildPostInteractionNotificationPayload(interactionType, actorId, actorName, postId);
+  await sendPushNotification(postAuthorId, payload.title, payload.body, payload.data);
 }
 
 /**

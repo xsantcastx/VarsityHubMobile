@@ -169,7 +169,7 @@ export default function CommunityDiscoverScreen() {
       try {
         const trending = await Post.trendingPage(undefined, 20);
         items = Array.isArray(trending.items) ? trending.items : [];
-      } catch (_error) {
+      } catch (error) {
         const postsPage = await Post.listPage(undefined, 20, '-created_date');
         items = Array.isArray(postsPage.items) ? postsPage.items : [];
       }
@@ -684,7 +684,7 @@ export default function CommunityDiscoverScreen() {
                           } else {
                             await User.unfollow(authorId);
                           }
-                        } catch (_error) {
+                        } catch (error) {
                           // Revert on failure
                           setFollowingPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
                           setDiscoverPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
@@ -806,8 +806,6 @@ export default function CommunityDiscoverScreen() {
 
           {/* Full Map View */}
           {(() => {
-            const eventsWithCoords = filtered.filter(g => g.latitude && g.longitude);
-            
             // Show ALL games, not just filtered ones
             const allGamesWithCoords = games.filter(g => typeof g.latitude === 'number' && typeof g.longitude === 'number');
             
@@ -892,7 +890,7 @@ export default function CommunityDiscoverScreen() {
         onSave={handleQuickGameSave}
         currentTeamName={me?.team?.name}
         currentTeamId={me?.team?.id}
-        userRole={me?.preferences?.role || 'fan'}
+        userRole={(me?.preferences?.role === 'coach' || me?.preferences?.role === 'admin' || me?.role === 'coach' || me?.role === 'admin') ? 'coach' : 'fan'}
       />
     </View>
   );

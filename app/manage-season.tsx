@@ -12,17 +12,20 @@ import AddGameModal, { GameFormData } from '@/components/AddGameModal';
 import BulkScheduleModal from '@/components/BulkScheduleModal';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { EmptyState, GameCard, SectionHeader } from '@/components/ui';
+import type { Game as GameCardGame } from '@/components/ui/GameCard';
 
-interface Game {
+type GameStatus = 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'live' | 'in-progress';
+
+interface Game extends GameCardGame {
   id: string;
-  opponent: string; // Keep for backward compatibility
+  opponent?: string; // Keep for backward compatibility
   homeTeam?: string;
   awayTeam?: string;
   date: string;
   time: string;
   location: string;
   type: 'home' | 'away' | 'neutral';
-  status: 'upcoming' | 'completed' | 'cancelled' | 'pending';
+  status: GameStatus;
   approval_status?: 'pending' | 'approved' | 'rejected';
   banner_url?: string; // Add banner URL support
   cover_image_url?: string; // Add cover image URL support
@@ -179,6 +182,31 @@ export default function ManageSeasonScreen() {
               ? 'home'
               : 'away';
 
+        const rawStatus = String(game.status || game.game_status || game.event_status || '').toLowerCase();
+        let normalizedStatus: Game['status'] = 'upcoming';
+        switch (rawStatus) {
+          case 'completed':
+          case 'final':
+            normalizedStatus = 'completed';
+            break;
+          case 'cancelled':
+          case 'canceled':
+            normalizedStatus = 'cancelled';
+            break;
+          case 'pending':
+            normalizedStatus = 'pending';
+            break;
+          case 'in-progress':
+          case 'in_progress':
+            normalizedStatus = 'in-progress';
+            break;
+          case 'live':
+            normalizedStatus = 'live';
+            break;
+          default:
+            normalizedStatus = 'upcoming';
+        }
+
         const converted: Game = {
           id: game.id,
           homeTeam: game.home_team || null,
@@ -192,7 +220,7 @@ export default function ManageSeasonScreen() {
           }) : '7:00 PM',
           location: game.location || 'TBD',
           type: resolvedType,
-          status: 'upcoming',
+          status: normalizedStatus,
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };
@@ -360,14 +388,18 @@ export default function ManageSeasonScreen() {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return gameDate >= today && g.status === 'upcoming' && g.approval_status !== 'pending';
+    const status = g.status;
+    const isUpcomingStatus = status === 'upcoming' || status === 'live' || status === 'in-progress';
+    return gameDate >= today && isUpcomingStatus && g.approval_status !== 'pending';
   });
 
   const recentGames: Game[] = (games ?? []).filter(g => {
     const gameDate = new Date(g.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return (gameDate < today || g.status === 'completed') && g.approval_status !== 'pending';
+    const status = g.status;
+    const isRecentStatus = status === 'completed' || status === 'cancelled';
+    return (gameDate < today || isRecentStatus) && g.approval_status !== 'pending';
   });
 
   // Load games on mount
@@ -1507,6 +1539,7 @@ export default function ManageSeasonScreen() {
         onSave={handleSaveQuickGame}
         currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={currentTeam?.id || params.teamId || ''}
+        userRole="coach"
         initialData={editingGame ? {
           id: editingGame.id,
           opponent: editingGame.opponent,
@@ -1514,6 +1547,8 @@ export default function ManageSeasonScreen() {
           time: editingGame.time,
           type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing
           banner_url: editingGame.banner_url,
+          status: editingGame.status,
+          location: editingGame.location,
         } : undefined}
       />
 

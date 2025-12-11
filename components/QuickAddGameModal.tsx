@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
     Alert,
     Image,
@@ -41,6 +42,8 @@ interface QuickAddGameModalProps {
     type: 'home' | 'away';
     banner_url?: string;
     appearance?: string;
+    status?: string;
+    location?: string | null;
   };
 }
 
@@ -77,6 +80,103 @@ export interface QuickGameData {
   awayVenueLat?: number; // Away game venue latitude
   awayVenueLng?: number; // Away game venue longitude
   mapsUrl?: string; // Google Maps URL for the venue
+}
+
+export interface BuildQuickGameDataParams {
+  id?: string;
+  isCompetitive: boolean;
+  currentTeam: string;
+  eventTitle: string;
+  currentTeamId?: string;
+  opponent: string;
+  opponentTeamId?: string;
+  formattedDate: string;
+  formattedTime: string;
+  gameType: 'home' | 'away';
+  expectedAttendance?: number;
+  eventType: EventType;
+  eventDescription?: string;
+  donationGoal?: number;
+  watchLocation?: string;
+  watchLocationLat?: number;
+  watchLocationLng?: number;
+  watchLocationPlaceId?: string;
+  destination?: string;
+  homeVenue?: string;
+  homeVenueLat?: number;
+  homeVenueLng?: number;
+  awayVenue?: string;
+  awayVenueLat?: number;
+  awayVenueLng?: number;
+}
+
+export function buildQuickGameData({
+  id,
+  isCompetitive,
+  currentTeam,
+  eventTitle,
+  currentTeamId,
+  opponent,
+  opponentTeamId,
+  formattedDate,
+  formattedTime,
+  gameType,
+  expectedAttendance,
+  eventType,
+  eventDescription,
+  donationGoal,
+  watchLocation,
+  watchLocationLat,
+  watchLocationLng,
+  watchLocationPlaceId,
+  destination,
+  homeVenue,
+  homeVenueLat,
+  homeVenueLng,
+  awayVenue,
+  awayVenueLat,
+  awayVenueLng,
+}: BuildQuickGameDataParams): QuickGameData {
+  const trimmedCurrentTeam = isCompetitive ? currentTeam.trim() : eventTitle.trim();
+  const trimmedOpponent = isCompetitive ? opponent.trim() : '';
+  const trimmedWatchLocation = watchLocation?.trim();
+  const trimmedDestination = destination?.trim();
+  const trimmedHomeVenue = homeVenue?.trim();
+  const trimmedAwayVenue = awayVenue?.trim();
+  const parsedDescription = eventDescription?.trim();
+
+  return {
+    id,
+    currentTeam: trimmedCurrentTeam,
+    currentTeamId: currentTeamId || '',
+    opponent: trimmedOpponent,
+    opponentTeamId: isCompetitive ? (opponentTeamId || '') : '',
+    date: formattedDate,
+    time: formattedTime,
+    type: gameType,
+    isCompetitive,
+    expectedAttendance,
+    eventType: isCompetitive ? 'game' : eventType,
+    description: parsedDescription || undefined,
+    donationGoal,
+    watchLocation: trimmedWatchLocation || undefined,
+    watchLocationLat,
+    watchLocationLng,
+    watchLocationPlaceId,
+    destination: trimmedDestination || undefined,
+    homeVenue: trimmedHomeVenue || undefined,
+    homeVenueLat,
+    homeVenueLng,
+    awayVenue: trimmedAwayVenue || undefined,
+    awayVenueLat,
+    awayVenueLng,
+    mapsUrl:
+      gameType === 'away' &&
+      typeof awayVenueLat === 'number' &&
+      typeof awayVenueLng === 'number'
+        ? `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`
+        : undefined,
+  };
 }
 
 type TeamOption = {
@@ -159,6 +259,14 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
   const [awayVenueLng, setAwayVenueLng] = useState<number | undefined>();
   const [destination, setDestination] = useState('');
 
+  const liveStatus = initialData?.status ? String(initialData.status).toLowerCase() : '';
+  const isLiveEventEdit = Boolean(initialData?.id && (liveStatus === 'live' || liveStatus === 'in-progress'));
+  const renderLockedSection = (content: ReactNode) => (
+    isLiveEventEdit
+      ? <View pointerEvents="none" style={styles.lockedSection} testID="live-edit-locked">{content}</View>
+      : <>{content}</>
+  );
+
   // Update current team when prop changes or modal opens
   useEffect(() => {
     if (visible) {
@@ -178,6 +286,13 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setGameType(initialData.type || 'home');
       setBannerUrl(initialData.banner_url || null);
       setAppearance((initialData.appearance as AppearancePreset) || 'classic');
+      if (initialData.location) {
+        if ((initialData.type || 'home') === 'home') {
+          setHomeVenue(initialData.location);
+        } else {
+          setAwayVenue(initialData.location);
+        }
+      }
       
       // Parse date
       if (initialData.date) {
@@ -213,6 +328,12 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       setSelectedDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
       setSelectedTime(new Date(new Date().setHours(19, 0, 0, 0)));
       setErrors({});
+      setHomeVenue('');
+      setHomeVenueLat(undefined);
+      setHomeVenueLng(undefined);
+      setAwayVenue('');
+      setAwayVenueLat(undefined);
+      setAwayVenueLng(undefined);
     }
   }, [initialData, visible]);
 
@@ -322,41 +443,42 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       return;
     }
     
-    const baseGameData: QuickGameData = {
-      id: initialData?.id, // Include id when editing
-      currentTeam: isCompetitive ? currentTeam.trim() : eventTitle.trim(), // Use event title for non-competitive
-      currentTeamId: storedCurrentTeamId || '',
-      opponent: isCompetitive ? opponent.trim() : '', // Only include opponent if competitive
-      opponentTeamId: isCompetitive ? (opponentTeamId || '') : '', // Only include opponent ID if competitive
-      date: selectedDate.toISOString().split('T')[0],
-      time: selectedTime.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      }),
-      type: gameType,
+    const formattedDate = selectedDate.toISOString().split('T')[0];
+    const formattedTime = selectedTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    const parsedAttendance = expectedAttendance ? parseInt(expectedAttendance, 10) : undefined;
+    const parsedDonationGoal = donationGoal ? parseFloat(donationGoal) : undefined;
+
+    const baseGameData = buildQuickGameData({
+      id: initialData?.id,
       isCompetitive,
-      expectedAttendance: expectedAttendance ? parseInt(expectedAttendance, 10) : undefined,
-      eventType: isCompetitive ? 'game' : eventType, // Use 'game' for competitive, selected type for non-competitive
-      description: eventDescription.trim() || undefined, // Add description field
-      // Event type-specific fields
-      donationGoal: donationGoal ? parseFloat(donationGoal) : undefined,
-      watchLocation: watchLocation.trim() || undefined,
+      currentTeam,
+      eventTitle,
+      currentTeamId: storedCurrentTeamId || '',
+      opponent,
+      opponentTeamId,
+      formattedDate,
+      formattedTime,
+      gameType,
+      expectedAttendance: parsedAttendance,
+      eventType: isCompetitive ? 'game' : eventType,
+      eventDescription,
+      donationGoal: parsedDonationGoal,
+      watchLocation,
       watchLocationLat,
       watchLocationLng,
       watchLocationPlaceId,
-      destination: destination.trim() || undefined,
-      // Game venue fields
-      homeVenue: homeVenue.trim() || undefined,
+      destination,
+      homeVenue,
       homeVenueLat,
       homeVenueLng,
-      awayVenue: awayVenue.trim() || undefined,
+      awayVenue,
       awayVenueLat,
       awayVenueLng,
-      mapsUrl: gameType === 'away' && awayVenueLat && awayVenueLng 
-        ? `https://maps.google.com/?q=${awayVenueLat},${awayVenueLng}`
-        : undefined,
-    };
+    });
 
     // If we already have a banner uploaded, include it. Otherwise attempt to capture & upload.
     const doSave = async () => {
@@ -564,168 +686,186 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             </Text>
           </View>
 
-          {/* Competitive Game Toggle */}
-          <View style={styles.formSection}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          {isLiveEventEdit && (
+            <View style={[styles.liveNotice, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Ionicons name="alert-circle" size={18} color="#F97316" style={styles.liveNoticeIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 4 }]}>Competitive Game</Text>
-                <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
-                  Toggle on if this event has an opponent team
+                <Text style={[styles.liveNoticeTitle, { color: Colors[colorScheme].text }]}>
+                  Live Event Restrictions
+                </Text>
+                <Text style={[styles.liveNoticeSubtitle, { color: Colors[colorScheme].mutedText }]}>
+                  While this event is live you can only adjust the date, time, or location — or remove it entirely.
                 </Text>
               </View>
-              <Pressable
-                style={[styles.toggle, { 
-                  backgroundColor: isCompetitive ? '#10B981' : Colors[colorScheme].border,
-                  justifyContent: isCompetitive ? 'flex-end' : 'flex-start',
-                }]}
-                onPress={() => {
-                  const newValue = !isCompetitive;
-                  setIsCompetitive(newValue);
-                  // When toggling to competitive, set event type to game
-                  if (newValue) {
-                    setEventType('game');
-                  } else {
-                    // When toggling to non-competitive, default to first non-game type
-                    setEventType('fundraiser');
-                  }
-                }}
-              >
-                <View style={[styles.toggleThumb, { backgroundColor: '#FFFFFF' }]} />
-              </Pressable>
             </View>
-          </View>
+          )}
 
-          {/* Event Type Selector - Only show for non-competitive events */}
-          {!isCompetitive && (
-            <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 12 }]}>Event Type</Text>
-              <View style={styles.eventTypeGrid}>
-                {EVENT_TYPES.filter(et => et.value !== 'game').map((type) => (
+          {renderLockedSection(
+            <>
+              {/* Competitive Game Toggle */}
+              <View style={styles.formSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 4 }]}>Competitive Game</Text>
+                    <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                      Toggle on if this event has an opponent team
+                    </Text>
+                  </View>
                   <Pressable
-                    key={type.value}
-                    style={[
-                      styles.eventTypeCard,
-                      {
-                        backgroundColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                        borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                    style={[styles.toggle, { 
+                      backgroundColor: isCompetitive ? '#10B981' : Colors[colorScheme].border,
+                      justifyContent: isCompetitive ? 'flex-end' : 'flex-start',
+                    }]}
+                    onPress={() => {
+                      const newValue = !isCompetitive;
+                      setIsCompetitive(newValue);
+                      // When toggling to competitive, set event type to game
+                      if (newValue) {
+                        setEventType('game');
+                      } else {
+                        // When toggling to non-competitive, default to first non-game type
+                        setEventType('fundraiser');
                       }
-                    ]}
-                    onPress={() => setEventType(type.value)}
+                    }}
                   >
-                    <Ionicons 
-                      name={type.icon} 
-                      size={24} 
-                      color={eventType === type.value ? '#fff' : Colors[colorScheme].text} 
-                    />
-                    <Text style={[
-                      styles.eventTypeLabel,
-                      { color: eventType === type.value ? '#fff' : Colors[colorScheme].text }
-                    ]}>
-                      {type.label}
-                    </Text>
-                    <Text style={[
-                      styles.eventTypeDescription,
-                      { color: eventType === type.value ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText }
-                    ]}>
-                      {type.description}
-                    </Text>
+                    <View style={[styles.toggleThumb, { backgroundColor: '#FFFFFF' }]} />
                   </Pressable>
-                ))}
+                </View>
               </View>
-            </View>
-          )}
 
-          {/* Team/Event Selection - Different for competitive vs non-competitive */}
-          {isCompetitive ? (
-            // Competitive: Show team picker
-            <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
-              <Pressable
-                style={[styles.input, { 
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }]}
-                onPress={() => setShowCurrentTeamPicker(true)}
-              >
-                <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                  {currentTeam || 'Select your team'}
+              {/* Event Type Selector - Only show for non-competitive events */}
+              {!isCompetitive && (
+                <View style={styles.formSection}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text, marginBottom: 12 }]}>Event Type</Text>
+                  <View style={styles.eventTypeGrid}>
+                    {EVENT_TYPES.filter(et => et.value !== 'game').map((type) => (
+                      <Pressable
+                        key={type.value}
+                        style={[
+                          styles.eventTypeCard,
+                          {
+                            backgroundColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                            borderColor: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                          }
+                        ]}
+                        onPress={() => setEventType(type.value)}
+                      >
+                        <Ionicons 
+                          name={type.icon} 
+                          size={24} 
+                          color={eventType === type.value ? '#fff' : Colors[colorScheme].text} 
+                        />
+                        <Text style={[
+                          styles.eventTypeLabel,
+                          { color: eventType === type.value ? '#fff' : Colors[colorScheme].text }
+                        ]}>
+                          {type.label}
+                        </Text>
+                        <Text style={[
+                          styles.eventTypeDescription,
+                          { color: eventType === type.value ? 'rgba(255,255,255,0.8)' : Colors[colorScheme].mutedText }
+                        ]}>
+                          {type.description}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Team/Event Selection - Different for competitive vs non-competitive */}
+              {isCompetitive ? (
+                // Competitive: Show team picker
+                <View style={styles.formSection}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Your Team</Text>
+                  <Pressable
+                    style={[styles.input, { 
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }]}
+                    onPress={() => setShowCurrentTeamPicker(true)}
+                  >
+                    <Text style={[{ color: currentTeam ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                      {currentTeam || 'Select your team'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+                  </Pressable>
+                  {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+                </View>
+              ) : (
+                // Non-competitive: Show event title text field
+                <View style={styles.formSection}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title</Text>
+                  <TextInput
+                    style={[styles.input, { 
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
+                      color: Colors[colorScheme].text,
+                    }]}
+                    placeholder="e.g., Team Fundraiser BBQ, Watch Party"
+                    placeholderTextColor={Colors[colorScheme].mutedText}
+                    value={eventTitle}
+                    onChangeText={setEventTitle}
+                    maxLength={100}
+                  />
+                  {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
+                  <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                    Give your event a descriptive name
+                  </Text>
+                </View>
+              )}
+
+              {/* Event Description - Show for all events */}
+              <View style={styles.formSection}>
+                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description (Optional)</Text>
+                <TextInput
+                  style={[styles.input, { 
+                    backgroundColor: Colors[colorScheme].surface,
+                    borderColor: Colors[colorScheme].border,
+                    color: Colors[colorScheme].text,
+                    minHeight: 80,
+                    paddingTop: 12,
+                    textAlignVertical: 'top',
+                  }]}
+                  placeholder="Add details about this event..."
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  value={eventDescription}
+                  onChangeText={setEventDescription}
+                  multiline
+                  numberOfLines={4}
+                  maxLength={500}
+                />
+                <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                  {eventDescription.length}/500 characters
                 </Text>
-                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-              {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
-            </View>
-          ) : (
-            // Non-competitive: Show event title text field
-            <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Event Title</Text>
-              <TextInput
-                style={[styles.input, { 
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: errors.currentTeam ? '#EF4444' : Colors[colorScheme].border,
-                  color: Colors[colorScheme].text,
-                }]}
-                placeholder="e.g., Team Fundraiser BBQ, Watch Party"
-                placeholderTextColor={Colors[colorScheme].mutedText}
-                value={eventTitle}
-                onChangeText={setEventTitle}
-                maxLength={100}
-              />
-              {errors.currentTeam && <Text style={styles.errorText}>{errors.currentTeam}</Text>}
-              <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
-                Give your event a descriptive name
-              </Text>
-            </View>
-          )}
+              </View>
 
-          {/* Event Description - Show for all events */}
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Description (Optional)</Text>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text,
-                minHeight: 80,
-                paddingTop: 12,
-                textAlignVertical: 'top',
-              }]}
-              placeholder="Add details about this event..."
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              value={eventDescription}
-              onChangeText={setEventDescription}
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-            />
-            <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
-              {eventDescription.length}/500 characters
-            </Text>
-          </View>
-
-          {/* Opponent Team - Only show if competitive */}
-          {isCompetitive && (
-            <View style={styles.formSection}>
-              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent Team</Text>
-              <Pressable
-                style={[styles.input, { 
-                  backgroundColor: Colors[colorScheme].surface,
-                  borderColor: errors.opponent ? '#EF4444' : Colors[colorScheme].border,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }]}
-                onPress={() => setShowOpponentPicker(true)}
-              >
-                <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
-                  {opponent || 'Select opponent team'}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
-              </Pressable>
-              {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
-            </View>
+              {/* Opponent Team - Only show if competitive */}
+              {isCompetitive && (
+                <View style={styles.formSection}>
+                  <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Opponent Team</Text>
+                  <Pressable
+                    style={[styles.input, { 
+                      backgroundColor: Colors[colorScheme].surface,
+                      borderColor: errors.opponent ? '#EF4444' : Colors[colorScheme].border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }]}
+                    onPress={() => setShowOpponentPicker(true)}
+                  >
+                    <Text style={[{ color: opponent ? Colors[colorScheme].text : Colors[colorScheme].mutedText }]}>
+                      {opponent || 'Select opponent team'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color={Colors[colorScheme].mutedText} />
+                  </Pressable>
+                  {errors.opponent && <Text style={styles.errorText}>{errors.opponent}</Text>}
+                </View>
+              )}
+            </>
           )}
 
           {/* Date and Time Selection */}
@@ -779,7 +919,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           </View>
 
           {/* Game Type - Only show if competitive */}
-          {isCompetitive && (
+          {isCompetitive && renderLockedSection(
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Game Type</Text>
               <View style={styles.gameTypeContainer}>
@@ -909,25 +1049,27 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           )}
 
           {/* Expected Attendance - Show for all events */}
-          <View style={styles.formSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Expected Attendance (Optional)</Text>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: Colors[colorScheme].surface,
-                borderColor: Colors[colorScheme].border,
-                color: Colors[colorScheme].text,
-              }]}
-              placeholder="e.g., 50"
-              placeholderTextColor={Colors[colorScheme].mutedText}
-              value={expectedAttendance}
-              onChangeText={setExpectedAttendance}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-          </View>
+          {renderLockedSection(
+            <View style={styles.formSection}>
+              <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Expected Attendance (Optional)</Text>
+              <TextInput
+                style={[styles.input, { 
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderColor: Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                }]}
+                placeholder="e.g., 50"
+                placeholderTextColor={Colors[colorScheme].mutedText}
+                value={expectedAttendance}
+                onChangeText={setExpectedAttendance}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+            </View>
+          )}
 
           {/* Event Type-Specific Fields */}
-          {eventType === 'fundraiser' && (
+          {eventType === 'fundraiser' && renderLockedSection(
             <View style={styles.formSection}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Fundraising Goal (Optional)</Text>
               <TextInput
@@ -986,7 +1128,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
           )}
 
           {/* Enhanced Game Preview */}
-          {currentTeam.trim() && (!isCompetitive || opponent.trim()) && !errors.currentTeam && !errors.opponent && !errors.date && (
+          {currentTeam.trim() && (!isCompetitive || opponent.trim()) && !errors.currentTeam && !errors.opponent && !errors.date && renderLockedSection(
             <View style={[styles.previewCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <Text style={[styles.previewTitle, { color: Colors[colorScheme].text }]}>
                 {isCompetitive ? 'Game Preview' : 'Event Preview'}
@@ -1365,6 +1507,9 @@ const styles = StyleSheet.create({
   formSection: {
     marginBottom: 24,
   },
+  lockedSection: {
+    opacity: 0.5,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
@@ -1733,5 +1878,25 @@ const styles = StyleSheet.create({
   mapsLinkText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  liveNotice: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  liveNoticeIcon: {
+    marginRight: 12,
+  },
+  liveNoticeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  liveNoticeSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

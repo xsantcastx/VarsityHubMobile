@@ -8,7 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type LeagueTeam = {
@@ -50,7 +50,7 @@ type LeagueData = {
   contact_info?: string;
 };
 
-export default function LeagueScreen() {
+export default function TeamScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
@@ -59,8 +59,7 @@ export default function LeagueScreen() {
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [league, setLeague] = useState<LeagueData | null>(null);
-  const [teams, setTeams] = useState<LeagueTeam[]>([]);
+  const [team, setTeam] = useState<LeagueTeam | null>(null);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -68,54 +67,72 @@ export default function LeagueScreen() {
   const [activeTab, setActiveTab] = useState<'feed' | 'schedule' | 'roster'>('roster');
   const [isFollowing, setIsFollowing] = useState(false);
 
-  const loadLeague = useCallback(async () => {
+  const loadTeam = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const leagueId = params.id || 'default';
-      const leagueName = params.name || 'Athletic Organization';
+      const teamId = params.id;
+      const teamName = params.name;
       
-      setLeague({
-        id: leagueId,
-        name: leagueName,
-        display_name: leagueName,
-        bio: 'Home of champions',
-      });
+      if (!teamId && !teamName) {
+        throw new Error('No team ID or name provided');
+      }
 
-      // Fetch all teams for this organization/league
-      const teamsData = await Team.list();
-      const teamsList = Array.isArray(teamsData) ? teamsData : [];
-      
-      // Filter teams by organization_id if available, otherwise by name matching
-      const filteredTeams = teamsList.filter((t: any) => {
-        if (params.id && t.organization_id === params.id) {
-          return true;
-        }
-        if (leagueName && t.name) {
-          const teamNameParts = String(t.name).split(/\s+/);
-          const firstPart = teamNameParts[0] || '';
-          return firstPart.toLowerCase() === leagueName.toLowerCase() ||
-                 String(t.name).toLowerCase().includes(leagueName.toLowerCase());
-        }
-        return false;
-      });
-      
-      setTeams(filteredTeams);
+      let teamData: LeagueTeam | null = null;
 
-      // Fetch games, posts, and members in parallel
+      // Try to fetch from Team API
+      try {
+        const allTeams = await Team.list();
+        const teamsList = Array.isArray(allTeams) ? allTeams : [];
+        
+        // Try to find by ID first
+        if (teamId) {
+          teamData = teamsList.find((t: any) => t.id === teamId) || null;
+        }
+        
+        // If not found by ID, try by name
+        if (!teamData && teamName) {
+          teamData = teamsList.find((t: any) => 
+            t.name?.toLowerCase() === teamName.toLowerCase()
+          ) || null;
+        }
+      } catch (apiErr) {
+        console.error('Failed to fetch teams from API:', apiErr);
+        // Continue without team data from API
+      }
+
+      // If we couldn't find a team in the API, create a minimal team object from the name/id
+      if (!teamData && teamName) {
+        teamData = {
+          id: teamId || `temp-${teamName}`,
+          name: teamName,
+          logo_url: undefined,
+        };
+      }
+
+      if (!teamData) {
+        throw new Error(`Could not load team (ID: ${teamId}, Name: ${teamName})`);
+      }
+
+      setTeam(teamData);
+
+      // Fetch games, posts, and members for THIS SPECIFIC TEAM only
       const [gamesResult, postsResult, membersResult] = await Promise.all([
-        // Load games
+        // Load games where this team plays
         Game.list('-date')
           .then(allGames => {
-            const teamNames = filteredTeams.map(t => t.name);
+            const teamNameLower = (teamData!.name || '').toLowerCase();
             return Array.isArray(allGames) 
               ? allGames.filter((g: any) => {
-                  const homeTeam = g.home_team || g.homeTeam || '';
-                  const awayTeam = g.away_team || g.awayTeam || '';
-                  return teamNames.some(teamName => 
-                    homeTeam.toLowerCase().includes(teamName.toLowerCase()) ||
-                    awayTeam.toLowerCase().includes(teamName.toLowerCase())
-                  );
+                  const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                  const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                  return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
+                })
+                // Sort with today/most recent in middle: past games go up, future games go down
+                .sort((a, b) => {
+                  const dateA = new Date(a.date || a.created_at || 0).getTime();
+                  const dateB = new Date(b.date || b.created_at || 0).getTime();
+                  return dateA - dateB; // Oldest first (for middle positioning)
                 })
               : [];
           })
@@ -124,30 +141,28 @@ export default function LeagueScreen() {
             return [];
           }),
         
-        // Load posts - batch fetch posts for all games at once
+        // Load posts from games this team plays in
         (async () => {
           try {
             const allPosts: any[] = [];
+            const teamNameLower = (teamData!.name || '').toLowerCase();
+            
             const gameIds = await Game.list('-date')
               .then(allGames => {
-                const teamNames = filteredTeams.map(t => t.name);
                 const filtered = Array.isArray(allGames) 
                   ? allGames.filter((g: any) => {
-                      const homeTeam = g.home_team || g.homeTeam || '';
-                      const awayTeam = g.away_team || g.awayTeam || '';
-                      return teamNames.some(teamName => 
-                        homeTeam.toLowerCase().includes(teamName.toLowerCase()) ||
-                        awayTeam.toLowerCase().includes(teamName.toLowerCase())
-                      );
+                      const homeTeam = (g.home_team || g.homeTeam || '').toLowerCase();
+                      const awayTeam = (g.away_team || g.awayTeam || '').toLowerCase();
+                      return homeTeam.includes(teamNameLower) || awayTeam.includes(teamNameLower);
                     })
                   : [];
                 return filtered.map(g => g.id);
               })
               .catch(() => []);
 
-            // Batch fetch posts for multiple games using Promise.all
+            // Batch fetch posts for games
             if (gameIds.length > 0) {
-              const postPromises = gameIds.slice(0, 10).map(gameId => // Limit to 10 games to avoid too many requests
+              const postPromises = gameIds.slice(0, 20).map(gameId =>
                 Post.filter({ game_id: gameId }, '-created_date', 20).catch(() => [])
               );
               const postBatches = await Promise.all(postPromises);
@@ -158,10 +173,18 @@ export default function LeagueScreen() {
               });
             }
 
-            // Deduplicate and sort
+            // Filter by team hashtags and deduplicate
+            const teamHashtag = `#${(teamData!.name || '').toLowerCase().replace(/\s+/g, '')}`;
             const uniquePosts = Array.from(
               new Map(allPosts.map(p => [p.id, p])).values()
-            ).sort((a, b) => {
+            ).filter(p => {
+              const content = (p.caption || p.description || '').toLowerCase();
+              const tags = (p.tags || []);
+              return content.includes(teamHashtag) || 
+                     tags.some((t: string) => t.toLowerCase().includes(teamData!.name!.toLowerCase())) ||
+                     p.game_id; // Include posts from team games
+            })
+            .sort((a, b) => {
               const dateA = new Date(a.created_at || a.created_date || 0).getTime();
               const dateB = new Date(b.created_at || b.created_date || 0).getTime();
               return dateB - dateA;
@@ -173,33 +196,26 @@ export default function LeagueScreen() {
           }
         })(),
         
-        // Load members - batch fetch all team members in parallel
+        // Load members - ONLY THIS TEAM'S MEMBERS
         (async () => {
           try {
-            const allMembers: TeamMember[] = [];
+            if (!teamData?.id) return [];
             
-            if (filteredTeams.length > 0) {
-              // Use Promise.all to fetch all members in parallel, not sequentially
-              const memberPromises = filteredTeams.map(team =>
-                Team.members(team.id)
-                  .then(teamMembers => ({
-                    team,
-                    members: Array.isArray(teamMembers) ? teamMembers : []
-                  }))
-                  .catch(() => ({ team, members: [] }))
-              );
-              
-              const memberResults = await Promise.all(memberPromises);
-              memberResults.forEach(({ team, members: teamMembers }) => {
-                allMembers.push(...teamMembers.map((m: any) => ({
-                  ...m,
-                  team_id: team.id,
-                  team_name: team.name,
-                })));
+            const teamMembers = await Team.members(teamData.id);
+            const memberList = Array.isArray(teamMembers) ? teamMembers : [];
+            
+            // Filter to only members of THIS team (not all teams)
+            return memberList
+              .filter((m: any) => m.team_id === teamData!.id)
+              .sort((a: any, b: any) => {
+                // Sort by jersey number, then by name
+                const aJersey = parseInt(String(a.jersey_number || 999), 10);
+                const bJersey = parseInt(String(b.jersey_number || 999), 10);
+                if (aJersey !== bJersey) return aJersey - bJersey;
+                const aName = a.user?.display_name || '';
+                const bName = b.user?.display_name || '';
+                return aName.localeCompare(bName);
               });
-            }
-            
-            return allMembers;
           } catch (err) {
             console.error('Failed to load members:', err);
             return [];
@@ -211,8 +227,8 @@ export default function LeagueScreen() {
       setPosts(postsResult);
       setMembers(membersResult);
     } catch (err: any) {
-      console.error('Failed to load league:', err);
-      setError(err?.message || 'Failed to load league data');
+      console.error('Failed to load team:', err);
+      setError(err?.message || 'Failed to load team data');
     } finally {
       setLoading(false);
     }
@@ -220,13 +236,13 @@ export default function LeagueScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadLeague();
+    await loadTeam();
     setRefreshing(false);
-  }, [loadLeague]);
+  }, [loadTeam]);
 
   useEffect(() => {
-    loadLeague();
-  }, [loadLeague]);
+    loadTeam();
+  }, [loadTeam]);
 
   const handleTeamPress = (teamId: string) => {
     router.push(`/my-team?id=${teamId}` as any);
@@ -236,7 +252,7 @@ export default function LeagueScreen() {
     setIsFollowing(!isFollowing);
     Alert.alert(
       isFollowing ? 'Unfollowed' : 'Following!', 
-      `You ${isFollowing ? 'unfollowed' : 'are now following'} ${league?.display_name || 'this league'}`
+      `You ${isFollowing ? 'unfollowed' : 'are now following'} ${team?.name || 'this team'}`
     );
   };
 
@@ -257,7 +273,7 @@ export default function LeagueScreen() {
           </View>
         )}
         <View style={styles.teamInfo}>
-          <Text style={[styles.teamName, { color: theme.text }]} numberOfLines={1}>
+          <Text style={[styles.teamCardName, { color: theme.text }]} numberOfLines={1}>
             {item.name}
           </Text>
           {item.sport && (
@@ -313,30 +329,8 @@ export default function LeagueScreen() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'feed':
-        if (posts.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No posts yet
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-                Posts from league games and team mentions will appear here
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.postsList}>
-            {posts.map((post, index) => (
-              <PostCard
-                key={`${post.id}-${index}`}
-                post={post}
-                onPress={() => void router.push(`/post-detail?id=${post.id}` as any)}
-              />
-            ))}
-          </View>
-        );
+        // Feed handled separately in main render
+        return null;
       
       case 'schedule':
         if (games.length === 0) {
@@ -396,7 +390,7 @@ export default function LeagueScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'League', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Team', headerShown: true }} />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
@@ -407,10 +401,10 @@ export default function LeagueScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'League', headerShown: true }} />
+        <Stack.Screen options={{ title: 'Team', headerShown: true }} />
         <View style={styles.centerContainer}>
           <Text style={[styles.errorText, { color: theme.mutedText }]}>{error}</Text>
-          <Pressable onPress={loadLeague} style={styles.retryButton}>
+          <Pressable onPress={loadTeam} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </Pressable>
         </View>
@@ -420,7 +414,7 @@ export default function LeagueScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <Stack.Screen options={{ title: league?.display_name || 'Team', headerShown: false }} />
+      <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       
       {/* Custom Header */}
       <View style={[styles.header, { 
@@ -436,21 +430,21 @@ export default function LeagueScreen() {
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-          {league?.display_name || league?.name || 'Team'}
+          {team?.name || 'Team'}
         </Text>
         <View style={styles.headerRight} />
       </View>
       
-      {/* Cover Photo */}
+      {/* Cover Photo - Reduced Height */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#e2e8f0', '#cbd5e1']}
-        style={styles.coverContainer}
+        style={[styles.coverContainer, { height: 80 }]}
       >
-        {league?.cover_url ? (
-          <Image source={{ uri: league.cover_url }} style={styles.coverImage} contentFit="cover" />
+        {team?.logo_url ? (
+          <Image source={{ uri: team.logo_url }} style={styles.coverImage} contentFit="cover" />
         ) : (
           <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverPlaceholderText}>{league?.display_name || 'League'}</Text>
+            <Text style={styles.coverPlaceholderText}>{team?.name || 'Team'}</Text>
           </View>
         )}
       </LinearGradient>
@@ -459,43 +453,44 @@ export default function LeagueScreen() {
       <View style={styles.profileSection}>
         {/* Avatar */}
         <View style={styles.avatarContainer}>
-          {league?.avatar_url ? (
-            <Image source={{ uri: league.avatar_url }} style={styles.avatar} contentFit="cover" />
+          {team?.logo_url ? (
+            <Image source={{ uri: team.logo_url }} style={styles.avatar} contentFit="cover" />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
               <Text style={[styles.avatarPlaceholderText, { color: theme.text }]}>
-                {league?.display_name?.charAt(0).toUpperCase() || 'L'}
+                {team?.name?.charAt(0).toUpperCase() || 'T'}
               </Text>
             </View>
           )}
         </View>
 
-        {/* League Info */}
+        {/* Team Info */}
         <View style={styles.infoSection}>
-          <Text style={[styles.leagueName, { color: theme.text }]}>
-            {league?.display_name || league?.name || 'League Name'}
+          <Text style={[styles.teamName, { color: theme.text }]}>
+            {team?.name || 'Team Name'}
           </Text>
-          <Text style={[styles.leagueHandle, { color: theme.mutedText }]}>
-            @{(league?.name || 'league').toLowerCase().replace(/\s+/g, '')}
-          </Text>
-          {league?.bio && (
-            <Text style={[styles.leagueBio, { color: theme.text }]}>
-              {league.bio}
+          
+          {/* Handle and Organization Button Row */}
+          <View style={styles.handleOrgRow}>
+            <Text style={[styles.teamHandle, { color: theme.mutedText }]}>
+              @{(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}
+            </Text>
+            <Pressable
+              onPress={() => router.push(`/organization?id=${team?.organization_id || team?.id}` as any)}
+            >
+              <Text style={styles.orgEmojiButton}>🏢</Text>
+            </Pressable>
+          </View>
+
+          {team?.description && (
+            <Text style={[styles.teamBio, { color: theme.text }]}>
+              {team.description}
             </Text>
           )}
-        </View>
-
-        {/* Contact Info Card */}
-        <View style={[styles.contactCard, { 
-          backgroundColor: theme.card,
-          borderColor: theme.border,
-        }]}>
-          <View style={styles.contactRow}>
-            <Ionicons name="person-outline" size={16} color={theme.mutedText} />
-            <Text style={[styles.contactLabel, { color: theme.mutedText }]}>
-              Contact: {league?.contact_info || 'Not set'}
-            </Text>
-          </View>
+          {/* Coach Contact */}
+          <Text style={[styles.coachContact, { color: theme.mutedText }]}>
+            📧 Coach contact available in roster
+          </Text>
         </View>
 
         {/* Follow Button */}
@@ -515,6 +510,9 @@ export default function LeagueScreen() {
             </>
           )}
         </Pressable>
+
+        {/* Small Organization Button - Emoji Only */}
+        {/* Moved above to handle row */}
       </View>
 
       {/* Tabs */}
@@ -545,20 +543,60 @@ export default function LeagueScreen() {
         </Pressable>
       </View>
 
-      {/* Tab Content - Scrollable */}
-      <ScrollView
-        contentContainerStyle={styles.tabContentContainer}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.tint}
-          />
-        }
-      >
-        {renderTabContent()}
-      </ScrollView>
+      {/* Content - Use FlatList for Feed tab, ScrollView for others */}
+      {activeTab === 'feed' ? (
+        <FlatList
+          key="feed-grid"
+          data={posts}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(item, idx) => `${item.id}-${idx}`}
+          renderItem={({ item }) => (
+            <View style={styles.gridItem}>
+              <PostCard
+                post={item}
+                onPress={() => void router.push(`/post-detail?id=${item.id}` as any)}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={[styles.emptyState, { width: '100%' }]}>
+              <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
+              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                No posts yet
+              </Text>
+              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
+                Posts from team games and team mentions will appear here
+              </Text>
+            </View>
+          }
+          contentContainerStyle={{ paddingHorizontal: 6, paddingVertical: 12, paddingBottom: insets.bottom + 20 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.tint}
+            />
+          }
+        />
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.tint}
+            />
+          }
+        >
+          <View style={styles.tabContentContainer}>
+            {renderTabContent()}
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -626,32 +664,31 @@ const styles = StyleSheet.create({
   infoSection: {
     marginBottom: 12,
   },
-  leagueName: {
+  teamName: {
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 2,
   },
-  leagueHandle: {
+  teamHandle: {
     fontSize: 13,
     marginBottom: 6,
   },
-  leagueBio: {
+  teamBio: {
     fontSize: 13,
     lineHeight: 18,
   },
-  contactCard: {
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  contactRow: {
+  handleOrgRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 6,
   },
-  contactLabel: {
-    fontSize: 14,
+  orgEmojiButton: {
+    fontSize: 24,
+  },
+  coachContact: {
+    fontSize: 12,
+    marginTop: 8,
   },
   followButton: {
     flexDirection: 'row',
@@ -727,7 +764,7 @@ const styles = StyleSheet.create({
   teamInfo: {
     flex: 1,
   },
-  teamName: {
+  teamCardName: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 2,
@@ -740,6 +777,14 @@ const styles = StyleSheet.create({
   },
   postsList: {
     gap: 16,
+  },
+  gridRow: {
+    gap: 6,
+    paddingHorizontal: 0,
+  },
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
   },
   gamesList: {
     gap: 12,

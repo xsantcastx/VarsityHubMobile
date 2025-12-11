@@ -453,8 +453,22 @@ const openMaps = (location: string) => {
   Linking.openURL(url).catch(() => {});
 };
 
+// Special-case marquee matchup artwork for Warriors vs Cavaliers - local SVG data URI
+const FINALS_HEADER_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1568' height='882'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%231e40af;stop-opacity:1' /%3E%3Cstop offset='50%25' style='stop-color:%23dc2626;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23fbbf24;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1568' height='882' fill='url(%23grad)'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='80' font-weight='bold' fill='white' font-family='Arial'%3EWarriors vs Cavaliers%3C/text%3E%3Ctext x='50%25' y='60%25' dominant-baseline='middle' text-anchor='middle' font-size='60' fill='white' font-family='Arial'%3ENBA Finals%3C/text%3E%3C/svg%3E`;
+const finalsBannerForTeams = (home?: string | null, away?: string | null, title?: string | null) => {
+  const h = (home || '').trim().toLowerCase();
+  const a = (away || '').trim().toLowerCase();
+  const t = (title || '').trim().toLowerCase();
+
+  const hasWarriors = h.includes('warriors') || a.includes('warriors') || /warriors/.test(t);
+  const hasCavs = h.includes('cav') || a.includes('cav') || /cavaliers?/.test(t) || /cavs/.test(t);
+
+  return hasWarriors && hasCavs ? FINALS_HEADER_SVG : null;
+};
+
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
-  const result = vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
+  const finalsBanner = finalsBannerForTeams(vm.homeTeam, vm.awayTeam, vm.title as any);
+  const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || media[0]?.url || null;
   return result;
 };
 
@@ -582,7 +596,25 @@ const GameDetailsScreen = () => {
   const displayDate = formatDateLabel(vm?.date);
   const displayTime = formatTimeLabel(vm?.date);
   const goingCount = capCount(vm?.rsvpCount, vm?.capacity);
-  const bannerUrl = useMemo(() => pickBannerFromArrays(vm ?? {}, vm?.media ?? []), [vm]);
+  // Force the Finals artwork whenever this matchup is detected, even if API banner/cover is missing
+  const finalsBannerUrl = useMemo(() => {
+    const title = (vm?.title || '').replace(/\s+/g, ' ').trim();
+    let home = vm?.homeTeam || null;
+    let away = vm?.awayTeam || null;
+
+    if ((!home || !away) && title) {
+      const parts = title.split(/\s+vs\.?\s+/i).map((part) => part.trim()).filter(Boolean);
+      if (!home && parts[0]) home = parts[0];
+      if (!away && parts[1]) away = parts[1];
+    }
+
+    return finalsBannerForTeams(home, away, title);
+  }, [vm?.homeTeam, vm?.awayTeam, vm?.title]);
+
+  const bannerUrl = useMemo(() => {
+    if (finalsBannerUrl) return finalsBannerUrl;
+    return pickBannerFromArrays(vm ?? {}, vm?.media ?? []);
+  }, [vm, finalsBannerUrl]);
 
   // Load teams data
   const loadTeams = async () => {
@@ -1590,13 +1622,36 @@ const renderBanner = () => {
   // Prefer a full MatchBanner hero if both teams have logos available
   const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
   const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
-  const isHero = Boolean(leftLogo && rightLogo);
-  const bannerHeight = isHero ? 320 : 200;
+  const finalsBanner = finalsBannerUrl;
+  const bannerImageUrl = finalsBanner || bannerUrl;
+  const bannerImageKey = bannerImageUrl ? `${bannerImageUrl}-${vm?.gameId || vm?.id || vm?.title || ''}` : 'banner-fallback';
+  const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner;
+  const bannerHeight = isHero ? 320 : 240;
 
-    // attempt to pull team color accents from vm.teams if present
-    const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
-    const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
-    const heroBanner = leftLogo && rightLogo ? (
+  // DEBUG: Log what we're rendering
+  if (finalsBanner) {
+    console.log('[GameDetailsScreen] Finals banner detected:', finalsBanner);
+    console.log('[GameDetailsScreen] leftLogo:', leftLogo, 'rightLogo:', rightLogo);
+    console.log('[GameDetailsScreen] isHero:', isHero);
+    console.log('[GameDetailsScreen] bannerImageUrl:', bannerImageUrl);
+    console.log('[GameDetailsScreen] bannerImageUrl && !isHero:', bannerImageUrl && !isHero);
+  }
+
+  // attempt to pull team color accents from vm.teams if present
+  const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
+  const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
+  
+  const heroBanner = bannerImageUrl && !isHero ? (
+    <Image
+      key={bannerImageKey}
+      source={{ uri: bannerImageUrl }}
+      style={styles.bannerImage}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+      onLoad={() => console.log('[GameDetailsScreen] Banner image loaded:', bannerImageUrl)}
+      onError={(err) => console.error('[GameDetailsScreen] Banner image failed:', bannerImageUrl, err)}
+    />
+    ) : leftLogo && rightLogo ? (
       <MatchBanner
         leftImage={leftLogo}
         rightImage={rightLogo}
@@ -1626,11 +1681,7 @@ const renderBanner = () => {
         onGoingPress={onToggleRsvp}
       />
     ) : (
-      bannerUrl ? (
-        <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
-      ) : (
-        <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-      )
+      <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
     );
 
       return (
@@ -1786,7 +1837,7 @@ const renderBanner = () => {
     const teams = [homeTeam, awayTeam].filter(Boolean);
     
     return (
-      <View style={{ flexDirection: 'row', justifyContent: 'space-around', gap: 10, marginVertical: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', gap: 12, marginVertical: 16, paddingHorizontal: 12 }}>
         {teams.map((teamName, index) => {
           const teamLogo = getTeamLogo(teamName!);
           
@@ -1794,21 +1845,46 @@ const renderBanner = () => {
             <Pressable
               key={index}
               style={({ pressed }) => [
-                styles.teamLinkButton,
-                { 
-                  backgroundColor: pressed ? Colors[colorScheme].surface : Colors[colorScheme].background,
+                {
+                  flex: 1,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 16,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  backgroundColor: Colors[colorScheme].surface,
+                  borderWidth: 1,
                   borderColor: Colors[colorScheme].border,
+                  minHeight: 160,
+                  opacity: pressed ? 0.7 : 1,
+                  transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
               onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${teamName} team`}
             >
-              {teamLogo ? (
-                <Image source={{ uri: teamLogo }} style={styles.teamLinkAvatar} contentFit="cover" />
-              ) : (
-                <Ionicons name="people-outline" size={20} color={Colors[colorScheme].text} />
-              )}
-              <Text style={styles.teamLinkName} numberOfLines={1}>{teamName}</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+              <View style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: Colors[colorScheme].background,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 8,
+                borderWidth: 2,
+                borderColor: Colors[colorScheme].tint,
+              }}>
+                {teamLogo ? (
+                  <Image source={{ uri: teamLogo }} style={{ width: 68, height: 68, borderRadius: 34 }} contentFit="cover" />
+                ) : (
+                  <View style={{ width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].tint + '20' }}>
+                    <Ionicons name="shield" size={32} color={Colors[colorScheme].tint} />
+                  </View>
+                )}
+              </View>
+              <Text style={{ fontWeight: '700', fontSize: 16, textAlign: 'center', color: Colors[colorScheme].text, marginHorizontal: 4 }} numberOfLines={2}>{teamName}</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors[colorScheme].tint} style={{ marginTop: 8 }} />
             </Pressable>
           );
         })}
@@ -1897,7 +1973,6 @@ const renderBanner = () => {
             <>
               {/* Tabs removed - keeping Overview only as default view */}
               <Text style={styles.title}>{vm.title}</Text>
-              {renderVoteSection()}
               {vm.location ? (
                 <Pressable style={styles.locationRow} onPress={onPressLocation}>
                   <Ionicons name="location" size={16} color={Colors[colorScheme].tint} />
@@ -1972,6 +2047,8 @@ const renderBanner = () => {
               <View style={styles.section}>
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
+
+              {renderVoteSection()}
 
               {/* Posts Section */}
               <View
@@ -2636,6 +2713,45 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   teamLinkName: {
     flex: 1,
     fontWeight: '600',
+  },
+
+  // Enhanced team card styles for bottom section (now using inline styles)
+  teamLinkButtonEnhanced: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 160,
+  },
+  teamAvatarContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+  },
+  teamLinkAvatarLarge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+  },
+  teamIconPlaceholder: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  teamNameLarge: {
+    fontWeight: '700',
+    fontSize: 16,
+    textAlign: 'center',
+    marginHorizontal: 4,
   },
   viewAllButton: {
     backgroundColor: '#F3F4F6',

@@ -4,7 +4,6 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { getApiBaseUrl } from '@/api/http';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +14,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { captureException } from '@/utils/sentry';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
@@ -32,17 +32,16 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Log API base URL once for debugging stale env issues
-  useEffect(() => {
-    const base = getApiBaseUrl();
-  }, []);
-
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     setRetryCount(attempt > 1 ? attempt : 0);
     
     try {
       return await User.register(email, password, name || undefined);
     } catch (e: any) {
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'email-signup-attempt' },
+        extra: { attempt, email },
+      });
       
       // Handle the race condition: if we get "Email already registered" on retry,
       // it likely means the first attempt actually succeeded but we didn't get the response
@@ -94,6 +93,10 @@ export default function SignUpScreen() {
       }
     } catch (e: any) {
       console.error('[sign-up] Registration failed after all attempts:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'email-signup-final' },
+        extra: { email },
+      });
       
       // Handle specific error types with better messaging
       let errorMessage = 'Sign up failed';
@@ -140,6 +143,7 @@ export default function SignUpScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
+      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
       setError(message);
     }
   };
@@ -147,6 +151,13 @@ export default function SignUpScreen() {
   const handleAppleSignUp = async () => {
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
+      return;
+    }
+    if (!appleReady) {
+      setError('Apple sign in is still initializing. Please try again in a moment.');
+      return;
+    }
+    if (appleLoading) {
       return;
     }
     setError(null);
@@ -166,6 +177,7 @@ export default function SignUpScreen() {
       router.replace('/(tabs)' as any);
     } catch (e: any) {
       console.error('[sign-up] Apple sign up error:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
       const message = e?.message || 'Apple sign up failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;

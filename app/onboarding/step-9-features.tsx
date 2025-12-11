@@ -142,12 +142,12 @@ export default function Step9Features() {
           notifications_enabled: notificationsEnabled,
           messaging_policy_accepted: true
         });
-        
-        // Refresh auth state so onboarding_completed flag updates immediately
-        await checkAuth();
-        clearOnboarding();
+        // After completion, fetch user to sync flag and route to feed
+        try {
+          await User.me();
+        } catch (e) {}
         router.replace('/(tabs)/feed');
-        return;
+        return; // Fans are done; skip coach-only confirmation screen
       }
       
       // For coaches, go to confirmation page

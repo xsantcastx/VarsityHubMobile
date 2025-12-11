@@ -24,6 +24,7 @@ const createAuthMock = (overrides: Partial<AuthContextType> = {}): AuthContextTy
   checkAuth: jest.fn(),
   signOut: jest.fn(),
   registerPushToken: jest.fn(),
+  markOnboardingCompleteLocally: jest.fn(),
   ...overrides,
 });
 

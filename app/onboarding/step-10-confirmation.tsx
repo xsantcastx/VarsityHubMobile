@@ -15,7 +15,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 export default function Step10Confirmation() {
   const router = useRouter();
   const { state: ob, clearOnboarding, setProgress, setState: setOB, progress } = useOnboarding();
-  const { checkAuth } = useAuth();
+  const { checkAuth, markOnboardingCompleteLocally } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
 
@@ -229,6 +229,12 @@ export default function Step10Confirmation() {
       
       // Add a small delay to ensure auth state has propagated
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      try {
+        await markOnboardingCompleteLocally();
+      } catch (error) {
+        console.warn('[Onboarding][Step10] Failed to persist local completion flag:', error);
+      }
 
       // Clear onboarding local state
       clearOnboarding();

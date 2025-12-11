@@ -545,7 +545,7 @@ export default function EventApprovalsScreen() {
         onSave={handleQuickGameSave}
         currentTeamName={me?.team?.name}
         currentTeamId={me?.team?.id}
-        userRole={me?.role || 'fan'}
+        userRole={me?.role === 'coach' || me?.role === 'admin' ? 'coach' : 'fan'}
       />
     </SafeAreaView>
   );

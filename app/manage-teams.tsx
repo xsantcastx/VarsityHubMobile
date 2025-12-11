@@ -411,6 +411,7 @@ export default function ManageTeamsSimpleScreen() {
         onClose={() => setShowQuickAddModal(false)}
         onSave={handleQuickAddGame}
         currentTeamName={activeTeams[0]?.name} // Default to first team
+        userRole="coach"
       />
     </SafeAreaView>
   );

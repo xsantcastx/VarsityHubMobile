@@ -137,7 +137,7 @@ export default function TeamChatScreen() {
   const saveMessages = useCallback(async (messages: ChatMessage[]) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to save messages:', error);
     }
   }, [STORAGE_KEY]);
@@ -146,7 +146,7 @@ export default function TeamChatScreen() {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       return stored ? JSON.parse(stored) : [];
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to load messages:', error);
       return [];
     }
@@ -165,7 +165,7 @@ export default function TeamChatScreen() {
     try {
       const filesKey = `team-${id}-files`;
       await AsyncStorage.setItem(filesKey, JSON.stringify(filesList));
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to save files:', error);
     }
   }, [id]);
@@ -175,7 +175,7 @@ export default function TeamChatScreen() {
       const filesKey = `team-${id}-files`;
       const stored = await AsyncStorage.getItem(filesKey);
       return stored ? JSON.parse(stored) : [];
-    } catch (_error) {
+    } catch (error) {
       console.error('Failed to load files:', error);
       return [];
     }
@@ -465,7 +465,7 @@ export default function TeamChatScreen() {
       
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (_error) {
+    } catch (error) {
   showModal('Error', 'Failed to send message');
     } finally {
       setSending(false);
@@ -675,7 +675,7 @@ export default function TeamChatScreen() {
       });
       
       showToast('Image uploaded successfully!');
-    } catch (_error) {
+    } catch (error) {
       console.error('Image upload failed:', error);
       
       // Update message to show error
@@ -709,7 +709,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (_error) {
+    } catch (error) {
       showModal('Error', 'Failed to pick image');
     }
   }, [sendImageMessage, showModal]);
@@ -724,7 +724,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (_error) {
+    } catch (error) {
       showModal('Error', 'Failed to take photo');
     }
   }, [sendImageMessage, showModal]);
@@ -743,7 +743,7 @@ export default function TeamChatScreen() {
       
       await MediaLibrary.saveToLibraryAsync(imageUri);
       showToast('Image saved to gallery!');
-    } catch (_error) {
+    } catch (error) {
   showModal('Error', 'Failed to save image to gallery');
     }
   }, [showModal, showToast]);
@@ -805,7 +805,7 @@ export default function TeamChatScreen() {
         });
       }, 800);
       
-    } catch (_error) {
+    } catch (error) {
       showModal('Error', 'Failed to send voice message');
     }
   }, [animateNewMessage, replyingTo, saveMessages, showModal]);
@@ -831,7 +831,7 @@ export default function TeamChatScreen() {
       
       setRecording(null);
       setRecordingDuration(0);
-    } catch (_error) {
+    } catch (error) {
   showModal('Error', 'Failed to stop recording');
       setRecording(null);
       setIsRecording(false);
@@ -891,7 +891,7 @@ export default function TeamChatScreen() {
       // Play the sound
       await sound.playAsync();
       setPlayingAudio(messageId);
-    } catch (_error) {
+    } catch (error) {
   showModal('Error', 'Failed to play voice message');
     }
   }, [playingAudio, showModal, soundObjects]);
@@ -994,7 +994,7 @@ export default function TeamChatScreen() {
       });
       
       showToast('File uploaded successfully!');
-    } catch (_error) {
+    } catch (error) {
       console.error('File upload failed:', error);
       
       // Update message to show error - use a new variable since message is not in scope
@@ -1030,7 +1030,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendFileMessage(result.assets[0]);
       }
-    } catch (_error) {
+    } catch (error) {
       showModal('Error', 'Failed to pick document');
     }
   }, [sendFileMessage, showModal]);
@@ -1064,7 +1064,7 @@ export default function TeamChatScreen() {
         // Use document picker for documents
         await pickDocument();
       }
-    } catch (_error) {
+    } catch (error) {
       showToast('Failed to upload file', 'error');
     } finally {
       setIsUploadingFile(false);
@@ -1140,7 +1140,7 @@ export default function TeamChatScreen() {
         try {
           await sound.stopAsync();
           await sound.unloadAsync();
-        } catch (_error) {
+        } catch (error) {
           // Ignore cleanup errors
         }
       });
@@ -1174,7 +1174,7 @@ export default function TeamChatScreen() {
         // If can't open directly, show options
         showModal('File Download', 'File download is not supported on this platform.');
       }
-    } catch (_error) {
+    } catch (error) {
       console.error('Error opening file:', error);
     showModal('Error', 'Unable to open file');
     }

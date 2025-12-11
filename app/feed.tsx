@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
@@ -18,10 +18,6 @@ import * as Location from 'expo-location';
 import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
-
-type ZipDirectoryEntry = { zip: string; count: number };
-
-const ZIP_REGEX = /\b\d{5}\b/g;
 
 // RSVP Badge Component
 const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
@@ -102,38 +98,6 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
   );
 };
 
-const buildZipDirectory = (items: GameItem[]): ZipDirectoryEntry[] => {
-  const counts = new Map<string, number>();
-  items.forEach((game) => {
-    if (!game) return;
-    const bucket: string[] = [];
-    const maybeLocation = (game as any)?.location;
-    if (typeof maybeLocation === 'string') bucket.push(maybeLocation);
-    const maybeAddress = (game as any)?.address;
-    if (typeof maybeAddress === 'string') bucket.push(maybeAddress);
-    const maybeCity = (game as any)?.city;
-    if (typeof maybeCity === 'string') bucket.push(maybeCity);
-    const explicit = (game as any)?.zip || (game as any)?.postal_code;
-    if (explicit) bucket.push(String(explicit));
-    bucket.forEach((entry) => {
-      if (typeof entry !== 'string') return;
-      const matches = entry.match(ZIP_REGEX);
-      if (!matches) return;
-      matches.forEach((zip) => {
-        const normalized = zip.slice(0, 5);
-        if (!normalized) return;
-        counts.set(normalized, (counts.get(normalized) || 0) + 1);
-      });
-    });
-  });
-  return Array.from(counts.entries())
-    .map(([zip, count]) => ({ zip, count }))
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return a.zip.localeCompare(b.zip);
-    });
-};
-
 const deriveTeamLabels = (game: GameItem): { teamA: string; teamB: string } => {
   const title = typeof game.title === 'string' ? game.title : '';
   if (title) {
@@ -191,9 +155,6 @@ const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: str
 export default function FeedScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const topPadding = useMemo(() => Math.max(insets.top + 12, 24), [insets.top]);
-  const bottomPadding = useMemo(() => Math.max(insets.bottom + 20, 32), [insets.bottom]);
-  const iconClusterWidth = 96;
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -209,11 +170,8 @@ export default function FeedScreen() {
   const [verticalFeedModalVisible, setVerticalFeedModalVisible] = useState(false);
   const [activeVerticalFeedGameId, setActiveVerticalFeedGameId] = useState<string | null>(null);
 
-  const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
-  const [zipSuggestionsOpen, setZipSuggestionsOpen] = useState(false);
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
-  const [sponsoredIndex, setSponsoredIndex] = useState(0);
   const voteSummariesRef = useRef<Record<string, VotePreviewEntry>>({});
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
@@ -312,7 +270,6 @@ export default function FeedScreen() {
       setGames(normalizedGames);
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
-      setZipDirectory(buildZipDirectory(normalizedGames));
       if (highlightsData) {
         const merged: any[] = [];
         if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
@@ -330,16 +287,13 @@ export default function FeedScreen() {
           [list[i], list[j]] = [list[j], list[i]];
         }
         setSponsoredAds(list);
-        setSponsoredIndex(0);
       } else {
         setSponsoredAds([]);
-        setSponsoredIndex(0);
       }
     } catch (e: any) {
       console.error('Failed to load feed', e);
       setError('Unable to load games. Sign in may be required.');
       setGames([]);
-      setZipDirectory([]);
       setHighlightPreview(null);
     } finally {
       if (!silent) setLoading(false);
@@ -366,7 +320,6 @@ export default function FeedScreen() {
       setGames(prev => [...prev, ...normalizedGames]);
       setGamesCursor(cursor);
       setHasMoreGames(!!cursor);
-      setZipDirectory(prev => [...prev, ...buildZipDirectory(normalizedGames)]);
     } catch (e: any) {
       console.error('Failed to load more games', e);
     } finally {
@@ -393,7 +346,9 @@ export default function FeedScreen() {
         try {
           const page = await NotificationApi.listPage(null, 1, true);
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-        } catch (_error) {}
+        } catch {
+          // ignore notification poll errors
+        }
       })();
     }, [load]),
   );
@@ -406,7 +361,9 @@ export default function FeedScreen() {
         const page = await NotificationApi.listPage(null, 1, true);
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-      } catch (_error) {}
+      } catch {
+        // ignore notification poll errors
+      }
     };
     const id = setInterval(tick, 30000); // ~30s
     return () => { mounted = false; clearInterval(id); };
@@ -522,34 +479,6 @@ export default function FeedScreen() {
     ? `By ${highlightPreview.author.display_name}`
     : null;
 
-  const zipSuggestions = useMemo(() => {
-    if (!zipSuggestionsOpen) return [] as ZipDirectoryEntry[];
-    const digits = query.replace(/[^0-9]/g, '');
-    if (digits.length < 2) return [] as ZipDirectoryEntry[];
-    return zipDirectory
-      .filter((entry) => entry.zip.startsWith(digits))
-      .slice(0, 6);
-  }, [zipSuggestionsOpen, query, zipDirectory]);
-
-  const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
-
-  const handleQueryChange = useCallback((value: string) => {
-    setQuery(value);
-    const digits = value.replace(/[^0-9]/g, '');
-    setZipSuggestionsOpen(digits.length >= 2);
-  }, []);
-
-  const handleZipSelect = useCallback((zip: string) => {
-    setQuery(zip);
-    setZipSuggestionsOpen(false);
-    Keyboard.dismiss();
-  }, []);
-
-  const handleSearchFocus = useCallback(() => {
-    const digits = query.replace(/[^0-9]/g, '');
-    setZipSuggestionsOpen(digits.length >= 2);
-  }, [query]);
-
   const openInstagram = useCallback(async () => {
     const instagramUrl = 'https://instagram.com/varsityhub_';
     try {
@@ -599,82 +528,6 @@ export default function FeedScreen() {
       </Pressable>
     );
   }, [emailVerified, me, router]);
-
-  const renderGameTile = useCallback(
-    ({ item, index }: { item: GameItem; index: number }) => {
-      const raw = item as any;
-      const banner = item.cover_image_url || raw?.banner_url || null;
-      const hasBanner = typeof banner === 'string' && banner.length > 0;
-      const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
-      const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
-      const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
-      const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
-      const reviewsCount =
-        typeof raw?.reviews_count === 'number'
-          ? raw.reviews_count
-          : typeof raw?._count?.reviews === 'number'
-            ? raw._count.reviews
-            : 0;
-      const mediaCount =
-        typeof raw?.media_count === 'number'
-          ? raw.media_count
-          : Array.isArray(raw?.media)
-            ? raw.media.length
-            : 0;
-      const summary = voteSummaries[String(item.id)] || null;
-      const voteText = summary
-        ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
-        : null;
-
-      return (
-        <Pressable
-          style={styles.gridItem}
-          onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
-          accessibilityRole="button"
-        >
-          {hasBanner ? (
-            <Image source={{ uri: banner }} style={styles.gridImage} contentFit="cover" />
-          ) : (
-            <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-          )}
-          <LinearGradient
-            colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
-            style={styles.gridShade}
-            pointerEvents="none"
-          />
-          <View style={styles.gridContent}>
-            <View style={styles.gridDateChip}>
-              <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
-              <Text style={styles.gridDateText}>{eventDate}</Text>
-            </View>
-            <Text style={styles.gridTitle} numberOfLines={2}>
-              {item.title ? String(item.title) : 'Game'}
-            </Text>
-            <Text style={styles.gridMeta} numberOfLines={1}>
-              {eventTime ? `${eventTime} • ${locationText}` : locationText}
-            </Text>
-            <View style={styles.gridStatsRow}>
-              <View style={styles.gridStat}>
-                <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
-                <Text style={styles.gridStatText}>{reviewsCount}</Text>
-              </View>
-              <View style={styles.gridStat}>
-                <Ionicons name="image-outline" size={12} color="#F9FAFB" />
-                <Text style={styles.gridStatText}>{mediaCount}</Text>
-              </View>
-            </View>
-            {voteText ? (
-              <Text style={styles.gridVoteText} numberOfLines={1}>
-                {voteText}
-              </Text>
-            ) : null}
-          </View>
-          <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
-        </Pressable>
-      );
-    },
-    [onRefresh, router, voteSummaries],
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -1663,4 +1516,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

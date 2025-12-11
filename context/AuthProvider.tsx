@@ -40,6 +40,7 @@ export interface AuthContextType {
   checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
+  markOnboardingCompleteLocally: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -227,6 +228,15 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     if (!user?.id) return false;
     return setupPushNotifications(user.id);
   }, [setupPushNotifications, user?.id]);
+  
+  const markOnboardingCompleteLocally = useCallback(async () => {
+    try {
+      setHasCompletedOnboarding(true);
+      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+    } catch (error) {
+      console.warn('[Auth] Failed to persist onboarding completion flag:', error);
+    }
+  }, []);
 
   // Initial auth check
   useEffect(() => {
@@ -355,8 +365,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // This prevents infinite loops when the server field is null/undefined/missing
       const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
       
-      // Show onboarding ONLY if server explicitly says false (incomplete)
-      const needsOnboarding = serverSaysIncomplete;
+      // Show onboarding ONLY if server explicitly says false AND we haven't recorded completion locally
+      const needsOnboarding = serverSaysIncomplete && !hasCompletedOnboarding;
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
@@ -410,6 +420,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     checkAuth,
     signOut,
     registerPushToken,
+    markOnboardingCompleteLocally,
   };
 
   return (

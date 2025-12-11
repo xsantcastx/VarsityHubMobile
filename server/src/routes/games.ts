@@ -8,6 +8,7 @@ import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './
 import { debugLog } from '../lib/debugLog.js';
 
 export const gamesRouter = Router();
+const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
 
 // Helper function to generate Google Maps links
 const generateMapsLink = (location?: string | null, lat?: number | null, lng?: number | null, placeId?: string | null): string | null => {
@@ -303,7 +304,6 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     }
 
     // Approval workflow: Check if user is a coach/manager OR if user is admin
-    const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
     let isCoach = false;
     
     // Check if user is super admin (can create events for ANY team)
@@ -393,6 +393,234 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     console.error('Error creating game:', error);
     res.status(500).json({ error: 'Failed to create game' });
   }
+});
+
+gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const schema = z.object({
+    title: z.string().min(1).max(200).optional(),
+    home_team: z.string().optional(),
+    away_team: z.string().optional(),
+    home_team_id: z.string().optional(),
+    away_team_id: z.string().optional(),
+    away_team_name: z.string().optional(),
+    date: z.string().datetime().optional(),
+    location: z.string().optional(),
+    description: z.string().optional(),
+    cover_image_url: z.string().url().optional(),
+    banner_url: z.string().url().optional(),
+    appearance: z.string().optional(),
+    expected_attendance: z.number().int().min(1).max(99999).optional(),
+    event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'other']).optional(),
+    donation_goal: z.number().min(0).optional(),
+    watch_location: z.string().max(200).optional(),
+    watch_location_lat: z.number().optional(),
+    watch_location_lng: z.number().optional(),
+    watch_location_place_id: z.string().optional(),
+    destination: z.string().max(200).optional(),
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
+    autoGeocode: z.boolean().optional(),
+    venue_place_id: z.string().optional(),
+    venue_address: z.string().optional(),
+    venue_lat: z.number().optional(),
+    venue_lng: z.number().optional(),
+    is_neutral: z.boolean().optional(),
+  });
+
+  const parsed = schema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'Invalid game data', issues: parsed.error.issues });
+  }
+
+  const providedEntries = Object.entries(parsed.data).filter(([, value]) => value !== undefined);
+  if (!providedEntries.length) {
+    return res.status(400).json({ error: 'No fields provided for update' });
+  }
+
+  const id = String(req.params.id);
+  const existingGame = await prisma.game.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      game_status: true,
+      event_status: true,
+      home_team_id: true,
+      created_by_id: true,
+      location: true,
+      venue_address: true,
+      venue_lat: true,
+      venue_lng: true,
+      venue_place_id: true,
+      latitude: true,
+      longitude: true,
+    },
+  });
+
+  if (!existingGame) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  const userRecord = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { email: true },
+  });
+  const isAdmin = isEmailAdmin(userRecord?.email);
+
+  let canEdit = isAdmin;
+  if (!canEdit && existingGame.home_team_id) {
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: existingGame.home_team_id,
+        user_id: req.user.id,
+        role: { in: managementRoles },
+      },
+    });
+    canEdit = !!membership;
+  }
+  if (!canEdit && existingGame.created_by_id === req.user.id) {
+    canEdit = true;
+  }
+  if (!canEdit) {
+    return res.status(403).json({ error: 'Only team coaches or admins can edit this event' });
+  }
+
+  const statusValue = String(existingGame.status || existingGame.game_status || existingGame.event_status || '').toLowerCase();
+  const isLiveStatus = statusValue === 'live' || statusValue === 'in-progress' || statusValue === 'in_progress';
+  if (isLiveStatus) {
+    const allowedLiveFields = new Set([
+      'date',
+      'location',
+      'latitude',
+      'longitude',
+      'venue_place_id',
+      'venue_address',
+      'venue_lat',
+      'venue_lng',
+      'autoGeocode',
+    ]);
+    const disallowed = providedEntries
+      .map(([key]) => key)
+      .filter((key) => !allowedLiveFields.has(key));
+    if (disallowed.length) {
+      return res.status(403).json({
+        error: 'Live events can only update date/time or location — or be deleted entirely.',
+        disallowed_fields: disallowed,
+      });
+    }
+  }
+
+  const updateData: Record<string, any> = {};
+
+  const assign = <K extends keyof typeof parsed.data>(key: K, value: any) => {
+    updateData[key as string] = value;
+  };
+
+  if (parsed.data.title !== undefined) assign('title', parsed.data.title);
+  if (parsed.data.home_team !== undefined) assign('home_team', parsed.data.home_team);
+  if (parsed.data.away_team !== undefined) assign('away_team', parsed.data.away_team);
+  if (parsed.data.home_team_id !== undefined) assign('home_team_id', parsed.data.home_team_id || null);
+  if (parsed.data.away_team_id !== undefined) assign('away_team_id', parsed.data.away_team_id || null);
+  if (parsed.data.away_team_name !== undefined) assign('away_team_name', parsed.data.away_team_name || null);
+  if (parsed.data.description !== undefined) assign('description', parsed.data.description || null);
+  if (parsed.data.cover_image_url !== undefined) assign('cover_image_url', parsed.data.cover_image_url);
+  if (parsed.data.banner_url !== undefined) assign('banner_url', parsed.data.banner_url);
+  if (parsed.data.appearance !== undefined) assign('appearance', parsed.data.appearance);
+  if (parsed.data.expected_attendance !== undefined) assign('expected_attendance', parsed.data.expected_attendance);
+  if (parsed.data.event_type !== undefined) assign('event_type', parsed.data.event_type);
+  if (parsed.data.donation_goal !== undefined) assign('donation_goal', parsed.data.donation_goal);
+  if (parsed.data.watch_location !== undefined) assign('watch_location', parsed.data.watch_location || null);
+  if (parsed.data.watch_location_lat !== undefined) assign('watch_location_lat', parsed.data.watch_location_lat);
+  if (parsed.data.watch_location_lng !== undefined) assign('watch_location_lng', parsed.data.watch_location_lng);
+  if (parsed.data.watch_location_place_id !== undefined) assign('watch_location_place_id', parsed.data.watch_location_place_id || null);
+  if (parsed.data.destination !== undefined) assign('destination', parsed.data.destination || null);
+  if (parsed.data.venue_place_id !== undefined) assign('venue_place_id', parsed.data.venue_place_id || null);
+  if (parsed.data.venue_address !== undefined) assign('venue_address', parsed.data.venue_address || null);
+  if (parsed.data.venue_lat !== undefined) assign('venue_lat', parsed.data.venue_lat);
+  if (parsed.data.venue_lng !== undefined) assign('venue_lng', parsed.data.venue_lng);
+  if (parsed.data.latitude !== undefined) assign('latitude', parsed.data.latitude);
+  if (parsed.data.longitude !== undefined) assign('longitude', parsed.data.longitude);
+  if (parsed.data.is_neutral !== undefined) assign('is_neutral', parsed.data.is_neutral);
+  if (parsed.data.location !== undefined) assign('location', parsed.data.location || null);
+  if (parsed.data.date !== undefined) assign('date', new Date(parsed.data.date));
+
+  if (!Object.keys(updateData).length) {
+    return res.status(400).json({ error: 'No valid fields provided for update' });
+  }
+
+  if (
+    parsed.data.autoGeocode &&
+    (parsed.data.location || existingGame.location) &&
+    parsed.data.latitude === undefined &&
+    parsed.data.longitude === undefined
+  ) {
+    try {
+      const { geocodeLocation } = await import('../lib/geocoding.js');
+      const coords = await geocodeLocation(parsed.data.location ?? existingGame.location ?? '');
+      if (coords) {
+        updateData.latitude = coords.latitude;
+        updateData.longitude = coords.longitude;
+      }
+    } catch (err) {
+      console.warn('Auto-geocoding failed during game update, continuing without coordinates:', err);
+    }
+  }
+
+  const updatedGame = await (prisma.game.update as any)({
+    where: { id },
+    data: updateData,
+    include: {
+      events: { orderBy: { date: 'asc' }, take: 1 },
+      homeTeam: { select: { id: true, name: true, venue_address: true } },
+      awayTeam: { select: { id: true, name: true, venue_address: true } },
+    },
+  });
+
+  let updatedEvent = updatedGame.events?.[0] ?? null;
+  if (updatedEvent) {
+    const eventUpdates: Record<string, any> = {};
+    if ('date' in updateData) eventUpdates.date = updateData.date;
+    if ('location' in updateData) eventUpdates.location = updateData.location;
+    if ('title' in updateData) eventUpdates.title = updateData.title;
+    if (Object.keys(eventUpdates).length > 0) {
+      updatedEvent = await prisma.event.update({
+        where: { id: updatedEvent.id },
+        data: eventUpdates,
+      });
+    }
+  }
+
+  const { events, homeTeam, awayTeam, ...rest } = updatedGame as any;
+  const venueMapsLink = generateMapsLink(
+    rest.venue_address || rest.location,
+    rest.venue_lat ?? rest.latitude,
+    rest.venue_lng ?? rest.longitude,
+    rest.venue_place_id,
+  );
+
+  return res.json({
+    ...rest,
+    event_id: updatedEvent?.id ?? null,
+    venue_maps_link: venueMapsLink,
+    home_team: homeTeam
+      ? {
+          id: homeTeam.id,
+          name: homeTeam.name,
+          profile_link: `/teams/${homeTeam.id}`,
+        }
+      : null,
+    away_team: awayTeam
+      ? {
+          id: awayTeam.id,
+          name: awayTeam.name,
+          profile_link: `/teams/${awayTeam.id}`,
+        }
+      : rest.away_team_name
+        ? { name: rest.away_team_name, profile_link: null }
+        : null,
+  });
 });
 
 // Get single game by id

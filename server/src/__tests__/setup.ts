@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import '../lib/load-env.js';
 
 // Setup environment for tests
@@ -15,3 +16,9 @@ if (!process.env.VERBOSE) {
     error: jest.fn(),
   };
 }
+
+describe('server test setup', () => {
+  it('initializes NODE_ENV for test runtime', () => {
+    expect(process.env.NODE_ENV).toBe('test');
+  });
+});

@@ -4,6 +4,7 @@ import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
+import { buildConversationId } from '../lib/messageHelpers.js';
 
 export const messagesRouter = Router();
 
@@ -121,8 +122,7 @@ toId = u.id;
 
 let convId = conversation_id;
 if (!convId && toId) {
-const pair = [meId, toId].sort();
-convId = `dm:${pair[0]}__${pair[1]}`;
+convId = buildConversationId(meId, toId);
 }
 
 // Prevent messaging if either user has blocked the other
