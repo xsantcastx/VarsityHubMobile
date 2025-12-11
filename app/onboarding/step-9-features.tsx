@@ -125,23 +125,27 @@ export default function Step9Features() {
       
       // For fans, complete onboarding and go to feed
       if (ob.role === 'fan') {
-        // Mark onboarding complete for fans
-        await User.completeOnboarding({
-          role: ob.role,
-          username: ob.username,
-          display_name: ob.display_name,
-          dob: ob.dob,
-          zip: ob.zip,
-          zip_code: ob.zip_code,
-          avatar_url: ob.avatar_url,
-          bio: ob.bio,
-          sports_interests: ob.sports_interests,
-          primary_intents: ob.primary_intents,
-          personalization_goals: ob.personalization_goals,
+        // Mark onboarding complete for fans - only send defined fields
+        const payload: any = {
+          messaging_policy_accepted: true,
           location_enabled: locationEnabled,
           notifications_enabled: notificationsEnabled,
-          messaging_policy_accepted: true
-        });
+        };
+        
+        // Only add fields that exist in onboarding state
+        if (ob.role) payload.role = ob.role;
+        if (ob.username) payload.username = ob.username;
+        if (ob.display_name) payload.display_name = ob.display_name;
+        if (ob.dob) payload.dob = ob.dob;
+        if (ob.zip) payload.zip = ob.zip;
+        if (ob.zip_code) payload.zip_code = ob.zip_code;
+        if (ob.avatar_url) payload.avatar_url = ob.avatar_url;
+        if (ob.bio) payload.bio = ob.bio;
+        if (ob.sports_interests?.length) payload.sports_interests = ob.sports_interests;
+        if (ob.primary_intents?.length) payload.primary_intents = ob.primary_intents;
+        if (ob.personalization_goals?.length) payload.personalization_goals = ob.personalization_goals;
+        
+        await User.completeOnboarding(payload);
         // After completion, fetch user to sync flag and route to feed
         try {
           await User.me();
