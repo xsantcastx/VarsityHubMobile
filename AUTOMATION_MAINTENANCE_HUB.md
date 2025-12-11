@@ -294,16 +294,28 @@ I'll set up GitHub Actions webhook, craft Slack app config, and document command
 - ✅ **Snyk Security Scans** - SAST + SCA integration (various commits)
 - ✅ **Build Verification** - Local Xcode build confirmed working (Release config)
 - ✅ **Pre-commit Hook** - Blocks moderate+ npm vulnerabilities
+- ✅ **GitHub Actions CI/CD** - Lint + TypeCheck + Tests on every PR (`.github/workflows/ci-cd.yml`)
+- ✅ **Nightly Build Health Monitor** - EAS build status + dependency health checks (`.github/workflows/nightly-build-health.yml`)
+- ✅ **Snyk Auto-Remediate** - Weekly scans + auto-create PRs for patch updates (`.github/workflows/snyk-auto-remediate.yml`)
+- ✅ **Release Checklist** - Interactive pre-submission verification script (`scripts/release-checklist.sh`)
+- ✅ **Changelog Automation** - Auto-generate release notes from commits (`.github/workflows/auto-changelog.yml`)
 
 ---
 
 ## 🚧 Next Priorities (Suggested)
 
-1. **GitHub Actions CI/CD** (lint + typecheck + test on every PR) - Prevents regressions
-2. **Build health monitor** (nightly EAS status check) - Spots build breaks early
-3. **Snyk auto-remediate** (auto-create PRs for patch security updates) - Reduces manual work
-4. **Release checklist** (interactive script verifying pre-submission state) - Catches issues before App Store
-5. **Changelog automation** (parse commits → auto-generate release notes) - Saves time on releases
+1. ✅ ~~**GitHub Actions CI/CD**~~ - COMPLETE (Commit `b6c38f8`)
+2. ✅ ~~**Build health monitor**~~ - COMPLETE (Commit `b6c38f8`)
+3. ✅ ~~**Snyk auto-remediate**~~ - COMPLETE (Commit `b6c38f8`)
+4. ✅ ~~**Release checklist**~~ - COMPLETE (Commit `b6c38f8`)
+5. ✅ ~~**Changelog automation**~~ - COMPLETE (Commit `b6c38f8`)
+
+### Additional Opportunities (Lower Priority)
+- **Pre-commit lint/type hooks** - Block commits with ESLint errors or TS issues
+- **Slack/email notifications** - Alert on build failures, new CVEs, test regressions
+- **Performance monitoring** - Track build times, bundle size, app startup latency
+- **Dependency auto-updater** - Create PRs for outdated packages (minor/patch only)
+- **Data ops scripts** - Nightly seed reset, fixture generation, DB integrity checks
 
 ---
 
