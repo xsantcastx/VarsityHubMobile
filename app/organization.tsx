@@ -69,8 +69,15 @@ export default function OrganizationScreen() {
 
       setOrganizationId(orgId);
 
-      // Fetch all teams in this organization
-      const allTeams = await Team.list();
+      // Fetch all teams in this organization with fallback
+      let allTeams: any[] = [];
+      try {
+        allTeams = await Team.list();
+      } catch (err) {
+        console.error('Failed to load teams list:', err);
+        // Continue with empty teams list - the org might not have any teams yet
+        allTeams = [];
+      }
       const orgTeams = allTeams.filter((t: any) => t.organization_id === orgId);
 
       // Fetch games for all teams in organization
@@ -104,26 +111,28 @@ export default function OrganizationScreen() {
             return allPosts.filter((p: any) => {
               const content = (p.content || '').toLowerCase();
               const hasTeamHashtag = teamHashtags.some(tag => content.includes(tag));
-              const isGamePost = p.game_id && games.some((g: any) => g.id === p.game_id);
-              return hasTeamHashtag || isGamePost;
+              return hasTeamHashtag;
             });
           } catch (err) {
             console.error('Failed to load posts:', err);
             return [];
           }
         })(),
-      ]);
+      ]).catch(err => {
+        console.error('Failed to load games or posts:', err);
+        return [[], []];
+      });
 
       setTeams(orgTeams);
-      setGames(gamesResult);
-      setPosts(postsResult);
+      setGames(gamesResult || []);
+      setPosts(postsResult || []);
     } catch (err: any) {
       console.error('Failed to load organization:', err);
       setError(err?.message || 'Failed to load organization data');
     } finally {
       setLoading(false);
     }
-  }, [params.id, games]);
+  }, [params.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
