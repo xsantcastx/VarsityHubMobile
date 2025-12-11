@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { getApiBaseUrl } from '../../api/http';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthProvider';
 
 export default function OnboardingFinish() {
   const router = useRouter();
