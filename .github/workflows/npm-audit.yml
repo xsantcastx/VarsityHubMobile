@@ -1,0 +1,98 @@
+name: npm Audit & Dependency Check
+
+on:
+  schedule:
+    # Run nightly at 2 AM UTC (10 PM EST)
+    - cron: '0 2 * * *'
+  pull_request:
+    paths:
+      - 'package*.json'
+      - 'server/package*.json'
+  push:
+    branches: [main]
+    paths:
+      - 'package*.json'
+      - 'server/package*.json'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Audit root dependencies
+        id: root-audit
+        run: npm audit --json > audit-root.json 2>&1 || true
+
+      - name: Parse root audit results
+        id: root-parse
+        run: |
+          VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-root.json)
+          echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "❌ Root vulnerabilities: $VULN_COUNT"
+            jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-root.json
+          fi
+
+      - name: Audit server dependencies
+        id: server-audit
+        run: |
+          cd server
+          npm audit --json > ../audit-server.json 2>&1 || true
+
+      - name: Parse server audit results
+        id: server-parse
+        run: |
+          VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-server.json)
+          echo "vulnerabilities=$VULN_COUNT" >> $GITHUB_OUTPUT
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "❌ Server vulnerabilities: $VULN_COUNT"
+            jq '.vulnerabilities | to_entries[] | "\(.value.name)@\(.value.via[0]) - \(.value.severity)"' audit-server.json
+          fi
+
+      - name: Comment on PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const rootVulns = '${{ steps.root-parse.outputs.vulnerabilities }}';
+            const serverVulns = '${{ steps.server-parse.outputs.vulnerabilities }}';
+            const totalVulns = parseInt(rootVulns) + parseInt(serverVulns);
+            
+            const status = totalVulns === 0 ? '✅ Clean' : `❌ Found ${totalVulns} vulnerabilities`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### npm Audit Results\n\n${status}\n\n- Root: ${rootVulns} vulnerabilities\n- Server: ${serverVulns} vulnerabilities`
+            });
+
+      - name: Upload audit artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-reports
+          path: |
+            audit-root.json
+            audit-server.json
+
+      - name: Fail if vulnerabilities found
+        if: (steps.root-parse.outputs.vulnerabilities > 0) || (steps.server-parse.outputs.vulnerabilities > 0)
+        run: |
+          echo "❌ npm audit found vulnerabilities"
+          exit 1
+
+      - name: Success
+        if: success()
+        run: echo "✅ All dependencies are secure"
