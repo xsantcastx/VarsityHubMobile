@@ -282,7 +282,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   
-  // Check team ownership limit
+  // Check team ownership limit based on plan
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
       user_id: me.id,
@@ -291,15 +291,23 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
   });
   
-  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
+  // Determine max teams based on plan
+  const plan = prefs.plan || 'rookie';
+  let maxTeams = 2; // Default for rookie
+  
+  if (plan === 'veteran' || plan === 'legend') {
+    maxTeams = 999; // Unlimited (practical limit)
+  }
   
   if (ownedTeamsCount >= maxTeams) {
     return res.status(403).json({ 
       error: 'Team limit reached',
-      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
+      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade your plan to create more teams.`,
       owned_teams: ownedTeamsCount,
       max_teams: maxTeams,
-      upgrade_required: true
+      current_plan: plan,
+      upgrade_required: true,
+      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=team_limit`
     });
   }
   
@@ -658,6 +666,29 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   
   // Send invites to authorized users
   if (data.authorized_users && data.authorized_users.length > 0) {
+    // PLAN LIMITS: Enforce authorized users limit by plan
+    // Rookie: 1 authorized user max per team
+    // Veteran: 5 authorized users max per team
+    // Legend: Unlimited
+    let maxAuthorizedUsers = 1; // Default rookie limit
+    if (userPlan === 'veteran') {
+      maxAuthorizedUsers = 5;
+    } else if (userPlan === 'legend') {
+      maxAuthorizedUsers = 999; // Unlimited (practical limit)
+    }
+    
+    if (data.authorized_users.length > maxAuthorizedUsers) {
+      return res.status(403).json({
+        error: 'Authorized users limit exceeded',
+        message: `Your ${userPlan} plan allows ${maxAuthorizedUsers} authorized user${maxAuthorizedUsers > 1 ? 's' : ''}. You attempted to add ${data.authorized_users.length}.`,
+        code: 'AUTH_USERS_LIMIT_EXCEEDED',
+        limit: maxAuthorizedUsers,
+        attempted: data.authorized_users.length,
+        current_plan: userPlan,
+        upgrade_required: true
+      });
+    }
+
     const invites = data.authorized_users
       .filter(user => user.email)
       .map(user => ({
