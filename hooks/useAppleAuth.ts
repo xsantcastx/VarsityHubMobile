@@ -198,7 +198,9 @@ export function useAppleAuth() {
       if (__DEV__ && Platform.OS === 'ios') {
         try {
           console.log('[Apple Auth] Attempting dev fallback auth...');
-          const devToken = `sim-dev-${Date.now()}`;
+          // Use the owner's email so the dev account is recognized as admin
+          const devEmail = 'emancero@varsityhub.app';
+          const devToken = `sim-dev-${devEmail}-${Date.now()}`;
           const res = await User.loginViaApple(devToken);
           if (res?.access_token) {
             console.log('[Apple Auth] Dev fallback succeeded');
