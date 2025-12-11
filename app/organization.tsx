@@ -323,63 +323,59 @@ export default function OrganizationScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={[styles.organizationCard, { backgroundColor: theme.card }]}>
-                <View style={styles.organizationContent}>
-                  <Ionicons name="business" size={48} color={theme.tint} />
-                  <View style={styles.organizationInfo}>
-                    <Text style={[styles.organizationName, { color: theme.text }]}>
-                      Organization
-                    </Text>
-                    <Text style={[styles.organizationId, { color: theme.mutedText }]}>
-                      ID: {organizationId?.substring(0, 8)}...
-                    </Text>
-                  </View>
+            {/* Hero Header with Gradient */}
+            <View style={[styles.heroHeader, { backgroundColor: theme.tint }]}>
+              <View style={styles.heroContent}>
+                <View style={styles.heroIcon}>
+                  <Ionicons name="business" size={56} color="#ffffff" />
+                </View>
+                <View style={styles.heroText}>
+                  <Text style={styles.heroTitle}>Organization</Text>
+                  <Text style={styles.heroSubtitle}>ID: {organizationId?.substring(0, 8)}...</Text>
+                </View>
+              </View>
+              
+              {/* Floating Stats Cards */}
+              <View style={styles.floatingStats}>
+                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                  <Text style={styles.floatingStatValue}>{teams.length}</Text>
+                  <Text style={styles.floatingStatLabel}>Teams</Text>
+                </View>
+                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                  <Text style={styles.floatingStatValue}>{games.length}</Text>
+                  <Text style={styles.floatingStatLabel}>Games</Text>
+                </View>
+                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                  <Text style={styles.floatingStatValue}>{posts.length}</Text>
+                  <Text style={styles.floatingStatLabel}>Posts</Text>
                 </View>
               </View>
             </View>
 
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={[styles.stat, { borderColor: theme.border }]}>
-                <Text style={[styles.statValue, { color: theme.tint }]}>
-                  {teams.length}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Teams</Text>
-              </View>
-              <View style={[styles.stat, { borderColor: theme.border }]}>
-                <Text style={[styles.statValue, { color: theme.tint }]}>
-                  {games.length}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Games</Text>
-              </View>
-              <View style={[styles.stat, { borderColor: theme.border }]}>
-                <Text style={[styles.statValue, { color: theme.tint }]}>
-                  {posts.length}
-                </Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Posts</Text>
-              </View>
-            </View>
-
-            {/* Tabs */}
+            {/* Tabs with Modern Design */}
             <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
               {(['teams', 'schedule', 'feed'] as const).map((tab) => (
                 <Pressable
                   key={tab}
                   onPress={() => setActiveTab(tab)}
                   style={[
-                    styles.tab,
-                    activeTab === tab && { borderBottomColor: theme.tint, borderBottomWidth: 3 },
+                    styles.modernTab,
+                    activeTab === tab && [
+                      styles.modernTabActive,
+                      { backgroundColor: theme.tint }
+                    ],
                   ]}
                 >
                   <Text
                     style={[
-                      styles.tabLabel,
-                      { color: activeTab === tab ? theme.tint : theme.mutedText },
+                      styles.modernTabLabel,
+                      { color: activeTab === tab ? '#ffffff' : theme.mutedText },
                     ]}
                   >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === 'teams' && <Ionicons name="people" size={16} />}
+                    {tab === 'schedule' && <Ionicons name="calendar" size={16} />}
+                    {tab === 'feed' && <Ionicons name="newspaper" size={16} />}
+                    {' '}{tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </Text>
                 </Pressable>
               ))}
@@ -408,66 +404,92 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  // Hero Header Styles
+  heroHeader: {
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingTop: 20,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-  organizationCard: {
-    borderRadius: 12,
-    padding: 16,
-  },
-  organizationContent: {
+  heroContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
+    marginBottom: 24,
   },
-  organizationInfo: {
+  heroIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroText: {
     flex: 1,
+    justifyContent: 'center',
   },
-  organizationName: {
-    fontSize: 20,
+  heroTitle: {
+    fontSize: 28,
     fontWeight: '800',
-    marginBottom: 2,
-  },
-  organizationId: {
-    fontSize: 12,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  stat: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    color: '#ffffff',
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
+  heroSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '500',
   },
-  tabsContainer: {
+  floatingStats: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    marginHorizontal: 16,
-    marginVertical: 12,
+    gap: 10,
+    marginHorizontal: -5,
   },
-  tab: {
+  floatingStat: {
     flex: 1,
     paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
     alignItems: 'center',
-    borderBottomWidth: 0,
+    justifyContent: 'center',
+    backdropFilter: 'blur(10px)',
   },
-  tabLabel: {
-    fontSize: 14,
+  floatingStatValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  floatingStatLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  // Modern Tab Styles
+  tabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  modernTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  modernTabActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernTabLabel: {
+    fontSize: 13,
     fontWeight: '600',
   },
   contentContainer: {
@@ -545,6 +567,63 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Old styles (keeping for reference)
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  organizationCard: {
+    borderRadius: 12,
+    padding: 16,
+  },
+  organizationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  organizationInfo: {
+    flex: 1,
+  },
+  organizationName: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  organizationId: {
+    fontSize: 12,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 0,
+  },
+  tabLabel: {
     fontSize: 14,
     fontWeight: '600',
   },
