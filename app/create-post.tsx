@@ -63,7 +63,8 @@ export default function CreatePostScreen() {
   const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   
   const [content, setContent] = useState('');
-  const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string } | null>(null);
+  const [picked, setPicked] = useState<{ uri: string; type: 'image' | 'video'; mime?: string; width?: number; height?: number } | null>(null);
+  const [mediaDimensions, setMediaDimensions] = useState<{ width: number; height: number } | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | undefined>(gameId);
   const [suggestedGame, setSuggestedGame] = useState<any>(null);
   const [nearbyGames, setNearbyGames] = useState<any[]>([]);
@@ -76,6 +77,33 @@ export default function CreatePostScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
+
+  // Get media dimensions when picked (for aspect ratio in preview)
+  useEffect(() => {
+    if (!picked || picked.type !== 'image') {
+      setMediaDimensions(null);
+      return;
+    }
+
+    (async () => {
+      try {
+        const { Image: RNImageModule } = require('react-native');
+        RNImageModule.getSize(
+          picked.uri,
+          (width: number, height: number) => {
+            setMediaDimensions({ width, height });
+          },
+          () => {
+            // Fallback if getSize fails
+            setMediaDimensions({ width: 16, height: 9 });
+          }
+        );
+      } catch (e) {
+        console.warn('Failed to get image dimensions:', e);
+        setMediaDimensions(null);
+      }
+    })();
+  }, [picked?.uri, picked?.type]);
 
   // Rotate placeholder prompts
   useEffect(() => {
@@ -706,13 +734,19 @@ export default function CreatePostScreen() {
                   {previewData.media.type === 'image' ? (
                     <RNImage 
                       source={{ uri: previewData.media.uri }} 
-                      style={styles.previewMediaFull}
-                      resizeMode="cover"
+                      style={[
+                        styles.previewMediaFull,
+                        mediaDimensions && { aspectRatio: mediaDimensions.width / mediaDimensions.height }
+                      ]}
+                      resizeMode="contain"
                     />
                   ) : (
                     <VideoPlayer 
                       uri={previewData.media.uri} 
-                      style={styles.previewMediaFull}
+                      style={[
+                        styles.previewMediaFull,
+                        mediaDimensions && { aspectRatio: mediaDimensions.width / mediaDimensions.height }
+                      ]}
                       autoPlay={false}
                     />
                   )}
@@ -1432,7 +1466,7 @@ const styles = StyleSheet.create({
   },
   previewMediaFull: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    minHeight: 300,
     backgroundColor: '#F3F4F6',
   },
   retakeButton: {
