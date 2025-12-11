@@ -7,32 +7,32 @@ version: v1.29.0
 ignore:
   SNYK-JS-SENTRYCORE-14105053:
     - '*':
-        reason: "Transitive dependency in @sentry/react-native@7.7.0. Fixed in @sentry/core@10.27.0 but react-native version pins older Sentry. Pending upstream release."
-        expires: "2025-12-31T23:59:59Z"
-  
+        reason: 'Transitive dependency in @sentry/react-native@7.7.0. Fixed in @sentry/core@10.27.0 but react-native version pins older Sentry. Pending upstream release.'
+        expires: '2025-12-31T23:59:59Z'
+
   # Test fixtures with hardcoded credentials - these are non-production test values only
   # All are in test files (__tests__) and mock-server.js (development only)
   javascript/HardcodedNonCryptoSecret/test:
-    - path: server/src/__tests__/auth.test.ts
-        reason: "Test fixtures use hardcoded test credentials for unit testing. Non-production values. Production uses environment variables."
-        expires: "2099-12-31T23:59:59Z"
-  
+    - 'server/src/__tests__/auth.test.ts':
+        reason: 'Test fixtures use hardcoded test credentials for unit testing. Non-production values. Production uses environment variables.'
+        expires: '2099-12-31T23:59:59Z'
+
   javascript/NoHardcodedCredentials:
-    - path: server/mock-server.js
-        reason: "Mock development server only - never runs in production (throws error if NODE_ENV is production). Uses hardcoded mock credentials for development/testing."
-        expires: "2099-12-31T23:59:59Z"
-    - path: server/src/lib/email.ts
-        reason: "SENDGRID_API_KEY is initialized from environment variable, not hardcoded. snyk:ignore directive in code."
-        expires: "2099-12-31T23:59:59Z"
-  
+    - 'server/mock-server.js':
+        reason: 'Mock development server only - never runs in production (throws error if NODE_ENV is production). Uses hardcoded mock credentials for development/testing.'
+        expires: '2099-12-31T23:59:59Z'
+    - 'server/src/lib/email.ts':
+        reason: 'SENDGRID_API_KEY is initialized from environment variable, not hardcoded. snyk:ignore directive in code.'
+        expires: '2099-12-31T23:59:59Z'
+
   javascript/NoHardcodedPasswords/test:
-    - path: server/src/__tests__/auth.test.ts
-        reason: "Test fixtures use hardcoded test passwords for unit testing. Non-production values. Production uses environment variables."
-        expires: "2099-12-31T23:59:59Z"
-  
+    - 'server/src/__tests__/auth.test.ts':
+        reason: 'Test fixtures use hardcoded test passwords for unit testing. Non-production values. Production uses environment variables.'
+        expires: '2099-12-31T23:59:59Z'
+
   javascript/InsecureHash:
-    - path: server/src/lib/cloudinary.ts
-        reason: "Cloudinary API requires SHA-1 for request signature authentication per their official documentation. Not a password hash. See: https://cloudinary.com/documentation/upload_widget#signed_uploads"
-        expires: "2099-12-31T23:59:59Z"
+    - 'server/src/lib/cloudinary.ts':
+        reason: 'Cloudinary API requires SHA-1 for request signature authentication per their official documentation. Not a password hash. See: https://cloudinary.com/documentation/upload_widget#signed_uploads'
+        expires: '2099-12-31T23:59:59Z'
 
 patch: {}
