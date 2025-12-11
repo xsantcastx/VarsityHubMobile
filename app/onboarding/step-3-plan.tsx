@@ -20,7 +20,7 @@ type PlanOption = {
   features: string[];
 };
 
-const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map(plan => ({
+const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map((plan) => ({
   id: plan.id,
   name: plan.name,
   icon: plan.icon,
@@ -29,10 +29,6 @@ const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map(plan => (
   priceId: plan.priceId,
   features: plan.features,
 }));
-      'Create extracurricular clubs - Theater, Chess, etc.',
-    ],
-  },
-];
 
 function PlanCard({ option, selected, onPress, onContinue, saving }: { option: PlanOption; selected: boolean; onPress: () => void; onContinue?: () => void; saving?: boolean }) {
   const colorScheme = useColorScheme();

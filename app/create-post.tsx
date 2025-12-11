@@ -734,19 +734,19 @@ export default function CreatePostScreen() {
                   {previewData.media.type === 'image' ? (
                     <RNImage 
                       source={{ uri: previewData.media.uri }} 
-                      style={[
-                        styles.previewMediaFull,
-                        mediaDimensions && { aspectRatio: mediaDimensions.width / mediaDimensions.height }
-                      ]}
+                    style={[
+                      styles.previewMediaFull,
+                      mediaDimensions ? { aspectRatio: mediaDimensions.width / mediaDimensions.height } : undefined,
+                    ]}
                       resizeMode="contain"
                     />
                   ) : (
                     <VideoPlayer 
                       uri={previewData.media.uri} 
-                      style={[
-                        styles.previewMediaFull,
-                        mediaDimensions && { aspectRatio: mediaDimensions.width / mediaDimensions.height }
-                      ]}
+                    style={[
+                      styles.previewMediaFull,
+                      mediaDimensions ? { aspectRatio: mediaDimensions.width / mediaDimensions.height } : undefined,
+                    ]}
                       autoPlay={false}
                     />
                   )}

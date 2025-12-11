@@ -104,6 +104,7 @@ export default function Step9Features() {
         }).catch(() => {
           setNotificationsEnabled(false);
         });
+      }
     },
     [isDevice, registerPushToken]
   );

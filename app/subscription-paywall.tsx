@@ -5,7 +5,7 @@
  * Allows coaches to select and upgrade their subscription
  */
 
-import { getAuthToken, getApiBaseUrl } from '@/api/http';
+import { getApiBaseUrl, getAuthToken } from '@/api/http';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -15,14 +15,14 @@ import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 

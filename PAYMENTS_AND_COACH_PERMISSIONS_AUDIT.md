@@ -367,171 +367,42 @@ useEffect(() => {
 
 ---
 
-### Gap 2: No Centralized Plan Metadata File ⚠️
-**Severity:** Low  
-**Description:** Plan definitions are scattered across three files. Future changes (e.g., pricing, features) require updates in multiple places, increasing risk of inconsistency.
+### ✅ Gap 2: Centralized Plan Metadata *(Resolved)*
+**Severity:** Low → **Resolved 2025-12-11**  
+**Fix:** `shared/plan-definitions.json`, `constants/plans.ts`, `server/src/lib/planLimits.ts`
 
-**Current Locations:**
-- Type definition: `context/OnboardingContext.tsx` (Plan type)
-- UI/Features: `app/onboarding/step-3-plan.tsx` (PLAN_OPTIONS)
-- Enforcement: `server/src/routes/teams.ts` + `organizations.ts` (limits)
+- Introduced `shared/plan-definitions.json` as canonical data (includes pricing, limits, features, billing copy).
+- Frontend wrapper (`constants/plans.ts`) imports JSON once, exposes typed helpers (`normalizePlan`, `getAllPlans`, etc.).
+- Backend now consumes the same JSON via `server/src/lib/planLimits.ts` to calculate max teams, authorized user caps, and extracurricular access.
+- All plan checks in `server/src/routes/teams.ts`, `.../organizations.ts`, and `middleware/subscription.ts` now call the shared helpers.
 
-**Recommended Fix:** Create `constants/plans.ts` (or `plans.config.ts`)
-
-```typescript
-// constants/plans.ts
-export const PLAN_DEFINITIONS = {
-  rookie: {
-    name: 'Rookie',
-    icon: 'people' as const,
-    price: 'First two teams free',
-    priceId: null,
-    max_teams: 2,
-    max_authorized_users_per_team: 1,
-    max_authorized_users_org: 1,
-    supports_extracurricular: false,
-    features: [
-      'Entry-level access',
-      'First two teams free',
-      'Assign one administrator per team',
-    ],
-  },
-  veteran: {
-    name: 'Veteran',
-    icon: 'trophy' as const,
-    price: '$2.50',
-    period: '/ month per team added',
-    priceId: 'prod_RNLc2l1BdUdSn9',
-    max_teams: 999, // unlimited
-    max_authorized_users_per_team: 2,
-    max_authorized_users_org: (teamCount) => teamCount * 2,
-    supports_extracurricular: false,
-    features: [
-      'Everything in Rookie',
-      '$2.50/month per additional team (3+ only)',
-      'Up to 2 authorized users per team',
-    ],
-  },
-  legend: {
-    name: 'Legend',
-    icon: 'medal' as const,
-    price: '$19.99',
-    period: '/ year',
-    priceId: 'prod_RNLdYADy7i6dB5',
-    max_teams: 999, // unlimited
-    max_authorized_users_per_team: 999, // unlimited
-    max_authorized_users_org: 999, // unlimited
-    supports_extracurricular: true,
-    features: [
-      'Everything in Veteran',
-      'Unlimited teams',
-      'Create extracurricular clubs - Theater, Chess, etc.',
-    ],
-  },
-} as const;
-
-export type Plan = keyof typeof PLAN_DEFINITIONS;
-```
-
-**Usage in Components:**
-```tsx
-// app/onboarding/step-3-plan.tsx
-import { PLAN_DEFINITIONS } from '@/constants/plans';
-
-const PLAN_OPTIONS = Object.entries(PLAN_DEFINITIONS).map(([id, def]) => ({
-  id: id as Plan,
-  ...def
-}));
-```
-
-**Impact:** Single source of truth; reduces bugs from inconsistency.
+**Impact:** One edit updates onboarding UI, billing copy, team limits, and authorization rules simultaneously. Eliminates “drift” between client and server definitions.
 
 ---
 
-### Gap 3: Payment Success Doesn't Proactively Refresh User State ⚠️
-**Severity:** Low  
-**Description:** After Stripe callback, the payment-success screen checks if `User.me()` has the updated plan. If the webhook hasn't processed yet, the check fails and shows "verification pending" message.
+### ✅ Gap 3: Payment Success Polling *(Resolved)*
+**Severity:** Low → **Resolved 2025-12-11**  
+**Fix:** `app/payment-success.tsx`
 
-**Current Code:**
-```tsx
-// app/payment-success.tsx (lines 27-40)
-useEffect(() => {
-  const verifyPayment = async () => {
-    const me = await User.me();
-    const plan = me?.preferences?.plan;
-    const pending = me?.preferences?.payment_pending;
-    
-    if ((plan === 'veteran' || plan === 'legend') && pending === false) {
-      setSessionVerified(true);  // ✅ Success
-    } else {
-      // Webhook might still be processing
-      setError('Payment verification still pending. Please try again in a moment.');
-    }
-  };
-}, []);
-```
+- Maintains a single retry timer with cleanup, preventing overlapping `setTimeout` loops.
+- Surfaces attempt count + “last checked” timestamp in the UI so users know progress while waiting for Stripe webhooks.
+- Manual “Check status” action now resets the attempt counter, clears pending timers, and triggers a fresh verification.
+- Dev logging moved behind `__DEV__` guards to keep production consoles noise-free while still allowing debug tracing.
 
-**Race Condition:** Webhook processes asynchronously. If user reaches payment-success before webhook completes, they see an error.
-
-**Recommended Fix:** Add polling/retry logic:
-
-```tsx
-const [verificationAttempt, setVerificationAttempt] = useState(0);
-const maxAttempts = 5;
-
-useEffect(() => {
-  const verifyPayment = async () => {
-    try {
-      const me = await User.me();
-      const plan = me?.preferences?.plan;
-      const pending = me?.preferences?.payment_pending;
-      
-      if ((plan === 'veteran' || plan === 'legend') && pending === false) {
-        setSessionVerified(true);
-      } else if (verificationAttempt < maxAttempts - 1) {
-        // Retry after 2 seconds
-        setTimeout(() => {
-          setVerificationAttempt(attempt => attempt + 1);
-        }, 2000);
-      } else {
-        setError('Payment verification timed out. Please refresh.');
-      }
-    } catch (err) {
-      console.error('Verification failed:', err);
-    }
-  };
-  
-  verifyPayment();
-}, [verificationAttempt]);
-```
-
-**Impact:** Eliminates false "pending" messages due to webhook delays.
+**Impact:** Eliminates the false “pending” limbo—users either see a confirmed success, actionable error, or can continue to the app confidently after five retries.
 
 ---
 
-### Gap 4: Billing Screen Messaging References Old "6-Month Trial" ⚠️
-**Severity:** Low  
-**Description:** The audit summary mentions billing.tsx may contain outdated copy referencing trial periods that no longer exist.
+### ✅ Gap 4: Billing Copy References *(Resolved)*
+**Severity:** Low → **Resolved 2025-12-11**  
+**Fix:** `app/billing.tsx`
 
-**Current Code:**
-```tsx
-// app/billing.tsx (lines 66-75)
-{summary?.plan === 'veteran' && (
-  <View style={styles.banner}>
-    <Text style={styles.bannerTitle}>Veteran Plan</Text>
-    <Text style={styles.bannerLine}>Paid teams: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
-    <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ...}</Text></Text>
-    {!!summary.current_period_end && (
-      <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
-    )}
-  </View>
-)}
-```
+- Billing screen now imports `PLAN_DEFINITIONS` so copy, features, and pricing originate from the shared config.
+- Added plan summary card (badge, price, CTA copy, feature checklist) with zero mentions of “trials” or temporary discounts.
+- Subtitle clarifies that Rookie is permanently free for two teams and paid tiers renew automatically.
+- Promo section copy updated to reflect production behavior (“Promo code” instead of “Demo subtotal”).
 
-**Check Needed:** Verify that:
-- ✓ No "6-month trial" language in billing.tsx
-- ✓ No "first month free" references
-- ✓ Descriptions match PLAN_OPTIONS (rookie = 2 free, veteran = $2.50/month per additional team)
+**Impact:** All user-facing billing language now matches the live pricing model (free rookie, metered veteran, flat legend) with no lingering “6‑month trial” references.
 
 ---
 
@@ -630,32 +501,34 @@ useEffect(() => {
 | Admin bypass working | ✅ | ADMIN_EMAILS check in auth |
 | Payment success page verifies | ✅ | Checks User.me() for updated plan |
 | Proactive team limits UI | ✅ | app/create-team.tsx fetches `/teams/limits`, disables CTA, shows upgrade link |
-| Centralized plan metadata | ⚠️ | Definitions scattered across files |
-| Billing copy up to date | ⚠️ | Needs review for trial/free messaging |
-| Webhook retry logic | ⚠️ | No retry on payment-success screen |
+| Centralized plan metadata | ✅ | shared/plan-definitions.json + planLimits helpers |
+| Billing copy up to date | ✅ | app/billing.tsx pulls copy from PLAN_DEFINITIONS |
+| Webhook retry logic | ✅ | payment-success.tsx polling + status UI |
 
 ---
 
 ## 🎯 Priority Fixes (Before Launch)
 
-### P1: Review Billing Copy
-**Task:** Audit `app/billing.tsx` for outdated trial/free messaging  
-**Effort:** 30 minutes  
-**Impact:** High (prevents user confusion)
+### ✅ Completed: Billing Copy Refresh (Gap 4)
+**Delivered:** `app/billing.tsx`
+
+- Plan card + feature list derive from `PLAN_DEFINITIONS`.
+- Subtitle clarifies Rookie is permanently free; Veteran/Legend renew automatically.
+- Removed “demo subtotal” phrasing; promo section now reflects production flows.
 
 ### ✅ Completed: Proactive Team Limits UI (Gap 1)
 **Delivered:** `app/create-team.tsx`, `api/entities.ts`  
 **Result:** Coaches now see their plan tier, owned/max teams, remaining slots, and a disabled CTA with upgrade link when limits are hit. `/teams/limits` errors surface inline instead of silently failing.
 
-### P3: Add Payment Verification Retry Logic (Gap 3)
-**Task:** Implement polling in payment-success.tsx for webhook processing  
-**Effort:** 1 hour  
-**Impact:** Medium (eliminates false "pending" errors)
+### ✅ Completed: Payment Verification Polling (Gap 3)
+- Managed retry loop with cleanup, attempt counter, and last-checked timestamp.
+- Manual “Check status” resets attempts + timers for deterministic retrials.
+- Dev logs gated by `__DEV__` to keep prod builds clean.
 
-### P4: Create Centralized Plans Config (Gap 2)
-**Task:** Extract PLAN_DEFINITIONS to constants/plans.ts, update imports  
-**Effort:** 2-3 hours  
-**Impact:** Medium (reduces tech debt, improves maintainability)
+### ✅ Completed: Centralized Plans Config (Gap 2)
+- Canonical data file: `shared/plan-definitions.json`.
+- Frontend wrapper: `constants/plans.ts` (typed helpers, normalizePlan).
+- Backend helpers: `server/src/lib/planLimits.ts` used by teams/orgs/subscription middleware.
 
 ---
 

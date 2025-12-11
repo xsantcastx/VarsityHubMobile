@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma.js';
+import { getAuthorizedUsersOrgLimit, resolvePlan as resolveOnboardingPlan } from '../lib/planLimits.js';
 
 // Canonical tiers stored in user.subscription_tier column (legacy): free | premium | pro
 // New onboarding-facing tiers (preferences.plan): rookie | veteran | legend
@@ -87,10 +88,8 @@ export function requirePlan(minPlan: AnyTier) {
 // Helper to compute authorized user limit for a given plan & team count
 // Rookie: 1 total per team; Veteran: 2 per owned team (team_count_total * 2); Legend: unlimited (null)
 export function computeAuthorizedUserLimit(plan: AnyTier, teamCountTotal: number): number | null {
-  const canonical = toCanonical(plan);
-  if (canonical === 'free') return 1; // rookie
-  if (canonical === 'premium') return Math.max(2, teamCountTotal * 2); // veteran (fallback minimum 2 if teamCountTotal missing)
-  return null; // pro / legend unlimited
+  const onboardingPlan = resolveOnboardingPlan(plan);
+  return getAuthorizedUsersOrgLimit(onboardingPlan, teamCountTotal);
 }
 
 // Convenience gate you can call inline (returns error payload or null)

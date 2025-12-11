@@ -1,9 +1,25 @@
 import { useEventListener } from 'expo';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import React from 'react';
-import { ViewStyle } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 
-export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true, paused }: { uri: string; style?: ViewStyle; onEnd?: () => void; autoPlay?: boolean; nativeControls?: boolean; paused?: boolean }) {
+interface VideoPlayerProps {
+  uri: string;
+  style?: StyleProp<ViewStyle>;
+  onEnd?: () => void;
+  autoPlay?: boolean;
+  nativeControls?: boolean;
+  paused?: boolean;
+}
+
+export function VideoPlayer({
+  uri,
+  style,
+  onEnd,
+  autoPlay,
+  nativeControls = true,
+  paused,
+}: VideoPlayerProps) {
   const player = useVideoPlayer(uri, (p) => {
     if (autoPlay && !paused) {
       try { p.play(); } catch {}
@@ -36,7 +52,7 @@ export function VideoPlayer({ uri, style, onEnd, autoPlay, nativeControls = true
 
   return (
     <VideoView
-      style={style as any}
+      style={style}
       player={player}
       nativeControls={nativeControls}
       allowsFullscreen

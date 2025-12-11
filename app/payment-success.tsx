@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,15 +16,25 @@ export default function PaymentSuccessScreen() {
   const [error, setError] = useState<string | null>(null);
   const [sessionVerified, setSessionVerified] = useState(false);
   const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const [lastVerificationAt, setLastVerificationAt] = useState<Date | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Check if this is an ad payment (type=ad) or subscription payment
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
   const maxVerificationAttempts = 5;
 
+  const clearRetryTimeout = () => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  };
+
   useEffect(() => {
     const verifyPayment = async () => {
       try {
+        setLastVerificationAt(new Date());
         if (params.session_id) {
           // For ad payments, manually finalize the session
           if (isAdPayment) {
@@ -53,9 +63,15 @@ export default function PaymentSuccessScreen() {
                 setLoading(false);
               } else if (verificationAttempt < maxVerificationAttempts - 1) {
                 // Webhook might still be processing, retry after 2 seconds
-                console.log(`[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`);
-                setTimeout(() => {
-                  setVerificationAttempt(attempt => attempt + 1);
+                if (__DEV__) {
+                  // eslint-disable-next-line no-console
+                  console.log(
+                    `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
+                  );
+                }
+                clearRetryTimeout();
+                retryTimeoutRef.current = setTimeout(() => {
+                  setVerificationAttempt((attempt) => attempt + 1);
                 }, 2000);
               } else {
                 // Max retries reached
@@ -72,8 +88,9 @@ export default function PaymentSuccessScreen() {
               } else {
                 // Retry on error
                 console.warn('[payment-success] User.me() failed, retrying...', _error);
-                setTimeout(() => {
-                  setVerificationAttempt(attempt => attempt + 1);
+                clearRetryTimeout();
+                retryTimeoutRef.current = setTimeout(() => {
+                  setVerificationAttempt((attempt) => attempt + 1);
                 }, 2000);
               }
             }
@@ -86,8 +103,11 @@ export default function PaymentSuccessScreen() {
       }
     };
 
-    verifyPayment();
-  }, [params.session_id, isAdPayment, verificationAttempt]);
+    void verifyPayment();
+    return () => {
+      clearRetryTimeout();
+    };
+  }, [params.session_id, isAdPayment, verificationAttempt, router]);
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type
@@ -103,22 +123,28 @@ export default function PaymentSuccessScreen() {
   };
 
   const handleRetryVerification = async () => {
+    clearRetryTimeout();
     setLoading(true);
     setError(null);
+    setVerificationAttempt(0);
     
     try {
+      setLastVerificationAt(new Date());
       const me = await User.me();
       if (me?.preferences?.payment_pending === false) {
         setSessionVerified(true);
       } else {
         setError('Payment verification still pending. Please try again in a moment.');
       }
-    } catch (err: any) {
+    } catch {
       setError('Unable to verify payment status');
     } finally {
       setLoading(false);
     }
   };
+
+  const attemptLabel = `${Math.min(verificationAttempt + 1, maxVerificationAttempts)}/${maxVerificationAttempts}`;
+  const lastCheckedLabel = lastVerificationAt ? lastVerificationAt.toLocaleTimeString() : null;
 
   return (
     <>
@@ -134,6 +160,10 @@ export default function PaymentSuccessScreen() {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2563EB" />
               <Text style={styles.loadingText}>Verifying payment...</Text>
+              <Text style={styles.loadingMeta}>
+                Attempt {attemptLabel}
+                {lastCheckedLabel ? ` • Checked at ${lastCheckedLabel}` : ''}
+              </Text>
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
@@ -202,6 +232,10 @@ export default function PaymentSuccessScreen() {
               <Text style={styles.pendingText}>
                 Your payment is being processed. This may take a few moments.
               </Text>
+              <Text style={styles.loadingMeta}>
+                Attempt {attemptLabel}
+                {lastCheckedLabel ? ` • Last checked ${lastCheckedLabel}` : ''}
+              </Text>
               <View style={styles.buttonContainer}>
                 <PrimaryButton 
                   label="Check Status" 
@@ -242,6 +276,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6B7280',
+    textAlign: 'center',
+  },
+  loadingMeta: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#9CA3AF',
     textAlign: 'center',
   },
   successContainer: {

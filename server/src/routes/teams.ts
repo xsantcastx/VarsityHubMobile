@@ -7,6 +7,13 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import {
+  getAuthorizedUsersOrgLimit,
+  getAuthorizedUsersPerTeam,
+  getMaxTeamsForPlan,
+  planSupportsExtracurricular,
+  resolvePlan,
+} from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
 
@@ -92,15 +99,17 @@ teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res
     }
   });
   
-  const maxTeams = (user as any).max_teams ?? 2;
-  const canCreateMore = ownedTeamsCount < maxTeams;
-  const subscriptionTier = (user as any).subscription_tier ?? 'free';
+  const prefs = ((user as any).preferences ?? {}) as Record<string, unknown>;
+  const subscriptionTier = resolvePlan((prefs as any).plan || (user as any).subscription_tier);
+  const maxTeams = getMaxTeamsForPlan(subscriptionTier);
+  const canCreateMore = maxTeams === null ? true : ownedTeamsCount < maxTeams;
+  const remaining = maxTeams === null ? null : Math.max(0, maxTeams - ownedTeamsCount);
   
   return res.json({
     owned_teams: ownedTeamsCount,
     max_teams: maxTeams,
     can_create_more: canCreateMore,
-    remaining: Math.max(0, maxTeams - ownedTeamsCount),
+    remaining,
     subscription_tier: subscriptionTier,
     upgrade_required: !canCreateMore
   });
@@ -291,18 +300,13 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
   });
   
-  // Determine max teams based on plan
-  const plan = prefs.plan || 'rookie';
-  let maxTeams = 2; // Default for rookie
+  const plan = resolvePlan(prefs.plan);
+  const maxTeams = getMaxTeamsForPlan(plan);
   
-  if (plan === 'veteran' || plan === 'legend') {
-    maxTeams = 999; // Unlimited (practical limit)
-  }
-  
-  if (ownedTeamsCount >= maxTeams) {
+  if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
     return res.status(403).json({ 
       error: 'Team limit reached',
-      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade your plan to create more teams.`,
+      message: `You've reached your ${plan} plan limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade your plan to create more teams.`,
       owned_teams: ownedTeamsCount,
       max_teams: maxTeams,
       current_plan: plan,
@@ -512,7 +516,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   
   // Check team limit for free tier (Rookie plan)
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = prefs.plan || 'rookie';
+  const userPlan = resolvePlan(prefs.plan);
   const userRole = prefs.role || 'fan';
 
   // Enforce coach role requirement for team creation
@@ -524,9 +528,17 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     });
   }
   
+  const ownedTeamsCount = await prisma.teamMembership.count({
+    where: {
+      user_id: me.id,
+      role: 'owner',
+      status: 'active',
+    },
+  });
+
   // Legend tier restriction: Only Legend users can create extracurricular clubs
   const clubType = data.club_type || 'sport';
-  if (clubType === 'extracurricular' && userPlan !== 'legend') {
+  if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
       message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
@@ -534,38 +546,21 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       feature: 'extracurricular_clubs',
     });
   }
-  
-  // Rookie plan: max 2 teams as owner
-  if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
-    const ownedTeamsCount = await prisma.teamMembership.count({
-      where: {
-        user_id: me.id,
-        role: 'owner',
-        status: 'active',
-      },
+
+  // Enforce max teams for current plan (null means unlimited)
+  const planTeamCap = getMaxTeamsForPlan(userPlan);
+  if (planTeamCap !== null && ownedTeamsCount >= planTeamCap) {
+    return res.status(403).json({
+      error: 'Team limit reached',
+      message: `Your ${userPlan} plan allows ${planTeamCap} team${planTeamCap === 1 ? '' : 's'}. Upgrade to create more.`,
+      code: 'TEAM_LIMIT_EXCEEDED',
+      limit: planTeamCap,
+      current: ownedTeamsCount,
     });
-    
-    if (ownedTeamsCount >= 2) {
-      return res.status(403).json({ 
-        error: 'Team limit reached',
-        message: "You've reached your free limit (2 teams). Upgrade to add more.",
-        code: 'TEAM_LIMIT_EXCEEDED',
-        limit: 2,
-        current: ownedTeamsCount,
-      });
-    }
   }
   
   // Veteran plan: verify subscription quantity matches team count
   if (userPlan === 'veteran') {
-    const ownedTeamsCount = await prisma.teamMembership.count({
-      where: {
-        user_id: me.id,
-        role: 'owner',
-        status: 'active',
-      },
-    });
-    
     const subscriptionId = prefs.subscription_id;
     if (!subscriptionId) {
       return res.status(403).json({
@@ -613,26 +608,6 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   }
   
   // Create team
-  // PLAN LIMITS: Enforce Rookie 2-team maximum (owned teams only)
-  try {
-    const userPrefs = me.preferences as any;
-    const userPlan = (userPrefs?.plan || userPrefs?.role === 'coach' && 'rookie') || 'rookie';
-    if (userPlan === 'rookie') {
-      const ownedCount = await prisma.teamMembership.count({
-        where: { user_id: me.id, role: 'owner' }
-      });
-      if (ownedCount >= 2) {
-        return res.status(403).json({
-          error: 'TEAM_LIMIT_REACHED',
-          message: 'Rookie plan allows a maximum of 2 teams. Upgrade to Veteran or Legend for more.',
-          limit: 2,
-          current: ownedCount
-        });
-      }
-    }
-  } catch (e) {
-    console.warn('[teams][rookie-limit] check failed', e);
-  }
   const team = await prisma.team.create({ 
     data: {
       name: data.name,
@@ -666,23 +641,14 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   
   // Send invites to authorized users
   if (data.authorized_users && data.authorized_users.length > 0) {
-    // PLAN LIMITS: Enforce authorized users limit by plan
-    // Rookie: 1 authorized user max per team
-    // Veteran: 5 authorized users max per team
-    // Legend: Unlimited
-    let maxAuthorizedUsers = 1; // Default rookie limit
-    if (userPlan === 'veteran') {
-      maxAuthorizedUsers = 5;
-    } else if (userPlan === 'legend') {
-      maxAuthorizedUsers = 999; // Unlimited (practical limit)
-    }
+    const perTeamLimit = getAuthorizedUsersPerTeam(userPlan);
     
-    if (data.authorized_users.length > maxAuthorizedUsers) {
+    if (perTeamLimit !== null && data.authorized_users.length > perTeamLimit) {
       return res.status(403).json({
         error: 'Authorized users limit exceeded',
-        message: `Your ${userPlan} plan allows ${maxAuthorizedUsers} authorized user${maxAuthorizedUsers > 1 ? 's' : ''}. You attempted to add ${data.authorized_users.length}.`,
+        message: `Your ${userPlan} plan allows ${perTeamLimit} authorized user${perTeamLimit > 1 ? 's' : ''} per team. You attempted to add ${data.authorized_users.length}.`,
         code: 'AUTH_USERS_LIMIT_EXCEEDED',
-        limit: maxAuthorizedUsers,
+        limit: perTeamLimit,
         attempted: data.authorized_users.length,
         current_plan: userPlan,
         upgrade_required: true
@@ -738,14 +704,11 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const prefs = (user?.preferences || {}) as any;
-    const plan = prefs.plan || 'rookie';
-    let limit: number | null = null;
-    if (plan === 'rookie') limit = 1;
-    else if (plan === 'veteran') {
-      const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } });
-      limit = (teamCountTotal * 2) || 12; // fallback 12
-    }
-    // legend => unlimited
+    const plan = resolvePlan(prefs.plan);
+    const teamCountTotal =
+      prefs.team_count_total ||
+      (await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } }));
+    const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
     if (limit !== null) {
       const inviteCount = await prisma.teamInvite.count({ where: { team_id: id, status: 'pending' } });
       const memberCount = await prisma.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
@@ -753,7 +716,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       if (totalAuthorized >= limit) {
         return res.status(403).json({
           error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} (${plan === 'veteran' ? '2 per team' : 'Rookie max'}).`,
+          message: `Plan limit reached. The ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} across your staff.`,
           limit,
           current: totalAuthorized
         });

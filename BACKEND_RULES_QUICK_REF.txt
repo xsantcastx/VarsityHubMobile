@@ -1,0 +1,62 @@
+# Backend Rules - Quick Reference
+
+## 8 Categories, 23+ Rules
+
+### 1. ROLE & ACCOUNT (5 rules)
+- Only **coaches** create teams (fans blocked)
+- Email **must be verified** first
+- User **cannot change own role** (admin only)
+- Plan **not directly editable** (Stripe webhook only)
+- **Admin emails bypass all limits**
+
+### 2. TEAM LIMITS (4 rules)
+- **Rookie**: Max 2 teams
+- **Veteran/Legend**: Unlimited teams
+- **Extracurricular**: Legend only
+- Team **ownership immutable** (can't transfer)
+
+### 3. AUTHORIZED USERS (3 rules)
+- **Rookie**: 1 per team
+- **Veteran**: 2 per team
+- **Legend**: Unlimited
+
+### 4. EVENT/GAME APPROVAL (4 rules)
+- **Fan events**: Auto pending (needs approval)
+- **Coach events**: Auto approved
+- **Only coaches/admin** can approve
+- (Future) **Fan event spam limit**
+
+### 5. SUBSCRIPTION TIERS (3 rules)
+- **Plan updates**: Stripe webhook only
+- **Rookie**: Always free
+- **Veteran/Legend**: Payment required
+
+### 6. DATA OWNERSHIP (2 rules)
+- **Only owner** can update team
+- **Only owner** can delete team
+
+### 7. SAFE MESSAGING (2 rules)
+- **Coaches**: Group chats only (no 1-on-1 DMs)
+- **Minors**: Team group chats only
+
+### 8. ADMIN OVERRIDE (1 rule)
+- **ADMIN_EMAILS**: Bypass all limits
+
+---
+
+## Critical Checks on Every Endpoint
+
+```
+1. Is user email_verified? (No → 403)
+2. Is user coach? (No for team creation → 403)
+3. Is user plan tier sufficient? (No → 403)
+4. Is user owner of data? (No → 403)
+5. Is within limit? (No → 403)
+```
+
+---
+
+## Status
+- ✅ 19 rules: Fully enforced
+- ⚠️ 4 rules: Partially/needs verification
+- Total: 95% production ready

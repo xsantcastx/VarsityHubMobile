@@ -1,0 +1,73 @@
+{
+  "rookie": {
+    "id": "rookie",
+    "name": "Rookie",
+    "icon": "people",
+    "price": "First two teams free",
+    "period": "",
+    "priceId": null,
+    "max_teams": 2,
+    "max_authorized_users_per_team": 1,
+    "authorized_users_org_strategy": {
+      "type": "fixed",
+      "value": 1
+    },
+    "supports_extracurricular": false,
+    "features": [
+      "Entry-level access",
+      "First two teams free forever",
+      "Assign one administrator per team"
+    ],
+    "billing": {
+      "description": "Free for up to two teams. Upgrade only when you need more.",
+      "cta": "Perfect for coaches getting started."
+    }
+  },
+  "veteran": {
+    "id": "veteran",
+    "name": "Veteran",
+    "icon": "trophy",
+    "price": "$2.50",
+    "period": "/ month per additional team",
+    "priceId": "prod_RNLc2l1BdUdSn9",
+    "max_teams": null,
+    "max_authorized_users_per_team": 5,
+    "authorized_users_org_strategy": {
+      "type": "per_team",
+      "value": 5
+    },
+    "supports_extracurricular": false,
+    "features": [
+      "Everything in Rookie",
+      "$2.50/month per additional team (3+ total)",
+      "Up to 5 authorized staff per team"
+    ],
+    "billing": {
+      "description": "Pay only for teams beyond the first two freebies.",
+      "cta": "Scale to multiple programs with predictable monthly pricing."
+    }
+  },
+  "legend": {
+    "id": "legend",
+    "name": "Legend",
+    "icon": "medal",
+    "price": "$19.99",
+    "period": "/ year",
+    "priceId": "prod_RNLdYADy7i6dB5",
+    "max_teams": null,
+    "max_authorized_users_per_team": null,
+    "authorized_users_org_strategy": {
+      "type": "unlimited"
+    },
+    "supports_extracurricular": true,
+    "features": [
+      "Everything in Veteran",
+      "Unlimited teams and staff",
+      "Create extracurricular clubs (Theater, Chess, Debate, etc.)"
+    ],
+    "billing": {
+      "description": "Flat annual pricing for unlimited programs and staff.",
+      "cta": "Best choice for districts running every sport and club."
+    }
+  }
+}

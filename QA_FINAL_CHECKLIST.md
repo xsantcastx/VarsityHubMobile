@@ -1,6 +1,8 @@
 # VarsityHub iOS - Final QA Checklist
 **December 11, 2025**
 
+> ⚠️ **Status:** Not executed inside this CLI environment (simulator/TestFlight access required). Use the steps below to run the flows on your device, then mark each checkbox accordingly.
+
 ---
 
 ## 🚀 CRITICAL PATH TEST (5-10 minutes)

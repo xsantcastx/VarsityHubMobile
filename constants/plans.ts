@@ -1,13 +1,36 @@
 /**
  * Centralized Plan Definitions
- * 
+ *
  * Single source of truth for plan features, limits, and pricing.
- * Used by:
- * - Frontend: Step 3 plan selection, billing screens, UI components
- * - Backend: team creation, authorized user limits, extracurricular restrictions
+ * Shared between the mobile app (via this wrapper) and the backend (via shared/plan-definitions.json).
  */
 
+import planDefinitionsData from '../shared/plan-definitions.json';
+
 export type Plan = 'rookie' | 'veteran' | 'legend';
+
+type AuthorizedUsersOrgStrategy =
+  | { type: 'fixed'; value: number }
+  | { type: 'per_team'; value: number }
+  | { type: 'unlimited' };
+
+interface RawPlanDefinition {
+  id: Plan;
+  name: string;
+  icon: 'people' | 'trophy' | 'medal';
+  price: string;
+  period: string;
+  priceId: string | null;
+  max_teams: number | null;
+  max_authorized_users_per_team: number | null;
+  authorized_users_org_strategy: AuthorizedUsersOrgStrategy;
+  supports_extracurricular: boolean;
+  features: string[];
+  billing?: {
+    description: string;
+    cta: string;
+  };
+}
 
 export interface PlanDefinition {
   id: Plan;
@@ -16,102 +39,86 @@ export interface PlanDefinition {
   price: string;
   period: string;
   priceId: string | null;
-  
-  // Limits
-  max_teams: number;
-  max_authorized_users_per_team: number;
-  max_authorized_users_org: number | ((teamCount: number) => number);
+  max_teams: number | null;
+  max_authorized_users_per_team: number | null;
+  max_authorized_users_org: number | null | ((teamCount: number) => number);
   supports_extracurricular: boolean;
-  
-  // UI
   features: string[];
+  billing?: {
+    description: string;
+    cta: string;
+  };
 }
 
-export const PLAN_DEFINITIONS: Record<Plan, PlanDefinition> = {
-  rookie: {
-    id: 'rookie',
-    name: 'Rookie',
-    icon: 'people',
-    price: 'First two teams free',
-    period: '',
-    priceId: null,
-    
-    // Rookie limits
-    max_teams: 2,
-    max_authorized_users_per_team: 1,
-    max_authorized_users_org: 1,
-    supports_extracurricular: false,
-    
-    features: [
-      'Entry-level access',
-      'First two teams free',
-      'Assign one administrator per team',
-    ],
-  },
+const RAW_PLAN_DEFINITIONS = planDefinitionsData as Record<Plan, RawPlanDefinition>;
 
-  veteran: {
-    id: 'veteran',
-    name: 'Veteran',
-    icon: 'trophy',
-    price: '$2.50',
-    period: '/ month per team added',
-    priceId: 'prod_RNLc2l1BdUdSn9',
-    
-    // Veteran limits
-    max_teams: 999, // unlimited (practical limit)
-    max_authorized_users_per_team: 2,
-    max_authorized_users_org: (teamCount) => teamCount * 2, // 2 per team
-    supports_extracurricular: false,
-    
-    features: [
-      'Everything in Rookie',
-      '$2.50/month per additional team (3+ only)',
-      'Up to 2 authorized users per team',
-    ],
-  },
+const mapRawPlan = (raw: RawPlanDefinition): PlanDefinition => {
+  let orgLimit: PlanDefinition['max_authorized_users_org'];
+  const strategy = raw.authorized_users_org_strategy;
 
-  legend: {
-    id: 'legend',
-    name: 'Legend',
-    icon: 'medal',
-    price: '$19.99',
-    period: '/ year',
-    priceId: 'prod_RNLdYADy7i6dB5',
-    
-    // Legend limits
-    max_teams: 999, // unlimited
-    max_authorized_users_per_team: 999, // unlimited
-    max_authorized_users_org: 999, // unlimited
-    supports_extracurricular: true,
-    
-    features: [
-      'Everything in Veteran',
-      'Unlimited teams',
-      'Create extracurricular clubs - Theater, Chess, Debate, etc.',
-    ],
-  },
-} as const;
+  switch (strategy.type) {
+    case 'fixed':
+      orgLimit = strategy.value;
+      break;
+    case 'per_team':
+      orgLimit = (teamCount: number) => Math.max(0, teamCount) * strategy.value;
+      break;
+    default:
+      orgLimit = null;
+  }
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    icon: raw.icon,
+    price: raw.price,
+    period: raw.period,
+    priceId: raw.priceId,
+    max_teams: raw.max_teams,
+    max_authorized_users_per_team: raw.max_authorized_users_per_team,
+    max_authorized_users_org: orgLimit,
+    supports_extracurricular: raw.supports_extracurricular,
+    features: raw.features,
+    billing: raw.billing,
+  };
+};
+
+export const PLAN_DEFINITIONS: Record<Plan, PlanDefinition> = Object.fromEntries(
+  Object.entries(RAW_PLAN_DEFINITIONS).map(([id, raw]) => [id, mapRawPlan(raw)])
+) as Record<Plan, PlanDefinition>;
 
 /**
  * Get plan definition by plan ID
  */
 export function getPlanDefinition(planId: Plan | string | undefined): PlanDefinition {
-  const plan = (planId as Plan) || 'rookie';
-  return PLAN_DEFINITIONS[plan] || PLAN_DEFINITIONS.rookie;
+  const normalized = normalizePlan(planId);
+  return PLAN_DEFINITIONS[normalized] || PLAN_DEFINITIONS.rookie;
+}
+
+/**
+ * Normalize arbitrary plan strings to canonical ids
+ */
+export function normalizePlan(planId: Plan | string | undefined): Plan {
+  const value = String(planId ?? 'rookie').toLowerCase();
+  if (value === 'free') return 'rookie';
+  if (value === 'premium' || value === 'pro') return 'veteran';
+  if (value === 'legend') return 'legend';
+  if (value === 'veteran') return 'veteran';
+  return 'rookie';
 }
 
 /**
  * Get maximum authorized users for a plan
  */
-export function getMaxAuthorizedUsers(planId: Plan | string | undefined, teamCount?: number): number {
+export function getMaxAuthorizedUsers(planId: Plan | string | undefined, teamCount?: number): number | null {
   const plan = getPlanDefinition(planId);
   const limit = plan.max_authorized_users_org;
-  
+
   if (typeof limit === 'function') {
     return limit(teamCount || 0);
   }
-  
-  return limit;
+
+  return limit ?? null;
 }
 
 /**

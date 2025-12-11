@@ -1,6 +1,8 @@
 import { httpPost } from '@/api/http';
 // @ts-ignore
 import { Subscriptions } from '@/api/entities';
+import { PLAN_DEFINITIONS, Plan, formatPlanPrice } from '@/constants/plans';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -16,6 +18,12 @@ export default function BillingScreen() {
   const [_loadingSummary, setLoadingSummary] = useState(false);
   const [showQtyEditor, setShowQtyEditor] = useState(false);
   const [qty, setQty] = useState<string>('3');
+  const currentPlan = ((summary?.plan as Plan) ?? 'rookie') as Plan;
+  const planDefinition = PLAN_DEFINITIONS[currentPlan];
+  const planFeatures = planDefinition?.features ?? [];
+  const planPriceLabel = formatPlanPrice(currentPlan);
+  const planBillingCopy = planDefinition?.billing;
+  const isRookie = currentPlan === 'rookie';
 
   useEffect(() => {
     const load = async () => {
@@ -24,13 +32,13 @@ export default function BillingScreen() {
         const s = await Subscriptions.getSummary();
         setSummary(s);
         if (s?.quantity) setQty(String(s.quantity));
-      } catch (_error) {
+      } catch {
         // ignore
       } finally {
         setLoadingSummary(false);
       }
     };
-    load();
+    void load();
   }, []);
 
   const onUpdateQuantity = async () => {
@@ -141,9 +149,33 @@ export default function BillingScreen() {
           )}
         </View>
       )}
-      <Text style={styles.title}>Billing</Text>
-      <Text style={styles.subtitle}>Demo subtotal: ${ (subtotalCents/100).toFixed(2) }</Text>
+      <Text style={styles.title}>Billing & Plan</Text>
+      <Text style={styles.subtitle}>
+        {isRookie
+          ? 'Rookie stays free for your first two teams—no trial clocks, no surprise charges. Upgrade only when you need more capacity.'
+          : `Your ${planDefinition.name} plan renews automatically. Keep your roster up to date and adjust quantity whenever team counts change.`}
+      </Text>
 
+      <View style={styles.planCard}>
+        <Text style={styles.planBadge}>{planDefinition.name} plan</Text>
+        <Text style={styles.planPrice}>{planPriceLabel}</Text>
+        {planBillingCopy?.description ? (
+          <Text style={styles.planDescription}>{planBillingCopy.description}</Text>
+        ) : null}
+        <View style={styles.featureList}>
+          {planFeatures.map((feature) => (
+            <View style={styles.featureItem} key={feature}>
+              <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+        {planBillingCopy?.cta ? (
+          <Text style={styles.planDescriptionMuted}>{planBillingCopy.cta}</Text>
+        ) : null}
+      </View>
+
+      <Text style={styles.sectionTitle}>Promo code</Text>
       <View style={styles.applyRow}>
         <TextInput
           placeholder="Promo code"
@@ -176,7 +208,23 @@ export default function BillingScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: 'white' },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 8 },
-  subtitle: { color: '#6b7280', marginBottom: 12 },
+  subtitle: { color: '#6b7280', marginBottom: 16, lineHeight: 20 },
+  planCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e5e7eb',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+    backgroundColor: '#F8FAFC',
+  },
+  planBadge: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', color: '#2563EB', marginBottom: 6 },
+  planPrice: { fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4 },
+  planDescription: { color: '#374151', marginBottom: 12, lineHeight: 20 },
+  planDescriptionMuted: { color: '#6B7280', fontSize: 13 },
+  featureList: { gap: 8, marginBottom: 8 },
+  featureItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  featureText: { color: '#111827', fontSize: 14, flex: 1 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8, marginTop: 8 },
   applyRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 12 },
   input: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
   btn: { backgroundColor: '#111827', paddingHorizontal: 16, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
@@ -198,4 +246,3 @@ const styles = StyleSheet.create({
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   qtyInput: { width: 80, borderWidth: StyleSheet.hairlineWidth, borderColor: '#d1d5db', borderRadius: 8, paddingHorizontal: 12, height: 44 },
 });
-

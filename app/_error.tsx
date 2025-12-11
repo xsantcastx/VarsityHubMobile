@@ -1,5 +1,5 @@
-import { View, Text, Button } from 'react-native';
 import type { ErrorBoundaryProps } from 'expo-router';
+import { Button, Text, View } from 'react-native';
 
 export default function GlobalError({ error, retry }: ErrorBoundaryProps) {
   return (
