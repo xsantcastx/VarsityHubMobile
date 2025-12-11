@@ -1,0 +1,83 @@
+name: Deploy Guard (Health Check)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pre-deploy-health-check:
+    name: Verify Railway Health Before Merge
+    runs-on: ubuntu-latest
+    
+    # Allow manual override with warning in case of emergency
+    # (comment "FORCE_DEPLOY" to override)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for force override
+        id: force
+        run: |
+          if git log -1 --pretty=%B | grep -q "FORCE_DEPLOY"; then
+            echo "force=true" >> $GITHUB_OUTPUT
+            echo "⚠️  FORCE_DEPLOY detected in commit message"
+          else
+            echo "force=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run health check
+        id: health
+        continue-on-error: ${{ steps.force.outputs.force == 'true' }}
+        run: |
+          bash scripts/railway-health-check.sh --ci
+          echo "status=$?" >> $GITHUB_OUTPUT
+
+      - name: Generate health report
+        if: always()
+        run: |
+          echo "## Railway Health Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          bash scripts/railway-health-check.sh >> $GITHUB_STEP_SUMMARY 2>&1 || true
+
+      - name: Health check result
+        if: steps.force.outputs.force == 'false'
+        run: |
+          if [ "${{ steps.health.outputs.status }}" -eq 0 ]; then
+            echo "✅ Railway API is healthy. Safe to merge."
+            exit 0
+          else
+            echo "❌ Railway API is unhealthy. Do not merge."
+            echo ""
+            echo "Debugging steps:"
+            echo "1. Check Railway dashboard: https://railway.app/project/capable-trust"
+            echo "2. Review API logs in Railway"
+            echo "3. Run locally: bash scripts/railway-health-check.sh"
+            echo ""
+            echo "To force merge (emergency only):"
+            echo "  git commit --amend -m \"... FORCE_DEPLOY\""
+            exit 1
+          fi
+
+      - name: Force deploy warning
+        if: steps.force.outputs.force == 'true' && steps.health.outputs.status != '0'
+        run: |
+          echo "⚠️  WARNING: Forcing merge despite Railway health check failure"
+          echo "This may cause issues. Review the logs above."
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const health = ${{ steps.health.outputs.status }};
+            const statusEmoji = health === 0 ? '✅' : '❌';
+            const statusText = health === 0 ? 'healthy' : 'unhealthy';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${statusEmoji} **Railway API Status:** ${statusText}\n\nThe API is currently ${statusText}. ${health === 0 ? 'Safe to merge.' : 'Review the health check logs before merging.'}`,
+            });
+

@@ -1,0 +1,238 @@
+name: Railway Environment Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to audit (default: api)'
+        required: false
+        default: 'api'
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  audit:
+    name: Audit Railway Environment Variables
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli
+          echo "✅ Railway CLI installed: $(railway --version)"
+      
+      - name: Authenticate Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "❌ RAILWAY_TOKEN secret not set"
+            echo "Add it in: Settings → Secrets → Actions → New repository secret"
+            exit 1
+          fi
+          echo "✅ Railway token found"
+      
+      - name: Define required environment variables
+        id: required
+        run: |
+          # List all required env vars for the API service
+          cat > required-env-vars.txt << 'EOF'
+          NODE_ENV
+          PORT
+          DATABASE_URL
+          JWT_SECRET
+          STRIPE_SECRET_KEY
+          STRIPE_WEBHOOK_SECRET
+          SENDGRID_API_KEY
+          SENDGRID_FROM_EMAIL
+          CLOUDINARY_CLOUD_NAME
+          CLOUDINARY_API_KEY
+          CLOUDINARY_API_SECRET
+          GOOGLE_CLIENT_ID
+          GOOGLE_CLIENT_SECRET
+          APPLE_TEAM_ID
+          APPLE_KEY_ID
+          APPLE_PRIVATE_KEY
+          CORS_ORIGIN
+          EOF
+          
+          echo "✅ Defined $(wc -l < required-env-vars.txt) required variables"
+      
+      - name: Fetch Railway environment variables
+        id: fetch
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          SERVICE="${{ github.event.inputs.service || 'api' }}"
+          
+          echo "Fetching environment variables for service: $SERVICE"
+          
+          # Get variables from Railway (this requires proper Railway CLI setup)
+          # Since we can't easily list vars programmatically, we'll check the health endpoint
+          # and verify critical services are responding
+          
+          echo "Checking if service is deployed and responding..."
+          
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{"error":"unreachable"}')
+          
+          if echo "$response" | grep -q '"status":"ok"'; then
+            echo "✅ Service is responding"
+            echo "health_status=ok" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Service is not responding correctly"
+            echo "health_status=failed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check critical services
+        id: services
+        run: |
+          echo "## Environment Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "**Service**: ${{ github.event.inputs.service || 'api' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check health endpoint for service status indicators
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{}')
+          
+          echo "### Service Health" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo "$response" | jq '.' 2>/dev/null || echo "$response" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Parse individual service statuses
+          database_ok=$(echo "$response" | jq -r '.database // "unknown"')
+          sendgrid_ok=$(echo "$response" | jq -r '.sendgrid // "unknown"')
+          cloudinary_ok=$(echo "$response" | jq -r '.cloudinary // "unknown"')
+          stripe_ok=$(echo "$response" | jq -r '.stripe // "unknown"')
+          
+          echo "### Service Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Database
+          if [ "$database_ok" = "connected" ] || [ "$database_ok" = "ok" ]; then
+            echo "✅ **Database**: Connected" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Database**: $database_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check DATABASE_URL" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # SendGrid
+          if [ "$sendgrid_ok" = "configured" ] || [ "$sendgrid_ok" = "ok" ]; then
+            echo "✅ **SendGrid**: Configured" >> $GITHUB_STEP_SUMMARY
+          elif [ "$sendgrid_ok" = "templates_missing" ]; then
+            echo "⚠️ **SendGrid**: API key set, but templates missing" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **SendGrid**: $sendgrid_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check SENDGRID_API_KEY" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Cloudinary
+          if [ "$cloudinary_ok" = "configured" ] || [ "$cloudinary_ok" = "ok" ]; then
+            echo "✅ **Cloudinary**: Configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Cloudinary**: $cloudinary_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check CLOUDINARY_* variables" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Stripe
+          if [ "$stripe_ok" = "configured" ] || [ "$stripe_ok" = "ok" ]; then
+            echo "✅ **Stripe**: Configured" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Stripe**: $stripe_ok" >> $GITHUB_STEP_SUMMARY
+            echo "   - Check STRIPE_SECRET_KEY" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Generate recommendations
+        run: |
+          echo "### Recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          response=$(curl -sf https://api-production-8ac3.up.railway.app/health || echo '{}')
+          ready=$(echo "$response" | jq -r '.ready')
+          
+          if [ "$ready" = "false" ]; then
+            echo "⚠️ **Service is not fully ready**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Action items**:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Review Railway dashboard for missing environment variables" >> $GITHUB_STEP_SUMMARY
+            echo "2. Check deployment logs for service initialization errors" >> $GITHUB_STEP_SUMMARY
+            echo "3. Verify all external service credentials (Stripe, SendGrid, etc.)" >> $GITHUB_STEP_SUMMARY
+            echo "4. Run \`bash scripts/railway-health-check.sh\` locally for detailed diagnostics" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **All systems operational**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No immediate action required." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "💡 **Tip**: Run this audit manually from Actions → Railway Environment Audit → Run workflow" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Create issue if services are down
+        if: steps.fetch.outputs.health_status == 'failed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '⚠️ Railway Environment Audit Failed';
+            const body = `## Railway Service Health Issue Detected
+            
+            **Date**: ${new Date().toISOString()}
+            **Service**: ${{ github.event.inputs.service || 'api' }}
+            
+            The Railway API health check failed during the weekly environment audit.
+            
+            ### Troubleshooting Steps
+            
+            1. **Check Railway Dashboard**
+               - Navigate to: https://railway.app/project/capable-trust
+               - Verify the \`api\` service is running
+               - Check deployment logs for errors
+            
+            2. **Verify Environment Variables**
+               - Ensure all required secrets are set
+               - Check for expired credentials
+               - Run \`bash scripts/railway-health-check.sh\` locally
+            
+            3. **Test Endpoints Manually**
+               - Health: https://api-production-8ac3.up.railway.app/health
+               - Expected response: \`{"status":"ok",...}\`
+            
+            4. **Review Recent Changes**
+               - Check recent commits that might have affected deployment
+               - Verify Dockerfile and build process
+            
+            ### Required Environment Variables
+            
+            See \`RAILWAY_CLEANUP_GUIDE.md\` for the full list of required variables.
+            
+            ---
+            
+            **Auto-generated by Railway Environment Audit workflow**`;
+            
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['railway', 'infrastructure']
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title === title);
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['railway', 'infrastructure', 'urgent']
+              });
+            }

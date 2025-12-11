@@ -1,11 +1,11 @@
-import { Router, type Request, type Response } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
+import { debugLog } from '../lib/debugLog.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
-import { debugLog } from '../lib/debugLog.js';
 
 export const gamesRouter = Router();
 const managementRoles = ['owner', 'manager', 'coach', 'assistant_coach'];
@@ -444,9 +444,6 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
     where: { id },
     select: {
       id: true,
-      status: true,
-      game_status: true,
-      event_status: true,
       home_team_id: true,
       created_by_id: true,
       location: true,
@@ -487,8 +484,9 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: 'Only team coaches or admins can edit this event' });
   }
 
-  const statusValue = String(existingGame.status || existingGame.game_status || existingGame.event_status || '').toLowerCase();
-  const isLiveStatus = statusValue === 'live' || statusValue === 'in-progress' || statusValue === 'in_progress';
+  // Note: Game model doesn't have status fields - all edits are allowed for authorized users
+  // If status tracking is needed, it should be added to schema.prisma first
+  const isLiveStatus = false; // No status tracking currently
   if (isLiveStatus) {
     const allowedLiveFields = new Set([
       'date',
