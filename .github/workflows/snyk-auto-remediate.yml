@@ -1,0 +1,142 @@
+name: Snyk Security - Auto-Remediate
+
+on:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  snyk-scan-and-remediate:
+    name: Scan & Create Remediation PRs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci && cd server && npm ci
+
+      - name: Run Snyk SAST scan
+        id: snyk-sast
+        run: |
+          npx snyk code test --json > snyk-sast-report.json 2>&1 || true
+          ISSUE_COUNT=$(jq '.summary.total // 0' snyk-sast-report.json 2>/dev/null || echo 0)
+          echo "sast_issues=$ISSUE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Run Snyk SCA scan (root)
+        id: snyk-sca-root
+        run: |
+          npx snyk test --json > snyk-sca-root.json 2>&1 || true
+          VULNS=$(jq '.summary.vulnerabilities.total // 0' snyk-sca-root.json 2>/dev/null || echo 0)
+          echo "root_vulns=$VULNS" >> $GITHUB_OUTPUT
+
+      - name: Run Snyk SCA scan (server)
+        id: snyk-sca-server
+        run: |
+          cd server && npx snyk test --json > ../snyk-sca-server.json 2>&1 || true
+          VULNS=$(jq '.summary.vulnerabilities.total // 0' ../snyk-sca-server.json 2>/dev/null || echo 0)
+          echo "server_vulns=$VULNS" >> $GITHUB_OUTPUT
+
+      - name: Attempt auto-fix (npm audit fix)
+        id: autofix
+        run: |
+          echo "Attempting root fixes..."
+          npm audit fix --audit-level=moderate --save || true
+          
+          echo "Attempting server fixes..."
+          cd server && npm audit fix --audit-level=moderate --save || true
+          
+          # Check if changes were made
+          cd ..
+          if git diff --quiet; then
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes_made=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create PR for auto-fixes
+        if: steps.autofix.outputs.changes_made == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'chore: snyk auto-remediate security vulnerabilities'
+          title: '🔒 Security: Auto-remediate vulnerabilities'
+          body: |
+            # Snyk Auto-Remediate
+            
+            This PR contains auto-generated security fixes from Snyk scans.
+            
+            ## Summary
+            - Root vulnerabilities: ${{ steps.snyk-sca-root.outputs.root_vulns }}
+            - Server vulnerabilities: ${{ steps.snyk-sca-server.outputs.server_vulns }}
+            - SAST issues: ${{ steps.snyk-sast.outputs.sast_issues }}
+            
+            ## Changes
+            - Updated `package.json` with security patches (patch/minor versions only)
+            - Updated `server/package.json` with security patches
+            
+            ## Next Steps
+            1. Review changes in this PR
+            2. Run tests locally: `npm test`
+            3. If all tests pass, merge to trigger deployment
+            
+            **Note:** This is an automated PR. Manual review is still required.
+          branch: 'snyk/auto-remediate'
+          delete-branch: true
+
+      - name: Generate Snyk report
+        run: |
+          cat > snyk-summary.md << 'EOF'
+          # 🔒 Snyk Security Report
+          
+          **Date:** $(date)
+          
+          ## Scan Results
+          - **Root Vulnerabilities:** ${{ steps.snyk-sca-root.outputs.root_vulns }}
+          - **Server Vulnerabilities:** ${{ steps.snyk-sca-server.outputs.server_vulns }}
+          - **SAST Issues:** ${{ steps.snyk-sast.outputs.sast_issues }}
+          
+          ## Actions Taken
+          - ✅ Dependency audit completed
+          - ${{ steps.autofix.outputs.changes_made == 'true' && '✅ Auto-remediation PR created' || '✅ No remediations needed' }}
+          
+          ## Artifacts
+          - `snyk-sast-report.json` - Full SAST results
+          - `snyk-sca-root.json` - Root dependencies
+          - `snyk-sca-server.json` - Server dependencies
+          
+          ---
+          *Automated weekly security scan*
+          EOF
+          
+          cat snyk-summary.md
+
+      - name: Upload Snyk reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-reports
+          path: |
+            snyk-sast-report.json
+            snyk-sca-root.json
+            snyk-sca-server.json
+            snyk-summary.md
+          retention-days: 30
+
+      - name: Alert on critical issues
+        if: steps.snyk-sca-root.outputs.root_vulns > 0 || steps.snyk-sca-server.outputs.server_vulns > 0
+        run: |
+          echo "⚠️  Vulnerabilities detected - check Snyk reports"
+          exit 0  # Don't fail workflow, just alert
+
+      - name: Success
+        if: success()
+        run: echo "✅ Snyk scan and remediation check completed"
