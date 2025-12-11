@@ -15,10 +15,12 @@ export default function PaymentSuccessScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionVerified, setSessionVerified] = useState(false);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
   
   // Check if this is an ad payment (type=ad) or subscription payment
   const isAdPayment = params.type === 'ad';
   const isSubscription = params.type === 'subscription';
+  const maxVerificationAttempts = 5;
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -40,29 +42,52 @@ export default function PaymentSuccessScreen() {
             }, 2000);
           } else {
             // For subscriptions, verify by checking user's plan and payment flag
+            // Retry up to maxVerificationAttempts times (polling for webhook completion)
             try {
               const me = await User.me();
               const plan = me?.preferences?.plan;
               const pending = me?.preferences?.payment_pending;
+              
               if ((plan === 'veteran' || plan === 'legend') && pending === false) {
                 setSessionVerified(true);
+                setLoading(false);
+              } else if (verificationAttempt < maxVerificationAttempts - 1) {
+                // Webhook might still be processing, retry after 2 seconds
+                console.log(`[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`);
+                setTimeout(() => {
+                  setVerificationAttempt(attempt => attempt + 1);
+                }, 2000);
+              } else {
+                // Max retries reached
+                console.warn('[payment-success] Payment verification timed out after retries');
+                setError('Payment verification timed out. Your payment may still be processing. Please refresh or contact support.');
+                setLoading(false);
               }
             } catch (_error) {
-              // If user fetch fails, allow manual continue
-              console.warn('[payment-success] User.me() failed during subscription verify');
+              // If user fetch fails on last attempt, show error
+              if (verificationAttempt >= maxVerificationAttempts - 1) {
+                console.error('[payment-success] User.me() failed after retries:', _error);
+                setError('Unable to verify payment. Please contact support.');
+                setLoading(false);
+              } else {
+                // Retry on error
+                console.warn('[payment-success] User.me() failed, retrying...', _error);
+                setTimeout(() => {
+                  setVerificationAttempt(attempt => attempt + 1);
+                }, 2000);
+              }
             }
           }
         }
       } catch (err: any) {
         setError('Unable to verify payment status');
         console.error('Payment verification error:', err);
-      } finally {
         setLoading(false);
       }
     };
 
     verifyPayment();
-  }, [params.session_id, isAdPayment]);
+  }, [params.session_id, isAdPayment, verificationAttempt]);
 
   const handleContinue = () => {
     // Navigate to the appropriate next step based on payment type

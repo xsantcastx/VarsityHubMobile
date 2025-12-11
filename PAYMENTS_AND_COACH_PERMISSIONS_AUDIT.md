@@ -353,53 +353,17 @@ useEffect(() => {
 
 ## ⚠️ Gaps & Opportunities
 
-### Gap 1: Frontend "Create Team" Button Lacks Proactive Limits UI ⚠️
-**Severity:** Medium  
-**Description:** Coaches see "Create Team" button enabled even when at limit. They only discover the limit after attempting submission and receiving a 403 error.
+### ✅ Gap 1: Frontend "Create Team" Button Lacks Proactive Limits UI *(Resolved)*
+**Severity:** Medium → **Resolved 2025-12-??**  
+**Fix:** `app/create-team.tsx`, `api/entities.ts`
 
-**Current Behavior:**
-```tsx
-// app/create-team.tsx (lines 1-100)
-// No check of user.max_teams or remaining team count before render
-// Button is always enabled; error shown after API response
-```
+- Added `/teams/limits` client (`Team.limits()`) so the screen fetches plan state on mount.
+- Added limit summary card + warning banner (plan badge, owned/max teams, remaining count).
+- Disabled "Create Team" CTA + shows upgrade link when `can_create_more === false`.
+- Added graceful error copy when limits endpoint fails (e.g., not signed in as coach).
+- Button still re-validates before submit, keeping server enforcement as source of truth.
 
-**Recommended Fix:**
-```tsx
-// In create-team.tsx component:
-const [limits, setLimits] = useState<any>(null);
-
-useEffect(() => {
-  const fetchLimits = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/teams/limits`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setLimits(data);
-    } catch (e) {
-      console.error('Failed to fetch team limits', e);
-    }
-  };
-  fetchLimits();
-}, []);
-
-// Disable button if user has reached limit
-const canCreateTeam = limits ? limits.can_create_more : true;
-const submitButton = (
-  <Pressable 
-    disabled={!canCreateTeam || submitting}
-    style={[styles.submitBtn, !canCreateTeam && styles.submitBtnDisabled]}
-    onPress={handleSubmit}
-  >
-    <Text style={styles.submitBtnText}>
-      {!canCreateTeam ? `Team limit reached (${limits.max_teams} max)` : 'Create Team'}
-    </Text>
-  </Pressable>
-);
-```
-
-**Impact:** Improves UX by showing limits before submission attempt.
+**Impact:** Coaches now see limit state immediately and can jump straight to the paywall before hitting a 403. UX regressions removed.
 
 ---
 
@@ -665,7 +629,7 @@ useEffect(() => {
 | Coaches can't see unauthorized actions | ✅ | 403 errors on limit exceed |
 | Admin bypass working | ✅ | ADMIN_EMAILS check in auth |
 | Payment success page verifies | ✅ | Checks User.me() for updated plan |
-| Proactive team limits UI | ⚠️ | Missing—coaches see error after submit |
+| Proactive team limits UI | ✅ | app/create-team.tsx fetches `/teams/limits`, disables CTA, shows upgrade link |
 | Centralized plan metadata | ⚠️ | Definitions scattered across files |
 | Billing copy up to date | ⚠️ | Needs review for trial/free messaging |
 | Webhook retry logic | ⚠️ | No retry on payment-success screen |
@@ -679,10 +643,9 @@ useEffect(() => {
 **Effort:** 30 minutes  
 **Impact:** High (prevents user confusion)
 
-### P2: Implement Proactive Team Limits UI (Gap 1)
-**Task:** Add Team.limits() API call to create-team.tsx, disable button when at limit  
-**Effort:** 1-2 hours  
-**Impact:** High (UX improvement, reduces confusion)
+### ✅ Completed: Proactive Team Limits UI (Gap 1)
+**Delivered:** `app/create-team.tsx`, `api/entities.ts`  
+**Result:** Coaches now see their plan tier, owned/max teams, remaining slots, and a disabled CTA with upgrade link when limits are hit. `/teams/limits` errors surface inline instead of silently failing.
 
 ### P3: Add Payment Verification Retry Logic (Gap 3)
 **Task:** Implement polling in payment-success.tsx for webhook processing  

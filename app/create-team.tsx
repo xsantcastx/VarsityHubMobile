@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
@@ -13,6 +13,28 @@ import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { getApiBaseUrl } from '../api/http';
+
+type TeamLimitSummary = {
+  owned_teams: number;
+  max_teams: number | null;
+  can_create_more: boolean;
+  remaining?: number;
+  subscription_tier?: string;
+  upgrade_required?: boolean;
+};
+
+const normalizePlanTier = (tier?: string | null) => {
+  const value = String(tier ?? 'rookie').toLowerCase();
+  if (value === 'free') return 'rookie';
+  if (['rookie', 'veteran', 'legend'].includes(value)) return value;
+  return value;
+};
+
+const formatPlanBadge = (tier?: string | null) => normalizePlanTier(tier).toUpperCase();
+const formatPlanDisplay = (tier?: string | null) => {
+  const normalized = normalizePlanTier(tier);
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
 
 export default function CreateTeamScreen() {
   const router = useRouter();
@@ -27,6 +49,20 @@ export default function CreateTeamScreen() {
   const [organizationName, setOrganizationName] = useState(''); // School/organization name
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [limitsLoading, setLimitsLoading] = useState(true);
+  const [teamLimits, setTeamLimits] = useState<TeamLimitSummary | null>(null);
+  const [limitsError, setLimitsError] = useState<string | null>(null);
+  const limitReached = !!teamLimits && teamLimits.can_create_more === false;
+  const planBadgeText = formatPlanBadge(teamLimits?.subscription_tier);
+  const planDisplayName = formatPlanDisplay(teamLimits?.subscription_tier);
+  const maxTeamsLabel =
+    teamLimits && typeof teamLimits.max_teams === 'number' && Number.isFinite(teamLimits.max_teams)
+      ? teamLimits.max_teams
+      : '∞';
+  const remainingCount =
+    teamLimits && typeof teamLimits.remaining === 'number'
+      ? Math.max(teamLimits.remaining, 0)
+      : null;
 
   const sports = ['Basketball', 'Football', 'Soccer', 'Baseball', 'Tennis', 'Volleyball', 'Swimming', 'Track & Field', 'Other'];
   
@@ -132,6 +168,34 @@ export default function CreateTeamScreen() {
     );
   };
 
+  useEffect(() => {
+    let mounted = true;
+    const loadLimits = async () => {
+      setLimitsLoading(true);
+      setLimitsError(null);
+      try {
+        const summary: TeamLimitSummary = await Team.limits();
+        if (!mounted) return;
+        setTeamLimits(summary);
+      } catch (err: any) {
+        if (!mounted) return;
+        setTeamLimits(null);
+        const status = err?.status ?? err?.response?.status;
+        const message =
+          status === 401
+            ? 'Sign in with a coach account to view your plan limits.'
+            : err?.message || 'Unable to load plan limits.';
+        setLimitsError(message);
+      } finally {
+        if (mounted) setLimitsLoading(false);
+      }
+    };
+    loadLimits();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const onSubmit = async () => {
     if (!name.trim()) { 
       Alert.alert('Team name required', 'Please enter a team name to continue.');
@@ -164,10 +228,32 @@ export default function CreateTeamScreen() {
       // Check plan tier limits
       const userRole = user?.preferences?.role; // Already guaranteed coach above
       const userPlan = user?.preferences?.plan || 'rookie'; // Default to rookie if not set
-      const teamCount = user?._count?.teams || 0;
+
+      let latestLimits: TeamLimitSummary | null = teamLimits;
+      try {
+        const refreshedLimits: TeamLimitSummary = await Team.limits();
+        latestLimits = refreshedLimits;
+        setTeamLimits(latestLimits);
+      } catch (err) {
+        // non-blocking
+      }
+      const teamCount = latestLimits?.owned_teams ?? user?._count?.teams ?? 0;
+      const canCreateMore = latestLimits?.can_create_more ?? true;
       
       // Only enforce limits for coaches
       if (userRole === 'coach') {
+        if (!canCreateMore) {
+          Alert.alert(
+            'Limit Reached',
+            `Your ${userPlan === 'rookie' ? 'Rookie' : userPlan === 'veteran' ? 'Veteran' : 'current'} plan has reached its team limit. Upgrade to add more teams.`,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
+              { text: 'View Plans', onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); } }
+            ]
+          );
+          return;
+        }
+
         if (userPlan === 'rookie' && teamCount >= 2) {
           const newTeamCount = teamCount + 1;
           Alert.alert(
@@ -361,6 +447,51 @@ export default function CreateTeamScreen() {
             Create a team to organize players, schedule games, and manage your season.
           </Text>
         </View>
+
+        {/* Plan Limit Summary */}
+        {!limitsLoading && (teamLimits || limitsError) && (
+          <View
+            style={[
+              styles.limitCard,
+              { 
+                borderColor: limitReached ? '#F97316' : Colors[colorScheme].border,
+                backgroundColor: limitReached ? '#FEF3C7' : Colors[colorScheme].surface
+              }
+            ]}
+          >
+            <View style={styles.limitHeader}>
+              <Text style={[styles.limitBadge, { backgroundColor: Colors[colorScheme].tint + '15', color: Colors[colorScheme].tint }]}>
+                {planBadgeText}
+              </Text>
+              {limitReached && (
+                <Pressable onPress={() => router.push('/subscription-paywall')} style={styles.limitUpgradeLink}>
+                  <Ionicons name="arrow-forward-circle" size={18} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.limitUpgradeText, { color: Colors[colorScheme].tint }]}>View plans</Text>
+                </Pressable>
+              )}
+            </View>
+            {teamLimits ? (
+              <>
+                <Text style={[styles.limitTitle, { color: Colors[colorScheme].text }]}>
+                  {limitReached
+                    ? 'Team limit reached'
+                    : `You have created ${teamLimits.owned_teams ?? 0} of ${maxTeamsLabel} teams`}
+                </Text>
+                <Text style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
+                  {limitReached
+                    ? 'Upgrade your plan to add more teams and authorized staff.'
+                    : remainingCount === null
+                      ? 'Unlimited teams on this plan.'
+                      : `${remainingCount} team${remainingCount === 1 ? '' : 's'} remaining on your plan.`}
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.limitDescription, { color: Colors[colorScheme].mutedText }]}>
+                {limitsError}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Form Fields */}
         <View style={styles.formSection}>
@@ -594,16 +725,24 @@ export default function CreateTeamScreen() {
 
         {/* Create Button */}
         <View style={styles.actionSection}>
+          {limitReached && (
+            <View style={styles.limitWarning}>
+              <Ionicons name="alert-circle" size={18} color="#B45309" />
+              <Text style={styles.limitWarningText}>
+                You’ve reached the {planDisplayName} plan limit. Upgrade to create more teams.
+              </Text>
+            </View>
+          )}
           <Pressable
             style={[
               styles.createButton,
               { 
-                backgroundColor: submitting ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
-                opacity: submitting ? 0.6 : 1
+                backgroundColor: submitting || limitReached ? Colors[colorScheme].mutedText : Colors[colorScheme].tint,
+                opacity: submitting || limitReached ? 0.5 : 1
               }
             ]}
             onPress={onSubmit}
-            disabled={submitting}
+            disabled={submitting || limitReached}
           >
             {submitting ? (
               <ActivityIndicator color="#fff" size="small" />
@@ -651,6 +790,44 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  limitCard: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  limitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  limitBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  limitUpgradeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  limitUpgradeText: {
+    fontWeight: '600',
+  },
+  limitTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  limitDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   introIcon: {
     width: 56,
@@ -753,6 +930,21 @@ const styles = StyleSheet.create({
   actionSection: {
     paddingHorizontal: 16,
     paddingTop: 24,
+  },
+  limitWarning: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  limitWarningText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#92400E',
   },
   createButton: {
     flexDirection: 'row',

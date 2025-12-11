@@ -6,10 +6,10 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import OnboardingLayout from './components/OnboardingLayout';
 
-type Plan = 'rookie' | 'veteran' | 'legend';
-
+// Map centralized plan definitions to UI format
 type PlanOption = {
   id: Plan;
   name: string;
@@ -20,44 +20,15 @@ type PlanOption = {
   features: string[];
 };
 
-const PLAN_OPTIONS: PlanOption[] = [
-  {
-    id: 'rookie',
-    name: 'Rookie',
-    icon: 'people' as const,
-    price: 'First two teams free',
-    period: '',
-    priceId: null,
-    features: [
-      'Entry-level access',
-      'First two teams free',
-      'Example: mens and womens soccer',
-      'Assign one extra administrator for each team',
-    ],
-  },
-  {
-    id: 'veteran',
-    name: 'Veteran',
-    icon: 'trophy' as const,
-    price: '$2.50',
-    period: '/ month per team added',
-    priceId: 'prod_RNLc2l1BdUdSn9',
-    features: [
-      'Everything in Rookie',
-      '$2.50/month per additional team (first 2 free)',
-      '2 authorized users per team',
-    ],
-  },
-  {
-    id: 'legend',
-    name: 'Legend',
-    icon: 'medal' as const,
-    price: '$19.99',
-    period: '/ year',
-    priceId: 'prod_RNLdYADy7i6dB5',
-    features: [
-      'Everything in Veteran',
-      'Unlimited teams',
+const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map(plan => ({
+  id: plan.id,
+  name: plan.name,
+  icon: plan.icon,
+  price: plan.price,
+  period: plan.period,
+  priceId: plan.priceId,
+  features: plan.features,
+}));
       'Create extracurricular clubs - Theater, Chess, etc.',
     ],
   },

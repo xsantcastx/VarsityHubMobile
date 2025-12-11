@@ -82,6 +82,18 @@ export default function BillingScreen() {
       Alert.alert('Promo', e?.message || 'Unable to redeem');
     } finally { setBusy(false); }
   }
+
+  const getPlanDescription = (plan: string) => {
+    switch (plan) {
+      case 'veteran':
+        return 'First 2 teams free, then $2.50/month per additional team. Up to 2 authorized users per team.';
+      case 'legend':
+        return 'Unlimited teams at $19.99/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
+      default:
+        return 'Free plan with 2 teams. 1 authorized user per team.';
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Billing' }} />
@@ -89,6 +101,7 @@ export default function BillingScreen() {
       {summary?.plan === 'veteran' && (
         <View style={styles.banner}>
           <Text style={styles.bannerTitle}>Veteran Plan</Text>
+          <Text style={styles.bannerDescription}>{getPlanDescription('veteran')}</Text>
           <Text style={styles.bannerLine}>Paid teams: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
           <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 2.5).toFixed(2)}</Text></Text>
           {!!summary.current_period_end && (
@@ -114,6 +127,17 @@ export default function BillingScreen() {
                 <Text style={styles.btnText}>Cancel</Text>
               </Pressable>
             </View>
+          )}
+        </View>
+      )}
+      {/* Legend Plan Banner */}
+      {summary?.plan === 'legend' && (
+        <View style={[styles.banner, styles.bannerLegend]}>
+          <Text style={[styles.bannerTitle, styles.bannerTitleLegend]}>Legend Plan</Text>
+          <Text style={styles.bannerDescription}>{getPlanDescription('legend')}</Text>
+          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$19.99/year</Text></Text>
+          {!!summary.current_period_end && (
+            <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}
         </View>
       )}
@@ -164,7 +188,10 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: '#2563EB', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   btnPrimaryText: { color: 'white', fontWeight: '800' },
   banner: { marginBottom: 12, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#e5e7eb', backgroundColor: '#F0FDF4' },
+  bannerLegend: { backgroundColor: '#FEF3C7' },
   bannerTitle: { fontSize: 16, fontWeight: '800', color: '#065F46' },
+  bannerTitleLegend: { color: '#92400E' },
+  bannerDescription: { fontSize: 13, marginTop: 4, marginBottom: 8, color: '#047857', lineHeight: 18 },
   bannerLine: { marginTop: 4, color: '#065F46' },
   bannerHint: { marginTop: 6, color: '#047857', fontSize: 12 },
   bold: { fontWeight: '800' },
