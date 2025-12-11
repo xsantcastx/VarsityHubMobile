@@ -50,6 +50,7 @@ const createSignature = (params: Record<string, string>, apiSecret: string) => {
   // Although SHA-1 is cryptographically weak for general use,
   // Cloudinary requires it for API authentication. This is not a security risk
   // for signed upload requests.
+  // snyk:ignore=Use of Password Hash With Insufficient Computational Effort
   return crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 };
 

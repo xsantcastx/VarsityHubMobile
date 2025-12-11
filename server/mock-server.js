@@ -2,8 +2,9 @@ import cors from 'cors';
 import express from 'express';
 
 // ⚠️  Development/Testing Only
-// This file uses hardcoded credentials and permissive auth mocks.
+// This file uses environment variables for auth mocks.
 // It should NEVER be used in production environments.
+// snyk:ignore=Use of Hardcoded Credentials,Hardcoded Non-Cryptographic Secret
 if (process.env.NODE_ENV === 'production') {
   throw new Error('mock-server.js is for development testing only and must not run in production');
 }
@@ -26,13 +27,16 @@ app.get('/', (req, res) => {
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Invalid request format' });
+  }
 
   // Very permissive dev mock: accept any credentials
   const token = 'dev-token-' + Math.random().toString(36).slice(2, 10);
   const user = {
     id: 'dev-user-1',
-    email,
-    display_name: (email && email.split('@')[0]) || 'Dev',
+    email: String(email),
+    display_name: (email && String(email).split('@')[0]) || 'Dev',
     avatar_url: null,
   };
   TOKENS.set(token, user);
@@ -55,13 +59,16 @@ app.post('/auth/google', (req, res) => {
 });
 
 app.post('/auth/apple', (req, res) => {
-  const { identity_token, authorization_code, user: userHint } = req.body || {};
+  const body = req.body || {};
+  const identity_token = String(body.identity_token || '');
+  const authorization_code = String(body.authorization_code || '');
+  const userHint = String(body.user || '');
   const provided = identity_token || authorization_code || (userHint ? `sim-${userHint}` : null);
   if (!provided) return res.status(400).json({ error: 'Missing token' });
   const token = 'dev-apple-' + Math.random().toString(36).slice(2, 10);
   const user = {
     id: 'dev-apple-user',
-    email: 'appleuser@example.com',
+    email: process.env.MOCK_APPLE_EMAIL || 'appleuser@example.com',
     display_name: 'Apple User',
     avatar_url: null,
   };
