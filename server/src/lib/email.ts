@@ -22,6 +22,8 @@ const TEMPLATE_IDS = {
   ORG_DENIAL: process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID || '',
   CONTENT_MODERATION: process.env.SENDGRID_CONTENT_MODERATION_TEMPLATE_ID || '',
   BILLING_NOTICE: process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID || '',
+  COACH_ONBOARDING: process.env.SENDGRID_COACH_ONBOARDING_TEMPLATE_ID || '',
+  FAN_WELCOME: process.env.SENDGRID_FAN_WELCOME_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -492,6 +494,114 @@ export async function sendBillingNoticeEmail(params: {
     return true;
   } catch (error) {
     console.error('❌ Failed to send billing notice:', error);
+    return false;
+  }
+}
+
+/**
+ * Send coach onboarding welcome email with role-specific content
+ */
+export async function sendCoachOnboardingEmail(params: {
+  to: string;
+  coachName: string;
+  plan: 'rookie' | 'veteran' | 'legend';
+  teamName?: string;
+  organizationName?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.COACH_ONBOARDING) {
+    console.warn('[email] SendGrid coach onboarding template not configured');
+    return false;
+  }
+
+  // Customize content based on plan
+  const planDescriptions: Record<string, { title: string; features: string[] }> = {
+    rookie: {
+      title: 'Rookie Coach - Free Plan',
+      features: [
+        'Create and manage up to 2 teams',
+        'Invite players to your teams',
+        'Post game schedules and updates',
+        'Track basic team stats',
+      ],
+    },
+    veteran: {
+      title: 'Veteran Coach - Premium Plan',
+      features: [
+        'Create unlimited teams',
+        'Invite up to 5 authorized users per team',
+        'Advanced team analytics and statistics',
+        'Priority support',
+        'Manage organization memberships',
+      ],
+    },
+    legend: {
+      title: 'Legend Coach - Elite Plan',
+      features: [
+        'Unlimited teams and authorized users',
+        'Full organization management tools',
+        'Advanced analytics and reporting',
+        'Priority 24/7 support',
+        'Custom team branding and styling',
+        'Create extracurricular clubs',
+      ],
+    },
+  };
+
+  const planInfo = planDescriptions[params.plan] || planDescriptions.rookie;
+
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.COACH_ONBOARDING,
+      dynamicTemplateData: {
+        coach_name: params.coachName,
+        plan: params.plan.toUpperCase(),
+        plan_title: planInfo.title,
+        team_name: params.teamName || 'Your Team',
+        org_name: params.organizationName || '',
+        features: planInfo.features,
+        dashboard_url: `${APP_BASE_URL}/(tabs)/feed`,
+        manage_teams_url: `${APP_BASE_URL}/manage-teams`,
+        invite_players_url: `${APP_BASE_URL}/manage-teams`,
+      },
+    });
+    debugLog(`✅ Coach onboarding email sent to ${params.to} (plan: ${params.plan})`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send coach onboarding email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send fan welcome email
+ */
+export async function sendFanWelcomeEmail(params: {
+  to: string;
+  fanName: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.FAN_WELCOME) {
+    console.warn('[email] SendGrid fan welcome template not configured');
+    return false;
+  }
+
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.FAN_WELCOME,
+      dynamicTemplateData: {
+        fan_name: params.fanName,
+        explore_url: `${APP_BASE_URL}/(tabs)/feed`,
+        nearby_games_url: `${APP_BASE_URL}/game-map`,
+        create_post_url: `${APP_BASE_URL}/create-post`,
+      },
+    });
+    debugLog(`✅ Fan welcome email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send fan welcome email:', error);
     return false;
   }
 }

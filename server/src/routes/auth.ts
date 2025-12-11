@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { isSendGridConfigured, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { isSendGridConfigured, sendPasswordResetEmail, sendVerificationEmail, sendCoachOnboardingEmail, sendFanWelcomeEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -717,6 +717,35 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     where: { id: req.user.id }, 
     data: updateData 
   });
+  
+  // Send role-specific welcome email after onboarding completion
+  if (data.role === 'coach' && updated.email) {
+    try {
+      const plan = (data.plan || 'rookie') as 'rookie' | 'veteran' | 'legend';
+      await sendCoachOnboardingEmail({
+        to: updated.email,
+        coachName: updated.display_name || updated.email.split('@')[0],
+        plan,
+        teamName: data.team_name,
+        organizationName: data.organization_name,
+      });
+      debugLog(`✅ Coach onboarding email sent to ${updated.email}`);
+    } catch (e) {
+      console.warn('[onboarding] Failed to send coach welcome email:', e);
+      // Don't block onboarding if email fails
+    }
+  } else if (data.role === 'fan' && updated.email) {
+    try {
+      await sendFanWelcomeEmail({
+        to: updated.email,
+        fanName: updated.display_name || updated.email.split('@')[0],
+      });
+      debugLog(`✅ Fan welcome email sent to ${updated.email}`);
+    } catch (e) {
+      console.warn('[onboarding] Failed to send fan welcome email:', e);
+      // Don't block onboarding if email fails
+    }
+  }
   
   return res.json({ 
     message: 'Onboarding completed successfully', 
