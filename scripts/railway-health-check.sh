@@ -59,6 +59,7 @@ check_health() {
   local attempt=1
   local response
   local http_code
+  local body
   
   while [ $attempt -le $RETRIES ]; do
     log_info "Attempt $attempt/$RETRIES..."
@@ -68,7 +69,8 @@ check_health() {
     body=$(echo "$response" | sed '$d')
     
     if [ "$http_code" == "200" ] || [ "$http_code" == "202" ]; then
-      echo "$body"
+      # Return JSON only (no logging)
+      cat <<< "$body"
       return 0
     fi
     
@@ -87,16 +89,39 @@ check_health() {
 verify_deployment() {
   log_section "Railway Deployment Status"
   
+  # Capture JSON directly without logging interference
   local health_json
-  health_json=$(check_health) || return 1
+  health_json=$(check_health 2>&1) || return 1
+  
+  # Extract just the JSON (last line if curl succeeded)
+  local json_only
+  json_only=$(echo "$health_json" | tail -1)
   
   log_info "Health response:"
-  echo "$health_json" | jq '.' 2>/dev/null || echo "$health_json"
+  echo "$json_only" | jq '.' 2>/dev/null || echo "$json_only"
   
-  # Parse fields
-  local status=$(echo "$health_json" | jq -r '.status // "unknown"' 2>/dev/null)
-  local ready=$(echo "$health_json" | jq -r '.ready // false' 2>/dev/null)
-  local uptime=$(echo "$health_json" | jq -r '.uptime // "unknown"' 2>/dev/null)
+  # Parse fields (fallback parser for systems without jq)
+  local status
+  local ready
+  local uptime
+  
+  if command -v jq &> /dev/null; then
+    status=$(echo "$json_only" | jq -r '.status // "unknown"' 2>/dev/null)
+    ready=$(echo "$json_only" | jq -r '.ready // false' 2>/dev/null)
+    uptime=$(echo "$json_only" | jq -r '.uptime // "unknown"' 2>/dev/null)
+  else
+    # Fallback: use tr to normalize JSON, then grep+awk (no external dependencies)
+    local normalized
+    normalized=$(echo "$json_only" | tr -d '\n' | tr -s ' ')
+    
+    status=$(echo "$normalized" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
+    ready=$(echo "$normalized" | grep -o '"ready":[^,}]*' | head -1 | cut -d':' -f2 | sed 's/[,}].*//g')
+    uptime=$(echo "$normalized" | grep -o '"uptime":[^,}]*' | head -1 | cut -d':' -f2 | sed 's/[,}].*//g')
+    
+    [ -z "$status" ] && status="unknown"
+    [ -z "$ready" ] && ready="false"
+    [ -z "$uptime" ] && uptime="unknown"
+  fi
   
   log_info "Parsed fields:"
   echo "  Status: $status"
