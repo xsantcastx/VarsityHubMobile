@@ -90,6 +90,12 @@
     "experiments": {
       "typedRoutes": true
     },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 30000,
+      "url": "https://u.expo.dev/6509ff51-6833-4062-93c2-041fbf5cd1c4"
+    },
     "extra": {
       "router": {},
       "eas": {
