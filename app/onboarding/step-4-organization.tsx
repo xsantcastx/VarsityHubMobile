@@ -66,11 +66,11 @@ export default function Step4Organization() {
           }));
           
           // Auto-skip this step if team already exists
-          setProgress(4); // step-5
+          setProgress(5); // step-6
           if (returnToConfirmation) {
             router.replace('/onboarding/step-10-confirmation');
           } else {
-            router.replace('/onboarding/step-5-teams');
+            router.replace('/onboarding/step-6-authorized-users');
           }
           return;
         } else if (ob.plan === 'veteran' || ob.plan === 'legend') {
@@ -89,11 +89,11 @@ export default function Step4Organization() {
             }));
             
             // Auto-skip this step if org already exists
-            setProgress(4); // step-5
+            setProgress(5); // step-6
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              router.replace('/onboarding/step-5-teams');
+              router.replace('/onboarding/step-6-authorized-users');
             }
             return;
           }
@@ -240,11 +240,11 @@ export default function Step4Organization() {
               }));
               
               if (returnToConfirmation) {
-                setProgress(8);
+                setProgress(7);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(4);
-                router.push('/onboarding/step-5-teams');
+                setProgress(5);
+                router.push('/onboarding/step-6-authorized-users');
               }
             }
           }
@@ -267,11 +267,11 @@ export default function Step4Organization() {
       // If team/org already exists, just navigate to next step
       if (alreadyExists) {
         if (returnToConfirmation) {
-          setProgress(8);
+          setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(4); // step-5
-          router.push('/onboarding/step-5-teams');
+          setProgress(5); // step-6
+          router.push('/onboarding/step-6-authorized-users');
         }
         return;
       }
@@ -305,11 +305,11 @@ export default function Step4Organization() {
       // If we created an entity and are ending onboarding here, just navigate to confirmation.
       // Final onboarding completion is handled in step-10 to ensure all IDs and fields are present.
       if (returnToConfirmation) {
-        setProgress(8);
+        setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(4); // step-5
-        router.push('/onboarding/step-5-teams');
+        setProgress(5); // step-6
+        router.push('/onboarding/step-6-authorized-users');
       }
     } catch (e: any) { 
       // Check if duplicate organization error

@@ -137,7 +137,7 @@ export default function Step2Basic() {
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
-        setProgress(8); // step-10 is index 8
+        setProgress(7); // step-10 is index 7
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Fan: light path → profile setup

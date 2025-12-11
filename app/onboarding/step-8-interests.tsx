@@ -49,7 +49,7 @@ export default function Step8Interests() {
       // Then save to backend
       await User.updatePreferences({ primary_intents: sel });
       
-      setProgress(7); // step-9 is index 7
+      setProgress(6); // step-9 is index 6
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');

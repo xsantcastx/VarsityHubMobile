@@ -174,10 +174,10 @@ export default function Step6AuthorizedUsers() {
   const onContinue = () => {
     setOB((prev) => ({ ...prev, authorized: list }));
     if (returnToConfirmation) {
-      setProgress(8);
+      setProgress(7);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(6); // Advance to Step 7
+      setProgress(5); // Advance to Step 7
       router.push('/onboarding/step-7-profile');
     }
   };
@@ -186,10 +186,10 @@ export default function Step6AuthorizedUsers() {
     if (isOptional) {
       setOB((prev) => ({ ...prev, authorized: [] }));
       if (returnToConfirmation) {
-        setProgress(8);
+        setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(6); // Advance to Step 7
+        setProgress(5); // Advance to Step 7
         router.push('/onboarding/step-7-profile');
       }
     }

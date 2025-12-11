@@ -23,8 +23,8 @@ export default function Step10Confirmation() {
 
   useEffect(() => {
     // Only set progress if not already at step 10
-    if (progress !== 9) {
-      setProgress(9);
+    if (progress !== 8) {
+      setProgress(8);
     }
   }, [setProgress, progress]);
 
@@ -68,7 +68,7 @@ export default function Step10Confirmation() {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
         required: isCoach, // Only required for coaches
-        route: '/onboarding/step-5-league',
+        route: '/onboarding/step-4-organization',
         description: 'Create your team or organization page (coaches only)'
       },
       {

@@ -111,7 +111,7 @@ export default function Step7Profile() {
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(6); // step-8 is index 6
+      setProgress(5); // step-8 is index 5
       if (returnToConfirmation) {
         router.replace('/onboarding/step-10-confirmation');
       } else {

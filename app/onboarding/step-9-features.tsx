@@ -151,8 +151,8 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      setProgress(8);
-      await AsyncStorage.setItem('@onboarding_progress', '9');
+      setProgress(7);
+      await AsyncStorage.setItem('@onboarding_progress', '8');
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
