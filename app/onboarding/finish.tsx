@@ -114,7 +114,7 @@ export default function OnboardingFinish() {
             <Text style={styles.cardTitle}>Verify your email to unlock messaging & RSVPs</Text>
             <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <PrimaryButton label={cooldown>0 ? \`Resend in \${cooldown}s\` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
+              <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
               <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={verify} disabled={verifying} loading={verifying} />
             </View>
             <PrimaryButton label="Skip for now" onPress={skip} />
