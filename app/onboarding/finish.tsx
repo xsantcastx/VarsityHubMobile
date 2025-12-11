@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Type } from '@/ui/tokens';
 import { getApiBaseUrl } from '../../api/http';
+import { useAuth } from '@/context/AuthContext';
 
 export default function OnboardingFinish() {
   const router = useRouter();
+  const { checkAuth, markOnboardingCompleteLocally } = useAuth();
   const [me, setMe] = useState<any>(null);
   const [code, setCode] = useState('');
   const [sending, setSending] = useState(false);
@@ -36,12 +38,92 @@ export default function OnboardingFinish() {
   const verify = async () => {
     if (!code.trim()) { Alert.alert('Enter the 6-digit code'); return; }
     setVerifying(true);
-    try { await User.verifyEmail(code.trim()); const updated = await User.me(); setMe(updated); router.replace('/(tabs)/feed'); }
+    try { 
+      await User.verifyEmail(code.trim()); 
+      const updated = await User.me(); 
+      setMe(updated);
+      
+      // Mark onboarding as complete on server before navigating
+      try {
+        console.log('[Onboarding][Finish] Marking onboarding as complete');
+        await User.completeOnboarding({});
+        const updatedUser: any = await checkAuth();
+        console.log('[Onboarding][Finish] Onboarding marked complete, user:', {
+          email: updatedUser?.email,
+          onboarding_completed: updatedUser?.preferences?.onboarding_completed,
+        });
+      } catch (completeErr) {
+        console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
+        // Continue anyway - will let AuthProvider handle it
+      }
+      
+      // Mark locally
+      try {
+        await markOnboardingCompleteLocally();
+      } catch (error) {
+        console.warn('[Onboarding][Finish] Failed to mark locally:', error);
+      }
+      
+      // Navigate to main app
+      router.replace('/(tabs)/feed');
+    }
     catch (e: any) { Alert.alert('Invalid code', e?.message || 'Check the code and try again'); }
     finally { setVerifying(false); }
   };
 
-  const skip = () => router.replace('/(tabs)/feed');
+  const skip = async () => {
+    // Mark onboarding as complete even when skipping email verification
+    try {
+      console.log('[Onboarding][Finish] Skipping - marking onboarding as complete');
+      await User.completeOnboarding({});
+      const updatedUser: any = await checkAuth();
+      console.log('[Onboarding][Finish] Onboarding marked complete, user:', {
+        email: updatedUser?.email,
+        onboarding_completed: updatedUser?.preferences?.onboarding_completed,
+      });
+    } catch (completeErr) {
+      console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
+    }
+    
+    try {
+      await markOnboardingCompleteLocally();
+    } catch (error) {
+      console.warn('[Onboarding][Finish] Failed to mark locally:', error);
+    }
+    
+    router.replace('/(tabs)/feed');
+  };
+
+  const verified = !!me?.email_verified;
+  return (
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+      <Stack.Screen options={{ title: 'Finish' }} />
+      <OnboardingBackHeader
+        title="Email Verification"
+        subtitle="Enter the 6-digit code to finish onboarding"
+      />
+      <View style={{ padding: 16, gap: 12 }}>
+        <Text style={styles.title}>You're all set! 🎉</Text>
+        {verified ? (
+          <>
+            <Text style={styles.muted}>Your email is verified. Enjoy Varsity Hub!</Text>
+            <PrimaryButton label="Go to Feed" onPress={() => skip()} />
+          </>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Verify your email to unlock messaging & RSVPs</Text>
+            <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />
+              <PrimaryButton label={verifying ? 'Verifying…' : 'Verify'} onPress={verify} disabled={verifying} loading={verifying} />
+            </View>
+            <PrimaryButton label="Skip for now" onPress={skip} />
+          </View>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
 
   const verified = !!me?.email_verified;
   return (
