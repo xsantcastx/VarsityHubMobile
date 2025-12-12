@@ -959,6 +959,13 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         const prefs: any = { ...existingPrefs, plan };
+        
+        // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
+        // This is required for Step 4 (organization creation) and allows coaches to manage orgs
+        if (plan === 'veteran' || plan === 'legend') {
+          prefs.role = 'coach';
+        }
+        
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));

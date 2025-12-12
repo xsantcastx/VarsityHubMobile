@@ -24,6 +24,15 @@ const TEMPLATE_IDS = {
   BILLING_NOTICE: process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID || '',
   COACH_ONBOARDING: process.env.SENDGRID_COACH_ONBOARDING_TEMPLATE_ID || '',
   FAN_WELCOME: process.env.SENDGRID_FAN_WELCOME_TEMPLATE_ID || '',
+  PAYMENT_RECEIPT: process.env.SENDGRID_PAYMENT_RECEIPT_TEMPLATE_ID || '',
+  PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
+  SUBSCRIPTION_CANCELED: process.env.SENDGRID_SUBSCRIPTION_CANCELED_TEMPLATE_ID || '',
+  MEMBERSHIP_APPROVED: process.env.SENDGRID_MEMBERSHIP_APPROVED_TEMPLATE_ID || '',
+  MEMBERSHIP_DENIED: process.env.SENDGRID_MEMBERSHIP_DENIED_TEMPLATE_ID || '',
+  EVENT_APPROVED: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID || '',
+  EVENT_REJECTED: process.env.SENDGRID_EVENT_REJECTED_TEMPLATE_ID || '',
+  SECURITY_ALERT: process.env.SENDGRID_SECURITY_ALERT_TEMPLATE_ID || '',
+  PLAN_LIMIT_WARNING: process.env.SENDGRID_PLAN_LIMIT_WARNING_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -604,6 +613,223 @@ export async function sendFanWelcomeEmail(params: {
     return true;
   } catch (error) {
     console.error('❌ Failed to send fan welcome email:', error);
+    return false;
+  }
+}
+
+export async function sendPaymentReceiptEmail(params: {
+  to: string;
+  planName: string;
+  amount: string;
+  billingPeriod: string;
+  invoiceUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PAYMENT_RECEIPT) {
+    console.warn('[email] SendGrid payment receipt template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PAYMENT_RECEIPT,
+      dynamicTemplateData: {
+        plan_name: params.planName,
+        amount: params.amount,
+        billing_period: params.billingPeriod,
+        invoice_url: params.invoiceUrl || `${APP_BASE_URL}/billing`,
+      },
+    });
+    debugLog(`✅ Payment receipt email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send payment receipt email:', error);
+    return false;
+  }
+}
+
+export async function sendPaymentFailedEmail(params: {
+  to: string;
+  planName: string;
+  reason?: string;
+  manageUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PAYMENT_FAILED) {
+    console.warn('[email] SendGrid payment failed template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PAYMENT_FAILED,
+      dynamicTemplateData: {
+        plan_name: params.planName,
+        reason: params.reason || 'Your card was declined.',
+        manage_url: params.manageUrl || `${APP_BASE_URL}/settings/subscription`,
+      },
+    });
+    debugLog(`✅ Payment failure email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send payment failure email:', error);
+    return false;
+  }
+}
+
+export async function sendSubscriptionCanceledEmail(params: {
+  to: string;
+  planName: string;
+  renewalDate?: string;
+  reactivateUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.SUBSCRIPTION_CANCELED) {
+    console.warn('[email] SendGrid subscription canceled template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SUBSCRIPTION_CANCELED,
+      dynamicTemplateData: {
+        plan_name: params.planName,
+        renewal_date: params.renewalDate || 'end of current period',
+        reactivate_url: params.reactivateUrl || `${APP_BASE_URL}/settings/subscription`,
+      },
+    });
+    debugLog(`✅ Subscription canceled email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send subscription canceled email:', error);
+    return false;
+  }
+}
+
+export async function sendMembershipDecisionEmail(params: {
+  to: string;
+  teamName: string;
+  organizationName?: string;
+  approved: boolean;
+  manageUrl?: string;
+}): Promise<boolean> {
+  const templateId = params.approved ? TEMPLATE_IDS.MEMBERSHIP_APPROVED : TEMPLATE_IDS.MEMBERSHIP_DENIED;
+  if (!SENDGRID_API_KEY || !templateId) {
+    console.warn('[email] SendGrid membership decision template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId,
+      dynamicTemplateData: {
+        team_name: params.teamName,
+        org_name: params.organizationName || '',
+        manage_url: params.manageUrl || `${APP_BASE_URL}/teams`,
+      },
+    });
+    debugLog(`✅ Membership ${params.approved ? 'approved' : 'denied'} email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send membership decision email:', error);
+    return false;
+  }
+}
+
+export async function sendEventDecisionEmail(params: {
+  to: string;
+  eventName: string;
+  eventDate?: string;
+  approved: boolean;
+  reviewUrl?: string;
+  reason?: string;
+}): Promise<boolean> {
+  const templateId = params.approved ? TEMPLATE_IDS.EVENT_APPROVED : TEMPLATE_IDS.EVENT_REJECTED;
+  if (!SENDGRID_API_KEY || !templateId) {
+    console.warn('[email] SendGrid event decision template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId,
+      dynamicTemplateData: {
+        event_name: params.eventName,
+        event_date: params.eventDate || '',
+        review_url: params.reviewUrl || `${APP_BASE_URL}/events`,
+        reason: params.reason || '',
+      },
+    });
+    debugLog(`✅ Event ${params.approved ? 'approved' : 'rejected'} email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send event decision email:', error);
+    return false;
+  }
+}
+
+export async function sendSecurityAlertEmail(params: {
+  to: string;
+  alertType: 'password_change' | 'new_device' | 'email_change';
+  ipAddress?: string;
+  location?: string;
+  manageUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.SECURITY_ALERT) {
+    console.warn('[email] SendGrid security alert template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SECURITY_ALERT,
+      dynamicTemplateData: {
+        alert_type: params.alertType,
+        ip_address: params.ipAddress || 'Unknown',
+        location: params.location || 'Unknown location',
+        manage_url: params.manageUrl || `${APP_BASE_URL}/settings/security`,
+      },
+    });
+    debugLog(`✅ Security alert email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send security alert email:', error);
+    return false;
+  }
+}
+
+export async function sendPlanLimitWarningEmail(params: {
+  to: string;
+  planName: string;
+  resourceType: 'team' | 'organization';
+  used: number;
+  limit: number | null;
+  upgradeUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PLAN_LIMIT_WARNING) {
+    console.warn('[email] SendGrid plan limit warning template not configured');
+    return false;
+  }
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PLAN_LIMIT_WARNING,
+      dynamicTemplateData: {
+        plan_name: params.planName,
+        resource_type: params.resourceType,
+        used_count: params.used,
+        limit: params.limit === null ? 'Unlimited' : params.limit,
+        upgrade_url: params.upgradeUrl || `${APP_BASE_URL}/settings/subscription`,
+      },
+    });
+    debugLog(`✅ Plan limit warning email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send plan limit warning email:', error);
     return false;
   }
 }
