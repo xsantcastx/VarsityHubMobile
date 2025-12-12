@@ -1,9 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
+import {
+  sendJoinRequestApproved,
+  sendJoinRequestDenied,
+  sendJoinRequestToAdmin,
+  sendMembershipDecisionEmail,
+  sendOrganizationInviteEmail,
+  sendPlanLimitWarningEmail,
+} from '../lib/email.js';
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
-import { getAuthorizedUsersOrgLimit, resolvePlan } from '../lib/planLimits.js';
+import { getAuthorizedUsersOrgLimit, getPlanDisplayName, resolvePlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -23,6 +30,31 @@ export const organizationsRouter = Router();
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
   return role === 'owner' || role === 'manager' || role === 'administrator';
+}
+
+async function notifyOrganizationPlanLimitEmail({
+  email,
+  plan,
+  used,
+  limit,
+}: {
+  email?: string | null;
+  plan?: string | null;
+  used: number;
+  limit: number | null;
+}) {
+  if (!email) return;
+  try {
+    await sendPlanLimitWarningEmail({
+      to: email,
+      planName: getPlanDisplayName(plan),
+      resourceType: 'organization',
+      used,
+      limit,
+    });
+  } catch (err) {
+    console.warn('[organizations] Failed to send plan limit warning email:', (err as any)?.message || err);
+  }
 }
 
 type OrganizationLocationInput = {
@@ -199,7 +231,7 @@ const createOrganizationSchema = z.object({
 // Create organization
 organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   // Enforce coach role and plan limits
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
   const userRole = prefs.role || 'fan';
@@ -225,6 +257,12 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
     }
   });
   if (orgLimit !== null && ownedOrgsCount >= orgLimit) {
+    await notifyOrganizationPlanLimitEmail({
+      email: me.email,
+      plan,
+      used: ownedOrgsCount,
+      limit: orgLimit,
+    });
     return res.status(403).json({
       error: 'Organization limit reached',
       message: `You've reached your ${plan} plan limit of ${orgLimit} organization${orgLimit > 1 ? 's' : ''}. Upgrade your plan to create more organizations.`,
@@ -909,18 +947,32 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     })
   ]);
   
-  // Send approval email to user
+  // Send approval email to user (new template with fallback)
   const adminUser = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: { display_name: true }
   });
   
-  await sendJoinRequestApproved({
-    userEmail: joinRequest.user.email,
-    userName: joinRequest.user.display_name || 'User',
-    organizationName: joinRequest.organization.name,
-    adminName: adminUser?.display_name || 'Admin',
-  });
+  let membershipEmailSent = false;
+  try {
+    membershipEmailSent = await sendMembershipDecisionEmail({
+      to: joinRequest.user.email,
+      teamName: joinRequest.organization.name,
+      organizationName: joinRequest.organization.name,
+      approved: true,
+    });
+  } catch (err) {
+    console.warn('[org-join] membership approval email failed:', (err as any)?.message || err);
+  }
+  
+  if (!membershipEmailSent) {
+    await sendJoinRequestApproved({
+      userEmail: joinRequest.user.email,
+      userName: joinRequest.user.display_name || 'User',
+      organizationName: joinRequest.organization.name,
+      adminName: adminUser?.display_name || 'Admin',
+    });
+  }
   
   return res.json({ message: 'Join request approved' });
 });
@@ -983,13 +1035,27 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     }
   });
   
-  // Send denial email to user
-  await sendJoinRequestDenied({
-    userEmail: joinRequest.user.email,
-    userName: joinRequest.user.display_name || 'User',
-    organizationName: joinRequest.organization.name,
-    reason: reason,
-  });
+  // Send denial email to user (new template with fallback)
+  let denialEmailSent = false;
+  try {
+    denialEmailSent = await sendMembershipDecisionEmail({
+      to: joinRequest.user.email,
+      teamName: joinRequest.organization.name,
+      organizationName: joinRequest.organization.name,
+      approved: false,
+    });
+  } catch (err) {
+    console.warn('[org-join] membership denial email failed:', (err as any)?.message || err);
+  }
+  
+  if (!denialEmailSent) {
+    await sendJoinRequestDenied({
+      userEmail: joinRequest.user.email,
+      userName: joinRequest.user.display_name || 'User',
+      organizationName: joinRequest.organization.name,
+      reason: reason,
+    });
+  }
   
   return res.json({ message: 'Join request denied' });
 });

@@ -159,7 +159,7 @@ rawBodyPaths.forEach((path) => {
   app.use(path, express.raw({ type: 'application/json' }));
 });
 
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
     return next();
   }
@@ -174,7 +174,7 @@ app.use(requestLogging);
 // Serve uploaded files
 app.use(
   '/uploads',
-  (req, res, next) => {
+  (req: Request, res: Response, next: NextFunction) => {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     next();
   },
@@ -208,10 +208,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 debugLog('📚 API documentation available at /api-docs');
 
 app.use('/auth', authLimiter, authRouter);
-app.get('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.patch('/me/preferences', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
-app.patch('/me', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
-app.post('/me/complete-onboarding', noStore, (req, res, next) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
+app.get('/me', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
+app.patch('/me/preferences', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
+app.patch('/me', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
+app.post('/me/complete-onboarding', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);

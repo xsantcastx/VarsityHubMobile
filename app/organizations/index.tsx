@@ -20,14 +20,14 @@ export default function OrganizationsIndexScreen() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [featured, setFeatured] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
-  const { apiBaseUrl } = getConfig();
+  const { apiUrl } = getConfig();
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`${apiBaseUrl}/organizations?limit=20`);
+        const res = await fetch(`${apiUrl}/organizations?limit=20`);
         if (!res.ok) throw new Error(`Failed to load organizations (${res.status})`);
         const data = await res.json();
         if (!cancelled) {

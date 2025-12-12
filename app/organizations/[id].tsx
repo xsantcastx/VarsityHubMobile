@@ -21,7 +21,7 @@ export default function OrganizationDetailScreen() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { apiBaseUrl } = getConfig();
+  const { apiUrl } = getConfig();
 
   useEffect(() => {
     let cancelled = false;
@@ -30,7 +30,7 @@ export default function OrganizationDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${apiBaseUrl}/organizations/${id}`);
+        const res = await fetch(`${apiUrl}/organizations/${id}`);
         if (!res.ok) {
           throw new Error(`Failed to load org (${res.status})`);
         }
@@ -81,16 +81,17 @@ export default function OrganizationDetailScreen() {
 
       {/* CTA row */}
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-        <Pressable
+        {/* TODO: Create /contact route or use existing contact mechanism */}
+        {/* <Pressable
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/contact', params: { orgId: org.id } })}
           style={{ backgroundColor: '#111', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff' }}>Contact</Text>
-        </Pressable>
+        </Pressable> */}
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/join-organization', params: { orgId: org.id } })}
+          onPress={() => router.push({ pathname: '/request-join-organization', params: { orgId: org.id } } as any)}
           style={{ backgroundColor: '#0066cc', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff' }}>Request to Join</Text>

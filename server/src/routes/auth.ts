@@ -3,7 +3,14 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { isSendGridConfigured, sendCoachOnboardingEmail, sendFanWelcomeEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import {
+  isSendGridConfigured,
+  sendCoachOnboardingEmail,
+  sendFanWelcomeEmail,
+  sendPasswordResetEmail,
+  sendSecurityAlertEmail,
+  sendVerificationEmail,
+} from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -451,6 +458,18 @@ authRouter.post('/password/reset', async (req, res) => {
       password_reset_expires: null,
     },
   });
+
+  if (user.email) {
+    try {
+      await sendSecurityAlertEmail({
+        to: user.email,
+        alertType: 'password_change',
+        ipAddress: req.ip,
+      });
+    } catch (err) {
+      console.warn('[security-email] Failed to send password change alert:', (err as any)?.message || err);
+    }
+  }
 
   return res.json({ ok: true });
 });

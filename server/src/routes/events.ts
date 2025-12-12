@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { sendEventDecisionEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -58,6 +59,15 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
 };
 
 const TEAM_MANAGEMENT_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
+
+const appBaseUrl = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+
+const formatEventDateLabel = (value?: Date | string | null) => {
+  if (!value) return undefined;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString().split('T')[0];
+};
 
 async function deriveTeamIdsForEvent(gameId?: string | null, linkedLeague?: string | null): Promise<string[]> {
   const teamIds = new Set<string>();
@@ -406,12 +416,23 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
       approved_at: new Date(),
     },
     include: {
-      creator: { select: { id: true, display_name: true } }
+      creator: { select: { id: true, display_name: true, email: true } }
     }
   });
   
-  // TODO: Send notification to event creator
-  // await createNotification(updated.creator_id, 'EVENT_APPROVED', { event_id: eventId })
+  if (updated.creator?.email) {
+    try {
+      await sendEventDecisionEmail({
+        to: updated.creator.email,
+        eventName: updated.title,
+        eventDate: formatEventDateLabel(updated.date),
+        approved: true,
+        reviewUrl: `${appBaseUrl}/events/${eventId}`,
+      });
+    } catch (err) {
+      console.warn('[events] Failed to send event approval email:', (err as any)?.message || err);
+    }
+  }
   
   return res.json({ 
     ...serializeEvent(updated),
@@ -458,12 +479,24 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
       approved_at: null,
     },
     include: {
-      creator: { select: { id: true, display_name: true } }
+      creator: { select: { id: true, display_name: true, email: true } }
     }
   });
   
-  // TODO: Send notification to event creator
-  // await createNotification(updated.creator_id, 'EVENT_REJECTED', { event_id: eventId, reason })
+  if (updated.creator?.email) {
+    try {
+      await sendEventDecisionEmail({
+        to: updated.creator.email,
+        eventName: updated.title,
+        eventDate: formatEventDateLabel(updated.date),
+        approved: false,
+        reviewUrl: `${appBaseUrl}/events/${eventId}`,
+        reason,
+      });
+    } catch (err) {
+      console.warn('[events] Failed to send event rejection email:', (err as any)?.message || err);
+    }
+  }
   
   return res.json({ 
     ...serializeEvent(updated),

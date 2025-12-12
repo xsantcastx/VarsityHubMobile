@@ -1,7 +1,12 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
-import { sendBillingNoticeEmail } from '../lib/email.js';
+import {
+  sendBillingNoticeEmail,
+  sendPaymentFailedEmail,
+  sendPaymentReceiptEmail,
+  sendSubscriptionCanceledEmail,
+} from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
@@ -16,6 +21,19 @@ export const paymentsRouter = Router();
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
   return `$${(cents / 100).toFixed(2)}`;
+};
+
+const formatDateFromUnix = (unix?: number | null) => {
+  if (!unix) return null;
+  const d = new Date(unix * 1000);
+  return d.toISOString().split('T')[0];
+};
+
+const formatPeriodLabel = (start?: number | null, end?: number | null) => {
+  const startStr = formatDateFromUnix(start);
+  const endStr = formatDateFromUnix(end);
+  if (startStr && endStr) return `${startStr} - ${endStr}`;
+  return startStr || endStr || 'Current period';
 };
 
 async function getUserEmail(userId?: string | null, fallbackEmail?: string | null) {
@@ -72,18 +90,13 @@ async function sendSubscriptionEmail({
   const email = await getUserEmail(userId, fallbackEmail);
   if (!email) return;
   const planName = plan === 'veteran' ? 'Veteran Membership' : plan === 'legend' ? 'Legend Membership' : 'VarsityHub Subscription';
-  const perks = plan === 'veteran'
-    ? ['Add unlimited teams beyond the first two', 'Priority scheduling support']
-    : plan === 'legend'
-      ? ['Unlimited teams included', 'Annual discounted pricing']
-      : ['Premium access activated'];
+  const billingPeriod = plan === 'legend' ? 'Annual plan' : 'Monthly plan';
   try {
-    await sendBillingNoticeEmail({
+    await sendPaymentReceiptEmail({
       to: email,
-      type: 'payment_succeeded',
       planName,
-      amount: formatUsd(totalCents),
-      perks,
+      amount: formatUsd(totalCents) || (plan === 'legend' ? '$19.99' : '$0.00'),
+      billingPeriod,
     });
   } catch (err) {
     console.warn('[payments] Unable to send subscription email:', (err as any)?.message || err);
@@ -426,11 +439,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'invoice.payment_succeeded') {
     const invoice = event.data.object as Stripe.Invoice;
     if (invoice.customer_email && invoice.subscription) {
-      await sendBillingNoticeEmail({
+      const firstLine = invoice.lines.data[0];
+      await sendPaymentReceiptEmail({
         to: invoice.customer_email,
-        type: 'payment_succeeded',
-        amount: `$${(invoice.amount_paid / 100).toFixed(2)}`,
-        planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+        planName: firstLine?.description || 'VarsityHub Subscription',
+        amount: formatUsd(typeof invoice.amount_paid === 'number' ? invoice.amount_paid : invoice.total),
+        billingPeriod: formatPeriodLabel(firstLine?.period?.start, firstLine?.period?.end),
+        invoiceUrl: invoice.hosted_invoice_url || invoice.invoice_pdf || undefined,
       }).catch(err => console.warn('[billing-email] payment_succeeded failed:', err));
     }
   }
@@ -438,10 +453,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as Stripe.Invoice;
     if (invoice.customer_email) {
-      await sendBillingNoticeEmail({
+      await sendPaymentFailedEmail({
         to: invoice.customer_email,
-        type: 'payment_failed',
         planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
+        reason: invoice.last_payment_error?.message,
       }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
     }
   }
@@ -450,10 +465,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
     if (customer && !customer.deleted && customer.email) {
-      await sendBillingNoticeEmail({
+      await sendSubscriptionCanceledEmail({
         to: customer.email,
-        type: 'subscription_canceled',
         planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+        renewalDate: formatDateFromUnix(subscription.current_period_end) || undefined,
       }).catch(err => console.warn('[billing-email] subscription_canceled failed:', err));
     }
   }
@@ -462,11 +477,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
     const subscription = event.data.object as Stripe.Subscription;
     const customer = await stripe.customers.retrieve(subscription.customer as string).catch(() => null);
     if (customer && !customer.deleted && customer.email && subscription.status === 'active') {
-      await sendBillingNoticeEmail({
+      const item = subscription.items.data[0];
+      const amountCents = (item?.price?.unit_amount || 0) * (item?.quantity || 1);
+      await sendPaymentReceiptEmail({
         to: customer.email,
-        type: 'subscription_renewed',
-        amount: `$${((subscription.items.data[0]?.price?.unit_amount || 0) / 100).toFixed(2)}`,
-        planName: subscription.items.data[0]?.price?.nickname || 'VarsityHub Subscription',
+        planName: item?.price?.nickname || 'VarsityHub Subscription',
+        amount: formatUsd(amountCents) || '$0.00',
+        billingPeriod: subscription.cancel_at_period_end ? 'Final period' : 'Current period',
       }).catch(err => console.warn('[billing-email] subscription_renewed failed:', err));
     }
   }

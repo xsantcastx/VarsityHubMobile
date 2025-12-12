@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { sendTeamInviteEmail } from '../lib/email.js';
+import { sendPlanLimitWarningEmail, sendTeamInviteEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -11,11 +11,37 @@ import {
   getAuthorizedUsersOrgLimit,
   getAuthorizedUsersPerTeam,
   getMaxTeamsForPlan,
+  getPlanDisplayName,
   planSupportsExtracurricular,
   resolvePlan,
 } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
+
+async function notifyTeamPlanLimitEmail({
+  email,
+  plan,
+  used,
+  limit,
+}: {
+  email?: string | null;
+  plan?: string | null;
+  used: number;
+  limit: number | null;
+}) {
+  if (!email) return;
+  try {
+    await sendPlanLimitWarningEmail({
+      to: email,
+      planName: getPlanDisplayName(plan),
+      resourceType: 'team',
+      used,
+      limit,
+    });
+  } catch (err) {
+    console.warn('[teams] Failed to send plan limit warning email:', (err as any)?.message || err);
+  }
+}
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
@@ -276,7 +302,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // SECURITY: Enforce coach role requirement
@@ -304,6 +330,12 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const maxTeams = getMaxTeamsForPlan(plan);
   
   if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
+    await notifyTeamPlanLimitEmail({
+      email: me.email,
+      plan,
+      used: ownedTeamsCount,
+      limit: maxTeams,
+    });
     return res.status(403).json({ 
       error: 'Team limit reached',
       message: `You've reached your ${plan} plan limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade your plan to create more teams.`,
@@ -511,7 +543,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check team limit for free tier (Rookie plan)
@@ -550,6 +582,12 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   // Enforce max teams for current plan (null means unlimited)
   const planTeamCap = getMaxTeamsForPlan(userPlan);
   if (planTeamCap !== null && ownedTeamsCount >= planTeamCap) {
+    await notifyTeamPlanLimitEmail({
+      email: me.email,
+      plan: userPlan,
+      used: ownedTeamsCount,
+      limit: planTeamCap,
+    });
     return res.status(403).json({
       error: 'Team limit reached',
       message: `Your ${userPlan} plan allows ${planTeamCap} team${planTeamCap === 1 ? '' : 's'}. Upgrade to create more.`,
@@ -590,6 +628,12 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       // User is trying to create team number (ownedTeamsCount + 1)
       // They should have paid for at least that many teams
       if (ownedTeamsCount >= paidQuantity) {
+        await notifyTeamPlanLimitEmail({
+          email: me.email,
+          plan: userPlan,
+          used: ownedTeamsCount,
+          limit: paidQuantity,
+        });
         return res.status(403).json({
           error: 'Team limit reached',
           message: `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
