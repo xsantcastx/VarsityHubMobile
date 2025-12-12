@@ -16,7 +16,7 @@ export default function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
-  const { invites, loading, error: _error, refresh } = useTeamInvites<Invite>();
+  const { invites, loading, error: invitesError, refresh } = useTeamInvites<Invite>();
 
   const accept = async (id: string, teamId?: string) => {
     try { 
@@ -33,10 +33,10 @@ export default function TeamInvitesScreen() {
           ]
         });
       }
-    } catch (_error) {
+    } catch (err) {
       setModal({
         title: 'Error',
-        message: 'Failed to accept invite',
+        message: err instanceof Error ? err.message : 'Failed to accept invite',
         options: [
           { label: 'OK', onPress: () => {}, color: '#2563eb' }
         ]
@@ -47,10 +47,10 @@ export default function TeamInvitesScreen() {
     try {
       await TeamApi.declineInvite(id);
       await refresh();
-    } catch (_error) {
+    } catch (err) {
       setModal({
         title: 'Error',
-        message: 'Failed to decline invite',
+        message: err instanceof Error ? err.message : 'Failed to decline invite',
         options: [
           { label: 'OK', onPress: () => {}, color: '#2563eb' }
         ]
@@ -63,7 +63,7 @@ export default function TeamInvitesScreen() {
       <Stack.Screen options={{ title: 'Team Invites' }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Team Invites</Text>
       {loading && <View style={{ paddingVertical: 16 }}><ActivityIndicator /></View>}
-      {error && !loading && <Text style={styles.error}>{error}</Text>}
+      {invitesError && !loading && <Text style={styles.error}>{invitesError}</Text>}
       {!loading && invites.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No pending invites.</Text>}
       {!loading && invites.length > 0 && (
         <FlatList

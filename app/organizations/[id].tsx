@@ -44,7 +44,7 @@ export default function OrganizationDetailScreen() {
     }
     load();
     return () => { cancelled = true; };
-  }, [id, apiBaseUrl]);
+  }, [id, apiUrl]);
 
   if (loading) {
     return (

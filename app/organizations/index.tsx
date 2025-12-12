@@ -47,7 +47,7 @@ export default function OrganizationsIndexScreen() {
     }
     load();
     return () => { cancelled = true; };
-  }, [apiBaseUrl]);
+  }, [apiUrl]);
 
   const styles = createStyles(colorScheme);
 
