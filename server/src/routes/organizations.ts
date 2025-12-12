@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { debugLog } from '../lib/debugLog.js';
 import { sendJoinRequestApproved, sendJoinRequestDenied, sendJoinRequestToAdmin, sendOrganizationInviteEmail } from '../lib/email.js';
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
+import { getAuthorizedUsersOrgLimit, resolvePlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { debugLog } from '../lib/debugLog.js';
-import { getAuthorizedUsersOrgLimit, resolvePlan } from '../lib/planLimits.js';
+
+import { getPlaceDetails } from '../lib/geocoding.js';
+import { normalizeOrganizationName } from '../lib/normalizeNames.js';
 
 export const organizationsRouter = Router();
 
@@ -14,26 +17,49 @@ export const organizationsRouter = Router();
 // Duplicate Detection & Admin Helpers
 // ---------------------------------------------
 
-// Normalize organization names to detect near-duplicates across org_type variants.
-// Strategy: lowercase, replace common abbreviations, strip punctuation/spaces, drop trailing generic terms.
-function normalizeOrganizationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/\bst\.?\b/g, 'saint')
-    .replace(/\bhs\b/g, 'highschool')
-    .replace(/\bhigh school\b/g, 'highschool')
-    .replace(/\bclub\b/g, '')
-    .replace(/\bleague\b/g, '')
-    .replace(/\bschool\b/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-}
+// ...existing code...
 
 // Determine if a membership role is considered an administrator of the organization.
 function isOrganizationAdmin(role: string | null | undefined): boolean {
   if (!role) return false;
   return role === 'owner' || role === 'manager' || role === 'administrator';
+}
+
+type OrganizationLocationInput = {
+  place_id?: string | null;
+  formatted_address?: string | null;
+  location?: string | null;
+  zip_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+async function resolveOrganizationLocation(data: OrganizationLocationInput) {
+  let placeId = (data.place_id || '').trim() || null;
+  let formattedAddress = data.formatted_address?.trim() || null;
+  let locationLabel = data.location?.trim() || null;
+  let zipCode = data.zip_code?.trim() || null;
+  let latitude = typeof data.latitude === 'number' ? data.latitude : null;
+  let longitude = typeof data.longitude === 'number' ? data.longitude : null;
+
+  if (placeId) {
+    try {
+      const details = await getPlaceDetails(placeId);
+      if (details) {
+        placeId = details.place_id || placeId;
+        formattedAddress = formattedAddress || details.formatted_address || details.description || formattedAddress;
+        latitude = latitude ?? details.latitude ?? null;
+        longitude = longitude ?? details.longitude ?? null;
+        const derivedLocation = [details.city, details.state].filter(Boolean).join(', ');
+        locationLabel = locationLabel || derivedLocation || details.formatted_address || details.description || locationLabel;
+        zipCode = zipCode || details.postal_code || zipCode;
+      }
+    } catch (error) {
+      console.warn('[organizations] Unable to resolve place details:', error);
+    }
+  }
+
+  return { placeId, formattedAddress, locationLabel, zipCode, latitude, longitude };
 }
 
 // List organizations (public, with optional search)
@@ -161,35 +187,110 @@ const createOrganizationSchema = z.object({
   sport: z.string().max(100).optional(),
   org_type: z.string().max(100).optional(),
   location: z.string().max(255).optional(),
+  formatted_address: z.string().max(500).optional(),
+  place_id: z.string().max(255).optional(),
   zip_code: z.string().max(10).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 // Create organization
 organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+  // Enforce coach role and plan limits
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  if (userRole !== 'coach') {
+    return res.status(403).json({
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create organizations.',
+      code: 'COACH_ROLE_REQUIRED'
+    });
+  }
+  // Plan limit enforcement
+  const plan = resolvePlan(prefs.plan);
+  const orgLimit = getAuthorizedUsersOrgLimit(plan);
+  const ownedOrgsCount = await prisma.organization.count({
+    where: {
+      memberships: {
+        some: {
+          user_id: me.id,
+          role: { in: ['owner', 'manager', 'administrator'] },
+          status: 'active',
+        }
+      }
+    }
+  });
+  if (orgLimit !== null && ownedOrgsCount >= orgLimit) {
+    return res.status(403).json({
+      error: 'Organization limit reached',
+      message: `You've reached your ${plan} plan limit of ${orgLimit} organization${orgLimit > 1 ? 's' : ''}. Upgrade your plan to create more organizations.`,
+      owned_organizations: ownedOrgsCount,
+      max_organizations: orgLimit,
+      current_plan: plan,
+      upgrade_required: true,
+      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=org_limit`
+    });
+  }
   const parsed = createOrganizationSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  
   const data = parsed.data;
+  const locationMeta = await resolveOrganizationLocation({
+    place_id: data.place_id,
+    formatted_address: data.formatted_address,
+    location: data.location,
+    zip_code: data.zip_code,
+    latitude: data.latitude,
+    longitude: data.longitude,
+  });
   // Enhanced duplicate guard: check normalized name collisions within same zip_code regardless of org_type/sport
   const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true }
-  });
+  const duplicateZip = locationMeta.zipCode || data.zip_code || undefined;
+
+  if (locationMeta.placeId) {
+    const existingByPlace = await prisma.organization.findFirst({
+      where: { place_id: locationMeta.placeId, status: 'active' },
+      select: { id: true, name: true },
+    });
+    if (existingByPlace) {
+      return res.status(409).json({
+        error: 'DUPLICATE_ORGANIZATION',
+        duplicate_of: existingByPlace,
+      });
+    }
+  }
+
+  let possibleDuplicates: Array<{ id: string; name: string }> = [];
+  if (duplicateZip) {
+    possibleDuplicates = await prisma.organization.findMany({
+      where: {
+        zip_code: duplicateZip,
+        status: 'active'
+      },
+      select: { id: true, name: true, zip_code: true }
+    });
+  }
   const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
   const organization = await prisma.organization.create({ 
     data: {
-      ...data,
+      name: data.name,
+      description: data.description,
+      sport: data.sport,
+      org_type: data.org_type,
+      location: locationMeta.locationLabel || data.location || null,
+      formatted_address: locationMeta.formattedAddress || data.formatted_address || null,
+      place_id: locationMeta.placeId,
+      zip_code: duplicateZip || null,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      latitude: typeof locationMeta.latitude === 'number' ? locationMeta.latitude : null,
+      longitude: typeof locationMeta.longitude === 'number' ? locationMeta.longitude : null,
     }
   });
   
@@ -211,9 +312,13 @@ const createOrganizationWithTeamsSchema = z.object({
   sport: z.string().max(100).optional(),
   org_type: z.string().max(100).optional(),
   location: z.string().max(255).optional(),
+  formatted_address: z.string().max(500).optional(),
+  place_id: z.string().max(255).optional(),
   zip_code: z.string().max(10).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   authorized_users: z.array(z.object({
     email: z.string().email().optional(),
     user_id: z.string().optional(),
@@ -224,19 +329,80 @@ const createOrganizationWithTeamsSchema = z.object({
 
 // Enhanced create organization for onboarding
 organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
+  // Enforce coach role and plan limits
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  if (userRole !== 'coach') {
+    return res.status(403).json({
+      error: 'COACH_ROLE_REQUIRED',
+      message: 'Only coach accounts can create organizations.',
+      code: 'COACH_ROLE_REQUIRED'
+    });
+  }
+  // Plan limit enforcement
+  const plan = resolvePlan(prefs.plan);
+  const orgLimit = getAuthorizedUsersOrgLimit(plan);
+  const ownedOrgsCount = await prisma.organization.count({
+    where: {
+      memberships: {
+        some: {
+          user_id: me.id,
+          role: { in: ['owner', 'manager', 'administrator'] },
+          status: 'active',
+        }
+      }
+    }
+  });
+  if (orgLimit !== null && ownedOrgsCount >= orgLimit) {
+    return res.status(403).json({
+      error: 'Organization limit reached',
+      message: `You've reached your ${plan} plan limit of ${orgLimit} organization${orgLimit > 1 ? 's' : ''}. Upgrade your plan to create more organizations.`,
+      owned_organizations: ownedOrgsCount,
+      max_organizations: orgLimit,
+      current_plan: plan,
+      upgrade_required: true,
+      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=org_limit`
+    });
+  }
+
   const parsed = createOrganizationWithTeamsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
   const data = parsed.data;
+  const locationMeta = await resolveOrganizationLocation({
+    place_id: data.place_id,
+    formatted_address: data.formatted_address,
+    location: data.location,
+    zip_code: data.zip_code,
+    latitude: data.latitude,
+    longitude: data.longitude,
+  });
   // Duplicate guard (same logic as simple create)
   const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true }
-  });
+  const duplicateZip = locationMeta.zipCode || data.zip_code || undefined;
+
+  if (locationMeta.placeId) {
+    const existingByPlace = await prisma.organization.findFirst({
+      where: { place_id: locationMeta.placeId, status: 'active' },
+      select: { id: true, name: true },
+    });
+    if (existingByPlace) {
+      return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: existingByPlace });
+    }
+  }
+
+  let possibleDuplicates: Array<{ id: string; name: string }> = [];
+  if (duplicateZip) {
+    possibleDuplicates = await prisma.organization.findMany({
+      where: {
+        zip_code: duplicateZip,
+        status: 'active'
+      },
+      select: { id: true, name: true, zip_code: true }
+    });
+  }
   const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
@@ -249,10 +415,14 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       description: data.description,
       sport: data.sport,
       org_type: data.org_type,
-      location: data.location,
-      zip_code: data.zip_code,
+      location: locationMeta.locationLabel || data.location || null,
+      formatted_address: locationMeta.formattedAddress || data.formatted_address || null,
+      place_id: locationMeta.placeId,
+      zip_code: duplicateZip || null,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      latitude: typeof locationMeta.latitude === 'number' ? locationMeta.latitude : null,
+      longitude: typeof locationMeta.longitude === 'number' ? locationMeta.longitude : null,
     }
   });
   

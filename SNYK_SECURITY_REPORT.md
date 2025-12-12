@@ -5,6 +5,19 @@
 - **Low Severity Issues**: 17 (acceptable - test/mock files only)
 - **Production Code**: Clean ✅
 
+## Next Scan Checklist
+The CLI cannot reach `api.snyk.io` from the current sandbox (error `SNYK-CLI-0017`). Run the next scan from a network with outbound access and upload the SARIF artifact so GitHub Security stays in sync:
+
+```bash
+# from repo root, with SNYK_TOKEN in env
+snyk code test --severity-threshold=high --sarif-file-output=snyk.sarif
+snyk test --severity-threshold=high --json-file-output=snyk-deps.json
+# optional: monitor for drift on main only
+snyk monitor --severity-threshold=high
+```
+
+Then attach `snyk.sarif` to the Security tab (or let the updated workflow do it automatically) and paste key findings + remediation status below.
+
 ## Low Severity Findings (Non-Blocking)
 
 All 17 low-severity findings are in test/mock files, which are acceptable for development:

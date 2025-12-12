@@ -10,6 +10,7 @@ import { initEmailService } from './lib/email.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { paymentLogging, requestLogging } from './middleware/logging.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { authRouter } from './routes/auth.js';
 import { eventsRouter } from './routes/events.js';
@@ -166,6 +167,10 @@ app.use((req, res, next) => {
 });
 
 app.use(authMiddleware);
+
+// Request logging with IDs and timing
+app.use(requestLogging);
+
 // Serve uploaded files
 app.use(
   '/uploads',
@@ -216,7 +221,7 @@ app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
 app.use('/ads', adsRouter);
-app.use('/payments', paymentsRouter);
+app.use('/payments', paymentLogging, paymentsRouter);
 app.use('/admin', noStore, apiLimiter, adminRouter);
 app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
 app.use('/teams', apiLimiter, teamsRouter);

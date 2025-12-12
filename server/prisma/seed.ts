@@ -228,6 +228,227 @@ async function main() {
   await prisma.teamMembership.create({ data: { team_id: t2.id, user_id: u2.id, role: 'coach' } as any });
   await prisma.teamInvite.create({ data: { team_id: t2.id, email: 'jamie@example.com', role: 'member' } });
 
+  // --- Organization: Westhill High School ---
+  // Creates a preset organization page for Westhill High School
+  const westhill = await prisma.organization.upsert({
+    where: { name: 'Westhill High School' },
+    update: {
+      description: 'Westhill High School Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Stamford, CT',
+      formatted_address: 'Westhill High School, Stamford, CT 06902, USA',
+      zip_code: '06902',
+    },
+    create: {
+      name: 'Westhill High School',
+      description: 'Westhill High School Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Stamford, CT',
+      formatted_address: 'Westhill High School, Stamford, CT 06902, USA',
+      zip_code: '06902',
+      status: 'active' as any,
+    }
+  });
+
+  // Ensure a default owner membership exists for the seeded organization
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: westhill.id, user_id: u1.id },
+    },
+    update: { role: 'owner' },
+    create: { organization_id: westhill.id, user_id: u1.id, role: 'owner' }
+  });
+
+  // --- Organization: Greenwich High School ---
+  const greenwich = await prisma.organization.upsert({
+    where: { name: 'Greenwich High School' },
+    update: {
+      description: 'Greenwich High School Cardinals Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Greenwich, CT',
+      formatted_address: 'Greenwich High School, Greenwich, CT 06830, USA',
+      zip_code: '06830',
+    },
+    create: {
+      name: 'Greenwich High School',
+      description: 'Greenwich High School Cardinals Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Greenwich, CT',
+      formatted_address: 'Greenwich High School, Greenwich, CT 06830, USA',
+      zip_code: '06830',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: greenwich.id, user_id: u2.id },
+    },
+    update: { role: 'owner' },
+    create: { organization_id: greenwich.id, user_id: u2.id, role: 'owner' }
+  });
+
+  // --- Organization: Stamford Youth Soccer Club ---
+  const stamfordSoccer = await prisma.organization.upsert({
+    where: { name: 'Stamford Youth Soccer Club' },
+    update: {
+      description: 'Competitive youth soccer for ages 6-18 in Stamford area',
+      sport: 'soccer',
+      org_type: 'club',
+      location: 'Stamford, CT',
+      formatted_address: 'Stamford, CT 06901, USA',
+      zip_code: '06901',
+    },
+    create: {
+      name: 'Stamford Youth Soccer Club',
+      description: 'Competitive youth soccer for ages 6-18 in Stamford area',
+      sport: 'soccer',
+      org_type: 'club',
+      location: 'Stamford, CT',
+      formatted_address: 'Stamford, CT 06901, USA',
+      zip_code: '06901',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: stamfordSoccer.id, user_id: u3.id },
+    },
+    update: { role: 'owner' },
+    create: { organization_id: stamfordSoccer.id, user_id: u3.id, role: 'owner' }
+  });
+
+  // --- Organization: Darien High School ---
+  const darien = await prisma.organization.upsert({
+    where: { name: 'Darien High School' },
+    update: {
+      description: 'Darien High School Blue Wave Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Darien, CT',
+      formatted_address: 'Darien High School, Darien, CT 06820, USA',
+      zip_code: '06820',
+    },
+    create: {
+      name: 'Darien High School',
+      description: 'Darien High School Blue Wave Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Darien, CT',
+      formatted_address: 'Darien High School, Darien, CT 06820, USA',
+      zip_code: '06820',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: darien.id, user_id: u1.id },
+    },
+    update: { role: 'admin' },
+    create: { organization_id: darien.id, user_id: u1.id, role: 'admin' }
+  });
+
+  // --- Organization: New Canaan Baseball League ---
+  const newCanaanBaseball = await prisma.organization.upsert({
+    where: { name: 'New Canaan Baseball League' },
+    update: {
+      description: 'Community baseball league for youth ages 5-14',
+      sport: 'baseball',
+      org_type: 'league',
+      location: 'New Canaan, CT',
+      formatted_address: 'New Canaan, CT 06840, USA',
+      zip_code: '06840',
+    },
+    create: {
+      name: 'New Canaan Baseball League',
+      description: 'Community baseball league for youth ages 5-14',
+      sport: 'baseball',
+      org_type: 'league',
+      location: 'New Canaan, CT',
+      formatted_address: 'New Canaan, CT 06840, USA',
+      zip_code: '06840',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: newCanaanBaseball.id, user_id: u2.id },
+    },
+    update: { role: 'owner' },
+    create: { organization_id: newCanaanBaseball.id, user_id: u2.id, role: 'owner' }
+  });
+
+  // --- Organization: Fairfield Prep ---
+  const fairfieldPrep = await prisma.organization.upsert({
+    where: { name: 'Fairfield College Preparatory School' },
+    update: {
+      description: 'Fairfield Prep Jesuits Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Fairfield, CT',
+      formatted_address: 'Fairfield College Preparatory School, Fairfield, CT 06824, USA',
+      zip_code: '06824',
+    },
+    create: {
+      name: 'Fairfield College Preparatory School',
+      description: 'Fairfield Prep Jesuits Athletics',
+      sport: 'multi-sport',
+      org_type: 'school',
+      location: 'Fairfield, CT',
+      formatted_address: 'Fairfield College Preparatory School, Fairfield, CT 06824, USA',
+      zip_code: '06824',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: fairfieldPrep.id, user_id: u3.id },
+    },
+    update: { role: 'admin' },
+    create: { organization_id: fairfieldPrep.id, user_id: u3.id, role: 'admin' }
+  });
+
+  // --- Organization: Norwalk Youth Hockey ---
+  const norwalkHockey = await prisma.organization.upsert({
+    where: { name: 'Norwalk Youth Hockey Association' },
+    update: {
+      description: 'Youth hockey programs serving Norwalk and surrounding communities',
+      sport: 'hockey',
+      org_type: 'club',
+      location: 'Norwalk, CT',
+      formatted_address: 'Norwalk, CT 06850, USA',
+      zip_code: '06850',
+    },
+    create: {
+      name: 'Norwalk Youth Hockey Association',
+      description: 'Youth hockey programs serving Norwalk and surrounding communities',
+      sport: 'hockey',
+      org_type: 'club',
+      location: 'Norwalk, CT',
+      formatted_address: 'Norwalk, CT 06850, USA',
+      zip_code: '06850',
+      status: 'active' as any,
+    }
+  });
+
+  await prisma.organizationMembership.upsert({
+    where: {
+      organization_id_user_id: { organization_id: norwalkHockey.id, user_id: u1.id },
+    },
+    update: { role: 'member' },
+    create: { organization_id: norwalkHockey.id, user_id: u1.id, role: 'member' }
+  });
+
+  console.log('✅ Seeded 7 Connecticut organizations');
+
   // --- Promo Codes ---
   await prisma.promoCode.upsert({
     where: { code: 'FREE100' },

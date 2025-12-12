@@ -1,0 +1,3 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -workspace ios/VarsityHub.xcworkspace -scheme VarsityHub -destination "platform=iOS Simulator,name=iPhone 16 Pro,OS=18.6" -configuration Debug test
+

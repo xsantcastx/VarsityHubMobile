@@ -6,9 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
+import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpPost } from '@/api/http';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
@@ -43,14 +44,39 @@ export default function Step4Organization() {
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [locationQuerying, setLocationQuerying] = useState(false);
+  const [locationTouched, setLocationTouched] = useState(false);
+  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
+
+  // Check email verification status
+  useEffect(() => {
+    (async () => {
+      try {
+        const me: any = await (await import('@/api/entities')).User.me();
+        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
+        console.log('[Step4] Email check start. e2e=', e2e, 'me.email_verified=', me?.email_verified);
+        setEmailVerified(me?.email_verified ?? null);
+        console.log('[Step4] Email check set state ->', me?.email_verified ?? null);
+      } catch (error) {
+        console.error('Failed to check email verification:', error);
+      }
+    })();
+  }, []);
 
   // Check if user already has a team or organization in the database
   useEffect(() => {
     (async () => {
       setChecking(true);
       try {
+        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
+        console.log('[Step4] Existing check start. e2e=', e2e, 'plan=', ob.plan);
         // Check for existing managed teams
         const teams = await Team.managed();
         if (teams && teams.length > 0) {
@@ -66,13 +92,17 @@ export default function Step4Organization() {
           }));
           
           // Auto-skip this step if team already exists
-          setProgress(5); // step-6
-          if (returnToConfirmation) {
-            router.replace('/onboarding/step-10-confirmation');
+          if (!e2e) {
+            setProgress(5); // step-6
+            if (returnToConfirmation) {
+              router.replace('/onboarding/step-10-confirmation');
+            } else {
+              router.replace('/onboarding/step-6-authorized-users');
+            }
+            return;
           } else {
-            router.replace('/onboarding/step-6-authorized-users');
+            console.log('[Step4] E2E mode: suppressing auto-skip for existing team');
           }
-          return;
         } else if (ob.plan === 'veteran' || ob.plan === 'legend') {
           // Check for existing organizations that the user can manage
           const orgs = await Organization.mine();
@@ -89,19 +119,24 @@ export default function Step4Organization() {
             }));
             
             // Auto-skip this step if org already exists
-            setProgress(5); // step-6
-            if (returnToConfirmation) {
-              router.replace('/onboarding/step-10-confirmation');
+            if (!e2e) {
+              setProgress(5); // step-6
+              if (returnToConfirmation) {
+                router.replace('/onboarding/step-10-confirmation');
+              } else {
+                router.replace('/onboarding/step-6-authorized-users');
+              }
+              return;
             } else {
-              router.replace('/onboarding/step-6-authorized-users');
+              console.log('[Step4] E2E mode: suppressing auto-skip for existing org');
             }
-            return;
           }
         }
       } catch (error) {
         console.error('Error checking existing team/org:', error);
       } finally {
         setChecking(false);
+        console.log('[Step4] Existing check done. alreadyExists=', alreadyExists);
       }
     })();
   }, [ob.plan, returnToConfirmation, router, setOB, setProgress]);
@@ -154,8 +189,8 @@ export default function Step4Organization() {
     if (alreadyExists) return true;
     
     // All coaches need organization fields
-    return orgName.trim().length > 0 && location.trim().length > 0 && orgType;
-  }, [orgName, location, orgType, saving, alreadyExists]);
+    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -184,6 +219,28 @@ export default function Step4Organization() {
     searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch(() => {});
   }, [clearOrganizations, orgType, searchOrganizations, searchZip]);
 
+  const requestLocationSuggestions = useCallback((text: string) => {
+    if (locationTimerRef.current) {
+      clearTimeout(locationTimerRef.current);
+    }
+    if (text.trim().length < 3) {
+      setLocationSuggestions([]);
+      setLocationQuerying(false);
+      return;
+    }
+    setLocationQuerying(true);
+    locationTimerRef.current = setTimeout(async () => {
+      try {
+        const suggestions = await autocompleteLocations(text, 6);
+        setLocationSuggestions(suggestions);
+      } catch (error) {
+        console.warn('Location autocomplete failed:', error);
+      } finally {
+        setLocationQuerying(false);
+      }
+    }, 350);
+  }, []);
+
   const handleSearchInput = useCallback((text: string) => {
     setSearchZip(text);
     if (searchTimerRef.current) {
@@ -198,12 +255,54 @@ export default function Step4Organization() {
     }
   }, [clearOrganizations, executeNearbySearch]);
 
+  const handleLocationChange = useCallback((text: string) => {
+    setLocation(text);
+    setLocationTouched(true);
+    setSelectedPlace(null);
+    setSelectedPlaceZip(null);
+    requestLocationSuggestions(text);
+  }, [requestLocationSuggestions]);
+
+  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
+    setSelectedPlace(suggestion);
+    setLocation(suggestion.description);
+    setLocationSuggestions([]);
+    setLocationQuerying(false);
+    setLocationTouched(true);
+    const zipMatch = suggestion.description.match(/\b\d{5}(?:-\d{4})?\b/);
+    if (zipMatch && zipMatch[0]) {
+      const normalizedZip = zipMatch[0].slice(0, 5);
+      setSelectedPlaceZip(normalizedZip);
+      setSearchZip(normalizedZip);
+    }
+    // Check for duplicates by place_id
+    (async () => {
+      try {
+        const res = await httpPost('/organizations/check-duplicate', {
+          place_id: suggestion.place_id,
+          name: orgName.trim(),
+        });
+        if (res && (res as any).exists) {
+          setDuplicateWarning(`An organization at "${suggestion.description}" already exists. Use Search to find it.`);
+        } else {
+          setDuplicateWarning(null);
+        }
+      } catch (err) {
+        setDuplicateWarning(null);
+      }
+    })();
+  }, [setSearchZip, orgName]);
+
   // Cleanup search timer on unmount to prevent memory leaks
   useEffect(() => {
     return () => {
       if (searchTimerRef.current) {
         clearTimeout(searchTimerRef.current);
         searchTimerRef.current = null;
+      }
+      if (locationTimerRef.current) {
+        clearTimeout(locationTimerRef.current);
+        locationTimerRef.current = null;
       }
     };
   }, []);
@@ -262,6 +361,20 @@ export default function Step4Organization() {
 
   const onContinue = async () => {
     if (!canContinue) return;
+    
+    // Guard: require email verification before creating org
+    if (emailVerified === false && !alreadyExists) {
+      Alert.alert(
+        'Email Verification Required',
+        'Please verify your email address before creating an organization.',
+        [
+          { text: 'Verify Now', onPress: () => router.push('/verify-email') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    
     setSaving(true);
     try {
       // If team/org already exists, just navigate to next step
@@ -277,40 +390,56 @@ export default function Step4Organization() {
       }
       
       // All coaches create organization page
-      const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (location ? ` in ${location.trim()}` : '');
+      const locationLabel = selectedPlace?.description || location.trim();
+      const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
       const payload: any = {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: location.trim(),
-        zip_code: searchZip.trim() || undefined,
+        location: locationLabel,
+        formatted_address: selectedPlace?.description,
+        place_id: selectedPlace?.place_id,
+        zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
       // include plan if present in onboarding state
       if (ob.plan) payload.plan = ob.plan;
 
       const org = await Organization.createOrganization(payload);
-      setOB((prev) => ({ ...prev, organization_id: org?.id, organization_name: orgName.trim() }));
+      setOB((prev) => ({ 
+        ...prev, 
+        organization_id: org?.id, 
+        organization_name: orgName.trim(),
+        organization_place_id: selectedPlace?.place_id ?? null,
+        organization_location: locationLabel || null,
+      }));
       
-      // If onboarding indicates payment is pending, persist that to server preferences
-      try {
-        if (ob.payment_pending) {
-          await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
-        }
-      } catch (e) {
-        // non-fatal
-        console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
-      }
-      
-      // If we created an entity and are ending onboarding here, just navigate to confirmation.
-      // Final onboarding completion is handled in step-10 to ensure all IDs and fields are present.
-      if (returnToConfirmation) {
-        setProgress(7);
-        router.replace('/onboarding/step-10-confirmation');
-      } else {
-        setProgress(5); // step-6
-        router.push('/onboarding/step-6-authorized-users');
-      }
+      // Show success toast
+      Alert.alert(
+        'Organization Created!',
+        `"${orgName.trim()}" has been created successfully.`,
+        [{ text: 'Continue', onPress: () => {
+          // If onboarding indicates payment is pending, persist that to server preferences
+          (async () => {
+            try {
+              if (ob.payment_pending) {
+                await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
+              }
+            } catch (e) {
+              console.warn('Failed to persist payment_pending flag:', (e as any)?.message || e);
+            }
+            
+            // Navigate to next step
+            if (returnToConfirmation) {
+              setProgress(7);
+              router.replace('/onboarding/step-10-confirmation');
+            } else {
+              setProgress(5); // step-6
+              router.push('/onboarding/step-6-authorized-users');
+            }
+          })();
+        }}]
+      );
     } catch (e: any) { 
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {
@@ -318,6 +447,15 @@ export default function Step4Organization() {
           'Organization Already Exists',
           'This organization may already be on VarsityHub.\n\nPlease use the Search button above to find and join it instead.',
           [{ text: 'OK' }]
+        );
+      } else if (e?.message?.toLowerCase().includes('unauthorized') || e?.status === 401 || e?.status === 403) {
+        Alert.alert(
+          'Authentication Required',
+          'Please verify your email address or log in again to continue.',
+          [
+            { text: 'Verify Email', onPress: () => router.push('/verify-email') },
+            { text: 'Cancel', style: 'cancel' }
+          ]
         );
       } else {
         Alert.alert('Failed to create page', e?.message || 'Please verify your email and try again');
@@ -515,12 +653,50 @@ export default function Step4Organization() {
         {!showSearch && (
           <>
             <Text style={styles.label}>Location</Text>
-            <Input 
-              value={location} 
-              onChangeText={setLocation} 
-              placeholder="City, State" 
-              style={{ marginBottom: 24 }} 
-            />
+            <View style={styles.locationFieldWrapper}>
+              <Input 
+                value={location} 
+                onChangeText={handleLocationChange} 
+                placeholder="Start typing an address, school, or city" 
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              {locationQuerying && (
+                <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
+              )}
+              {locationSuggestions.length > 0 && (
+                <View style={styles.locationSuggestionList}>
+                  {locationSuggestions.map((suggestion, index) => (
+                    <Pressable
+                      key={suggestion.place_id}
+                      style={[
+                        styles.locationSuggestionItem,
+                        index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
+                      ]}
+                      onPress={() => handleSelectLocation(suggestion)}
+                    >
+                      <Text style={styles.locationSuggestionMain}>
+                        {suggestion.structured_formatting?.main_text || suggestion.description}
+                      </Text>
+                      {suggestion.structured_formatting?.secondary_text ? (
+                        <Text style={styles.locationSuggestionSecondary}>
+                          {suggestion.structured_formatting.secondary_text}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+            {!selectedPlace && locationTouched && (
+              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
+            )}
+            {duplicateWarning && (
+              <View style={styles.duplicateWarningBox}>
+                <Ionicons name="warning" size={16} color="#F59E0B" style={{ marginRight: 8 }} />
+                <Text style={styles.duplicateWarningText}>{duplicateWarning}</Text>
+              </View>
+            )}
           </>
         )}
 
@@ -730,6 +906,47 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '700', 
     color: Colors[colorScheme].text,
     marginBottom: 4 
+  },
+  locationFieldWrapper: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  locationSpinner: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  locationSuggestionList: {
+    marginTop: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors[colorScheme].border,
+    borderRadius: 12,
+    backgroundColor: Colors[colorScheme].surface,
+    overflow: 'hidden',
+  },
+  locationSuggestionItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors[colorScheme].border,
+  },
+  locationSuggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  locationSuggestionMain: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+  },
+  locationSuggestionSecondary: {
+    fontSize: 13,
+    color: Colors[colorScheme].mutedText,
+    marginTop: 2,
+  },
+  inputHelperText: {
+    fontSize: 12,
+    color: Colors[colorScheme].mutedText,
+    marginBottom: 24,
   },
   // Legacy modal styles (kept for reference) replaced by enhanced modal
   enhancedModalOverlay: {
@@ -1356,12 +1573,21 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  duplicateWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colorScheme === 'dark' ? 'rgba(245, 158, 11, 0.3)' : '#FDE68A',
+  },
+  duplicateWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: colorScheme === 'dark' ? '#FCD34D' : '#92400E',
+    lineHeight: 18,
+  },
 });
-
-
-
-
-
-
-
-

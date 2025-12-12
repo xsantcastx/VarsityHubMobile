@@ -101,6 +101,15 @@ export function useGoogleAuth() {
 
   const redirectUri = useMemo(() => {
     let uri = '';
+    
+    // For web platform, ALWAYS use localhost (highest priority)
+    if (Platform.OS === 'web') {
+      // Use window.location.origin if available (works for any port), fallback to 8081
+      uri = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:8081';
+      console.log('[google-auth] Using web redirect:', uri);
+      return uri;
+    }
+    
     try {
       if (shouldUseProxy && PROJECT_FULL_NAME) {
         uri = AuthSession.getRedirectUrl();

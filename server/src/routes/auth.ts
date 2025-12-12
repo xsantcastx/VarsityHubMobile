@@ -558,10 +558,9 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     onboarding_completed: z.boolean().optional(),
     
     // New onboarding fields
-    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-    // Rookie is not a role
     role: z.enum(['fan', 'coach']).optional(),
-    affiliation: z.enum(['school', 'independent']).optional(),
+    plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
+    affiliation: z.enum(['school', 'independent', 'none', 'university', 'high_school', 'club', 'youth', 'professional']).optional(),
     dob: z.string().optional(),
     sports_interests: z.array(z.string()).optional(),
     personalization_goals: z.array(z.string()).optional(),
@@ -577,13 +576,33 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const incoming = parsed.data as any;
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const onboardingCompleted = current?.preferences?.onboarding_completed === true;
+
+  if ('role' in incoming) {
+    if (onboardingCompleted) {
+      return res.status(403).json({ error: 'Role changes are not allowed after onboarding is complete.' });
+    }
+    if (incoming.role && !['fan', 'coach'].includes(incoming.role)) {
+      return res.status(400).json({ error: 'Invalid role.' });
+    }
+  }
+
+  if ('plan' in incoming) {
+    if (onboardingCompleted) {
+      return res.status(403).json({ error: 'Plan changes are not allowed via this endpoint once onboarding is complete.' });
+    }
+    // Only allow rookie plan to be set directly; paid plans must go through checkout
+    if (incoming.plan && incoming.plan !== 'rookie') {
+      return res.status(403).json({ error: 'Paid plans must be purchased through the subscription flow.' });
+    }
+  }
+
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
     is_parent: false,
     zip_code: null,
     onboarding_completed: true,
-    plan: null, // Plans only for coaches - don't default to 'rookie'
-    role: 'fan',
+    // plan and role intentionally omitted from PATCH
     sports_interests: [],
     personalization_goals: [],
     primary_intents: [],
@@ -603,7 +622,7 @@ const completeOnboardingSchema = z.object({
   role: z.enum(['fan', 'coach']).optional(),
   username: z.string().min(3).max(20).optional(),
   display_name: z.string().optional(),
-  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
+  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent', 'professional']).optional(),
   dob: z.string().optional(),
   zip: z.string().optional(),
   zip_code: z.string().optional(),

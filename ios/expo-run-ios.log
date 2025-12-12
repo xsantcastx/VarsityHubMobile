@@ -1,0 +1,456 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+› Using --device D6744356-E35C-4030-A8C1-6987CC640E21
+› Auto signing app using team(s): B5H8F69RW5
+› Planning build
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNDeps] Replace React Native Core for the right configuration, if needed
+› Executing react-native Pods/React-Core-prebuilt » [CP] Copy XCFrameworks
+› Preparing Pods/React-cxxreact-React-cxxreact_privacy » ResourceBundle-React-cxxreact_privacy-React-cxxreact-Info.plist
+› Preparing Pods/React-Core-React-Core_privacy » ResourceBundle-React-Core_privacy-React-Core-Info.plist
+› Preparing Pods/GoogleMaps-GoogleMapsResources » ResourceBundle-GoogleMapsResources-GoogleMaps-Info.plist
+    Run script build phase '[CP-User] [Hermes] Replace Hermes for the right configuration, if needed' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'hermes-engine' from project 'Pods')
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Preparing Pods/lottie-ios-LottiePrivacyInfo » ResourceBundle-LottiePrivacyInfo-lottie-ios-Info.plist
+› Preparing Pods/Sentry-Sentry » ResourceBundle-Sentry-Sentry-Info.plist
+› Preparing expo-image Pods/SDWebImage-SDWebImage » ResourceBundle-SDWebImage-SDWebImage-Info.plist
+› Preparing expo-updates Pods/ReachabilitySwift-ReachabilitySwift » ResourceBundle-ReachabilitySwift-ReachabilitySwift-Info.plist
+› Executing expo-dev-menu-interface Pods/expo-dev-menu-interface » Copy generated compatibility header
+› Executing varsityhubmobile Pods/GoogleMaps » [CP] Copy XCFrameworks
+› Executing lottie-ios Pods/lottie-ios » Copy generated compatibility header
+› Executing Pods/Sentry » Copy generated compatibility header
+› Executing expo-updates Pods/ReachabilitySwift » Copy generated compatibility header
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Executing react-native Pods/React-RCTFBReactNativeSpec » [CP-User] [RN]Check FBReactNativeSpec
+› Preparing Pods/react-native-maps-ReactNativeMapsPrivacy » ResourceBundle-ReactNativeMapsPrivacy-react-native-maps-Info.plist
+› Executing varsityhubmobile Pods/ReactCodegen » [CP-User] Generate Specs
+› Executing varsityhubmobile Pods/Google-Maps-iOS-Utils » Copy generated compatibility header
+› Compiling react-native-maps Pods/react-native-google-maps » AIRDummyView.m
+› Preparing Pods/react-native-google-maps-GoogleMapsPrivacy » ResourceBundle-GoogleMapsPrivacy-react-native-google-maps-Info.plist
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCalloutSubviewManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCalloutSubview.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCalloutManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCallout.m
+› Compiling varsityhubmobile Pods/react-native-google-maps » react-native-google-maps-dummy.m
+› Compiling react-native-maps Pods/react-native-google-maps » RCTConvert+GMSMapViewType.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapWMSTileManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapWMSTile.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapUrlTile.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapURLTileManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapPolylineManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapPolyline.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapPolygonManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapPolygon.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapOverlayManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapOverlay.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapMarkerManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapMarker.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapHeatmapManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapHeatmap.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCircleManager.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMapCircle.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGoogleMap.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGMSPolyline.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGMSPolygon.m
+› Compiling react-native-maps Pods/react-native-google-maps » AIRGMSMarker.m
+› Packaging varsityhubmobile Pods/react-native-google-maps » libreact-native-google-maps.a
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » safeareacontextJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » safeareacontext-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rnworkletsJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rnworklets-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rnviewshotJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rnviewshot-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rnscreensJSI-generated.cpp
+› Compiling react-native-webview Pods/react-native-webview » RNCWebViewModule.mm
+› Compiling react-native-view-shot Pods/react-native-view-shot » RNViewShot.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewState.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rnscreens-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rnreanimatedJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rnreanimated-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rngesturehandler_codegenJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rngesturehandler_codegen-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » rnasyncstorageJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » rnasyncstorage-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewShadowNode.cpp
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaViewComponentView.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaProviderComponentView.mm
+› Compiling react-native-safe-area-context Pods/react-native-safe-area-context » RNCSafeAreaContext.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling react-native-webview Pods/react-native-webview » RNCWebView.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » States.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ShadowNodes.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » RNSentrySpecJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » RNSentrySpec-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RNDateTimePickerCGenJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » RNDateTimePickerCGen-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RNCWebViewSpecJSI-generated.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » RNCWebViewSpec-generated.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RCTUnstableModulesRequiringMainQueueSetupProvider.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RCTThirdPartyComponentsProvider.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RCTModulesConformingToProtocolsProvider.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » RCTModuleProviders.mm
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » Props.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » EventEmitters.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactCodegen » ComponentDescriptors.cpp
+› Compiling varsityhubmobile Pods/ReactAppDependencyProvider » RCTAppDependencyProvider.mm
+› Compiling react-native-worklets Pods/RNWorklets » WorkletsModule.mm
+› Compiling @sentry/react-native Pods/RNSentry » RNSentry.mm
+› Compiling react-native-screens Pods/RNScreens » UIViewController+RNScreens.mm
+› Compiling react-native-reanimated Pods/RNReanimated » ReanimatedModule.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerModule.mm
+› Compiling @react-native-community/datetimepicker Pods/RNDateTimePicker » ShadowNodes.cpp
+› Compiling @react-native-picker/picker Pods/RNCPicker » RNCPicker.mm
+› Compiling @react-native-async-storage/async-storage Pods/RNCAsyncStorage » RNCAsyncStorage.mm
+› Packaging varsityhubmobile Pods/ReactCodegen » libReactCodegen.a
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryVersion.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryTimeToDisplay.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryReplayUnmask.mm
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryReplayMask.mm
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryRNSScreen.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryOnDrawReporter.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryFramesTrackerListener.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryEvents.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryDependencyContainer.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentry-dummy.m
+› Compiling @react-native-community/datetimepicker Pods/RNDateTimePicker » RNDateTimePickerComponentView.mm
+› Compiling @react-native-picker/picker Pods/RNCPicker » RNCPickerManager.mm
+› Compiling @react-native-picker/picker Pods/RNCPicker » RNCPickerComponentView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabsScreenViewController.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarControllerDelegate.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarController.mm
+› Compiling react-native-screens Pods/RNScreens » RNSTabBarAppearanceCoordinator.mm
+› Compiling react-native-screens Pods/RNScreens » RNSSplitViewScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSSearchBar.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderSubviewShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderSubview.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderConfigShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStackHeaderConfig.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenStack.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSScreenNavigationContainer.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenFooter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenContentWrapper.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreenContainer.mm
+› Compiling react-native-screens Pods/RNScreens » RNSScreen.mm
+› Compiling react-native-screens Pods/RNScreens » RNSModule.mm
+› Compiling react-native-screens Pods/RNScreens » RNSModalScreenShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSModalScreen.mm
+› Compiling react-native-screens Pods/RNScreens » RNSFullWindowOverlayShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSFullWindowOverlay.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConvert.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-SplitView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-Fabric.mm
+› Compiling react-native-screens Pods/RNScreens » RNSConversions-BottomTabs.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsShadowNode.cpp
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsScreenEventEmitter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsScreenComponentView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostEventEmitter.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostComponentView.mm
+› Compiling react-native-screens Pods/RNScreens » RNSBottomTabsHostComponentView+RNSImageLoader.mm
+› Compiling react-native-reanimated Pods/RNReanimated » NativeProxy.mm
+› Compiling react-native-gesture-handler Pods/RNGestureHandler » RNGestureHandlerButtonComponentView.mm
+› Preparing Pods/lottie-react-native-Lottie_React_Native_Privacy » ResourceBundle-Lottie_React_Native_Privacy-lottie-react-native-Info.plist
+› Preparing Pods/RNCAsyncStorage-RNCAsyncStorage_resources » ResourceBundle-RNCAsyncStorage_resources-RNCAsyncStorage-Info.plist
+› Compiling lottie-react-native Pods/lottie-react-native » lottie-react-native-dummy.m
+› Compiling lottie-react-native Pods/lottie-react-native » RCTConvert+Lottie.m
+› Compiling lottie-react-native Pods/lottie-react-native » LottieAnimationViewComponentView.mm
+› Compiling lottie-react-native Pods/lottie-react-native » LRNAnimationViewManagerObjC.m
+› Compiling @sentry/react-native Pods/RNSentry » SentrySDKWrapper.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryReplayQuality.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryReplayBreadcrumbConverterHelper.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryReplayBreadcrumbConverter.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryId.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryExperimentalOptions.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentryBreadcrumb.m
+› Compiling @sentry/react-native Pods/RNSentry » RNSentry+fetchNativeStack.m
+› Packaging react-native-webview Pods/react-native-webview » libreact-native-webview.a
+› Packaging react-native-view-shot Pods/react-native-view-shot » libreact-native-view-shot.a
+› Packaging react-native-safe-area-context Pods/react-native-safe-area-context » libreact-native-safe-area-context.a
+› Packaging varsityhubmobile Pods/ReactAppDependencyProvider » libReactAppDependencyProvider.a
+› Packaging react-native-worklets Pods/RNWorklets » libRNWorklets.a
+› Packaging @react-native-community/datetimepicker Pods/RNDateTimePicker » libRNDateTimePicker.a
+› Packaging @react-native-picker/picker Pods/RNCPicker » libRNCPicker.a
+› Packaging @react-native-async-storage/async-storage Pods/RNCAsyncStorage » libRNCAsyncStorage.a
+› Packaging @sentry/react-native Pods/RNSentry » libRNSentry.a
+› Executing expo-modules-core Pods/ExpoModulesCore » Copy generated compatibility header
+› Packaging react-native-screens Pods/RNScreens » libRNScreens.a
+› Packaging react-native-gesture-handler Pods/RNGestureHandler » libRNGestureHandler.a
+› Packaging lottie-react-native Pods/lottie-react-native » liblottie-react-native.a
+› Compiling expo-image-loader Pods/EXImageLoader » EXImageLoader.m
+› Packaging react-native-reanimated Pods/RNReanimated » libRNReanimated.a
+› Compiling expo-image-loader Pods/EXImageLoader » EXImageLoader-dummy.m
+› Packaging expo-image-loader Pods/EXImageLoader » libEXImageLoader.a
+› Preparing expo-constants Pods/EXConstants-EXConstants » ResourceBundle-EXConstants-EXConstants-Info.plist
+› Preparing Pods/EXConstants-ExpoConstants_privacy » ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist
+› Executing lottie-react-native Pods/lottie-react-native » Copy generated compatibility header
+› Executing expo-constants Pods/EXConstants » [CP-User] Generate app.config for prebuilt Constants.manifest
+› Compiling expo-web-browser Pods/ExpoWebBrowser » ExpoWebBrowser-dummy.m
+› Compiling expo-video Pods/ExpoVideo » ExpoVideo-dummy.m
+› Compiling expo-system-ui Pods/ExpoSystemUI » ExpoSystemUI-dummy.m
+› Compiling expo-symbols Pods/ExpoSymbols » ExpoSymbols-dummy.m
+› Packaging expo-web-browser Pods/ExpoWebBrowser » libExpoWebBrowser.a
+› Compiling expo-splash-screen Pods/ExpoSplashScreen » ExpoSplashScreen-dummy.m
+› Packaging expo-video Pods/ExpoVideo » libExpoVideo.a
+› Compiling expo-secure-store Pods/ExpoSecureStore » ExpoSecureStore-dummy.m
+› Compiling expo-media-library Pods/ExpoMediaLibrary » ExpoMediaLibrary-dummy.m
+› Packaging expo-symbols Pods/ExpoSymbols » libExpoSymbols.a
+› Compiling expo-location Pods/ExpoLocation » EXBackgroundLocationPermissionRequester.m
+› Packaging expo-splash-screen Pods/ExpoSplashScreen » libExpoSplashScreen.a
+› Compiling expo-linking Pods/ExpoLinking » ExpoLinking-dummy.m
+› Compiling expo-linear-gradient Pods/ExpoLinearGradient » ExpoLinearGradient-dummy.m
+› Packaging expo-secure-store Pods/ExpoSecureStore » libExpoSecureStore.a
+› Compiling expo-media-library Pods/ExpoMediaLibrary » MediaLibraryImageLoader.m
+› Compiling expo-keep-awake Pods/ExpoKeepAwake » ExpoKeepAwake-dummy.m
+› Compiling expo-image-picker Pods/ExpoImagePicker » ExpoImagePicker-dummy.m
+› Packaging expo-linear-gradient Pods/ExpoLinearGradient » libExpoLinearGradient.a
+› Packaging expo-linking Pods/ExpoLinking » libExpoLinking.a
+› Compiling expo-image-manipulator Pods/ExpoImageManipulator » ExpoImageManipulator-dummy.m
+› Compiling expo-image Pods/ExpoImage » ExpoImage-dummy.m
+› Compiling expo-router Pods/ExpoHead » ExpoHead-dummy.m
+› Compiling expo-location Pods/ExpoLocation » ExpoLocation-dummy.m
+› Packaging expo-keep-awake Pods/ExpoKeepAwake » libExpoKeepAwake.a
+› Packaging expo-image-picker Pods/ExpoImagePicker » libExpoImagePicker.a
+› Compiling expo-location Pods/ExpoLocation » EXLocationTaskConsumer.m
+› Compiling expo-location Pods/ExpoLocation » EXLocationPermissionRequester.m
+› Compiling expo-location Pods/ExpoLocation » EXLocation.m
+› Compiling expo-location Pods/ExpoLocation » EXGeofencingTaskConsumer.m
+› Compiling expo-location Pods/ExpoLocation » EXForegroundPermissionRequester.m
+› Compiling expo-location Pods/ExpoLocation » EXBaseLocationRequester.m
+› Compiling expo-haptics Pods/ExpoHaptics » ExpoHaptics-dummy.m
+› Compiling expo-font Pods/ExpoFont » ExpoFont-dummy.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXFileSystemAssetLibraryHandler.m
+› Packaging expo-haptics Pods/ExpoHaptics » libExpoHaptics.a
+› Compiling expo-document-picker Pods/ExpoDocumentPicker » ExpoDocumentPicker-dummy.m
+› Compiling expo-device Pods/ExpoDevice » ExpoDevice-dummy.m
+› Packaging expo-font Pods/ExpoFont » libExpoFont.a
+› Compiling expo-crypto Pods/ExpoCrypto » ExpoCrypto-dummy.m
+› Packaging expo-location Pods/ExpoLocation » libExpoLocation.a
+› Packaging expo-document-picker Pods/ExpoDocumentPicker » libExpoDocumentPicker.a
+› Compiling expo-clipboard Pods/ExpoClipboard » ExpoClipboard-dummy.m
+› Compiling expo-blur Pods/ExpoBlur » ExpoBlur-dummy.m
+› Compiling expo-audio Pods/ExpoAudio » AudioTapProcessor.m
+› Compiling expo-asset Pods/ExpoAsset » ExpoAsset-dummy.m
+› Packaging expo-crypto Pods/ExpoCrypto » libExpoCrypto.a
+› Packaging expo-clipboard Pods/ExpoClipboard » libExpoClipboard.a
+› Packaging expo-blur Pods/ExpoBlur » libExpoBlur.a
+› Packaging expo-asset Pods/ExpoAsset » libExpoAsset.a
+› Compiling expo-apple-authentication Pods/ExpoAppleAuthentication » ExpoAppleAuthentication-dummy.m
+› Compiling expo Pods/Expo » EXAppDefinesLoader.m
+› Compiling expo-updates-interface Pods/EXUpdatesInterface » noop-file.m
+› Packaging expo-apple-authentication Pods/ExpoAppleAuthentication » libExpoAppleAuthentication.a
+› Compiling expo-updates-interface Pods/EXUpdatesInterface » EXUpdatesInterface-dummy.m
+› Compiling expo-audio Pods/ExpoAudio » ExpoAudio-dummy.m
+› Compiling expo-notifications Pods/EXNotifications » EXNotifications-dummy.m
+› Compiling expo-manifests Pods/EXManifests » EXManifests-dummy.m
+› Compiling expo-application Pods/EXApplication » EXApplication-dummy.m
+› Compiling expo-eas-client Pods/EASClient » EASClient-dummy.m
+› Preparing Pods/ExpoSystemUI-ExpoSystemUI_privacy » ResourceBundle-ExpoSystemUI_privacy-ExpoSystemUI-Info.plist
+› Packaging expo-audio Pods/ExpoAudio » libExpoAudio.a
+› Packaging expo-system-ui Pods/ExpoSystemUI » libExpoSystemUI.a
+› Packaging expo-updates-interface Pods/EXUpdatesInterface » libEXUpdatesInterface.a
+› Packaging expo-manifests Pods/EXManifests » libEXManifests.a
+› Packaging expo-eas-client Pods/EASClient » libEASClient.a
+› Compiling expo-file-system Pods/ExpoFileSystem » NSData+EXFileSystem.m
+› Compiling expo-file-system Pods/ExpoFileSystem » ExpoFileSystem-dummy.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXTaskHandlersManager.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionUploadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionTaskDispatcher.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionResumableDownloadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionHandler.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionDownloadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXSessionCancelableUploadTaskDelegate.m
+› Compiling expo-file-system Pods/ExpoFileSystem » EXFileSystemLocalFileHandler.m
+› Compiling expo-notifications Pods/EXNotifications » EXUserFacingNotificationsPermissionsRequester.m
+› Compiling expo-notifications Pods/EXNotifications » EXNotificationSerializer.m
+› Compiling expo-application Pods/EXApplication » EXProvisioningProfile.m
+› Preparing Pods/ExpoMediaLibrary-ExpoMediaLibrary_privacy » ResourceBundle-ExpoMediaLibrary_privacy-ExpoMediaLibrary-Info.plist
+› Preparing Pods/ExpoFileSystem-ExpoFileSystem_privacy » ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist
+› Preparing Pods/ExpoDevice-ExpoDevice_privacy » ResourceBundle-ExpoDevice_privacy-ExpoDevice-Info.plist
+› Packaging expo-media-library Pods/ExpoMediaLibrary » libExpoMediaLibrary.a
+› Preparing Pods/EXNotifications-ExpoNotifications_privacy » ResourceBundle-ExpoNotifications_privacy-EXNotifications-Info.plist
+› Packaging expo-device Pods/ExpoDevice » libExpoDevice.a
+› Preparing Pods/EXApplication-ExpoApplication_privacy » ResourceBundle-ExpoApplication_privacy-EXApplication-Info.plist
+› Executing expo-web-browser Pods/ExpoWebBrowser » Copy generated compatibility header
+› Executing expo-video Pods/ExpoVideo » Copy generated compatibility header
+› Executing expo-system-ui Pods/ExpoSystemUI » Copy generated compatibility header
+› Executing expo-symbols Pods/ExpoSymbols » Copy generated compatibility header
+› Executing expo-splash-screen Pods/ExpoSplashScreen » Copy generated compatibility header
+› Executing expo-secure-store Pods/ExpoSecureStore » Copy generated compatibility header
+› Executing expo-location Pods/ExpoLocation » Copy generated compatibility header
+› Executing expo-linking Pods/ExpoLinking » Copy generated compatibility header
+› Executing expo-linear-gradient Pods/ExpoLinearGradient » Copy generated compatibility header
+› Executing expo-keep-awake Pods/ExpoKeepAwake » Copy generated compatibility header
+› Executing expo-image-picker Pods/ExpoImagePicker » Copy generated compatibility header
+› Executing expo-haptics Pods/ExpoHaptics » Copy generated compatibility header
+› Executing expo-font Pods/ExpoFont » Copy generated compatibility header
+› Packaging expo-file-system Pods/ExpoFileSystem » libExpoFileSystem.a
+› Executing expo-document-picker Pods/ExpoDocumentPicker » Copy generated compatibility header
+› Executing expo-crypto Pods/ExpoCrypto » Copy generated compatibility header
+› Executing expo-clipboard Pods/ExpoClipboard » Copy generated compatibility header
+› Executing expo-blur Pods/ExpoBlur » Copy generated compatibility header
+› Executing expo-audio Pods/ExpoAudio » Copy generated compatibility header
+› Executing expo-asset Pods/ExpoAsset » Copy generated compatibility header
+› Executing expo-apple-authentication Pods/ExpoAppleAuthentication » Copy generated compatibility header
+› Executing expo-updates-interface Pods/EXUpdatesInterface » Copy generated compatibility header
+› Packaging expo-notifications Pods/EXNotifications » libEXNotifications.a
+› Executing expo-manifests Pods/EXManifests » Copy generated compatibility header
+› Packaging expo-application Pods/EXApplication » libEXApplication.a
+› Executing expo-eas-client Pods/EASClient » Copy generated compatibility header
+› Compiling expo Pods/Expo » Expo-dummy.m
+› Compiling expo Pods/Expo » EXLegacyAppDelegateWrapper.m
+› Compiling expo Pods/Expo » EXAppDelegatesLoader.m
+› Packaging expo-router Pods/ExpoHead » libExpoHead.a
+› Executing expo-media-library Pods/ExpoMediaLibrary » Copy generated compatibility header
+› Executing expo-file-system Pods/ExpoFileSystem » Copy generated compatibility header
+› Executing expo-device Pods/ExpoDevice » Copy generated compatibility header
+› Packaging expo Pods/Expo » libExpo.a
+› Executing expo-notifications Pods/EXNotifications » Copy generated compatibility header
+› Executing expo-application Pods/EXApplication » Copy generated compatibility header
+› Compiling expo-constants Pods/EXConstants » EXConstants-dummy.m
+› Preparing Pods/expo-dev-menu-EXDevMenu » ResourceBundle-EXDevMenu-expo-dev-menu-Info.plist
+› Compiling expo-constants Pods/EXConstants » EXConstantsService.m
+› Compiling expo-constants Pods/EXConstants » EXConstantsInstallationIdProvider.m
+› Packaging expo-constants Pods/EXConstants » libEXConstants.a
+› Preparing Pods/expo-dev-launcher-EXDevLauncher » ResourceBundle-EXDevLauncher-expo-dev-launcher-Info.plist
+› Packaging expo-image Pods/ExpoImage » libExpoImage.a
+› Packaging expo-image-manipulator Pods/ExpoImageManipulator » libExpoImageManipulator.a
+› Executing expo Pods/Expo » Copy generated compatibility header
+› Executing expo-image Pods/ExpoImage » Copy generated compatibility header
+› Executing expo-router Pods/ExpoHead » Copy generated compatibility header
+› Executing expo-constants Pods/EXConstants » Copy generated compatibility header
+› Compiling expo-dev-menu Pods/expo-dev-menu » expo-dev-menu-dummy.m
+› Compiling expo-dev-menu Pods/expo-dev-menu » DevClientNoOpLoadingView.m
+› Preparing expo-updates Pods/EXUpdates-EXUpdates » ResourceBundle-EXUpdates-EXUpdates-Info.plist
+› Executing expo-image-manipulator Pods/ExpoImageManipulator » Copy generated compatibility header
+› Executing expo-updates Pods/EXUpdates » [CP-User] Generate updates resources for expo-updates
+› Compiling expo-dev-menu Pods/expo-dev-menu » EXDevMenuAppInfo.m
+› Packaging expo-dev-menu Pods/expo-dev-menu » libexpo-dev-menu.a
+› Executing expo-dev-menu Pods/expo-dev-menu » Copy generated compatibility header
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » expo-dev-launcher-dummy.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherUpdatesHelper.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherRCTDevSettings.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherDeferredRCTRootView.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherRCTBridge.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherDevMenuExtensions.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherRedBox.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherManifestParser.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncher.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherController.m
+› Packaging expo-dev-launcher Pods/expo-dev-launcher » libexpo-dev-launcher.a
+› Executing expo-dev-launcher Pods/expo-dev-launcher » Copy generated compatibility header
+› Compiling expo-updates Pods/EXUpdates » EXUpdates-dummy.m
+› Compiling expo-updates Pods/EXUpdates » EXDeferredRCTRootView.m
+› Packaging expo-updates Pods/EXUpdates » libEXUpdates.a
+› Executing expo-updates Pods/EXUpdates » Copy generated compatibility header
+› Compiling Pods/Pods-VarsityHub » Pods-VarsityHub-dummy.m
+› Packaging Pods/Pods-VarsityHub » libPods-VarsityHub.a
+› Executing VarsityHub » [CP] Check Pods Manifest.lock
+› Executing VarsityHub » [Expo] Configure project
+› Linking   VarsityHub » __preview.dylib
+› Compiling VarsityHub » VarsityHub_vers.c
+› Linking   VarsityHub » VarsityHub.debug.dylib
+⚠️  ld: ignoring duplicate libraries: '-lc++'
+› Linking   VarsityHub » VarsityHub
+› Executing VarsityHub » Bundle React Native code and images
+› Executing VarsityHub » [CP] Embed Pods Frameworks
+› Preparing VarsityHub » Info.plist
+› Generating debug VarsityHub » VarsityHub.app.dSYM
+› Generating debug VarsityHub » VarsityHub.app.dSYM
+› Executing VarsityHub » [CP] Copy Pods Resources
+› Signing   VarsityHub » VarsityHub.debug.dylib
+› Signing   VarsityHub » __preview.dylib
+› Signing   VarsityHub » VarsityHub.app
+    Run script build phase '[CP-User] Generate updates resources for expo-updates' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'EXUpdates' from project 'Pods')
+› Build Succeeded
+
+› 0 error(s), and 3 warning(s)
+
+Starting Metro Bundler
+Waiting on http://localhost:8081
+› Installing /Users/varsityhub/Library/Developer/Xcode/DerivedData/VarsityHub-eldpkifpumczeeehsjkxfbsttygg/Build/Products/Debug-iphonesimulator/VarsityHub.app
+› Installing on iPhone 16 Pro
+› Opening on iPhone 16 Pro (com.xsantcastx.varsityhub)
+› Opening exp+varsityhubmobile://expo-development-client/?url=http%3A%2F%2F192.168.1.149%3A8081 on iPhone 17 Pro
+› Opening the iOS simulator, this might take a moment.
+Waiting for Watchman `watch-project` (10s)...
+Waiting for Watchman `watch-project` (10s)...
+
+› Logs for your project will appear below.
+Watchman `watch-project` finished after 16.0s.
+Watchman `watch-project` finished after 16.0s.
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 49.7% (653/938)
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 67.2% (1252/1836)
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 78.1% (2729/3265)
+iOS node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS Bundled 12901ms node_modules/expo-router/entry.js (3980 modules)
+iOS Bundled 12586ms node_modules/expo-router/entry.js (1 module)
+ LOG  [sentry] Skipping initialization in development mode
+ LOG  [http] API base: https://api-production-8ac3.up.railway.app {"envUrl": "https://api-production-8ac3.up.railway.app", "forceRemote": true, "platform": "ios"}
+ LOG  [AuthProvider] Navigation ready, starting auth check
+ LOG  [AuthProvider] Checking backend health...
+ LOG  [AuthProvider] Still initializing, skipping routing
+ LOG  [AuthProvider] Health check result: true
+ LOG  [AuthProvider] Checking authentication...
+ DEBUG  [sentry] captureException skipped in dev: [Error: Unauthorized]
+ LOG  [AuthProvider] Auth check successful
+ LOG  [AuthProvider] Initialization complete
+ ERROR  [http] Request failed: {"error": "Unauthorized", "url": "https://api-production-8ac3.up.railway.app/me"} 
+
+Code: http.ts
+[0m [90m 100 |[39m   } [36mcatch[39m (error[33m:[39m any) {
+ [90m 101 |[39m     clearTimeout(timeoutId)[33m;[39m
+[31m[1m>[22m[39m[90m 102 |[39m     console[33m.[39merror([32m'[http] Request failed:'[39m[33m,[39m { url[33m:[39m base [33m+[39m path[33m,[39m error[33m:[39m error[33m.[39mmessage })[33m;[39m
+ [90m     |[39m                  [31m[1m^[22m[39m
+ [90m 103 |[39m     [36mif[39m (error[33m.[39mname [33m===[39m [32m'AbortError'[39m) {
+ [90m 104 |[39m       [36mconst[39m err[33m:[39m any [33m=[39m [36mnew[39m [33mError[39m([32m'Request timeout - server did not respond'[39m)[33m;[39m
+ [90m 105 |[39m       err[33m.[39mstatus [33m=[39m [35m408[39m[33m;[39m[0m
+Call Stack
+  request (api/http.ts:102:18)
+ LOG  [AuthProvider] Routing check - segment:  user: false pendingVerif: false
+ LOG  [AuthProvider] Redirecting to sign-in (unauthenticated)
+ LOG  [google-auth] Using Expo proxy redirect: https://auth.expo.io/@lime_prod/varsityhub
+ LOG  [Apple Auth] Availability check result: true
+ LOG  [google-auth] Starting Google sign-in...
+ LOG  [google-auth] Using redirect URI: https://auth.expo.io/@lime_prod/varsityhub
+ LOG  [google-auth] Request config: {"androidClientId": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com", "clientId": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com", "iosClientId": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com", "redirectUri": "https://auth.expo.io/@lime_prod/varsityhub", "scopes": ["profile", "email"], "webClientId": "814866365020-ml5i55hgdne80i2hfd3ub5nggfpvrr2r.apps.googleusercontent.com"}

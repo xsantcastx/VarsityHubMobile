@@ -16,7 +16,7 @@ export default function TeamInvitesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [modal, setModal] = useState<null | { title: string; message?: string; options: any[] }>(null);
-  const { invites, loading, error, refresh } = useTeamInvites<Invite>();
+  const { invites, loading, error: _error, refresh } = useTeamInvites<Invite>();
 
   const accept = async (id: string, teamId?: string) => {
     try { 

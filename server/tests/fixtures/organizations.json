@@ -1,0 +1,130 @@
+{
+  "organizations": [
+    {
+      "id": "westhill-123",
+      "name": "Westhill High School",
+      "description": "Westhill High School Athletics",
+      "sport": "multi-sport",
+      "org_type": "school",
+      "location": "Stamford, CT",
+      "formatted_address": "Westhill High School, Stamford, CT 06902, USA",
+      "place_id": "ChIJWesthillPlace123",
+      "zip_code": "06902",
+      "status": "active",
+      "created_at": "2025-01-01T00:00:00.000Z",
+      "updated_at": "2025-01-01T00:00:00.000Z",
+      "_count": {
+        "teams": 12,
+        "memberships": 45
+      }
+    },
+    {
+      "id": "greenwich-456",
+      "name": "Greenwich High School",
+      "description": "Greenwich High School Cardinals Athletics",
+      "sport": "multi-sport",
+      "org_type": "school",
+      "location": "Greenwich, CT",
+      "formatted_address": "Greenwich High School, Greenwich, CT 06830, USA",
+      "place_id": "ChIJGreenwichPlace456",
+      "zip_code": "06830",
+      "status": "active",
+      "created_at": "2025-01-01T00:00:00.000Z",
+      "updated_at": "2025-01-01T00:00:00.000Z",
+      "_count": {
+        "teams": 15,
+        "memberships": 52
+      }
+    },
+    {
+      "id": "stamford-soccer-789",
+      "name": "Stamford Youth Soccer Club",
+      "description": "Competitive youth soccer for ages 6-18 in Stamford area",
+      "sport": "soccer",
+      "org_type": "club",
+      "location": "Stamford, CT",
+      "formatted_address": "Stamford, CT 06901, USA",
+      "place_id": "ChIJStamfordSoccerPlace789",
+      "zip_code": "06901",
+      "status": "active",
+      "created_at": "2025-01-01T00:00:00.000Z",
+      "updated_at": "2025-01-01T00:00:00.000Z",
+      "_count": {
+        "teams": 8,
+        "memberships": 34
+      }
+    },
+    {
+      "id": "darien-101",
+      "name": "Darien High School",
+      "description": "Darien High School Blue Wave Athletics",
+      "sport": "multi-sport",
+      "org_type": "school",
+      "location": "Darien, CT",
+      "formatted_address": "Darien High School, Darien, CT 06820, USA",
+      "place_id": "ChIJDarienPlace101",
+      "zip_code": "06820",
+      "status": "active",
+      "created_at": "2025-01-02T00:00:00.000Z",
+      "updated_at": "2025-01-02T00:00:00.000Z",
+      "_count": {
+        "teams": 10,
+        "memberships": 38
+      }
+    },
+    {
+      "id": "newcanaan-baseball-202",
+      "name": "New Canaan Baseball League",
+      "description": "Community baseball league for youth ages 5-14",
+      "sport": "baseball",
+      "org_type": "league",
+      "location": "New Canaan, CT",
+      "formatted_address": "New Canaan, CT 06840, USA",
+      "place_id": "ChIJNewCanaanBaseball202",
+      "zip_code": "06840",
+      "status": "active",
+      "created_at": "2025-01-03T00:00:00.000Z",
+      "updated_at": "2025-01-03T00:00:00.000Z",
+      "_count": {
+        "teams": 6,
+        "memberships": 28
+      }
+    },
+    {
+      "id": "fairfield-prep-303",
+      "name": "Fairfield College Preparatory School",
+      "description": "Fairfield Prep Jesuits Athletics",
+      "sport": "multi-sport",
+      "org_type": "school",
+      "location": "Fairfield, CT",
+      "formatted_address": "Fairfield College Preparatory School, Fairfield, CT 06824, USA",
+      "place_id": "ChIJFairfieldPrep303",
+      "zip_code": "06824",
+      "status": "active",
+      "created_at": "2025-01-04T00:00:00.000Z",
+      "updated_at": "2025-01-04T00:00:00.000Z",
+      "_count": {
+        "teams": 14,
+        "memberships": 48
+      }
+    },
+    {
+      "id": "norwalk-hockey-404",
+      "name": "Norwalk Youth Hockey Association",
+      "description": "Youth hockey programs serving Norwalk and surrounding communities",
+      "sport": "hockey",
+      "org_type": "club",
+      "location": "Norwalk, CT",
+      "formatted_address": "Norwalk, CT 06850, USA",
+      "place_id": "ChIJNorwalkHockey404",
+      "zip_code": "06850",
+      "status": "active",
+      "created_at": "2025-01-05T00:00:00.000Z",
+      "updated_at": "2025-01-05T00:00:00.000Z",
+      "_count": {
+        "teams": 5,
+        "memberships": 22
+      }
+    }
+  ]
+}

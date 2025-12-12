@@ -280,14 +280,14 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   subtitle: {
     ...Type.body,
     color: Colors[colorScheme].mutedText,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors[colorScheme].text,
-    marginTop: 20,
-    marginBottom: 8,
+    marginTop: 12,
+    marginBottom: 6,
   },
   error: {
     fontSize: 14,
@@ -307,18 +307,18 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   hint: {
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   affiliationGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 20,
+    gap: 6,
+    marginBottom: 12,
   },
   affiliationButton: {
     width: '31%',
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 12,
     borderWidth: 2,
@@ -334,7 +334,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   affiliationIcon: {
     fontSize: 20,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   affiliationLabel: {
     fontSize: 12,

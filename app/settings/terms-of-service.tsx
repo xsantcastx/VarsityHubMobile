@@ -10,7 +10,7 @@ export default function TermsOfServiceScreen() {
   const theme = Colors[colorScheme];
 
   const openExternalLink = (url: string) => {
-    Linking.openURL(url).catch(err => console.error('Failed to open URL:', err));
+    Linking.openURL(url).catch(_err => {/* Failed to open URL */});
   };
 
   return (

@@ -69,13 +69,6 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
             const finalized = await finalizeWithRetry(sessionId);
             if (!finalized) {
               console.warn('Subscription finalize pending after retries', { sessionId });
-            } else {
-              // On successful finalize, update role to coach so the UI reflects new capabilities
-              try {
-                await User.updatePreferences({ role: 'coach' });
-              } catch (err) {
-                console.warn('Failed to persist role change locally after subscription finalize', err);
-              }
             }
           }
           await refreshPlan();

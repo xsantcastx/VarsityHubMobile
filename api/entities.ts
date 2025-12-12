@@ -105,6 +105,8 @@ export const Game = {
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
   clearVote: (id: string) => httpDelete(`/games/${encodeURIComponent(id)}/votes`),
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
+  setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
+    httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
   addStory: (id: string, data: { media_url: string; caption?: string }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
 };
@@ -268,7 +270,20 @@ export const Organization = {
   mine: () => httpGet('/organizations/mine'),
   get: (id: string) => httpGet('/organizations/' + encodeURIComponent(id)),
   members: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/members`),
-  createOrganization: (data: { name: string; description?: string; sport?: string; season_start?: string; season_end?: string; org_type?: string; location?: string; zip_code?: string }) => httpPost('/organizations', data),
+  createOrganization: (data: {
+    name: string;
+    description?: string;
+    sport?: string;
+    season_start?: string;
+    season_end?: string;
+    org_type?: string;
+    location?: string;
+    formatted_address?: string;
+    place_id?: string;
+    zip_code?: string;
+    latitude?: number;
+    longitude?: number;
+  }) => httpPost('/organizations', data),
   createWithTeams: (data: any) => httpPost('/organizations/create', data),
   invite: (organizationId: string, email: string, role?: string) => httpPost(`/organizations/${encodeURIComponent(organizationId)}/invite`, { email, role }),
   myInvites: () => httpGet('/organizations/invites/me'),

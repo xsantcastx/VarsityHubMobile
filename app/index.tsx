@@ -6,10 +6,16 @@ import { ActivityIndicator, View } from 'react-native';
 export default function Index() {
   const { loading, user } = useAuth();
   const router = useRouter();
+  const e2eMode = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
   
   // Fallback: if AuthProvider doesn't redirect within 3 seconds, do it manually
   useEffect(() => {
     const timeout = setTimeout(() => {
+      if (e2eMode) {
+        // In E2E mode, do not redirect automatically; allow tests to navigate
+        console.log('[Index] E2E mode detected — skipping auth redirect');
+        return;
+      }
       console.log('[Index] ⚠️ Fallback timeout - manually redirecting');
       if (!user) {
         console.log('[Index] Redirecting to sign-in (no user)');
@@ -24,7 +30,7 @@ export default function Index() {
     }, 3000);
     
     return () => clearTimeout(timeout);
-  }, [user, router]);
+  }, [user, router, e2eMode]);
   
   // AuthProvider handles all routing logic
   // This screen shows loading state while AuthProvider determines where to navigate

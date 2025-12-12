@@ -6,6 +6,7 @@
 
 import express from 'express';
 import {
+    autocompletePlaces,
     clearGeocodeCache,
     geocodeAllEvents,
     geocodeAllGames,
@@ -44,6 +45,27 @@ const requireAdmin = async (req: AuthedRequest, res: express.Response, next: exp
     return res.status(500).json({ error: 'Failed to verify admin status' });
   }
 };
+
+/**
+ * GET /geocoding/autocomplete
+ * Fetch Google Places autocomplete suggestions for a location query
+ */
+router.get('/autocomplete', requireAuth as any, async (req: AuthedRequest, res) => {
+  try {
+    const q = String((req.query as any).q || '').trim();
+    const limit = Math.min(parseInt(String((req.query as any).limit || '6'), 10) || 6, 10);
+
+    if (q.length < 3) {
+      return res.status(400).json({ error: 'Query must be at least 3 characters.' });
+    }
+
+    const suggestions = await autocompletePlaces(q, limit);
+    return res.json({ suggestions });
+  } catch (error) {
+    console.error('Error fetching autocomplete suggestions:', error);
+    return res.status(500).json({ error: 'Failed to fetch suggestions' });
+  }
+});
 
 /**
  * POST /geocoding/location

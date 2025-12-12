@@ -36,7 +36,7 @@ export default function TeamHubScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = useMemo(() => buildPalette(colorScheme), [colorScheme]);
   const S = useMemo(() => createStyles(palette), [palette]);
-  const [activeTab, setActiveTab] = useState<'team' | 'create' | 'approvals'>('team');
+  const [_activeTab, _setActiveTab] = useState<'team' | 'create' | 'approvals'>('team');
   const [query, setQuery] = useState('');
   const [events, setEvents] = useState<any[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);

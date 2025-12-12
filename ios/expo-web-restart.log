@@ -1,0 +1,26 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
+Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+λ Bundled 2360ms node_modules/expo-router/node/render.js (3742 modules)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3705/3705)
+"shadow*" style props are deprecated. Use "boxShadow".
+[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.
+"textShadow*" style props are deprecated. Use "textShadow".
+λ  LOG  [sentry] Skipping initialization in development mode
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3705/3705)
+[http] API base: https://api-production-8ac3.up.railway.app {
+  envUrl: 'https://api-production-8ac3.up.railway.app',
+  forceRemote: true,
+  platform: 'web'
+}
+🔍 Testing Monitor: Skipping (no window object)
+🔍 Web Testing Monitor Active - Tracking all errors
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (3705/3705)
+Web Bundled 6161ms node_modules/expo-router/entry.js (3705 modules)
+Web node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 89.4% (3376/3571)
+Web Bundled 4085ms node_modules/expo-router/entry.js (3707 modules)
+Web Bundled 20ms utils/testingMonitor.web.ts (1 module)
+ LOG  [web] Logs will appear in the browser console

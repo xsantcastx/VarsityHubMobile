@@ -570,6 +570,8 @@ model Organization {
   org_type    String?  // school | club | league | tournament | other
   logo_url    String?  // For tournaments
   location    String?  // City, State format
+  formatted_address String?
+  place_id    String?  @unique
   zip_code    String?  // For nearby search
   season_start DateTime?
   season_end  DateTime?
@@ -866,7 +868,6 @@ model AbuseReport {
   @@index([status])
   @@index([created_at])
 }
-
 
 
 

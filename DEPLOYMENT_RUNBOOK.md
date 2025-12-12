@@ -6,7 +6,57 @@
 
 ---
 
-## Pre-Deployment Checklist
+
+## Database Changes
+
+**Schema Migration:**
+
+Before or during backend deployment, apply any new database schema changes:
+
+```bash
+# Apply latest migrations (production DB)
+npx prisma migrate deploy
+```
+
+**Rollback Migration:**
+
+If a migration must be reverted (emergency):
+
+```bash
+# Find last good migration
+npx prisma migrate resolve --applied <last_good_migration_name>
+# Or manually revert DB to previous state (consult DBA)
+```
+
+**Seeding:**
+
+If seed data is required:
+
+```bash
+SEED_PASSWORD=ci node prisma/seed.ts
+```
+
+**Cache Invalidation:**
+
+If you use a cache (e.g., Redis, CDN), invalidate after migration if needed:
+
+```bash
+# Example for Redis
+redis-cli FLUSHALL
+# Example for CDN
+# Purge cache via provider dashboard/API
+```
+
+**Feature Flags:**
+
+If feature flags are used, toggle them as needed for rollout/rollback:
+
+```bash
+# Example (using LaunchDarkly CLI)
+ld toggle <flag-key> on|off
+```
+
+---
 
 Before executing any deployment steps, verify:
 
@@ -61,7 +111,26 @@ git ls-remote --tags origin | grep v1.0.0-qa-approved
 
 ---
 
-## Phase 2: Backend Deployment (Railway)
+
+## Notification Template Smoke-Test (SendGrid)
+
+After backend deploy, verify notification templates:
+
+```bash
+# Replace <API_KEY> and <to_email> as needed
+curl --request POST \
+   --url https://api.sendgrid.com/v3/mail/send \
+   --header 'Authorization: Bearer <API_KEY>' \
+   --header 'Content-Type: application/json' \
+   --data '{
+      "personalizations": [{ "to": [{ "email": "<to_email>" }] }],
+      "from": { "email": "noreply@varsityhub.com" },
+      "subject": "Test Notification",
+      "content": [{ "type": "text/plain", "value": "This is a test notification from deployment runbook." }]
+   }'
+```
+
+---
 
 **Duration**: 2-5 minutes  
 **Risk**: Low (code already deployed on main, this just confirms it)
@@ -298,7 +367,21 @@ Once all metrics pass:
 
 ---
 
-## Rollback Checklist (Use Only If Needed)
+## Abort / Rollback Checklist
+
+- [ ] Stop app distribution (pause on App Store/Play Store)
+- [ ] Revert backend commits to main
+- [ ] Push revert to trigger Railway redeploy
+- [ ] Run `npx prisma migrate resolve --rolled-back <migration_name>` if DB rollback needed
+- [ ] Invalidate cache if needed
+- [ ] Build previous stable version
+- [ ] Submit emergency app update
+- [ ] Post incident timeline in Discord
+- [ ] Schedule post-mortem meeting
+- [ ] Root cause analysis and new fix
+- [ ] Re-test before next release attempt
+
+---
 
 - [ ] Stop app distribution (pause on App Store/Play Store)
 - [ ] Revert backend commits to main

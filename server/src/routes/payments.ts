@@ -1,5 +1,6 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
+import { debugLog } from '../lib/debugLog.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -7,7 +8,6 @@ import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -118,7 +118,7 @@ const membershipPlans = ['veteran', 'legend'] as const;
 type MembershipPlan = typeof membershipPlans[number];
 
 const membershipPriceIds: Record<MembershipPlan, string | undefined> = {
-  veteran: process.env.STRIPE_PRICE_VETERAN,
+  veteran: 'price_1SVcqtGJt8CsPE1EtTs2QpO1',
   legend: process.env.STRIPE_PRICE_LEGEND,
 };
 
@@ -201,16 +201,23 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 250 : 1999, // Veteran: $2.50/month per additional team, Legend: $19.99/year
+          unit_amount: chosen === 'veteran' ? 150 : 1999, // Veteran: $1.50/month per additional team, Legend: $19.99/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
-              ? `Veteran plan - $2.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
+              ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
               : 'Legend plan - $19.99/year unlimited (fallback price)',
           },
         },
       }];
+
+  // Log price selection for debugging
+  if (hasExplicitPriceId) {
+    debugLog(`[payments] Creating ${chosen} subscription checkout with price ID: ${normalizedPriceId} (quantity: ${chosen === 'veteran' ? billableQuantity : 1})`);
+  } else {
+    debugLog(`[payments] Creating ${chosen} subscription checkout with fallback price_data (no configured price ID)`);
+  }
 
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
   // Use deep links for mobile app redirects
@@ -249,13 +256,14 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
+  debugLog(`[payments] Stripe session created: ${session.id} for user ${req.user!.id}, plan ${chosen}`);
 
   // Log subscription transaction
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 250 * billableQuantity : 1999; // Veteran billed only for additional teams
+  const amount = chosen === 'veteran' ? 150 * billableQuantity : 1999; // Veteran billed only for additional teams
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -300,18 +308,19 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
 
-  // No global conflicts: allow multiple ads on the same date.
-
-  const subtotal = calculatePriceCents(isoDates);
-  if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  // Map ad.type to Stripe price ID
+  const adTypeToPriceId: Record<string, string> = {
+    'Fri-Sun Advertising': 'price_1SNFXxGJt8CsPE1ECbmJRQDa',
+    'Mond-Thurs Advertising': 'price_1SNFWzGJt8CsPE1EIikRsZif',
+  };
+  const priceId = adTypeToPriceId[ad.type];
+  if (!priceId) {
+    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType: ad.type });
+  }
 
   // Calculate sales tax based on ad's target zip code
+  const subtotal = calculatePriceCents(isoDates);
   const taxCents = ad.target_zip_code ? calculateSalesTax(subtotal, ad.target_zip_code) : 0;
-  
-  // Calculate total before discount
-  const subtotalWithTax = subtotal + taxCents;
-
-  // Apply promo code if provided (discount applies to subtotal, not tax)
   let discount = 0;
   let appliedCode: string | null = null;
   if (promo_code && typeof promo_code === 'string') {
@@ -320,13 +329,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     discount = preview.discount_cents;
     appliedCode = preview.code;
   }
-
-  // Total = (subtotal - discount) + tax
-  // Total = (subtotal - discount) + tax
   const total = Math.max(0, subtotal - discount + taxCents);
-  // If free after discount, finalize immediately without Stripe Checkout
   if (total === 0) {
-    // Record redemption and create reservations
     if (appliedCode) {
       await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
     }
@@ -338,30 +342,19 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     } catch (e) {}
     return res.json({ free: true });
   }
-
-  // Use deep links for mobile app redirects
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
-
-  const session = await stripe.checkout.sessions.create(({
+  const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     success_url: success,
     cancel_url: cancel,
     line_items: [
       {
+        price: priceId,
         quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: total,
-          product_data: {
-            name: 'Ad Reservation',
-            description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}`,
-          },
-        },
       },
-    ] as any,
-    // Useful metadata for webhook
+    ],
     metadata: {
       ad_id: String(ad_id),
       dates: JSON.stringify(isoDates),
@@ -371,9 +364,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
     },
-  } as Stripe.Checkout.SessionCreateParams));
-
-  // Log transaction
+  });
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
@@ -400,7 +391,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     ipAddress: req.ip,
     userAgent: req.get('user-agent'),
   });
-
   return res.json({ url: session.url });
 });
 

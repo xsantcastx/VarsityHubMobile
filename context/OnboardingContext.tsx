@@ -4,7 +4,7 @@ import React, { createContext, PropsWithChildren, useContext, useEffect, useStat
 const ONBOARDING_STATE_KEY = 'onboarding_state';
 const ONBOARDING_PROGRESS_KEY = 'onboarding_progress';
 
-export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth';
+export type Affiliation = 'none' | 'university' | 'high_school' | 'club' | 'youth' | 'professional';
 export type Plan = 'rookie' | 'veteran' | 'legend';
 // Rookie is a plan, not a role
 export type UserRole = 'fan' | 'coach';
@@ -28,6 +28,8 @@ export type OnboardingState = {
   team_name?: string;
   organization_id?: string;
   organization_name?: string;
+  organization_place_id?: string | null;
+  organization_location?: string | null;
   sport?: string;
   authorized?: Array<{ email?: string; user_id?: string; role?: TeamRole; assign_team?: string }>;
   authorized_users?: Array<{ email?: string; user_id?: string; role?: TeamRole; assign_team?: string }>;

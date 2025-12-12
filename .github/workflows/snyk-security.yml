@@ -38,7 +38,7 @@ jobs:
         uses: snyk/actions/setup@master
 
       - name: Run Snyk Code scan (SAST)
-        run: snyk code test --severity-threshold=high --report-metrics
+        run: snyk code test --severity-threshold=high --sarif-file-output=snyk.sarif --report-metrics
         continue-on-error: true
 
       - name: Run Snyk Open Source scan (SCA)

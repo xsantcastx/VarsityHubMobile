@@ -510,21 +510,27 @@ export default function ManageSeasonScreen() {
 
   const handleApproveGame = async (game: Game) => {
     try {
-      // Update game approval status to approved
+      await GameAPI.setApprovalStatus(game.id, 'approved');
       setGames(prevGames =>
         prevGames.map(g =>
           g.id === game.id ? { ...g, approval_status: 'approved', status: 'upcoming' } : g
         )
       );
-      
+
       setActionModal({
         visible: true,
         title: '✅ Game Approved',
         message: `${game.opponent || 'Game'} has been approved and will appear in upcoming games.`,
         options: [{ label: 'OK', onPress: () => {} }],
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving game:', error);
+      setActionModal({
+        visible: true,
+        title: 'Approval Failed',
+        message: error?.message || 'We could not approve this game. Please try again.',
+        options: [{ label: 'OK', onPress: () => {} }],
+      });
     }
   };
 
@@ -540,17 +546,23 @@ export default function ManageSeasonScreen() {
           isDestructive: true,
           onPress: async () => {
             try {
-              // Remove from games list
+              await GameAPI.setApprovalStatus(game.id, 'rejected');
               setGames(prevGames => prevGames.filter(g => g.id !== game.id));
-              
+
               setActionModal({
                 visible: true,
                 title: 'Game Rejected',
                 message: 'The game has been rejected and removed.',
                 options: [{ label: 'OK', onPress: () => {} }],
               });
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error rejecting game:', error);
+              setActionModal({
+                visible: true,
+                title: 'Rejection Failed',
+                message: error?.message || 'We could not reject this game. Please try again.',
+                options: [{ label: 'OK', onPress: () => {} }],
+              });
             }
           },
         },

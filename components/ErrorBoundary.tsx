@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    // [ErrorBoundary] Caught error: error, errorInfo
     
     // Call custom error handler if provided
     if (this.props.onError) {
@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
           tags: { component: 'ErrorBoundary' }
         });
       } catch (sentryError) {
-        console.warn('[ErrorBoundary] Failed to send to Sentry:', sentryError);
+        // [ErrorBoundary] Failed to send to Sentry: sentryError
       }
     }
   }

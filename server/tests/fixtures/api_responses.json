@@ -1,0 +1,88 @@
+{
+  "autocomplete": {
+    "success": {
+      "suggestions": [
+        {
+          "place_id": "ChIJStamford123",
+          "description": "Stamford, CT, USA",
+          "structured_formatting": {
+            "main_text": "Stamford",
+            "secondary_text": "CT, USA"
+          }
+        },
+        {
+          "place_id": "ChIJStamfordHS456",
+          "description": "Stamford High School, Stamford, CT",
+          "structured_formatting": {
+            "main_text": "Stamford High School",
+            "secondary_text": "Stamford, CT"
+          }
+        },
+        {
+          "place_id": "ChIJWesthillHS789",
+          "description": "Westhill High School, Stamford, CT 06902",
+          "structured_formatting": {
+            "main_text": "Westhill High School",
+            "secondary_text": "Stamford, CT 06902"
+          }
+        }
+      ]
+    },
+    "empty": {
+      "suggestions": []
+    },
+    "error": {
+      "error": "API quota exceeded",
+      "suggestions": []
+    }
+  },
+  "check_duplicate": {
+    "exists_by_place_id": {
+      "exists": true,
+      "duplicate_of": {
+        "id": "westhill-123",
+        "name": "Westhill High School",
+        "formatted_address": "Westhill High School, Stamford, CT 06902, USA"
+      }
+    },
+    "exists_by_name_zip": {
+      "exists": true,
+      "duplicate_of": {
+        "id": "greenwich-456",
+        "name": "Greenwich High School",
+        "formatted_address": "Greenwich High School, Greenwich, CT 06830, USA"
+      }
+    },
+    "no_duplicate": {
+      "exists": false
+    }
+  },
+  "create_organization": {
+    "success": {
+      "id": "new-org-789",
+      "name": "New Test School",
+      "description": "School in New Haven, CT",
+      "sport": "multi-sport",
+      "org_type": "school",
+      "location": "New Haven, CT",
+      "formatted_address": "New Haven, CT 06510, USA",
+      "place_id": "ChIJNewHavenPlace789",
+      "zip_code": "06510",
+      "status": "active",
+      "created_at": "2025-12-12T12:00:00.000Z",
+      "updated_at": "2025-12-12T12:00:00.000Z"
+    },
+    "duplicate_error": {
+      "error": "DUPLICATE_ORGANIZATION",
+      "message": "An organization at this location already exists",
+      "duplicate_of": {
+        "id": "westhill-123",
+        "name": "Westhill High School"
+      }
+    },
+    "unauthorized": {
+      "error": "UNAUTHORIZED",
+      "message": "Email verification required"
+    }
+  }
+}

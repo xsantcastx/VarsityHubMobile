@@ -5,8 +5,8 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
-import { useOnboarding } from '@/context/OnboardingContext';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
+import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
 // Map centralized plan definitions to UI format
@@ -262,9 +262,10 @@ export default function Step3Plan() {
           Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
         }
         
-        // Reset the plan selection since payment failed
-        setOB((prev) => ({ ...prev, plan: 'rookie', payment_pending: false }));
-        navigateNext();
+        // Mark payment as required and block navigation
+        setOB((prev) => ({ ...prev, payment_required: true, plan: 'rookie', payment_pending: false }));
+        Alert.alert('Payment required', 'You must complete payment to continue.');
+        // Do NOT call navigateNext(); block progression
       }
     } finally {
       setSaving(false);
