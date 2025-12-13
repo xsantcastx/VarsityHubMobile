@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { ensureSeededOrganizations } from '@/data/seedOrganizations';
 
 interface Organization {
   id: string;
@@ -32,15 +33,18 @@ export default function OrganizationsIndexScreen() {
         const data = await res.json();
         if (!cancelled) {
           const orgList = Array.isArray(data) ? data : data.items || [];
-          // Spotlight Westhill if present
-          const westhill = orgList.find((o: Organization) => 
-            o.name.toLowerCase().includes('westhill')
-          );
-          if (westhill) setFeatured(westhill);
-          setOrgs(orgList);
+          const combined = ensureSeededOrganizations(orgList as Organization[]);
+          setOrgs(combined);
+          const westhill =
+            combined.find((o) => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
+          setFeatured(westhill);
         }
       } catch (_e: any) {
-        // Error loading organizations
+        if (!cancelled) {
+          const fallback = ensureSeededOrganizations<Organization>([]);
+          setOrgs(fallback);
+          setFeatured(fallback[0] || null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

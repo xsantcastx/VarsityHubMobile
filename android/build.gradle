@@ -18,26 +18,6 @@ allprojects {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
-
-  configurations.all {
-    resolutionStrategy.eachDependency { details ->
-      if (details.requested.group == 'io.netty') {
-        details.useVersion '4.1.108.Final'
-      }
-      if (details.requested.group == 'com.squareup.okhttp3') {
-        details.useVersion '4.12.0'
-      }
-      if (details.requested.group == 'org.bouncycastle') {
-        details.useVersion '1.78.1'
-      }
-      if (details.requested.group == 'com.google.code.gson' && details.requested.name == 'gson') {
-        details.useVersion '2.10.1'
-      }
-      if (details.requested.group == 'commons-io') {
-        details.useVersion '2.15.1'
-      }
-    }
-  }
 }
 
 apply plugin: "expo-root-project"

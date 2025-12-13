@@ -19,13 +19,21 @@ export default function Step9Features() {
   const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
   const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
-  const { registerPushToken, checkAuth } = useAuth();
+  const { registerPushToken, checkAuth, user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
   const [saving, setSaving] = useState(false);
 
   const isDevice = Device.isDevice;
+
+  // CRITICAL: Redirect if not authenticated
+  useEffect(() => {
+    if (!user) {
+      console.warn('[Step9Features] Unauthenticated user - redirecting to sign-in');
+      router.replace('/sign-in');
+    }
+  }, [user, router]);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -148,10 +156,14 @@ export default function Step9Features() {
         if (ob.personalization_goals?.length) payload.personalization_goals = ob.personalization_goals;
         
         await User.completeOnboarding(payload);
-        // After completion, fetch user to sync flag and route to feed
-        try {
-          await User.me();
-        } catch (e) {}
+        
+        // CRITICAL: Validate server confirmed completion
+        const updatedUser: any = await User.me();
+        if (updatedUser?.preferences?.onboarding_completed !== true) {
+          throw new Error('Server did not confirm onboarding completion');
+        }
+        
+        // Success - navigate to feed
         router.replace('/(tabs)/feed');
         return; // Fans are done; skip coach-only confirmation screen
       }

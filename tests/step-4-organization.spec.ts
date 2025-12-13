@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 /**
  * E2E Test: Onboarding Step 4 - Organization Creation Flow
  * 
@@ -85,7 +87,17 @@ test.describe('Step 4: Organization Creation', () => {
     });
   });
 
-  test.skip('should enforce 3-character minimum for autocomplete', async ({ page }) => {
+  test('should enforce 3-character minimum for autocomplete', async ({ page }) => {
+    await page.route('**/geocoding/autocomplete*', (route) => {
+      const url = new URL(route.request().url());
+      const q = url.searchParams.get('q') || '';
+      const suggestions = q.length < 3 ? [] : [
+        { description: 'Stamford, CT', place_id: 'place_stamford', structured_formatting: { main_text: 'Stamford', secondary_text: 'Connecticut' } },
+        { description: 'Stanford, CA', place_id: 'place_stanford', structured_formatting: { main_text: 'Stanford', secondary_text: 'California' } },
+      ];
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ suggestions }) });
+    });
+
     await page.goto('http://localhost:8081/onboarding/step-4-organization');
     await page.waitForLoadState('networkidle');
     
@@ -105,16 +117,6 @@ test.describe('Step 4: Organization Creation', () => {
     // Type 2 characters - no suggestions should appear
     await locationInput.fill('St');
     await page.waitForTimeout(500);
-      // Mock geocoding autocomplete to return no suggestions for <3 chars
-      await page.route('**/geocoding/autocomplete*', (route) => {
-        const url = new URL(route.request().url());
-        const q = url.searchParams.get('q') || '';
-        const suggestions = q.length < 3 ? [] : [
-          { description: 'Stamford, CT', place_id: 'place_stamford', structured_formatting: { main_text: 'Stamford', secondary_text: 'Connecticut' } },
-          { description: 'Stanford, CA', place_id: 'place_stanford', structured_formatting: { main_text: 'Stanford', secondary_text: 'California' } },
-        ];
-        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ suggestions }) });
-      });
       const suggestionsBefore = page.locator('text=/Stamford|Stanford/i');
     expect(await suggestionsBefore.count()).toBe(0);
 
@@ -125,7 +127,7 @@ test.describe('Step 4: Organization Creation', () => {
     expect(await suggestionsAfter.count()).toBeGreaterThan(0);
   });
 
-  test.skip('should require place selection before continuing', async ({ page }) => {
+  test('should require place selection before continuing', async ({ page }) => {
     await page.goto('http://localhost:8081/onboarding/step-4-organization');
     await page.waitForLoadState('networkidle');
       await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 10000 }).catch(() => null);
@@ -159,7 +161,7 @@ test.describe('Step 4: Organization Creation', () => {
     expect(isDisabled).toBeTruthy();
   });
 
-  test.skip('should show duplicate warning for existing place_id', async ({ page }) => {
+  test('should show duplicate warning for existing place_id', async ({ page }) => {
     // Mock API to return duplicate exists
     await page.route('**/organizations/check-duplicate', (route) => {
       route.fulfill({
@@ -207,7 +209,7 @@ test.describe('Step 4: Organization Creation', () => {
     await expect(warningText).toBeVisible({ timeout: 3000 });
   });
 
-  test.skip('should block unverified users with email verification alert', async ({ page }) => {
+  test('should block unverified users with email verification alert', async ({ page }) => {
     // Override user to be unverified
     await page.evaluate(() => {
       localStorage.setItem('user', JSON.stringify({

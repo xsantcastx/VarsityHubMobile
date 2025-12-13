@@ -8,10 +8,9 @@
  * - Onboarding flow after first sign-in
  */
 
-import request from 'supertest';
 import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
-import crypto from 'crypto';
+import request from 'supertest';
 
 let app: Express;
 let prisma: PrismaClient;

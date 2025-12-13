@@ -111,6 +111,12 @@ export default function SignInScreen() {
       await checkAuth();
       // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
+      // Silently ignore user cancellation
+      if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
+        console.log('[sign-in] User cancelled Google sign-in (ignoring)');
+        return;
+      }
+      
       const message = e?.message || 'Google sign in failed';
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;

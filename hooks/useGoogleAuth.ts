@@ -197,10 +197,19 @@ export function useGoogleAuth() {
       const response = await promptAsync();
       console.log('[google-auth] Response from Google:', response);
       
+      // Handle user cancellation gracefully - don't throw
+      if (response.type === 'cancel' || response.type === 'dismiss') {
+        console.log('[google-auth] User cancelled sign-in');
+        setLoading(false);
+        // Return a specific error that can be caught and ignored
+        const err: any = new Error('GOOGLE_SIGN_IN_CANCELLED');
+        err.code = 'CANCELLED';
+        throw err;
+      }
+      
+      // Handle other non-success responses
       if (response.type !== 'success' || !response.authentication?.idToken) {
-        const errorMsg = response.type === 'dismiss' 
-          ? 'Google sign-in cancelled' 
-          : `Google sign-in failed: ${response.type}`;
+        const errorMsg = `Google sign-in failed: ${response.type}`;
         console.error('[google-auth]', errorMsg, response);
         throw new Error(errorMsg);
       }
@@ -210,6 +219,11 @@ export function useGoogleAuth() {
       console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
       return serverResponse as GoogleAuthResult;
     } catch (err: any) {
+      // If user cancelled, re-throw so caller can handle gracefully
+      if (err?.code === 'CANCELLED' || err?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
+        throw err;
+      }
+      
       const message = err?.message || 'Unable to sign in with Google';
       console.error('[google-auth] Error:', message, err);
       setError(message);

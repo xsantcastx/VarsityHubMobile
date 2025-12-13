@@ -36,12 +36,12 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>exp+varsityhubmobile</string>
+          <string>exp+varsityhub</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>25</string>
+    <string>1</string>
     <key>GMSApiKey</key>
     <string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>
     <key>ITSAppUsesNonExemptEncryption</key>

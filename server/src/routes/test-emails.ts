@@ -1,16 +1,17 @@
 import { Router } from 'express';
 import {
-    sendBillingNoticeEmail,
-    sendContentModerationEmail,
-    sendJoinRequestApproved,
-    sendJoinRequestDenied,
-    sendJoinRequestToAdmin,
-    sendOrganizationApprovalEmail,
-    sendOrganizationDenialEmail,
-    sendOrganizationInviteEmail,
-    sendPasswordResetEmail,
-    sendTeamInviteEmail,
-    sendVerificationEmail,
+  sendBillingNoticeEmail,
+  sendContentModerationEmail,
+  sendJoinRequestApproved,
+  sendJoinRequestDenied,
+  sendJoinRequestToAdmin,
+  sendOrganizationApprovalEmail,
+  sendOrganizationDenialEmail,
+  sendOrganizationInviteEmail,
+  sendPasswordResetEmail,
+  sendSecurityAlertEmail,
+  sendTeamInviteEmail,
+  sendVerificationEmail,
 } from '../lib/email.js';
 
 const router = Router();
@@ -178,6 +179,24 @@ router.post('/org-approval', async (req, res) => {
 router.post('/org-denial', async (req, res) => {
   const { to = 'user@example.com', organizationName = 'Texas Elite Sports', reason = 'Missing docs', orgLogoUrl } = req.body || {};
   const ok = await sendOrganizationDenialEmail({ to, organizationName, reason, orgLogoUrl });
+  return res.json({ ok });
+});
+
+router.post('/security-alert', async (req, res) => {
+  const {
+    to = 'user@example.com',
+    alertType = 'password_change',
+    ipAddress = '203.0.113.42',
+    location = 'Stamford, CT',
+    manageUrl,
+  } = req.body || {};
+  const ok = await sendSecurityAlertEmail({
+    to,
+    alertType,
+    ipAddress,
+    location,
+    manageUrl,
+  });
   return res.json({ ok });
 });
 

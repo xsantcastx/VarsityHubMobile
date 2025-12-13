@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		11C389B15E8BA3C43E706C72 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD5312A7988F7CBD9642C5DB /* ExpoModulesProvider.swift */; };
+		064818CA51943F20ABDB15FE /* libPods-VarsityHub.a in Frameworks */ = {isa = PBXBuildFile; fileRef = EDF0CF611EA51592F67B0D62 /* libPods-VarsityHub.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1643DFE9E12F8E67CA7FA427 /* libPods-VarsityHub.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C4334C77F4295FA4C142F571 /* libPods-VarsityHub.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		AD5CF7A21988B33A99C48A40 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 36E503D29928B65220CEB1B8 /* PrivacyInfo.xcprivacy */; };
+		3E5B7F5E8C0B42A69FB69C32 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 84674693AA944907997EC16A /* InfoPlist.strings */; };
+		645FFBF46A45A05A0A3551CF /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F01B796C7C152A29883CA69 /* ExpoModulesProvider.swift */; };
+		B8D391EB59C2239B33C36306 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1372A719F6545CC44C8913D /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		BD905C28E36B4A8A91DF0293 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C2A5A267F38D4342ADFA7CC2 /* InfoPlist.strings */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0FBC0530C1F9E1DE17575A10 /* Pods-VarsityHub.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VarsityHub.release.xcconfig"; path = "Target Support Files/Pods-VarsityHub/Pods-VarsityHub.release.xcconfig"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* VarsityHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VarsityHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = VarsityHub/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = VarsityHub/Info.plist; sourceTree = "<group>"; };
-		18872B27429DFFE431552AD2 /* Pods-VarsityHub.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VarsityHub.debug.xcconfig"; path = "Target Support Files/Pods-VarsityHub/Pods-VarsityHub.debug.xcconfig"; sourceTree = "<group>"; };
-		36E503D29928B65220CEB1B8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = VarsityHub/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		422EC03FEBA42C2485F0EA75 /* Pods-VarsityHub.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VarsityHub.debug.xcconfig"; path = "Target Support Files/Pods-VarsityHub/Pods-VarsityHub.debug.xcconfig"; sourceTree = "<group>"; };
+		4F01B796C7C152A29883CA69 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-VarsityHub/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		84674693AA944907997EC16A /* InfoPlist.strings */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		9DD9A780594BF0FB68E57FFE /* Pods-VarsityHub.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VarsityHub.release.xcconfig"; path = "Target Support Files/Pods-VarsityHub/Pods-VarsityHub.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = VarsityHub/SplashScreen.storyboard; sourceTree = "<group>"; };
-		AD5312A7988F7CBD9642C5DB /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-VarsityHub/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C2A5A267F38D4342ADFA7CC2 /* InfoPlist.strings */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		C4334C77F4295FA4C142F571 /* libPods-VarsityHub.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VarsityHub.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D1372A719F6545CC44C8913D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = VarsityHub/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EDF0CF611EA51592F67B0D62 /* libPods-VarsityHub.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VarsityHub.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = VarsityHub/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* VarsityHub-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "VarsityHub-Bridging-Header.h"; path = "VarsityHub/VarsityHub-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -39,19 +39,20 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1643DFE9E12F8E67CA7FA427 /* libPods-VarsityHub.a in Frameworks */,
+				064818CA51943F20ABDB15FE /* libPods-VarsityHub.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		08E3C7BB3B93EDEF6BA4C871 /* VarsityHub */ = {
+		005EFDC15F39445E98985356 /* en.lproj */ = {
 			isa = PBXGroup;
 			children = (
-				AD5312A7988F7CBD9642C5DB /* ExpoModulesProvider.swift */,
+				84674693AA944907997EC16A /* InfoPlist.strings */,
 			);
-			name = VarsityHub;
+			name = en.lproj;
+			path = "";
 			sourceTree = "<group>";
 		};
 		13B07FAE1A68108700A75B9A /* VarsityHub */ = {
@@ -63,45 +64,18 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				36E503D29928B65220CEB1B8 /* PrivacyInfo.xcprivacy */,
+				D1372A719F6545CC44C8913D /* PrivacyInfo.xcprivacy */,
 			);
 			name = VarsityHub;
-			sourceTree = "<group>";
-		};
-		25E7CB9338D40BD881413A6A /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				18872B27429DFFE431552AD2 /* Pods-VarsityHub.debug.xcconfig */,
-				0FBC0530C1F9E1DE17575A10 /* Pods-VarsityHub.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				C4334C77F4295FA4C142F571 /* libPods-VarsityHub.a */,
+				EDF0CF611EA51592F67B0D62 /* libPods-VarsityHub.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		3A6C546799D14B67A3F105A3 /* en.lproj */ = {
-			isa = PBXGroup;
-			children = (
-				C2A5A267F38D4342ADFA7CC2 /* InfoPlist.strings */,
-			);
-			name = en.lproj;
-			path = "";
-			sourceTree = "<group>";
-		};
-		445D291170736DA24F654F18 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				08E3C7BB3B93EDEF6BA4C871 /* VarsityHub */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -118,8 +92,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				445D291170736DA24F654F18 /* ExpoModulesProviders */,
-				25E7CB9338D40BD881413A6A /* Pods */,
+				C0E0D8969AAF6307E9E4D97E /* Pods */,
+				B401ED02AC61D0E3E92A9250 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -134,14 +108,40 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B401ED02AC61D0E3E92A9250 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				FAEB09144B9A858AE9EEE405 /* VarsityHub */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
-				3A6C546799D14B67A3F105A3 /* en.lproj */,
+				005EFDC15F39445E98985356 /* en.lproj */,
 			);
 			name = Supporting;
 			path = VarsityHub/Supporting;
+			sourceTree = "<group>";
+		};
+		C0E0D8969AAF6307E9E4D97E /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				422EC03FEBA42C2485F0EA75 /* Pods-VarsityHub.debug.xcconfig */,
+				9DD9A780594BF0FB68E57FFE /* Pods-VarsityHub.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		FAEB09144B9A858AE9EEE405 /* VarsityHub */ = {
+			isa = PBXGroup;
+			children = (
+				4F01B796C7C152A29883CA69 /* ExpoModulesProvider.swift */,
+			);
+			name = VarsityHub;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -151,14 +151,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "VarsityHub" */;
 			buildPhases = (
-				97204F44141A2A9BB1E74889 /* [CP] Check Pods Manifest.lock */,
-				D01BCA634DFF5AEC41BF1807 /* [Expo] Configure project */,
+				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
+				7B8D62A1BB3E6403E7FD3514 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				A63AAF6665565FB1E77922BE /* [CP] Embed Pods Frameworks */,
-				3C78B50D4CB7AC54D23C617E /* [CP] Copy Pods Resources */,
+				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
+				83BA6BE8CC90753C32F38A0F /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -178,9 +178,7 @@
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
-						DevelopmentTeam = B5H8F69RW5;
 						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -210,8 +208,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				BD905C28E36B4A8A91DF0293 /* InfoPlist.strings in Resources */,
-				AD5CF7A21988B33A99C48A40 /* PrivacyInfo.xcprivacy in Resources */,
+				3E5B7F5E8C0B42A69FB69C32 /* InfoPlist.strings in Resources */,
+				B8D391EB59C2239B33C36306 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,7 +233,53 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		3C78B50D4CB7AC54D23C617E /* [CP] Copy Pods Resources */ = {
+		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-VarsityHub-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		7B8D62A1BB3E6403E7FD3514 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/VarsityHub/VarsityHub.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-VarsityHub/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-VarsityHub/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-VarsityHub/expo-configure-project.sh\"\n";
+		};
+		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -295,29 +339,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-VarsityHub/Pods-VarsityHub-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		97204F44141A2A9BB1E74889 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-VarsityHub-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		A63AAF6665565FB1E77922BE /* [CP] Embed Pods Frameworks */ = {
+		83BA6BE8CC90753C32F38A0F /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -339,30 +361,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-VarsityHub/Pods-VarsityHub-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		D01BCA634DFF5AEC41BF1807 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/VarsityHub/VarsityHub.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-VarsityHub/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-VarsityHub/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-VarsityHub/expo-configure-project.sh\"\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -371,7 +369,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				11C389B15E8BA3C43E706C72 /* ExpoModulesProvider.swift in Sources */,
+				645FFBF46A45A05A0A3551CF /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -380,15 +378,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 18872B27429DFFE431552AD2 /* Pods-VarsityHub.debug.xcconfig */;
+			baseConfigurationReference = 422EC03FEBA42C2485F0EA75 /* Pods-VarsityHub.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VarsityHub/VarsityHub.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B5H8F69RW5;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -419,15 +414,12 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0FBC0530C1F9E1DE17575A10 /* Pods-VarsityHub.release.xcconfig */;
+			baseConfigurationReference = 9DD9A780594BF0FB68E57FFE /* Pods-VarsityHub.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = VarsityHub/VarsityHub.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B5H8F69RW5;
 				INFOPLIST_FILE = VarsityHub/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -28,6 +28,9 @@
       "@/config/*": [
         "config/*"
       ],
+      "@/data/*": [
+        "app/data/*"
+      ],
       "@/ui/*": [
         "components/ui/*"
       ]

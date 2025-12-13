@@ -1,6 +1,7 @@
 import { getConfig } from '@/config/env';
+import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 
 interface Organization {
@@ -13,38 +14,55 @@ interface Organization {
   latitude?: number | null;
   longitude?: number | null;
   status?: string | null;
+  _count?: { teams?: number; memberships?: number };
 }
 
 export default function OrganizationDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const normalizedId = useMemo(() => {
+    const raw = params.id;
+    return Array.isArray(raw) ? raw[0] : raw;
+  }, [params.id]);
   const router = useRouter();
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { apiUrl } = getConfig();
+  const seedOrg = useMemo(() => findSeedOrganization(normalizedId), [normalizedId]);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!id) return;
+      if (!normalizedId) return;
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${apiUrl}/organizations/${id}`);
+        if (seedOrg && normalizedId === seedOrg.id) {
+          setOrg(seedOrganizationToPayload(seedOrg) as Organization);
+          return;
+        }
+        const res = await fetch(`${apiUrl}/organizations/${normalizedId}`);
         if (!res.ok) {
           throw new Error(`Failed to load org (${res.status})`);
         }
         const data = await res.json();
         if (!cancelled) setOrg(data);
       } catch (e: any) {
-        if (!cancelled) setError(e.message || 'Error loading organization');
+        if (!cancelled) {
+          if (seedOrg) {
+            setOrg(seedOrganizationToPayload(seedOrg) as Organization);
+            setError(null);
+          } else {
+            setError(e.message || 'Error loading organization');
+          }
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [id, apiUrl]);
+  }, [normalizedId, apiUrl, seedOrg]);
 
   if (loading) {
     return (

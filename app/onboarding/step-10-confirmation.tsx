@@ -15,9 +15,17 @@ import OnboardingLayout from './components/OnboardingLayout';
 export default function Step10Confirmation() {
   const router = useRouter();
   const { state: ob, clearOnboarding, setProgress, setState: setOB, progress } = useOnboarding();
-  const { checkAuth, markOnboardingCompleteLocally } = useAuth();
+  const { checkAuth, markOnboardingCompleteLocally, user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
+
+  // CRITICAL: Redirect if not authenticated
+  useEffect(() => {
+    if (!user) {
+      console.warn('[Step10Confirmation] Unauthenticated user - redirecting to sign-in');
+      router.replace('/sign-in');
+    }
+  }, [user, router]);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
@@ -205,47 +213,40 @@ export default function Step10Confirmation() {
       // Log the payload before sending
       
       // Final submission to backend - mark onboarding as complete
-      const completeResult = await User.completeOnboarding(completionPayload);
-      console.log('[Onboarding][Step10] Completion response:', completeResult);
-      // CRITICAL: Force refresh of user data to get onboarding_completed flag from server
-      // This ensures the AuthProvider knows onboarding is complete and won't redirect back
-      try {
-        const updatedUser: any = await checkAuth();
-        console.log('[Onboarding][Step10] Updated user after completion:', {
-          email: updatedUser?.email,
-          onboarding_completed: updatedUser?.preferences?.onboarding_completed,
-          fullPrefs: updatedUser?.preferences
-        });
-        // Validate that the backend has marked onboarding as complete
-        if (updatedUser?.preferences?.onboarding_completed !== true) {
-          console.warn('[Onboarding][Step10] WARNING: Server did not return onboarding_completed=true. Response was:', updatedUser?.preferences?.onboarding_completed);
-        } else {
-          console.log('[Onboarding][Step10] ✅ Server confirmed onboarding_completed=true');
-        }
-      } catch (e) {
-        console.error('[Onboarding][Step10] Failed to refresh user after completion:', e);
-        // Continue anyway - AuthProvider will handle the redirect on next cycle
+      await User.completeOnboarding(completionPayload);
+      
+      // CRITICAL: Validate server confirmed completion BEFORE clearing local state
+      const updatedUser: any = await checkAuth();
+      
+      if (updatedUser?.preferences?.onboarding_completed !== true) {
+        throw new Error('Server did not confirm onboarding completion. Please try again.');
       }
       
-      // Add a small delay to ensure auth state has propagated
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      try {
-        await markOnboardingCompleteLocally();
-      } catch (error) {
-        console.warn('[Onboarding][Step10] Failed to persist local completion flag:', error);
-      }
-
-      // Clear onboarding local state
+      // Server confirmed success - now safe to clear local state
+      await markOnboardingCompleteLocally();
       clearOnboarding();
       
-      // Navigate to main app - router.push REPLACES the stack, preventing back navigation
-      // Use replace() instead of push() to clear the onboarding stack
-      console.log('[Onboarding][Step10] Navigating to main app at /(tabs)');
+      // Navigate to main app
       router.replace('/(tabs)');
     } catch (e: any) {
-      console.error('Onboarding completion error:', e);
-      Alert.alert('Setup Failed', e?.message || 'Please try again or contact support.');
+      const errorMessage = e?.message || 'Failed to complete onboarding';
+      
+      Alert.alert(
+        'Setup Not Complete', 
+        errorMessage,
+        [
+          { 
+            text: 'Retry', 
+            onPress: () => void onComplete(),
+            style: 'default'
+          },
+          { 
+            text: 'Cancel', 
+            style: 'cancel' 
+          }
+        ]
+      );
+      // DO NOT clear onboarding state - allow retry
     } finally { 
       setCompleting(false); 
     }

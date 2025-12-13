@@ -4,7 +4,6 @@ import { debugLog } from '../lib/debugLog.js';
 import {
   sendJoinRequestApproved,
   sendJoinRequestDenied,
-  sendJoinRequestToAdmin,
   sendMembershipDecisionEmail,
   sendOrganizationInviteEmail,
   sendPlanLimitWarningEmail,
@@ -809,17 +808,29 @@ organizationsRouter.post('/join-requests', requireAuth as any, async (req: Authe
     }
   });
   
-  // Send email notification to organization owners
+  // Notify organization owners via in-app notifications
   if (organization.memberships.length > 0) {
-    const owner = organization.memberships[0];
-    await sendJoinRequestToAdmin({
-      adminEmail: owner.user.email,
-      adminName: owner.user.display_name || 'Admin',
-      requesterName: joinRequest.user.display_name || 'A user',
-      organizationName: organization.name,
-      message: message,
-      requestId: joinRequest.id,
-    });
+    await Promise.all(organization.memberships.map(async (membership) => {
+      try {
+        await (prisma as any).notification.create({
+          data: {
+            user_id: membership.user.id,
+            actor_id: req.user!.id,
+            type: 'ORG_JOIN_REQUEST' as any,
+            meta: {
+              organization_id,
+              organization_name: organization.name,
+              join_request_id: joinRequest.id,
+              requester_id: joinRequest.user.id,
+              requester_name: joinRequest.user.display_name || joinRequest.user.email || 'New member',
+              message: message || null,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('[org][join-request] failed to create notification', err);
+      }
+    }));
   }
   
   return res.status(201).json(joinRequest);

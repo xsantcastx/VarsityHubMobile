@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
@@ -111,11 +112,20 @@ function RoleCard({
 
 export default function Step1Role() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+
+  // CRITICAL: Redirect if not authenticated
+  useEffect(() => {
+    if (!user) {
+      console.warn('[Step1Role] Unauthenticated user - redirecting to sign-in');
+      router.replace('/sign-in');
+    }
+  }, [user, router]);
 
   useEffect(() => {
     if (ob.role) setRole(ob.role);

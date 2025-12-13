@@ -1,5 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const skipEmbeddedServer = process.env.PLAYWRIGHT_SKIP_SERVER === '1';
+const webServerConfig = skipEmbeddedServer
+  ? undefined
+  : {
+      command: 'npm run web',
+      url: 'http://localhost:8081',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120 * 1000,
+    };
+
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
@@ -20,12 +30,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  webServer: {
-    command: 'npm run web',
-    url: 'http://localhost:8081',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  ...(webServerConfig ? { webServer: webServerConfig } : {}),
 
   projects: [
     {

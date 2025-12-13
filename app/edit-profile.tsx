@@ -10,10 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { getApiBaseUrl } from '../api/http';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { getApiBaseUrl } from '../api/http';
 
 const SPORTS_OPTIONS = [
   'Football', 'Basketball', 'Baseball', 'Soccer', 'Volleyball', 
@@ -55,6 +55,12 @@ export default function EditProfileScreen() {
   // Team member fields
   const [position, setPosition] = useState('');
   const [jerseyNumber, setJerseyNumber] = useState('');
+  
+  // Athlete-specific fields
+  const [gradeLevel, setGradeLevel] = useState<'Freshman' | 'Sophomore' | 'Junior' | 'Senior' | ''>('');
+  const [graduationYear, setGraduationYear] = useState('');
+  const [accolades, setAccolades] = useState(''); // Comma-separated string
+  const [primarySport, setPrimarySport] = useState('');
   
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -100,6 +106,13 @@ export default function EditProfileScreen() {
       // Team member fields from preferences
       setPosition(prefs?.position || me?.position || '');
       setJerseyNumber(prefs?.jersey_number ? String(prefs.jersey_number) : (me?.jersey_number ? String(me.jersey_number) : ''));
+      
+      // Athlete-specific fields from preferences
+      setGradeLevel(prefs?.grade_level || '');
+      setGraduationYear(prefs?.graduation_year ? String(prefs.graduation_year) : '');
+      setAccolades(prefs?.accolades && Array.isArray(prefs.accolades) ? prefs.accolades.join(', ') : '');
+      setPrimarySport(prefs?.primary_sport || prefs?.sport || '');
+      
       const membershipArrays = [
         prefs?.team_roles,
         prefs?.memberships,
@@ -283,6 +296,23 @@ export default function EditProfileScreen() {
       if (themeColor) preferences.theme_color = themeColor;
       if (position.trim()) preferences.position = position.trim();
       if (jerseyNumber.trim()) preferences.jersey_number = jerseyNumber.trim();
+      
+      // Athlete-specific fields
+      if (gradeLevel) preferences.grade_level = gradeLevel;
+      if (graduationYear.trim()) {
+        const year = parseInt(graduationYear.trim(), 10);
+        if (!isNaN(year) && year >= 2020 && year <= 2040) {
+          preferences.graduation_year = year;
+        }
+      }
+      if (accolades.trim()) {
+        // Split by comma and clean up
+        const accoladesList = accolades.split(',').map(a => a.trim()).filter(Boolean);
+        if (accoladesList.length > 0) {
+          preferences.accolades = accoladesList;
+        }
+      }
+      if (primarySport.trim()) preferences.primary_sport = primarySport.trim().toLowerCase();
 
       // Add preferences to update data if we have any
       if (Object.keys(preferences).length > 0) {
@@ -651,16 +681,15 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            {/* Team Member Section */}
-            {isTeamMember && (
-              <View style={[styles.section, { 
-                backgroundColor: Colors[colorScheme].card,
-                borderColor: Colors[colorScheme].border,
-              }]}>
-                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                  <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
-                  {' '}Team Member Info
-                </Text>
+            {/* Athlete Info Section - Available to All Users */}
+            <View style={[styles.section, { 
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border,
+            }]}>
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
+                {' '}Athlete Info (Optional)
+              </Text>
                 
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldGroup, { flex: 2 }]}>
@@ -695,8 +724,99 @@ export default function EditProfileScreen() {
                     />
                   </View>
                 </View>
+                
+                {/* Athlete-Specific Fields */}
+                <View style={styles.athleteSection}>
+                  <Text style={[styles.subsectionTitle, { color: Colors[colorScheme].mutedText }]}>
+                    Athlete Details (Optional)
+                  </Text>
+                  
+                  {/* Grade Level Picker */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Grade Level</Text>
+                    <View style={styles.gradeOptions}>
+                      {['Freshman', 'Sophomore', 'Junior', 'Senior'].map((grade) => (
+                        <Pressable
+                          key={grade}
+                          onPress={() => setGradeLevel(grade as any)}
+                          style={[
+                            styles.gradeOption,
+                            {
+                              backgroundColor: gradeLevel === grade ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                              borderColor: gradeLevel === grade ? Colors[colorScheme].tint : Colors[colorScheme].border,
+                            }
+                          ]}
+                        >
+                          <Text style={[
+                            styles.gradeOptionText,
+                            {
+                              color: gradeLevel === grade ? '#FFFFFF' : Colors[colorScheme].text,
+                            }
+                          ]}>
+                            {grade}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  
+                  {/* Graduation Year */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Graduation Year</Text>
+                    <Input 
+                      value={graduationYear} 
+                      onChangeText={setGraduationYear} 
+                      placeholder="2025" 
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      keyboardType="numeric"
+                      maxLength={4}
+                      style={[styles.input, { 
+                        borderColor: Colors[colorScheme].border,
+                        backgroundColor: Colors[colorScheme].surface,
+                        color: Colors[colorScheme].text,
+                      }]} 
+                    />
+                  </View>
+                  
+                  {/* Primary Sport */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Primary Sport</Text>
+                    <Input 
+                      value={primarySport} 
+                      onChangeText={setPrimarySport} 
+                      placeholder="e.g., basketball, football, soccer" 
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      style={[styles.input, { 
+                        borderColor: Colors[colorScheme].border,
+                        backgroundColor: Colors[colorScheme].surface,
+                        color: Colors[colorScheme].text,
+                      }]} 
+                    />
+                  </View>
+                  
+                  {/* Accolades */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Accolades</Text>
+                    <Input 
+                      value={accolades} 
+                      onChangeText={setAccolades} 
+                      placeholder="e.g., All-State Guard, Team MVP (comma separated)" 
+                      placeholderTextColor={Colors[colorScheme].mutedText}
+                      multiline
+                      numberOfLines={2}
+                      style={[styles.input, styles.textArea, { 
+                        borderColor: Colors[colorScheme].border,
+                        backgroundColor: Colors[colorScheme].surface,
+                        color: Colors[colorScheme].text,
+                      }]} 
+                    />
+                    <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
+                      Separate multiple accolades with commas
+                    </Text>
+                  </View>
+                </View>
               </View>
-            )}
+            </View>
 
             {/* Save Button */}
             <View style={styles.saveSection}>
@@ -976,5 +1096,45 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  
+  // Athlete section styles
+  athleteSection: {
+    marginTop: 16,
+    gap: 12,
+  },
+  subsectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  gradeOptions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  gradeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  gradeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  textArea: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  helperText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });

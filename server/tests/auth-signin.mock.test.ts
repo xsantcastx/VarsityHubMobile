@@ -5,7 +5,7 @@
  * Tests the auth logic in isolation with mocked Prisma/database
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it } from '@jest/globals';
 
 // Mock user structure
 interface MockUser {
