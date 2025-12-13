@@ -1095,10 +1095,19 @@ export async function sendReportResolutionEmail(params: {
   resolutionReason: string;
   appealUrl: string;
   submitDate?: string;
+  resolutionDate?: string;
+  reportDetailLink?: string;
 }) {
-  const submitDate = params.submitDate
-    ? new Date(params.submitDate).toISOString().split('T')[0]
-    : undefined;
+  const fmtDate = (iso?: string) => {
+    if (!iso) return undefined;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return undefined;
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const submitDate = fmtDate(params.submitDate);
+  const resolutionDate = fmtDate(params.resolutionDate);
+  const detailLink = params.reportDetailLink || `${APP_BASE_URL}/reports/${encodeURIComponent(params.reportId)}`;
   try {
     await sgMail.send({
       to: params.to,
@@ -1111,6 +1120,8 @@ export async function sendReportResolutionEmail(params: {
         REPORT_TYPE: params.reportType,
         SUBMIT_DATE: submitDate,
         RESOLUTION_SUMMARY: params.resolutionReason,
+        REPORT_DETAIL_LINK: detailLink,
+        RESOLUTION_DATE: resolutionDate,
         // Keep legacy fields for backward-compatible templates
         user_name: params.userName,
         report_type: params.reportType,

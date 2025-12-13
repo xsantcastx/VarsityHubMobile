@@ -219,6 +219,8 @@ emailQueue.process('reports.resolved', async (job) => {
     resolution_reason: string;
     appeal_url: string;
     submit_date?: string;
+    resolution_date?: string;
+    report_detail_link?: string;
   };
 
   debugLog(`[worker] Processing report resolution email for ${jobData.to}`);
@@ -232,6 +234,8 @@ emailQueue.process('reports.resolved', async (job) => {
     resolutionReason: jobData.resolution_reason,
     appealUrl: jobData.appeal_url,
     submitDate: jobData.submit_date,
+    resolutionDate: jobData.resolution_date,
+    reportDetailLink: jobData.report_detail_link,
   });
 
   if (!result) {

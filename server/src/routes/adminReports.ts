@@ -23,7 +23,9 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
   const email = report.reporter?.email || report.reporter_email;
   if (!email) return;
   const appealUrl = `${APP_BASE_URL}/support/appeals/${report.id}`;
-  const submitDate = report.created_at ? new Date(report.created_at).toISOString() : undefined;
+  const submitDateIso = report.created_at ? new Date(report.created_at).toISOString() : undefined;
+  const resolutionDateIso = report.reviewed_at ? new Date(report.reviewed_at).toISOString() : new Date().toISOString();
+  const detailLink = `${APP_BASE_URL}/reports/${report.id}`;
   try {
     await emailQueue.add(
       'reports.resolved',
@@ -35,7 +37,9 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
         resolution_status: status,
         resolution_reason: resolutionNote || 'Our Trust & Safety team reviewed your report.',
         appeal_url: appealUrl,
-        submit_date: submitDate,
+        submit_date: submitDateIso,
+        resolution_date: resolutionDateIso,
+        report_detail_link: detailLink,
       },
       { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
     );
