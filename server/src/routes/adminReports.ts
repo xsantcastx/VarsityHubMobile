@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { logAdminActivity } from '../lib/adminActivityLogger.js';
 import { prisma } from '../lib/prisma.js';
+import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const adminReportsRouter = Router();
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 
 // Helper to get admin email
 async function getAdminEmail(userId: string): Promise<string> {
@@ -13,6 +15,29 @@ async function getAdminEmail(userId: string): Promise<string> {
     select: { email: true },
   });
   return user?.email || 'unknown';
+}
+
+async function queueReportResolutionEmail(report: any, status: string, resolutionNote?: string): Promise<void> {
+  if (!['resolved', 'dismissed'].includes(status)) return;
+  const email = report.reporter?.email || report.reporter_email;
+  if (!email) return;
+  const appealUrl = `${APP_BASE_URL}/support/appeals/${report.id}`;
+  try {
+    await emailQueue.add(
+      'reports.resolved',
+      {
+        to: email,
+        user_name: report.reporter?.display_name || 'VarsityHub member',
+        report_type: report.subject || 'report',
+        resolution_status: status,
+        resolution_reason: resolutionNote || 'Our Trust & Safety team reviewed your report.',
+        appeal_url: appealUrl,
+      },
+      { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+    );
+  } catch (error) {
+    console.error('[adminReports] Failed to enqueue report resolution email:', error);
+  }
 }
 
 // GET /admin/reports - Get all abuse reports
@@ -105,7 +130,7 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
     `Changed report status to ${status}`,
     { status, resolution_note, reporter: report.reporter.email }
   );
-  
+  await queueReportResolutionEmail(report, status, resolution_note);
   return res.json({ report });
 });
 
@@ -123,6 +148,16 @@ adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedR
     return res.status(400).json({ error: 'Invalid status' });
   }
   
+  let reportsForNotification: Array<any> = [];
+  if (['resolved', 'dismissed'].includes(status)) {
+    reportsForNotification = await prisma.abuseReport.findMany({
+      where: { id: { in: report_ids } },
+      include: {
+        reporter: { select: { email: true, display_name: true } },
+      },
+    });
+  }
+
   const result = await prisma.abuseReport.updateMany({
     where: { id: { in: report_ids } },
     data: {
@@ -143,6 +178,11 @@ adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedR
     'bulk',
     `Updated ${result.count} reports to status: ${status}`,
     { report_ids, status, count: result.count }
+  );
+  await Promise.all(
+    reportsForNotification.map((report) =>
+      queueReportResolutionEmail(report, status, resolution_note)
+    )
   );
   
   return res.json({ updated: result.count });
