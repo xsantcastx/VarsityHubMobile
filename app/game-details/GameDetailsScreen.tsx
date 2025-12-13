@@ -762,6 +762,51 @@ const GameDetailsScreen = () => {
         const home = toTitle(parts[0] || 'Team A');
         const away = toTitle(parts[1] || 'Team B');
         const dateIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+        
+        // Sample media/stories for demo carousel
+        const sampleMedia = [
+          {
+            id: 'story-1',
+            url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
+            kind: 'photo' as const,
+            created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+            caption: 'Pre-game warmups 🔥',
+            user_id: 'sample-user-1',
+          },
+          {
+            id: 'story-2',
+            url: 'https://images.unsplash.com/photo-1504450758481-7338eba7524a?w=400',
+            kind: 'photo' as const,
+            created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+            caption: 'Crowd getting hyped! 🏀',
+            user_id: 'sample-user-2',
+          },
+          {
+            id: 'story-3',
+            url: 'https://images.unsplash.com/photo-1515523110800-9415d13b84a8?w=400',
+            kind: 'photo' as const,
+            created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+            caption: 'Starting lineup announced',
+            user_id: 'sample-user-3',
+          },
+          {
+            id: 'story-4',
+            url: 'https://images.unsplash.com/photo-1608245449230-4ac19066d2d0?w=400',
+            kind: 'photo' as const,
+            created_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+            caption: 'Arena is packed tonight! 🎉',
+            user_id: 'sample-user-4',
+          },
+          {
+            id: 'story-5',
+            url: 'https://images.unsplash.com/photo-1519861531473-9200262188bf?w=400',
+            kind: 'photo' as const,
+            created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+            caption: 'Let\'s go! Game time!',
+            user_id: 'sample-user-5',
+          },
+        ];
+        
         const vmPayload: GameVM = {
           id: gameIdValue,
           gameId: gameIdValue,
@@ -779,7 +824,7 @@ const GameDetailsScreen = () => {
           userRsvped: false,
           teams: [],
           posts: [],
-          media: [],
+          media: sampleMedia,
           reviewsCount: null,
           isPast: false,
         };
@@ -1496,7 +1541,14 @@ const GameDetailsScreen = () => {
     if (!mediaItems.length) return null;
     return (
       <View style={styles.storiesWrap}>
-        <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesRow}>
+        <Animated.ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.storiesRow}
+          decelerationRate="fast"
+          snapToInterval={132} // Snap to each card (120px width + 12px gap)
+          snapToAlignment="center"
+        >
           {mediaItems.map((it, idx) => {
             const isVideo = it.kind === 'video' || (typeof it.url === 'string' && VIDEO_EXT.test(it.url));
             const wasSeen = !!seenStories[it.id];
@@ -1509,10 +1561,10 @@ const GameDetailsScreen = () => {
                 <View style={styles.storyTile}>
                   {isVideo ? (
                     <View style={[styles.storyThumb, styles.storyThumbVideo]}>
-                      <Ionicons name="play" size={18} color={Colors[colorScheme].background} />
+                      <Ionicons name="play" size={32} color={Colors[colorScheme].background} />
                     </View>
                   ) : (
-                    <Image source={{ uri: it.url }} style={styles.storyThumb} contentFit="cover" transition={0} cachePolicy="memory-disk" recyclingKey={it.url}
+                    <Image source={{ uri: it.url }} style={styles.storyThumb} contentFit="cover" transition={200} cachePolicy="memory-disk" recyclingKey={it.url}
                     />
                   )}
                   {wasSeen ? <View style={styles.storySeenOverlay} /> : null}
@@ -1980,34 +2032,22 @@ const renderBanner = () => {
                 </Pressable>
               ) : null}
 
-              {/* Add Story Section - Only available 24hrs before event */}
+              {/* Add Story Section */}
               <View style={styles.secondaryActionsRow}>
-                {(() => {
-                  const storyEnabled = canAddStory(vm?.date);
-                  return (
-                    <>
-                      <Pressable
-                        style={[styles.actionBtn, (!vm?.gameId || storyBusy || !storyEnabled) ? styles.actionBtnDisabled : null]}
-                        onPress={handleAddStory}
-                        disabled={!vm?.gameId || storyBusy || !storyEnabled}
-                      >
-                        <Ionicons 
-                          name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
-                          size={16} 
-                          color={storyEnabled ? Colors[colorScheme].tint : Colors[colorScheme].mutedText} 
-                        />
-                        <Text style={[styles.actionText, !storyEnabled && { color: Colors[colorScheme].mutedText }]}>
-                          Add Story
-                        </Text>
-                      </Pressable>
-                      {!storyEnabled && vm?.date && (
-                        <Text style={styles.storyHelpText}>
-                          📍 Stories open 24hrs before event
-                        </Text>
-                      )}
-                    </>
-                  );
-                })()}
+                <Pressable
+                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date)) ? styles.actionBtnDisabled : null]}
+                  onPress={handleAddStory}
+                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date)}
+                >
+                  <Ionicons 
+                    name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
+                    size={16} 
+                    color={Colors[colorScheme].tint} 
+                  />
+                  <Text style={styles.actionText}>
+                    Add Story
+                  </Text>
+                </Pressable>
               </View>
               {showPreciseBanner ? (
                 <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
@@ -2957,12 +2997,29 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   mediaThumb: { width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   mediaThumbContent: { flex: 1 },
   mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' },
-  storiesWrap: { marginTop: 12 },
-  storiesRow: { paddingHorizontal: 4, paddingVertical: 6 },
-  storyItem: { width: 88, height: 140, borderRadius: 14, overflow: 'hidden' },
-  storyItemGap: { marginLeft: 8 },
-  storyTile: { flex: 1, borderRadius: 14, overflow: 'hidden', backgroundColor: '#0f172a' },
-  storyItemSeen: { opacity: 0.6 },
+  storiesWrap: { marginTop: 16, marginBottom: 8 },
+  storiesRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  storyItem: { 
+    width: 120, 
+    height: 200, 
+    borderRadius: 16, 
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  storyItemGap: { marginLeft: 0 },
+  storyTile: { 
+    flex: 1, 
+    borderRadius: 16, 
+    overflow: 'hidden', 
+    backgroundColor: '#0f172a',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  storyItemSeen: { opacity: 0.5, transform: [{ scale: 0.95 }] },
   storyTileCountdown: { alignItems: 'center', justifyContent: 'center', padding: 8, backgroundColor: '#0f172a' },
   storyTileLabel: { color: '#cbd5e1', fontWeight: '700', fontSize: 12, marginBottom: 6 },
   storyTileTime: { color: '#ffffff', fontWeight: '900', fontSize: 16 },

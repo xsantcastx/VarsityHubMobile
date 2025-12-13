@@ -354,7 +354,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryLabel}>Plan:</Text>
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
-                 ob.plan === 'veteran' ? 'Veteran ($2.50/month per team)' : 
+                 ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
                  ob.plan === 'legend' ? 'Legend ($19.99/year unlimited)' : 'Not selected'}
               </Text>
             </View>

@@ -4,12 +4,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
 import {
-  isSendGridConfigured,
-  sendCoachOnboardingEmail,
-  sendFanWelcomeEmail,
-  sendPasswordResetEmail,
-  sendSecurityAlertEmail,
-  sendVerificationEmail,
+    isSendGridConfigured,
+    sendCoachOnboardingEmail,
+    sendFanWelcomeEmail,
+    sendPasswordResetEmail,
+    sendSecurityAlertEmail,
+    sendVerificationEmail,
 } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
@@ -589,6 +589,15 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     location_enabled: z.boolean().optional(),
     notifications_enabled: z.boolean().optional(),
     messaging_policy_accepted: z.boolean().optional(),
+    
+    // Athlete-specific fields
+    position: z.string().optional(),
+    jersey_number: z.union([z.string(), z.number()]).optional(),
+    grade_level: z.enum(['Freshman', 'Sophomore', 'Junior', 'Senior']).optional(),
+    graduation_year: z.number().int().min(2020).max(2040).optional(),
+    accolades: z.array(z.string()).optional(),
+    primary_team_id: z.string().optional(),
+    primary_sport: z.string().optional(),
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});
@@ -671,6 +680,15 @@ const completeOnboardingSchema = z.object({
   bio: z.string().optional(),
   sports_interests: z.array(z.string()).optional(),
   
+  // Athlete-specific fields
+  position: z.string().optional(),
+  jersey_number: z.union([z.string(), z.number()]).optional(),
+  grade_level: z.enum(['Freshman', 'Sophomore', 'Junior', 'Senior']).optional(),
+  graduation_year: z.number().int().min(2020).max(2040).optional(),
+  accolades: z.array(z.string()).optional(),
+  primary_team_id: z.string().optional(),
+  primary_sport: z.string().optional(),
+  
   // Interests/Goals
   primary_intents: z.array(z.string()).optional(),
   personalization_goals: z.array(z.string()).optional(),
@@ -727,6 +745,14 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     messaging_policy_accepted: data.messaging_policy_accepted,
     payment_pending: data.payment_pending,
     team_count_total: data.team_count_total,
+    // Athlete-specific fields
+    position: data.position,
+    jersey_number: data.jersey_number,
+    grade_level: data.grade_level,
+    graduation_year: data.graduation_year,
+    accolades: data.accolades,
+    primary_team_id: data.primary_team_id,
+    primary_sport: data.primary_sport,
   };
   
   // Clean up undefined values

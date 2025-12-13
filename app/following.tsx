@@ -2,6 +2,7 @@ import { User } from '@/api/entities';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -71,7 +72,14 @@ export default function FollowingScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: `${username} is Following` }} />
+      <Stack.Screen options={{ 
+        title: `${username} is Following`,
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
       <Input
         placeholder="Search following..."
         value={search}
@@ -97,6 +105,7 @@ export default function FollowingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
+  backButton: { paddingLeft: 8 },
   searchInput: { margin: 16 },
   userRow: {
     flexDirection: 'row',

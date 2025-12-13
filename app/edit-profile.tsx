@@ -40,11 +40,15 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState('');
   const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
+  const [location, setLocation] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
+  const [headerImageTouched, setHeaderImageTouched] = useState(false);
+  const [uploadingHeaderImage, setUploadingHeaderImage] = useState(false);
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
@@ -76,10 +80,14 @@ export default function EditProfileScreen() {
       setDisplayName(me?.display_name || '');
       setBio(me?.bio || '');
       setAvatarUrl(me?.avatar_url || null);
+      const headerImagePref = prefs?.header_image_url || prefs?.profile_header_image_url || me?.header_image_url;
+      setHeaderImageUrl(headerImagePref || null);
+      setHeaderImageTouched(false);
       
       // Fields from preferences
       const prefs = me?.preferences || {};
       setFullName(prefs?.full_name || me?.full_name || '');
+      setLocation(prefs?.location || me?.location || '');
       setZipCode(prefs?.zip_code || me?.zip_code || '');
       
       // Handle date of birth from preferences or direct field
@@ -268,6 +276,56 @@ export default function EditProfileScreen() {
     );
   };
 
+  const pickHeaderImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Gallery permission is needed to select a background image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [3, 2],
+      quality: 0.85,
+      exif: false,
+    });
+
+    if (!result.canceled && result.assets && result.assets[0]) {
+      await uploadHeaderImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadHeaderImage = async (uri: string) => {
+    setUploadingHeaderImage(true);
+    try {
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      const uploadResult = await uploadFile(getApiBaseUrl(), manipulatedImage.uri, 'profile-cover.jpg', 'image/jpeg');
+      if (uploadResult?.url) {
+        setHeaderImageUrl(uploadResult.url);
+        setHeaderImageTouched(true);
+        Alert.alert('Background updated', 'Your profile background image looks great!');
+      } else {
+        throw new Error('Upload failed - no URL returned');
+      }
+    } catch (error: any) {
+      console.error('Header image upload error:', error);
+      Alert.alert('Upload Failed', error?.message || 'Failed to upload background image. Please try again.');
+    } finally {
+      setUploadingHeaderImage(false);
+    }
+  };
+
+  const removeHeaderImage = () => {
+    setHeaderImageUrl(null);
+    setHeaderImageTouched(true);
+  };
+
   const onSave = async () => {
     if (!displayName.trim()) {
       Alert.alert('Error', 'Display name is required.');
@@ -290,10 +348,14 @@ export default function EditProfileScreen() {
       // Store additional fields in preferences object
       const preferences: any = {};
       if (fullName.trim()) preferences.full_name = fullName.trim();
+      if (location.trim()) preferences.location = location.trim();
       if (zipCode.trim()) preferences.zip_code = zipCode.trim();
       if (dateOfBirth) preferences.date_of_birth = formatDateForAPI(dateOfBirth);
       if (sportsInterests.length > 0) preferences.sports_interests = sportsInterests;
       if (themeColor) preferences.theme_color = themeColor;
+      if (headerImageTouched) {
+        preferences.header_image_url = headerImageUrl || null;
+      }
       if (position.trim()) preferences.position = position.trim();
       if (jerseyNumber.trim()) preferences.jersey_number = jerseyNumber.trim();
       
@@ -351,6 +413,11 @@ export default function EditProfileScreen() {
           title: 'Edit Profile',
           headerStyle: { backgroundColor: Colors[colorScheme].background },
           headerTintColor: Colors[colorScheme].text,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+              <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+            </Pressable>
+          ),
         }} 
       />
       
@@ -429,6 +496,65 @@ export default function EditProfileScreen() {
                   </Text>
                 </Pressable>
               </View>
+
+              {/* Profile Background Image */}
+              <View style={styles.bannerSection}>
+                <Text style={[styles.bannerLabel, { color: Colors[colorScheme].text }]}>
+                  <Ionicons name="image-outline" size={18} color={Colors[colorScheme].tint} /> {' '}
+                  Profile Background
+                </Text>
+                <View style={[
+                  styles.bannerPreview, 
+                  { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }
+                ]}>
+                  {headerImageUrl ? (
+                    <Image 
+                      source={{ uri: headerImageUrl }} 
+                      style={styles.bannerImage}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={styles.bannerPlaceholder}>
+                      <Ionicons name="color-wand-outline" size={32} color={Colors[colorScheme].mutedText} />
+                      <Text style={[styles.bannerPlaceholderText, { color: Colors[colorScheme].mutedText }]}>
+                        Add a wide highlight photo to appear behind your avatar
+                      </Text>
+                    </View>
+                  )}
+                  {(uploadingHeaderImage) && (
+                    <View style={styles.bannerOverlay}>
+                      <ActivityIndicator color="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.bannerActions}>
+                  <Pressable
+                    onPress={pickHeaderImage}
+                    disabled={uploadingHeaderImage}
+                    style={[
+                      styles.bannerButton,
+                      { backgroundColor: Colors[colorScheme].tint, opacity: uploadingHeaderImage ? 0.6 : 1 },
+                    ]}
+                  >
+                    <Ionicons name="image" size={16} color="#FFFFFF" />
+                    <Text style={styles.bannerButtonText}>
+                      {uploadingHeaderImage ? 'Uploading...' : headerImageUrl ? 'Change Background' : 'Add Background'}
+                    </Text>
+                  </Pressable>
+                  {headerImageUrl ? (
+                    <Pressable
+                      onPress={removeHeaderImage}
+                      style={[styles.bannerButton, styles.bannerRemoveButton]}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      <Text style={[styles.bannerButtonText, { color: '#DC2626' }]}>Remove</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
+                  Recommended 3:2 photo (at least 1200px wide) so your profile hero matches the latest design.
+                </Text>
+              </View>
             </View>
 
             {/* Basic Information Section */}
@@ -462,6 +588,21 @@ export default function EditProfileScreen() {
                   value={fullName} 
                   onChangeText={setFullName} 
                   placeholder="Your complete name" 
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  style={[styles.input, { 
+                    borderColor: Colors[colorScheme].border,
+                    backgroundColor: Colors[colorScheme].surface,
+                    color: Colors[colorScheme].text,
+                  }]} 
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location / Team</Text>
+                <Input 
+                  value={location} 
+                  onChangeText={setLocation} 
+                  placeholder="e.g., Lincoln Lions or Gotcha" 
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   style={[styles.input, { 
                     borderColor: Colors[colorScheme].border,
@@ -681,15 +822,16 @@ export default function EditProfileScreen() {
               </View>
             </View>
 
-            {/* Athlete Info Section - Available to All Users */}
-            <View style={[styles.section, { 
-              backgroundColor: Colors[colorScheme].card,
-              borderColor: Colors[colorScheme].border,
-            }]}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
-                {' '}Athlete Info (Optional)
-              </Text>
+            {/* Team Member Section */}
+            {isTeamMember && (
+              <View style={[styles.section, { 
+                backgroundColor: Colors[colorScheme].card,
+                borderColor: Colors[colorScheme].border,
+              }]}>
+                <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                  <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
+                  {' '}Team Member Info
+                </Text>
                 
                 <View style={styles.fieldRow}>
                   <View style={[styles.fieldGroup, { flex: 2 }]}>
@@ -816,7 +958,7 @@ export default function EditProfileScreen() {
                   </View>
                 </View>
               </View>
-            </View>
+            )}
 
             {/* Save Button */}
             <View style={styles.saveSection}>
@@ -1096,6 +1238,68 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  bannerSection: {
+    marginTop: 20,
+    gap: 12,
+  },
+  bannerLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  bannerPreview: {
+    height: 150,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 8,
+  },
+  bannerPlaceholderText: {
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bannerActions: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  bannerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  bannerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bannerRemoveButton: {
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    backgroundColor: 'rgba(220,38,38,0.08)',
   },
   
   // Athlete section styles

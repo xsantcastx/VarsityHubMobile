@@ -15,7 +15,7 @@
     "supports_extracurricular": false,
     "features": [
       "Entry-level access",
-      "First two teams free forever",
+      "First two teams free forever (ex: mens and womens soccer)",
       "Assign one administrator per team"
     ],
     "billing": {
@@ -27,7 +27,7 @@
     "id": "veteran",
     "name": "Veteran",
     "icon": "trophy",
-    "price": "$2.50",
+    "price": "$1.50",
     "period": "/ month per additional team",
     "priceId": "prod_RNLc2l1BdUdSn9",
     "max_teams": null,
@@ -39,7 +39,7 @@
     "supports_extracurricular": false,
     "features": [
       "Everything in Rookie",
-      "$2.50/month per additional team (3+ total)",
+      "$1.50/month per additional team (3+ total)",
       "Up to 5 authorized staff per team"
     ],
     "billing": {

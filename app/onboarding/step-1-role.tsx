@@ -19,7 +19,8 @@ function RoleCard({
   onPress, 
   features,
   onContinue,
-  saving
+  saving,
+  roleType
 }: { 
   title: string; 
   description: string; 
@@ -29,17 +30,25 @@ function RoleCard({
   features: string[];
   onContinue?: () => void;
   saving?: boolean;
+  roleType?: 'fan' | 'coach';
 }) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
+  // Silver for Fan, gold for Coach
+  const isFan = roleType === 'fan';
+  const accentColor = isFan ? '#9CA3AF' : '#FFD700'; // Silver vs gold
+  const accentColorLight = isFan ? '#D1D5DB' : '#FFF44F'; // Light silver vs light gold
+  const buttonBg = isFan ? '#6B7280' : '#DAA520'; // Dark silver vs goldenrod
+
   const colors = {
     cardBg: isDark ? (selected ? '#1F2937' : '#111827') : (selected ? '#FFFFFF' : '#F9FAFB'),
-    cardBorder: isDark ? (selected ? '#60A5FA' : '#374151') : (selected ? '#2563EB' : '#E5E7EB'),
-    iconColor: isDark ? (selected ? '#60A5FA' : '#9CA3AF') : (selected ? '#2563EB' : '#6B7280'),
+    cardBorder: isDark ? (selected ? accentColorLight : '#374151') : (selected ? accentColor : '#E5E7EB'),
+    iconColor: isDark ? (selected ? accentColorLight : '#9CA3AF') : (selected ? accentColor : '#6B7280'),
     titleColor: isDark ? '#F9FAFB' : '#111827',
     descColor: isDark ? '#9CA3AF' : '#6B7280',
     featureText: isDark ? '#D1D5DB' : '#374151',
+    buttonBg: buttonBg,
   };
 
   return (
@@ -70,7 +79,7 @@ function RoleCard({
           <Ionicons 
             name="checkmark-circle" 
             size={24} 
-            color={isDark ? '#60A5FA' : '#2563EB'} 
+            color={isDark ? accentColorLight : accentColor} 
           />
         )}
       </View>
@@ -94,7 +103,7 @@ function RoleCard({
         <Pressable 
           onPress={onContinue}
           disabled={saving}
-          style={styles.sideButton}
+          style={[styles.sideButton, { backgroundColor: colors.buttonBg }]}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
@@ -224,6 +233,7 @@ export default function Step1Role() {
         onPress={() => setRole('fan')}
         onContinue={onContinue}
         saving={saving}
+        roleType="fan"
         features={[
           'Follow your favorite teams',
           'Get game updates and highlights',
@@ -243,6 +253,7 @@ export default function Step1Role() {
         onPress={() => setRole('coach')}
         onContinue={onContinue}
         saving={saving}
+        roleType="coach"
         features={[
           'First two teams free',
           'Create and manage teams',
@@ -319,7 +330,6 @@ const styles = StyleSheet.create({
   },
   sideButton: {
     width: 80,
-    backgroundColor: '#1E3A8A',
     borderTopRightRadius: 12,
     borderBottomRightRadius: 12,
     justifyContent: 'center',

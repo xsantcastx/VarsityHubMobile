@@ -180,7 +180,7 @@ function getTierBenefits(tier: CoachTier) {
       };
     case 'veteran':
       return {
-        price: '$2.50/month per team',
+        price: '$1.50/month per team',
         description: 'Flexible pay-per-team pricing as you grow',
         features: [
           'Add teams beyond first 2 free',

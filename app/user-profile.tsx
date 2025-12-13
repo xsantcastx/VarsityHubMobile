@@ -1,3 +1,4 @@
+import { JerseyBadge, Sport } from '@/components/JerseyBadge';
 import { getConfig } from '@/config/env';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -11,9 +12,25 @@ import { User } from '@/api/entities';
 import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { getGradientForColor } from '@/utils/theme';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const appConfig = getConfig();
+
+/**
+ * Get sport emoji based on sport type
+ */
+const getSportEmoji = (sport: string): string => {
+  const emojiMap: Record<string, string> = {
+    basketball: '🏀',
+    football: '🏈',
+    baseball: '⚾',
+    soccer: '⚽',
+    volleyball: '🏐',
+    other: '🏆',
+  };
+  return emojiMap[sport.toLowerCase()] || '🏆';
+};
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id?: string; username?: string }>();
@@ -125,6 +142,20 @@ export default function UserProfileScreen() {
     return { colA, colB };
   };
   const { colA, colB } = makeMasonryColumns(posts);
+  
+  // Athlete-specific data extraction
+  const isAthlete = user ? Boolean(user?.preferences?.position || user?.preferences?.jersey_number) : false;
+  const jerseyNumber = user?.preferences?.jersey_number || user?.jersey_number;
+  const position = user?.preferences?.position || user?.position;
+  const gradeLevel = user?.preferences?.grade_level;
+  const graduationYear = user?.preferences?.graduation_year;
+  const accolades = user?.preferences?.accolades;
+  const primarySport = (user?.preferences?.primary_sport || user?.preferences?.sport || 'other') as Sport;
+  const userThemeColor = user?.preferences?.theme_color || '#3B82F6';
+  const headerBackgroundImage = user?.preferences?.header_image_url || null;
+  const heroGradientColors = headerBackgroundImage
+    ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
+    : getGradientForColor(userThemeColor);
 
   return (
     <SafeAreaView style={[S.page, { backgroundColor: theme.background }]} edges={['bottom']}>
@@ -144,13 +175,32 @@ export default function UserProfileScreen() {
         <>
           {/* Modern Sport-Inspired Header with proper spacing */}
           <View style={[S.headerContainer, { marginTop: 8 }]}>
-            {/* Background Gradient */}
+            {/* Background Image / Gradient */}
+            {headerBackgroundImage ? (
+              <Image
+                source={{ uri: headerBackgroundImage }}
+                style={S.headerBackgroundImage}
+                contentFit="cover"
+              />
+            ) : null}
             <LinearGradient
-              colors={['#1e3a8a', '#3b82f6', '#60a5fa']}
+              colors={heroGradientColors}
               style={S.headerGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
+            
+            {/* Jersey Badge (Top Right for Athletes) */}
+            {isAthlete && jerseyNumber && (
+              <View style={[S.jerseyBadgeTopRight, { top: 20 + insets.top }]}>
+                <JerseyBadge 
+                  jerseyNumber={jerseyNumber} 
+                  sport={primarySport}
+                  teamColor={userThemeColor}
+                  size="medium"
+                />
+              </View>
+            )}
             
             {/* Profile Content */}
             <View style={S.profileContent}>
@@ -219,6 +269,27 @@ export default function UserProfileScreen() {
                         <Text style={S.planBadgeText}>{user.preferences.plan.toUpperCase()}</Text>
                       </View>
                     )}
+                  </View>
+                )}
+                
+                {/* Position Badge (Athletes Only) */}
+                {isAthlete && position && (
+                  <View style={S.positionBadge}>
+                    <Text style={S.positionText}>{position.toUpperCase()}</Text>
+                  </View>
+                )}
+                
+                {/* Athletic Credentials (Athletes Only) */}
+                {isAthlete && (gradeLevel || accolades || graduationYear) && (
+                  <View style={S.credentialsContainer}>
+                    <Text style={S.credentialsText}>
+                      {[
+                        gradeLevel,
+                        accolades && accolades.length > 0 ? accolades[0] : null,
+                        graduationYear ? `Class of ${graduationYear}` : null,
+                      ].filter(Boolean).join(' | ')}
+                      {primarySport && primarySport !== 'other' ? ` ${getSportEmoji(primarySport)}` : ''}
+                    </Text>
                   </View>
                 )}
                 
@@ -398,9 +469,18 @@ const S = StyleSheet.create({
     position: 'relative',
     paddingBottom: 20,
     marginTop: 8, // Space for BackHeader
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#0b1120',
+  },
+  headerBackgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    height: 220,
   },
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
+    height: 220,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -689,4 +769,37 @@ const S = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
+  
+  // Athlete-specific styles
+  jerseyBadgeTopRight: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
+  },
+  positionBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  positionText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  credentialsContainer: {
+    marginTop: 6,
+    paddingHorizontal: 12,
+  },
+  credentialsText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
 });

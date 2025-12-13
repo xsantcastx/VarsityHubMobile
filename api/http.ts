@@ -99,11 +99,21 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    console.error('[http] Request failed:', { url: base + path, error: error.message });
+    
+    // Suppress verbose logging for expected auth errors in dev mode
+    const isAuthError = path.includes('/auth/') || path.includes('/me');
+    const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
+    
+    if (!isExpectedDevError) {
+      console.error('[http] Request failed:', { url: base + path, error: error.message });
+    }
+    
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
-      captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
+      if (!isExpectedDevError) {
+        captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
+      }
       // Retry once on timeout if allowed
       if (retries > 0) {
         // Exponential backoff: small delay before retry
@@ -117,14 +127,18 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
       err.originalError = error;
       err.status = 0;
-      captureException(err, { path, base, method: options.method || 'GET' });
+      if (!isExpectedDevError) {
+        captureException(err, { path, base, method: options.method || 'GET' });
+      }
       if (retries > 0) {
         await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
         return request(path, options, timeoutMs, retries - 1);
       }
       throw err;
     }
-    captureException(error, { path, base, method: options.method || 'GET' });
+    if (!isExpectedDevError) {
+      captureException(error, { path, base, method: options.method || 'GET' });
+    }
     throw error;
   }
 }

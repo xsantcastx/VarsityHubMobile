@@ -395,7 +395,7 @@ export default function Step3Plan() {
           <View style={[styles.modalContent, { backgroundColor: isDark ? '#1F2937' : 'white' }]}>
             <Text style={[styles.modalTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>How Many Teams?</Text>
             <Text style={[styles.modalSubtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-              First 2 teams are always free. Veteran plan is $2.50/month for each additional team beyond the first two.
+              First 2 teams are always free (ex: mens and womens soccer). Veteran plan is $1.50/month for each additional team beyond the first two.
             </Text>
             
             <View style={styles.teamCountSelector}>
@@ -427,10 +427,10 @@ export default function Step3Plan() {
             
             <View style={styles.pricingInfo}>
               <Text style={[styles.pricingText, { color: isDark ? '#34D399' : '#16A34A' }]}>
-                ${((teamCount - 2) * 2.50).toFixed(2)}/month
+                ${((teamCount - 2) * 1.50).toFixed(2)}/month
               </Text>
               <Text style={[styles.pricingSubtext, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
-                (2 free + {teamCount - 2} × $2.50)
+                (2 free + {teamCount - 2} × $1.50)
               </Text>
             </View>
             

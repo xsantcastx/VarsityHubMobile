@@ -1,10 +1,12 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
+import { JerseyBadge, Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -20,17 +22,19 @@ const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 
-const THEME_COLOR_GRADIENTS: { [key: string]: string[] } = {
-  '#3B82F6': ['#1e3a8a', '#3b82f6', '#60a5fa'], // VarsityHub Blue
-  '#DC2626': ['#7f1d1d', '#dc2626', '#ef4444'], // Championship Red
-  '#10B981': ['#065f46', '#10b981', '#34d399'], // Victory Green
-  '#F59E0B': ['#78350f', '#f59e0b', '#fbbf24'], // Gold Medal
-  '#8B5CF6': ['#4c1d95', '#8b5cf6', '#a78bfa'], // Royal Purple
-  '#6B7280': ['#1f2937', '#6b7280', '#9ca3af'], // Classic Gray
-};
-
-const getGradientForColor = (color: string): string[] => {
-  return THEME_COLOR_GRADIENTS[color] || THEME_COLOR_GRADIENTS['#3B82F6'];
+/**
+ * Get sport emoji based on sport type
+ */
+const getSportEmoji = (sport: string): string => {
+  const emojiMap: Record<string, string> = {
+    basketball: '🏀',
+    football: '🏈',
+    baseball: '⚾',
+    soccer: '⚽',
+    volleyball: '🏐',
+    other: '🏆',
+  };
+  return emojiMap[sport.toLowerCase()] || '🏆';
 };
 
 const toFeedPost = (item: any): FeedPost | null => {
@@ -190,6 +194,45 @@ export default function ProfileScreen() {
   } catch {
     // Avatar upload failed - error handled via Alert below
     Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+  } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleBackgroundImagePress = async () => {
+    setIsUploadingAvatar(true);
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
+        return;
+      }
+
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        ...pickerMediaTypesProp(),
+        allowsEditing: true,
+        aspect: [16, 9],
+        selectionLimit: 1,
+        quality: 0.9,
+        exif: false,
+      } as any);
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
+      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
+      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
+      
+      const { url } = await uploadAvatar(null, manipulated.uri, name);
+      const preferences = me?.preferences || {};
+      const updatedPreferences = { ...preferences, header_image_url: url };
+      await User.updateMe({ preferences: updatedPreferences });
+      setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
+
+  } catch {
+    Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
   } finally {
       setIsUploadingAvatar(false);
     }
@@ -367,6 +410,20 @@ export default function ProfileScreen() {
   const planLabel = typeof preferences?.plan === 'string' ? preferences.plan : null;
   const formattedPlan = planLabel ? `${planLabel.charAt(0).toUpperCase()}${planLabel.slice(1)}` : null;
   const name = me?.display_name || me?.username || 'User';
+  
+  // Athlete-specific data from preferences
+  const isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
+  const jerseyNumber = preferences?.jersey_number || me?.jersey_number;
+  const position = preferences?.position || me?.position;
+  const gradeLevel = preferences?.grade_level;
+  const graduationYear = preferences?.graduation_year;
+  const accolades = preferences?.accolades;
+  const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
+  const headerBackgroundImage = preferences?.header_image_url || null;
+  const heroGradientColors = headerBackgroundImage
+    ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
+    : getGradientForColor(userThemeColor);
+  
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
@@ -375,93 +432,123 @@ export default function ProfileScreen() {
 
   const renderHeader = () => (
     <>
-      {/* Modern Sport-Inspired Header */}
+      {/* Minimal Header - LinkedIn Style */}
       <View style={styles.headerContainer}>
-        {/* Background Gradient with User's Theme Color */}
+        {/* Compact Background Image / Gradient */}
+        <Pressable 
+          onPress={handleBackgroundImagePress} 
+          style={styles.headerBackgroundPressable}
+          disabled={isUploadingAvatar}
+        >
+          {headerBackgroundImage ? (
+            <>
+              <Image
+                source={{ uri: headerBackgroundImage }}
+                style={styles.headerBackgroundImage}
+                contentFit="cover"
+              />
+              {/* Edit Overlay on Background Image */}
+              <View style={styles.headerEditOverlay}>
+                <Ionicons name="pencil" size={14} color="#ffffff" />
+              </View>
+            </>
+          ) : (
+            <View style={styles.headerBackgroundImage} />
+          )}
+        </Pressable>
         <LinearGradient
-          colors={getGradientForColor(userThemeColor) as any}
+          colors={heroGradientColors}
           style={styles.headerGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         />
         
-        {/* Settings Button */}
-        <Pressable onPress={() => void router.push('/settings')} style={[styles.settingsButtonTopRight, { top: 20 + insets.top }]}>
-          <Ionicons name="settings-outline" size={20} color="#ffffff" />
-        </Pressable>
+        {/* Top Right Controls */}
+        <View style={[styles.headerControls, { top: 12 + insets.top }]}>
+          {/* Settings Button */}
+          <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
+            <Ionicons name="settings-outline" size={18} color="#ffffff" />
+          </Pressable>
+          
+          {/* Jersey Badge (Top Right for Athletes) */}
+          {isAthlete && jerseyNumber && (
+            <View style={styles.jerseyBadgeCompact}>
+              <JerseyBadge 
+                jerseyNumber={jerseyNumber} 
+                sport={primarySport}
+                teamColor={userThemeColor}
+                size="small"
+              />
+            </View>
+          )}
+        </View>
         
-        {/* Profile Content */}
+        {/* Minimal Profile Content - Compact Layout */}
         <View style={styles.profileContent}>
-          {/* Avatar Section */}
-          <View style={styles.avatarSection}>
-            <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar}>
-              <View style={styles.avatarContainer}>
-                {me.avatar_url ? (
-                  <Image source={{ uri: String(me.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={36} color="#ffffff" />
-                  </View>
-                )}
-                {isUploadingAvatar && (
-                  <View style={styles.avatarOverlay}>
-                    <ActivityIndicator color="white" />
-                  </View>
-                )}
-              </View>
-            </Pressable>
-          </View>
+          {/* Avatar on Left (Smaller, Less Overlapping) */}
+          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.avatarSection}>
+            <View style={styles.avatarContainer}>
+              {me.avatar_url ? (
+                <Image source={{ uri: String(me.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="person" size={36} color="#ffffff" />
+                </View>
+              )}
+              {isUploadingAvatar && (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color="white" size="small" />
+                </View>
+              )}
+            </View>
+          </Pressable>
 
-          {/* User Info */}
+          {/* User Info - Compact */}
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{name}</Text>
-            
-            {/* Role and Plan Badges Row */}
-            {(roleLabel || formattedPlan) && (
-              <View style={styles.badgesRow}>
-                {roleLabel && (
-                  <View style={[styles.roleBadge, 
-                    roleRaw === 'coach' && styles.coachBadge,
-                    roleRaw === 'player' && styles.playerBadge,
-                    roleRaw === 'fan' && styles.fanBadge
-                  ]}>
-                    <Ionicons 
-                      name={roleRaw === 'coach' ? 'flag' : roleRaw === 'player' ? 'american-football' : 'heart'} 
-                      size={12} 
-                      color="#ffffff" 
-                    />
-                    <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-                  </View>
-                )}
-                {formattedPlan && (
-                  <View style={[styles.planBadge, 
-                    formattedPlan.toLowerCase() === 'rookie' && styles.rookieBadge,
-                    formattedPlan.toLowerCase() === 'veteran' && styles.veteranBadge,
-                    formattedPlan.toLowerCase() === 'legend' && styles.legendBadge
-                  ]}>
-                    {formattedPlan.toLowerCase() === 'veteran' ? (
-                      <Text style={{ fontSize: 12 }}>🏆</Text>
-                    ) : formattedPlan.toLowerCase() === 'legend' ? (
-                      <Text style={{ fontSize: 12 }}>🥇</Text>
-                    ) : (
-                      <Ionicons name="shield" size={12} color="#ffffff" />
-                    )}
-                    <Text style={styles.planBadgeText}>{formattedPlan.toUpperCase()}</Text>
-                  </View>
-                )}
-              </View>
+            <View style={styles.nameRow}>
+              <Text style={styles.userName}>{name}</Text>
+              {roleLabel && (
+                <View style={[styles.roleBadge, 
+                  roleRaw === 'coach' && styles.coachBadge,
+                  roleRaw === 'player' && styles.playerBadge,
+                  roleRaw === 'fan' && styles.fanBadge
+                ]}>
+                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+            {me?.username && <Text style={styles.userHandle}>@{me.username}</Text>}
+            {preferences?.location && (
+              <Text style={styles.userLocation}>{preferences.location}</Text>
             )}
-            
-            {me?.bio && <Text style={styles.userBio}>{me.bio}</Text>}
-          </View>
-
-          {/* Edit Profile Button */}
-          <View style={styles.actionsContainer}>
-            <Pressable style={styles.editButton} onPress={() => void router.push('/edit-profile')}>
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </Pressable>
           </View>
         </View>
+
+        {/* Athlete Credentials - Compact */}
+        {isAthlete && (position || gradeLevel || graduationYear || accolades) && (
+          <View style={styles.athleteCredentialsCompact}>
+            {position && <Text style={styles.positionBadgeText}>{position.toUpperCase()}</Text>}
+            {(gradeLevel || graduationYear) && (
+              <Text style={styles.credentialsTextCompact}>
+                {[gradeLevel, graduationYear ? `Class of ${graduationYear}` : null].filter(Boolean).join(' | ')} {primarySport ? getSportEmoji(primarySport) : ''}
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      {/* Bio Section - Outside Header, Below */}
+      {me?.bio && (
+        <View style={styles.bioSectionCompact}>
+          <Text style={styles.userBioCompact}>{me.bio}</Text>
+        </View>
+      )}
+
+      {/* Action Buttons */}
+      <View style={styles.actionsContainerCompact}>
+        <Pressable style={styles.editButtonCompact} onPress={() => void router.push('/edit-profile')}>
+          <Text style={styles.editButtonTextCompact}>Edit Profile</Text>
+        </Pressable>
       </View>
 
       {/* Athletic Stats Card */}
@@ -778,44 +865,90 @@ const styles = StyleSheet.create({
   // Modern Sport Header Styles
   headerContainer: {
     position: 'relative',
-    paddingBottom: 20,
+    paddingBottom: 0,
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+  },
+  headerBackgroundPressable: {
+    position: 'relative',
+    height: 120,
+    width: '100%',
+  },
+  headerBackgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    height: 120,
+  },
+  headerEditOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
   },
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    height: 120,
+  },
+  headerControls: {
+    position: 'absolute',
+    right: 12,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 10,
+  },
+  controlButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  jerseyBadgeCompact: {
+    marginTop: 0,
   },
   profileContent: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   avatarSection: {
-    alignItems: 'center',
-    marginBottom: 12,
+    marginTop: -35, // Slight overlap
   },
   avatarContainer: {
     position: 'relative',
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 3,
+    borderColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 36,
+    borderRadius: 37,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 36,
+    borderRadius: 37,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -825,126 +958,108 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 36,
+    borderRadius: 37,
   },
-  settingsButtonTopRight: {
-    position: 'absolute',
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
+  nameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   userInfo: {
-    alignItems: 'center',
-    marginBottom: 12,
+    flex: 1,
+    paddingTop: 12,
+  },
+  userHandle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  userLocation: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#6B7280',
   },
   userName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
   },
-  userBio: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginTop: 8,
-    paddingHorizontal: 20,
+  athleteCredentialsCompact: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  positionBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+    marginBottom: 2,
+  },
+  credentialsTextCompact: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#6B7280',
+  },
+  bioSectionCompact: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  userBioCompact: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#374151',
+    lineHeight: 20,
   },
   badgesRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 8, 
-    marginTop: 8, 
-    marginBottom: 4,
+    gap: 6, 
+    marginTop: 4,
     flexWrap: 'wrap',
-    justifyContent: 'center'
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
     backgroundColor: '#f59e0b',
-    gap: 4,
+    gap: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   coachBadge: { backgroundColor: '#1d4ed8' },
   playerBadge: { backgroundColor: '#dc2626' },
   fanBadge: { backgroundColor: '#7c3aed' },
   roleText: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#111827',
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  rookieBadge: { backgroundColor: '#22c55e' },
-  veteranBadge: { backgroundColor: '#f59e0b' },
-  legendBadge: { backgroundColor: '#dc2626' },
-  planBadgeText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  actionsContainer: {
-    alignItems: 'center',
-  },
-  editButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 24,
+  actionsContainerCompact: {
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  editButtonText: {
+  editButtonCompact: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+  },
+  editButtonTextCompact: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontWeight: '600',
   },
   
   // Athletic Stats Card
@@ -952,15 +1067,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     marginHorizontal: 16,
-    marginTop: -10,
+    marginTop: 0,
     borderRadius: 16,
-    paddingVertical: 20,
+    paddingVertical: 24,
     paddingHorizontal: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 12,
+    elevation: 6,
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
@@ -972,10 +1087,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '900',
     color: '#1e293b',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
     textTransform: 'uppercase',

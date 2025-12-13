@@ -191,7 +191,12 @@ export function useAppleAuth() {
         throw err;
       }
       
-      console.error('[Apple Auth] Error:', err);
+      // Suppress error logging for expected simulator failures
+      if (!(__DEV__ && Platform.OS === 'ios')) {
+        console.error('[Apple Auth] Error:', err);
+      } else {
+        console.log('[Apple Auth] Native Apple auth unavailable (expected in simulator)');
+      }
       
       // Dev-only fallback: if native Apple auth fails, use a dev token
       // This is CRITICAL for simulator testing where Apple auth isn't available
@@ -207,9 +212,16 @@ export function useAppleAuth() {
             return res as any;
           }
         } catch (fallbackErr) {
-          console.error('[Apple Auth] Dev fallback failed:', fallbackErr);
+          console.log('[Apple Auth] Dev fallback auth not available (expected), continuing to error handling');
           // continue to normal error mapping below
         }
+      }
+      
+      // In dev/simulator mode, suppress user-facing errors for expected auth failures
+      if (__DEV__ && Platform.OS === 'ios') {
+        console.log('[Apple Auth] Native auth not available in simulator - expected behavior');
+        // Let the error propagate silently so AuthProvider can handle fallback
+        throw err;
       }
       
       // User-friendly timeout message

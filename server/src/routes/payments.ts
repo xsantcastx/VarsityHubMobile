@@ -2,10 +2,10 @@ import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
 import { debugLog } from '../lib/debugLog.js';
 import {
-  sendBillingNoticeEmail,
-  sendPaymentFailedEmail,
-  sendPaymentReceiptEmail,
-  sendSubscriptionCanceledEmail,
+    sendBillingNoticeEmail,
+    sendPaymentFailedEmail,
+    sendPaymentReceiptEmail,
+    sendSubscriptionCanceledEmail,
 } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
@@ -602,7 +602,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
-        monthly_cost: billable * 2.50
+        monthly_cost: billable * 1.50
       });
     } catch (err: any) {
       console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
@@ -687,7 +687,7 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
         const item = sub.items.data[0];
         quantity = item?.quantity ?? null;
-        if (typeof quantity === 'number') monthly_cost = Number((quantity * 2.5).toFixed(2));
+        if (typeof quantity === 'number') monthly_cost = Number((quantity * 1.5).toFixed(2));
       } catch (err) {
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
