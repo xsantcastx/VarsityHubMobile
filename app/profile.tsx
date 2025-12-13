@@ -21,6 +21,8 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+const HEADER_IMAGE_DRAG_LIMIT = 120;
+const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
  * Get sport emoji based on sport type
@@ -420,6 +422,7 @@ export default function ProfileScreen() {
   const accolades = preferences?.accolades;
   const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
+  const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
   const heroGradientColors = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : getGradientForColor(userThemeColor);
@@ -442,11 +445,14 @@ export default function ProfileScreen() {
         >
           {headerBackgroundImage ? (
             <>
-              <Image
-                source={{ uri: headerBackgroundImage }}
-                style={styles.headerBackgroundImage}
-                contentFit="cover"
-              />
+          <Image
+            source={{ uri: headerBackgroundImage }}
+            style={[
+              styles.headerBackgroundImage,
+              { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
+            ]}
+            contentFit="cover"
+          />
               {/* Edit Overlay on Background Image */}
               <View style={styles.headerEditOverlay}>
                 <Ionicons name="pencil" size={14} color="#ffffff" />

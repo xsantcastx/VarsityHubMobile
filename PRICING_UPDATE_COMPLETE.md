@@ -86,7 +86,7 @@
 - ✅ Up to 12 authorized users (Veteran)
 - ✅ Unlimited authorized users (Legend)
 - ✅ Unlimited teams (Legend only)
-- ✅ $8 Mon-Thu, $10 Fri-Sun (ads)
+- ✅ $5 Mon-Thu, $8 Fri-Sun (ads)
 
 ---
 
@@ -193,7 +193,7 @@ const weekendBlockPrice = 10.00;
 - [ ] Test Veteran upgrade prompt (should show "$2.50/month per team")
 - [ ] Test Legend upgrade prompt (should show "$19.99/year unlimited")
 - [ ] Test team creation on Veteran (should charge $2.50/month)
-- [ ] Test ad booking (should show $8 Mon-Thu, $10 Fri-Sun)
+- [ ] Test ad booking (should show $5 Mon-Thu, $8 Fri-Sun)
 - [ ] Verify NO mention of "trial", "6 teams", "$1.50", "$17.50", etc.
 
 ---

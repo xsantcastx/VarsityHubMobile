@@ -16,6 +16,8 @@ import { getGradientForColor } from '@/utils/theme';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 const appConfig = getConfig();
+const HEADER_IMAGE_DRAG_LIMIT = 120;
+const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 /**
  * Get sport emoji based on sport type
@@ -153,6 +155,7 @@ export default function UserProfileScreen() {
   const primarySport = (user?.preferences?.primary_sport || user?.preferences?.sport || 'other') as Sport;
   const userThemeColor = user?.preferences?.theme_color || '#3B82F6';
   const headerBackgroundImage = user?.preferences?.header_image_url || null;
+  const headerImageFocusY = clampValue(typeof user?.preferences?.header_image_focus_y === 'number' ? user.preferences.header_image_focus_y : 0, -1, 1);
   const heroGradientColors = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : getGradientForColor(userThemeColor);
@@ -179,7 +182,10 @@ export default function UserProfileScreen() {
             {headerBackgroundImage ? (
               <Image
                 source={{ uri: headerBackgroundImage }}
-                style={S.headerBackgroundImage}
+                style={[
+                  S.headerBackgroundImage,
+                  { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
+                ]}
                 contentFit="cover"
               />
             ) : null}

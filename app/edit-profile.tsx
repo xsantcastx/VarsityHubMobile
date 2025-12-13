@@ -4,8 +4,8 @@ import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -49,6 +49,8 @@ export default function EditProfileScreen() {
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [headerImageTouched, setHeaderImageTouched] = useState(false);
   const [uploadingHeaderImage, setUploadingHeaderImage] = useState(false);
+  const [headerImageOffset, setHeaderImageOffset] = useState(0); // normalized -1..1
+  const [headerImageOffsetTouched, setHeaderImageOffsetTouched] = useState(false);
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
@@ -70,11 +72,17 @@ export default function EditProfileScreen() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
 
+  const HEADER_IMAGE_DRAG_LIMIT = 120;
+  const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const headerImagePanStart = useRef(0);
+  const headerImageAnimatedOffset = useRef(new Animated.Value(0)).current;
+
   const loadUserData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const me: any = await User.me();
+      const prefs = me?.preferences || {};
       
       // Direct fields
       setDisplayName(me?.display_name || '');
@@ -83,9 +91,10 @@ export default function EditProfileScreen() {
       const headerImagePref = prefs?.header_image_url || prefs?.profile_header_image_url || me?.header_image_url;
       setHeaderImageUrl(headerImagePref || null);
       setHeaderImageTouched(false);
+      setHeaderImageOffset(typeof prefs?.header_image_focus_y === 'number' ? clampValue(prefs.header_image_focus_y, -1, 1) : 0);
+      setHeaderImageOffsetTouched(false);
       
       // Fields from preferences
-      const prefs = me?.preferences || {};
       setFullName(prefs?.full_name || me?.full_name || '');
       setLocation(prefs?.location || me?.location || '');
       setZipCode(prefs?.zip_code || me?.zip_code || '');
@@ -324,7 +333,37 @@ export default function EditProfileScreen() {
   const removeHeaderImage = () => {
     setHeaderImageUrl(null);
     setHeaderImageTouched(true);
+    setHeaderImageOffset(0);
+    setHeaderImageOffsetTouched(true);
   };
+
+  useEffect(() => {
+    Animated.spring(headerImageAnimatedOffset, {
+      toValue: headerImageOffset * HEADER_IMAGE_DRAG_LIMIT,
+      useNativeDriver: true,
+    }).start();
+  }, [headerImageOffset, headerImageAnimatedOffset]);
+
+  const headerImagePanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => Boolean(headerImageUrl),
+    onMoveShouldSetPanResponder: () => Boolean(headerImageUrl),
+    onPanResponderGrant: () => {
+      headerImagePanStart.current = headerImageOffset;
+    },
+    onPanResponderMove: (_evt, gestureState) => {
+      if (!headerImageUrl) return;
+      const next = clampValue(headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT, -1, 1);
+      headerImageAnimatedOffset.setValue(next * HEADER_IMAGE_DRAG_LIMIT);
+    },
+    onPanResponderRelease: (_evt, gestureState) => {
+      if (!headerImageUrl) return;
+      const next = clampValue(headerImagePanStart.current + gestureState.dy / HEADER_IMAGE_DRAG_LIMIT, -1, 1);
+      setHeaderImageOffset(next);
+      setHeaderImageOffsetTouched(true);
+    },
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderTerminate: () => {},
+  }), [headerImageUrl, headerImageOffset, headerImageAnimatedOffset]);
 
   const onSave = async () => {
     if (!displayName.trim()) {
@@ -508,11 +547,21 @@ export default function EditProfileScreen() {
                   { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }
                 ]}>
                   {headerImageUrl ? (
-                    <Image 
-                      source={{ uri: headerImageUrl }} 
-                      style={styles.bannerImage}
-                      contentFit="cover"
-                    />
+                    <Animated.View
+                      style={[
+                        styles.bannerImageWrapper,
+                        {
+                          transform: [{ translateY: headerImageAnimatedOffset }],
+                        },
+                      ]}
+                      {...headerImagePanResponder.panHandlers}
+                    >
+                      <Image 
+                        source={{ uri: headerImageUrl }} 
+                        style={styles.bannerImage}
+                        contentFit="cover"
+                      />
+                    </Animated.View>
                   ) : (
                     <View style={styles.bannerPlaceholder}>
                       <Ionicons name="color-wand-outline" size={32} color={Colors[colorScheme].mutedText} />
@@ -551,9 +600,24 @@ export default function EditProfileScreen() {
                     </Pressable>
                   ) : null}
                 </View>
-                <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
-                  Recommended 3:2 photo (at least 1200px wide) so your profile hero matches the latest design.
-                </Text>
+                {headerImageUrl ? (
+                  <View style={styles.bannerAdjustmentRow}>
+                    <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText, flex: 1 }]}>
+                      Drag the image to fine-tune what shows in your profile hero.
+                    </Text>
+                    <Pressable
+                      onPress={() => { setHeaderImageOffset(0); setHeaderImageOffsetTouched(true); }}
+                      style={styles.bannerResetButton}
+                    >
+                      <Ionicons name="refresh" size={16} color={Colors[colorScheme].tint} />
+                      <Text style={[styles.bannerButtonText, { color: Colors[colorScheme].tint }]}>Reset Position</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
+                    Recommended 3:2 photo (at least 1200px wide) so your profile hero matches the latest design.
+                  </Text>
+                )}
               </View>
             </View>
 
@@ -1260,6 +1324,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  bannerImageWrapper: {
+    width: '100%',
+    height: '100%',
+  },
   bannerPlaceholder: {
     flex: 1,
     justifyContent: 'center',
@@ -1300,6 +1368,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DC2626',
     backgroundColor: 'rgba(220,38,38,0.08)',
+  },
+  bannerAdjustmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  bannerResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(59,130,246,0.08)',
   },
   
   // Athlete section styles

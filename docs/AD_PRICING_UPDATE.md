@@ -1,113 +1,170 @@
 # 📢 Ad Pricing Model Update
 
-## Summary
+## Current Pricing (Active Dec 13, 2025)
 
-Updated VarsityHub's advertisement pricing from a **per-day** model to a **per-week slot** model to align with Stripe configuration and clarify billing for advertisers.
+VarsityHub's advertisement pricing uses a **per-week slot** model where booking any date within a week reserves the entire week at the stated rate.
+
+**Active Rates:**
+- **Monday–Thursday Slot:** $5.00 per week
+- **Friday–Sunday Slot:** $8.00 per week
+- **Backend:** 500 cents (weekday), 800 cents (weekend) via `server/src/utils/adPricing.ts`
 
 ---
 
-## 🔄 What Changed
+## 🔄 Price Evolution
 
-### Old Pricing (Per Day)
+### Phase 1: Per-Day Pricing (Original)
 - **Monday–Thursday:** $10.00 per day
 - **Friday–Sunday:** $17.50 per day
 - **Model:** Each individual date selected was charged separately
-- **Backend:** 1000 cents (weekday), 1750 cents (weekend)
+- **Issue:** Confusing for advertisers; didn't align with Stripe weekly product structure
 
-### New Pricing (Per Week Slot)
+### Phase 2: Per-Week Slot Pricing (Interim)
 - **Monday–Thursday Slot:** $8.00 per week
 - **Friday–Sunday Slot:** $10.00 per week
-- **Model:** Booking a date reserves the weekly slot at listed price
-- **Backend:** 800 cents (weekday slot), 1000 cents (weekend slot)
+- **Model:** Booking any date within Mon–Thu or Fri–Sun reserves the weekly slot
+- **Improvement:** Clearer pricing, aligned with Stripe structure
+
+### Phase 3: Optimized Per-Week Pricing (Current)
+- **Monday–Thursday Slot:** $5.00 per week
+- **Friday–Sunday Slot:** $8.00 per week
+- **Model:** Same weekly slot logic, reduced rates
+- **Backend:** Shared `calculateAdPriceCents()` helper ensures consistency across UI, API, and Stripe
 
 ---
 
-## 💰 Pricing Breakdown
+## 💰 How Pricing Works
 
-| Slot Type | Days Covered | Price | Stripe Product ID | Backend (cents) |
-|-----------|--------------|-------|-------------------|-----------------|
-| **Weekday** | Mon–Thu | $8/week | `prod_TJtJaRjlcRrFQM` | 800 |
-| **Weekend** | Fri–Sun | $10/week | `prod_TJtKOftqpmv4Zp` | 1000 |
+| Slot Type | Days Covered | Price | Backend (cents) |
+|-----------|--------------|-------|---|
+| **Weekday** | Mon–Thu | $5.00/week | 500 |
+| **Weekend** | Fri–Sun | $8.00/week | 800 |
 
 ### How It Works
 1. User selects dates on the calendar
 2. Each date is categorized as weekday (Mon–Thu) or weekend (Fri–Sun)
-3. Weekday dates cost $8/week, weekend dates cost $10/week
-4. Total cost = sum of all selected slot prices
+3. Booking any date within a week reserves the **entire weekly slot** at the rate listed
+4. Total cost = (count of weekday slots × $5) + (count of weekend slots × $8)
 
-**Example:**
-- Select **Wednesday** = $8 (Mon–Thu slot)
-- Select **Friday** = $10 (Fri–Sun slot)
-- Select **Wednesday + Friday** = $18 total
-
----
-
-## 📝 Files Updated
-
-### Backend (`server/src/routes/payments.ts`)
-**Lines 14-33:** Updated `calculatePriceCents()` function
-
-**Before:**
-```typescript
-const weekdayPrice = 1000; // $10.00 in cents
-const weekendPrice = 1750; // $17.50 in cents
-```
-
-**After:**
-```typescript
-const weekdayPrice = 800; // $8.00 per week in cents
-const weekendPrice = 1000; // $10.00 per week in cents
-```
-
-**Changes:**
-- ✅ Weekday price: 1000 → 800 cents
-- ✅ Weekend price: 1750 → 1000 cents
-- ✅ Comments updated to say "per week" instead of per day
+### Examples
+- Select **Wednesday** = $5 (Mon–Thu slot of that week)
+- Select **Friday** = $8 (Fri–Sun slot of that week)
+- Select **Wednesday + Friday** = $13 total ($5 + $8)
+- Select **Wednesday + Thursday** = $5 total (same weekday slot, no double-charge)
+- Select **Friday + Saturday** = $8 total (same weekend slot, no double-charge)
+- Select **Monday + Friday** = $13 total ($5 weekday of week 1 + $8 weekend of week 1)
+- Select **Monday of week 1 + Monday of week 2** = $10 total (two separate weekday slots)
 
 ---
 
-### Frontend (`app/ad-calendar.tsx`)
+## 🔧 Implementation Details
 
-#### Lines 15-16: Pricing Constants
-**Before:**
+### Shared Helper: `server/src/utils/adPricing.ts`
+Introduced a centralized pricing calculation used by both frontend and backend:
+
 ```typescript
-const weekdayRate = 10.00;  // Per single day (Mon-Thu)
-const weekendRate = 17.50;  // Per single day (Fri-Sun)
+export const WEEKDAY_BLOCK_PRICE_CENTS = 500;  // $5.00
+export const WEEKEND_BLOCK_PRICE_CENTS = 800;  // $8.00
+
+export function calculateAdPriceCents(isoDates: string[]): {
+  totalCents: number;
+  weekdayBlocks: number;
+  weekendBlocks: number;
+}
 ```
 
-**After:**
+**Key Feature:** Deduplicates dates into weekly "blocks" so that:
+- Mon + Tue = 1 weekday block = $5 (not $10)
+- Fri + Sat = 1 weekend block = $8 (not $16)
+
+### Backend Routes Integration
+
+**`server/src/routes/ads.ts` (Reservation Preview)**
 ```typescript
-const weekdayRate = 8.00;   // Per week (Mon-Thu slot)
-const weekendRate = 10.00;  // Per week (Fri-Sun slot)
+const totalPrice = calculateAdPriceDollars(isoDates);
+return res.status(201).json({ 
+  ok: true, 
+  reserved: createdMany.count, 
+  dates: isoDates, 
+  price: totalPrice  // Uses shared helper
+});
 ```
 
-#### Lines 38-50: Price Calculation Function
-**Before:**
+**`server/src/routes/payments.ts` (Checkout)**
 ```typescript
-// Calculate price per individual day
-// Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($10)
-// Fri=5, Sat=6, Sun=0 are weekend ($17.50)
+const subtotal = calculatePriceCents(isoDates);  // Uses shared helper
+const tax = calculateSalesTax(subtotal, ad.target_zip_code);
+const total = subtotal + tax;
+// Pass to Stripe with metadata for audit trail
 ```
 
-**After:**
+### Frontend Integration
+
+**`app/ad-calendar.tsx` (UI Constants)**
 ```typescript
-// Calculate price per weekly slot
-// Mon=1, Tue=2, Wed=3, Thu=4 are weekdays ($8/week slot)
-// Fri=5, Sat=6, Sun=0 are weekend ($10/week slot)
+const weekdayRate = 5.00;   // Per week (Mon-Thu slot)
+const weekendRate = 8.00;   // Per week (Fri-Sun slot)
 ```
 
-#### Lines 495-510: Calendar Legend
-**Before:**
-```tsx
-<Text>Weekday (Mon-Thu) - $10.00/day</Text>
-<Text>Weekend (Fri-Sun) - $17.50/day</Text>
+All calendar displays (legend, examples, calculations) use these constants, which are now synchronized with the backend helper.
+
+---
+
+## 📋 Files Modified
+
+| File | Changes | Status |
+|---|---|---|
+| `server/src/utils/adPricing.ts` | **New:** Shared pricing helper | ✅ |
+| `server/src/routes/ads.ts` | Uses `calculateAdPriceDollars()` for reservation preview | ✅ |
+| `server/src/routes/payments.ts` | Uses `calculateAdPriceCents()` for checkout subtotal | ✅ |
+| `app/ad-calendar.tsx` | Constants updated to $5/$8, all text synced | ✅ |
+| `server/src/__tests__/payments.test.ts` | Tests confirm $5/$8 pricing logic | ✅ |
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+```bash
+npm test -- server/src/__tests__/payments.test.ts
 ```
 
-**After:**
-```tsx
-<Text>Weekday (Mon-Thu) - $8.00/week</Text>
-<Text>Weekend (Fri-Sun) - $10.00/week</Text>
-```
+**Test Cases:**
+- ✅ Constants: `WEEKDAY_BLOCK_PRICE_CENTS = 500`, `WEEKEND_BLOCK_PRICE_CENTS = 800`
+- ✅ Deduplication: Mon + Tue + Fri = 1 weekday block + 1 weekend block = $13
+- ✅ Empty input: Returns `{ totalCents: 0, weekdayBlocks: 0, weekendBlocks: 0 }`
+
+### Manual E2E Test
+1. Open ad booking calendar
+2. Select: Monday + Friday
+3. **Verify UI shows:** $5 + $8 = $13
+4. **Verify API** `/ads/reservations` **response shows:** `price: 13.00`
+5. **Verify Stripe checkout shows:** $13.00 (before tax)
+6. **Complete payment and confirm** Stripe transaction = $13 + applicable tax
+
+---
+
+## ⚠️ Known Issue: Stripe Price IDs
+
+The checkout flow uses hardcoded Stripe `priceId` values that may not reflect the current $5/$8 rates. See `AD_PRICING_INTEGRATION_STATUS.md` for verification steps and resolution.
+
+---
+
+## Historical Reference (Deprecated)
+
+### Old Pricing Models (No Longer in Use)
+
+**Phase 1: Per-Day (Original)**
+- Mon–Thu: $10/day, Fri–Sun: $17.50/day
+- **Why changed:** Expensive and confusing for advertisers
+
+**Phase 2: Per-Week ($8/$10)**
+- Mon–Thu: $8/week, Fri–Sun: $10/week
+- **Why changed:** Further cost reduction to increase ad bookings
+
+**Current Phase: Per-Week ($5/$8)**
+- Mon–Thu: $5/week, Fri–Sun: $8/week
+- **Status:** Live and tested
 
 #### Lines 545-570: Pricing Display Card
 **Before:**
@@ -201,8 +258,8 @@ that entire week's slot at the listed price.
 ## 🧪 Testing Checklist
 
 ### Backend Testing
-- [x] ✅ `calculatePriceCents()` returns 800 for weekday dates
-- [x] ✅ `calculatePriceCents()` returns 1000 for weekend dates
+- [x] ✅ `calculatePriceCents()` returns 500 for weekday dates
+- [x] ✅ `calculatePriceCents()` returns 800 for weekend dates
 - [x] ✅ No compile errors in `payments.ts`
 - [ ] Test Stripe checkout with weekday ad
 - [ ] Test Stripe checkout with weekend ad
@@ -258,7 +315,7 @@ If issues arise, revert to old pricing:
 
 **If ad charges don't match displayed prices:**
 1. Check Stripe Product IDs are correct
-2. Verify `calculatePriceCents()` returns 800/1000
+2. Verify `calculatePriceCents()` returns 500/800
 3. Confirm frontend uses 8.00/10.00 rates
 4. Review transaction logs for discrepancies
 

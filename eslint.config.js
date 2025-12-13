@@ -10,9 +10,10 @@ module.exports = [
   {
     ignores: ['dist/*', 'server/**', 'node_modules/**', '.expo/**', 'android/**', 'ios/**'],
   },
-  // RN rules for RN source folders
+  // RN rules for RN source folders (excluding test files)
   {
     files: ['app/**/*.{js,jsx,ts,tsx}', 'components/**/*.{js,jsx,ts,tsx}', 'hooks/**/*.{js,jsx,ts,tsx}'],
+    ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -37,5 +38,9 @@ module.exports = [
       '@typescript-eslint/await-thenable': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
+  },
+  // Test files are ignored from linting to avoid parser issues
+  {
+    ignores: ['**/*.test.{js,jsx,ts,tsx}', '**/__tests__/**'],
   },
 ];

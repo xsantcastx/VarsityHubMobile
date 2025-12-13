@@ -9,10 +9,12 @@ import {
 } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
+import { emailQueue } from '../lib/queue.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -105,26 +107,7 @@ async function sendSubscriptionEmail({
 
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
-  
-  // Weekly slot pricing: $8/week (Mon-Thu slot), $10/week (Fri-Sun slot)
-  const weekdayPrice = 800; // $8.00 per week in cents
-  const weekendPrice = 1000; // $10.00 per week in cents
-  let total = 0;
-  
-  for (const s of isoDates) {
-    const d = new Date(s + 'T00:00:00');
-    const day = d.getDay(); // 0 Sun .. 6 Sat
-    
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
-    // Fri=5, Sat=6, Sun=0 are weekend
-    if (day >= 1 && day <= 4) {
-      total += weekdayPrice;
-    } else {
-      total += weekendPrice;
-    }
-  }
-  
-  return total;
+  return calculateAdPriceCents(isoDates).totalCents;
 }
 
 const membershipPlans = ['veteran', 'legend'] as const;
@@ -404,6 +387,30 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     ipAddress: req.ip,
     userAgent: req.get('user-agent'),
   });
+
+  // Schedule payment reminder email 6 hours later if checkout not completed
+  const delayMs = 6 * 60 * 60 * 1000; // 6 hours
+  const checkoutLink = session.url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
+  
+  await emailQueue.add(
+    'payments.checkout_abandoned',
+    {
+      to: ad.contact_email,
+      advertiser_name: ad.contact_name,
+      business_name: ad.business_name,
+      total_cost: total / 100, // Convert cents to dollars
+      checkout_link: checkoutLink,
+      hours_remaining: 18, // 24 hour expiry - 6 hours already passed
+      session_id: session.id, // Track to cancel if paid
+    },
+    { 
+      delay: delayMs, 
+      attempts: 1, // Only send once
+      jobId: `payment-reminder-${session.id}`, // Unique job ID for easy cancellation
+    }
+  );
+  debugLog(`[payments] Scheduled payment reminder for ${ad.contact_email} (6 hours)`);
+
   return res.json({ url: session.url });
 });
 
@@ -917,6 +924,14 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         session_id: session.id,
         status: 'active'
       });
+      
+      // Cancel the payment reminder email since payment was completed
+      const jobId = `payment-reminder-${session.id}`;
+      const job = await emailQueue.getJob(jobId);
+      if (job) {
+        await job.remove();
+        debugLog(`[payments] Cancelled payment reminder email (job ${jobId})`);
+      }
       
       // Update transaction log to COMPLETED
       await updateTransactionStatus(session.id, 'COMPLETED', {

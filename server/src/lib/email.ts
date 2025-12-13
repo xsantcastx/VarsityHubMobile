@@ -833,3 +833,131 @@ export async function sendPlanLimitWarningEmail(params: {
     return false;
   }
 }
+
+/**
+ * Send ad reservation confirmation email
+ * Sent immediately after advertiser books dates
+ */
+export async function sendAdReservationEmail(params: {
+  to: string;
+  advertiserName: string;
+  businessName: string;
+  reservedDates: string[]; // ISO date strings
+  totalCost: number; // in dollars
+  targetZip: string;
+  checkoutLink: string;
+  adPreviewUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PAYMENT_RECEIPT) {
+    console.warn('[email] SendGrid email not configured for ad reservations');
+    return false;
+  }
+
+  const formattedDates = reservedDates.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })).join(', ');
+
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PAYMENT_RECEIPT, // Reuse payment receipt template structure
+      dynamicTemplateData: {
+        advertiser_name: params.advertiserName,
+        business_name: params.businessName,
+        reserved_dates: formattedDates,
+        date_count: params.reservedDates.length,
+        total_cost: `$${params.totalCost.toFixed(2)}`,
+        target_zip: params.targetZip,
+        checkout_link: params.checkoutLink,
+        ad_preview_url: params.adPreviewUrl || '',
+      },
+    });
+    debugLog(`✅ Ad reservation email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send ad reservation email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send payment required / checkout abandoned reminder email
+ * Sent N hours after reservation if payment not completed
+ */
+export async function sendPaymentRequiredEmail(params: {
+  to: string;
+  advertiserName: string;
+  businessName: string;
+  totalCost: number;
+  checkoutLink: string;
+  hoursRemaining: number;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PAYMENT_FAILED) {
+    console.warn('[email] SendGrid email not configured for payment reminders');
+    return false;
+  }
+
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PAYMENT_FAILED, // Reuse template
+      dynamicTemplateData: {
+        advertiser_name: params.advertiserName,
+        business_name: params.businessName,
+        total_cost: `$${params.totalCost.toFixed(2)}`,
+        checkout_link: params.checkoutLink,
+        hours_remaining: params.hoursRemaining,
+        expiry_message: `Your reservation expires in ${params.hoursRemaining} hours`,
+      },
+    });
+    debugLog(`✅ Payment required email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send payment required email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send "Ad Goes Live" notification email
+ * Sent when ad first appears in feeds (date range enters "current")
+ */
+export async function sendAdGoesLiveEmail(params: {
+  to: string;
+  advertiserName: string;
+  businessName: string;
+  adTitle: string;
+  targetZip: string;
+  liveUntilDate: string; // ISO date
+  analyticsDashboardUrl: string;
+  adPreviewUrl?: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.BILLING_NOTICE) {
+    console.warn('[email] SendGrid email not configured for ad go-live notification');
+    return false;
+  }
+
+  const liveUntilFormatted = new Date(liveUntilDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.BILLING_NOTICE,
+      dynamicTemplateData: {
+        advertiser_name: params.advertiserName,
+        business_name: params.businessName,
+        ad_title: params.adTitle,
+        target_zip: params.targetZip,
+        live_until: liveUntilFormatted,
+        analytics_dashboard: params.analyticsDashboardUrl,
+        ad_preview: params.adPreviewUrl || '',
+      },
+    });
+    debugLog(`✅ Ad goes live email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send ad goes live email:', error);
+    return false;
+  }
+}

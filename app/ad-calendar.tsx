@@ -12,8 +12,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
 import { Advertisement } from '@/api/entities';
 
-const weekdayRate = 8.00;   // Per week (Mon-Thu slot)
-const weekendRate = 10.00;  // Per week (Fri-Sun slot)
+const weekdayRate = 5.00;   // Per week (Mon-Thu slot)
+const weekendRate = 8.00;   // Per week (Fri-Sun slot)
 
 const todayISO = (): string => format(startOfToday(), 'yyyy-MM-dd');
 const maxDateISO = (): string => format(addWeeks(startOfToday(), 8), 'yyyy-MM-dd');
@@ -117,9 +117,9 @@ function calculatePrice(selectedISO: Set<string>): number {
   let total = 0;
   for (const slot of weekSlots) {
     if (slot.endsWith('-weekday')) {
-      total += weekdayRate; // $8.00 TOTAL for entire Mon-Thu week
+      total += weekdayRate; // $5.00 TOTAL for entire Mon-Thu week
     } else {
-      total += weekendRate; // $10.00 TOTAL for entire Fri-Sun weekend
+      total += weekendRate; // $8.00 TOTAL for entire Fri-Sun weekend
     }
   }
   

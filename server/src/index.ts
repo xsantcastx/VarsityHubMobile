@@ -7,6 +7,7 @@ import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
+import { initializeQueue } from './lib/queue.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -32,6 +33,7 @@ import { tournamentsRouter } from './routes/tournaments.js';
 import { uploadRouter } from './routes/upload.js';
 import { uploadsRouter } from './routes/uploads.js';
 import { usersRouter } from './routes/users.js';
+import { startEmailWorker } from './workers/emailWorker.js';
 
 import rateLimit from 'express-rate-limit';
 import adminRouter from './routes/admin.js';
@@ -78,6 +80,16 @@ initSentry(app);
 
 // Initialize SendGrid email service
 initEmailService();
+
+// Initialize queue system and email worker
+await initializeQueue();
+await startEmailWorker();
+
+// Start overnight monitoring and cron tasks
+const { startOvernightMonitoring, startQueueCleanup, startAdGoLiveCheck } = await import('./cron/overnightTasks.js');
+startOvernightMonitoring();
+startQueueCleanup();
+startAdGoLiveCheck();
 
 // Trust proxy headers from Railway (required for express-rate-limit and IP detection)
 app.set('trust proxy', true);
