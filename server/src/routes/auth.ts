@@ -483,6 +483,42 @@ authRouter.post('/password/reset', async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Authenticated password change via Settings page
+const passwordChangeSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(5),
+});
+
+authRouter.post('/password/change', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const parsed = passwordChangeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const { current_password, new_password } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user || !user.password_hash) return res.status(400).json({ error: 'Invalid account state' });
+
+  const ok = await bcrypt.compare(current_password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const password_hash = await bcrypt.hash(new_password, 10);
+  await prisma.user.update({ where: { id: user.id }, data: { password_hash } });
+
+  // Send security alert
+  try {
+    await sendSecurityAlertEmail({
+      to: user.email,
+      alertType: 'password_change',
+      ipAddress: (req as any)?.ip || 'unknown',
+      manageUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/security`,
+    });
+  } catch (err) {
+    console.warn('[security-email] Failed to send password change alert (settings):', (err as any)?.message || err);
+  }
+
+  return res.json({ ok: true });
+});
+
 authRouter.get('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const user = await prisma.user.findUnique({
