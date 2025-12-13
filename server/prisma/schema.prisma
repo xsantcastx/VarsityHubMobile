@@ -28,6 +28,11 @@ model User {
   password_reset_code        String?
   password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
+  // Trust & Safety
+  offense_count              Int        @default(0)
+  suspension_until           DateTime?
+  suspension_reason          String?
+  permanent_ban              Boolean    @default(false)
   preferences                Json      @default("{}")
   
   // Subscription/Premium fields
@@ -854,6 +859,11 @@ model AbuseReport {
   reporter_id     String   // User who submitted the report
   reporter_name   String
   reporter_email  String
+  // Accused user (optional if unknown)
+  reported_user_id    String?
+  reported_user_name  String?
+  reported_user_email String?
+  context_url         String?
   subject         String
   message         String   @db.Text
   status          String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
@@ -863,8 +873,10 @@ model AbuseReport {
   created_at      DateTime @default(now())
   
   reporter        User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
+  reportedUser    User?    @relation("reported_user", fields: [reported_user_id], references: [id], onDelete: SetNull)
   
   @@index([reporter_id])
+  @@index([reported_user_id])
   @@index([status])
   @@index([created_at])
 }

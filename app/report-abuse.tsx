@@ -15,6 +15,8 @@ export default function ReportAbuseScreen() {
   const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('Report abuse or safety concern');
   const [details, setDetails] = useState('');
+  const [accused, setAccused] = useState('');
+  const [contextUrl, setContextUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -55,12 +57,17 @@ export default function ReportAbuseScreen() {
         email: email.trim(),
         subject: subject.trim(),
         message: details.trim(),
+        reported_user_email: accused.trim() || undefined,
+        reported_user_name: accused.trim() || undefined,
+        context_url: contextUrl.trim() || undefined,
       });
       Alert.alert(
         'Report sent',
         'Thank you for letting us know. Our safety team will review your report and follow up if we need more information.',
       );
       setDetails('');
+      setAccused('');
+      setContextUrl('');
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message.length
@@ -140,6 +147,32 @@ export default function ReportAbuseScreen() {
               multiline
               numberOfLines={5}
               textAlignVertical="top"
+            />
+
+            <Text style={[styles.label, { color: palette.mutedText }]}>Who are you reporting? (email or username)</Text>
+            <TextInput
+              value={accused}
+              onChangeText={setAccused}
+              placeholder="user@example.com or username (optional)"
+              placeholderTextColor={palette.mutedText}
+              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
+              autoCapitalize="none"
+              autoComplete="off"
+              keyboardType="email-address"
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, { color: palette.mutedText }]}>Link or evidence (optional)</Text>
+            <TextInput
+              value={contextUrl}
+              onChangeText={setContextUrl}
+              placeholder="Link to the post/profile/screenshot"
+              placeholderTextColor={palette.mutedText}
+              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
+              autoCapitalize="none"
+              autoComplete="off"
+              keyboardType="url"
+              returnKeyType="done"
             />
 
             <Text style={[styles.helper, { color: palette.mutedText }]}>

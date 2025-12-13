@@ -137,6 +137,10 @@ authRouter.post('/login', async (req, res) => {
   
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (user.permanent_ban) return res.status(403).json({ error: 'Account banned' });
+  if (user.suspension_until && new Date(user.suspension_until) > new Date()) {
+    return res.status(403).json({ error: 'Account suspended', until: user.suspension_until });
+  }
   if (user.banned) return res.status(403).json({ error: 'Account banned' });
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });

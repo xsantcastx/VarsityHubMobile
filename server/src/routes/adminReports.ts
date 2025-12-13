@@ -7,6 +7,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 
 export const adminReportsRouter = Router();
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const SUSPENSION_DAYS = 60;
 
 // Helper to get admin email
 async function getAdminEmail(userId: string): Promise<string> {
@@ -40,6 +41,46 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
   }
 }
 
+async function applySanctions(report: any, status: string): Promise<void> {
+  const reportedId = report.reported_user_id;
+  if (!reportedId) return;
+
+  if (status === 'resolved') {
+    const user = await prisma.user.findUnique({
+      where: { id: reportedId },
+      select: { offense_count: true, permanent_ban: true },
+    });
+    if (!user) return;
+
+    const nextOffense = (user.offense_count || 0) + 1;
+    const data: any = { offense_count: nextOffense };
+
+    if (user.permanent_ban) {
+      data.permanent_ban = true;
+    } else if (nextOffense >= 2) {
+      data.permanent_ban = true;
+      data.suspension_until = null;
+      data.suspension_reason = 'Permanent ban after multiple confirmed abuse reports';
+    } else {
+      const until = new Date(Date.now() + SUSPENSION_DAYS * 24 * 60 * 60 * 1000);
+      data.suspension_until = until;
+      data.suspension_reason = '60-day suspension after confirmed abuse report';
+    }
+
+    await prisma.user.update({ where: { id: reportedId }, data });
+  } else if (status === 'dismissed') {
+    await prisma.user
+      .update({
+        where: { id: reportedId },
+        data: {
+          suspension_until: null,
+          suspension_reason: null,
+        },
+      })
+      .catch(() => {});
+  }
+}
+
 // GET /admin/reports - Get all abuse reports
 adminReportsRouter.get('/', requireAdmin as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -61,6 +102,16 @@ adminReportsRouter.get('/', requireAdmin as any, async (req: AuthedRequest, res)
             email: true,
             avatar_url: true,
             banned: true,
+          },
+        },
+        reportedUser: {
+          select: {
+            id: true,
+            display_name: true,
+            email: true,
+            offense_count: true,
+            suspension_until: true,
+            permanent_ban: true,
           },
         },
       },
@@ -116,6 +167,16 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
           email: true,
         },
       },
+      reportedUser: {
+        select: {
+          id: true,
+          display_name: true,
+          email: true,
+          offense_count: true,
+          suspension_until: true,
+          permanent_ban: true,
+        },
+      },
     },
   });
   
@@ -131,6 +192,7 @@ adminReportsRouter.patch('/:id', requireAdmin as any, async (req: AuthedRequest,
     { status, resolution_note, reporter: report.reporter.email }
   );
   await queueReportResolutionEmail(report, status, resolution_note);
+  await applySanctions(report, status);
   return res.json({ report });
 });
 
@@ -154,6 +216,16 @@ adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedR
       where: { id: { in: report_ids } },
       include: {
         reporter: { select: { email: true, display_name: true } },
+        reportedUser: {
+          select: {
+            id: true,
+            display_name: true,
+            email: true,
+            offense_count: true,
+            suspension_until: true,
+            permanent_ban: true,
+          },
+        },
       },
     });
   }
@@ -180,9 +252,10 @@ adminReportsRouter.post('/bulk-update', requireAdmin as any, async (req: AuthedR
     { report_ids, status, count: result.count }
   );
   await Promise.all(
-    reportsForNotification.map((report) =>
-      queueReportResolutionEmail(report, status, resolution_note)
-    )
+    reportsForNotification.map(async (report) => {
+      await queueReportResolutionEmail(report, status, resolution_note);
+      await applySanctions(report, status);
+    })
   );
   
   return res.json({ updated: result.count });
