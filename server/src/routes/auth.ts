@@ -401,7 +401,8 @@ authRouter.post('/password/forgot', async (req, res) => {
   debugLog('[password-reset] User found:', user.id, user.email);
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  const expires = new Date(Date.now() + 30 * 60 * 1000);
+  // Align with template: token expires in 1 hour
+  const expires = new Date(Date.now() + 60 * 60 * 1000);
 
   await prisma.user.update({
     where: { id: user.id },
@@ -413,7 +414,14 @@ authRouter.post('/password/forgot', async (req, res) => {
 
   try {
     debugLog('[email] Sending password reset email to:', user.email);
-    const sent = await sendPasswordResetEmail(user.email, code);
+    const resetLink = `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/reset/${encodeURIComponent(code)}`;
+    const sent = await sendPasswordResetEmail(
+      user.email,
+      code,
+      user.display_name || user.email.split('@')[0],
+      resetLink,
+      '1 hour'
+    );
     if (!sent) {
       console.warn('[email] Password reset email skipped (SendGrid not configured)');
     } else {

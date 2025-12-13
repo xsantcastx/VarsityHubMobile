@@ -106,13 +106,25 @@ export async function sendVerificationEmail(email: string, token: string, userNa
 }
 
 /**
- * Send password reset email with 6-digit code
+ * Send password reset email using a secure reset link
+ * Compatible with legacy code-based resets. Template expects:
+ * - USERNAME: display name
+ * - RESET_LINK: clickable URL to reset page
+ * - expires_in: human-readable expiry window
  */
-export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
+export async function sendPasswordResetEmail(
+  email: string,
+  code: string,
+  userName?: string,
+  resetLink?: string,
+  expiresInLabel: string = '1 hour'
+): Promise<boolean> {
   if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PASSWORD_RESET) {
     console.warn('[email] SendGrid password reset template not configured');
     return false;
   }
+
+  const link = resetLink || `${APP_BASE_URL}/reset/${encodeURIComponent(code)}`;
 
   try {
     await sgMail.send({
@@ -120,8 +132,13 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.PASSWORD_RESET,
       dynamicTemplateData: {
+        // New template variables for the redesigned email
+        USERNAME: userName || 'VarsityHub member',
+        RESET_LINK: link,
+        // Keep a generic expiry label consistent with template copy
+        expires_in: expiresInLabel,
+        // Also include legacy code for clients/templates that still use it
         reset_code: code,
-        expires_in: '30 minutes',
       },
     });
     debugLog(`✅ Password reset email sent to ${email}`);
