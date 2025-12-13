@@ -439,7 +439,8 @@ authRouter.post('/password/forgot', async (req, res) => {
 const passwordResetSchema = z.object({
   email: z.string().email(),
   code: z.string().min(4).max(8),
-  password: z.string().min(8),
+  // Requirement: at least 5 characters, no other constraints
+  password: z.string().min(5),
 });
 
 authRouter.post('/password/reset', async (req, res) => {
