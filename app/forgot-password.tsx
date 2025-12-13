@@ -2,6 +2,7 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -49,7 +50,14 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Forgot Password' }} />
+      <Stack.Screen options={{ 
+        title: 'Forgot Password',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
       <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
         <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
         <Text style={[styles.subtitle, { color: palette.mutedText }]}>Enter your account email and we'll send a 6-digit code to reset your password.</Text>

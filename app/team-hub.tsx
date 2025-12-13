@@ -112,7 +112,14 @@ export default function TeamHubScreen() {
 
   return (
     <SafeAreaView style={S.page} edges={['top']}>
-      <Stack.Screen options={{ title: 'Team Hub' }} />
+      <Stack.Screen options={{ 
+        title: 'Team Hub',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
       <Text style={[Type.h0 as any, { color: palette.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
 
       {/* Search */}

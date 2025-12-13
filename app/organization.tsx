@@ -290,7 +290,15 @@ export default function OrganizationScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'Organization', headerShown: true }} />
+        <Stack.Screen options={{ 
+          title: 'Organization', 
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }} />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
         </View>
@@ -301,7 +309,15 @@ export default function OrganizationScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: 'Organization', headerShown: true }} />
+        <Stack.Screen options={{ 
+          title: 'Organization', 
+          headerShown: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            </Pressable>
+          ),
+        }} />
         <View style={styles.centerContainer}>
           <Text style={[styles.errorText, { color: theme.mutedText }]}>{error}</Text>
           <Pressable onPress={loadOrganization} style={styles.retryButton}>
@@ -316,7 +332,15 @@ export default function OrganizationScreen() {
     <GestureDetector gesture={swipeGesture}>
       <Animated.View style={[{ flex: 1 }, animatedStyle]}>
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-          <Stack.Screen options={{ title: `Organization`, headerShown: true }} />
+          <Stack.Screen options={{ 
+            title: `Organization`, 
+            headerShown: true,
+            headerLeft: () => (
+              <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+                <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+              </Pressable>
+            ),
+          }} />
           
           <ScrollView
             style={styles.scrollView}

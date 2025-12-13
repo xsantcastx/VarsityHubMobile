@@ -28,6 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SubscriptionPaywallScreen() {
   const _router = useRouter();
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
   const [loading, setLoading] = useState(false);
@@ -105,7 +106,14 @@ export default function SubscriptionPaywallScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Stack.Screen options={{ title: 'Choose Your Plan' }} />
+      <Stack.Screen options={{ 
+        title: 'Choose Your Plan',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}

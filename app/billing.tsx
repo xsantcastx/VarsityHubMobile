@@ -3,11 +3,12 @@ import { httpPost } from '@/api/http';
 import { Subscriptions } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan, formatPlanPrice } from '@/constants/plans';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function BillingScreen() {
+  const router = useRouter();
   // Demo subtotal; replace with real cart subtotal
   const [subtotalCents] = useState(4999);
   const [code, setCode] = useState('');
@@ -94,7 +95,7 @@ export default function BillingScreen() {
   const getPlanDescription = (plan: string) => {
     switch (plan) {
       case 'veteran':
-        return 'First 2 teams free, then $2.50/month per additional team. Up to 2 authorized users per team.';
+        return 'First 2 teams free, then $1.50/month per additional team. Up to 2 authorized users per team.';
       case 'legend':
         return 'Unlimited teams at $19.99/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
       default:
@@ -104,7 +105,14 @@ export default function BillingScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Billing' }} />
+      <Stack.Screen options={{ 
+        title: 'Billing',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
       {/* Veteran Plan Banner */}
       {summary?.plan === 'veteran' && (
         <View style={styles.banner}>

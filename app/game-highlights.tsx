@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
 
 export default function GameHighlightsScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -32,7 +33,14 @@ export default function GameHighlightsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Highlights' }} />
+      <Stack.Screen options={{ 
+        title: 'Highlights',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+          </Pressable>
+        ),
+      }} />
       {loading && <ActivityIndicator />}
       <FlatList
         data={items}

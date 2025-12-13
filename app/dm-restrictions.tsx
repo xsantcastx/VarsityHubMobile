@@ -1,7 +1,9 @@
 import settingsStore, { SETTINGS_KEYS } from '@/api/settings';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
+import { Pressable } from 'react-native';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +45,14 @@ export default function DMRestrictionsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'DM Restrictions' }} />
+      <Stack.Screen options={{ 
+        title: 'DM Restrictions',
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+          </Pressable>
+        ),
+      }} />
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Who can message you?</Text>
       <Row k="everyone" title="Everyone" desc="Anyone can send you a direct message." />
       <Row k="following" title="People you follow" desc="Only people you follow can message you." />
