@@ -2,7 +2,11 @@ import { debugLog } from '../lib/debugLog.js';
 import {
     sendAdGoesLiveEmail,
     sendAdReservationEmail,
-    sendPaymentRequiredEmail
+    sendPaymentRequiredEmail,
+    sendReportResolutionEmail,
+    sendRosterThresholdAlertEmail,
+    sendStaffInvitationConfirmationEmail,
+    sendStaffInvitationEmail
 } from '../lib/email.js';
 import { emailQueue } from '../lib/queue.js';
 
@@ -228,6 +232,186 @@ emailQueue.process('reports.resolved', async (job) => {
 
   if (!result) {
     throw new Error(`Failed to send report resolution email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+// P2 Job Handlers
+
+emailQueue.process('seasons.wrap_up', async (job) => {
+  const jobData = job.data as EmailJob & {
+    coach_name: string;
+    team_name: string;
+    season_year: number;
+    games_played: number;
+    win_loss_record: string;
+    season_highlights_url: string;
+    next_season_signup_url: string;
+  };
+
+  debugLog(`[worker] Processing season wrap-up email for ${jobData.to}`);
+
+  const result = await sendSeasonWrapUpEmail({
+    to: jobData.to,
+    coachName: jobData.coach_name,
+    teamName: jobData.team_name,
+    seasonYear: jobData.season_year,
+    gamesPlayed: jobData.games_played,
+    winLossRecord: jobData.win_loss_record,
+    seasonHighlightsUrl: jobData.season_highlights_url,
+    nextSeasonSignupUrl: jobData.next_season_signup_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send season wrap-up email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('posts.milestone_reached', async (job) => {
+  const jobData = job.data as EmailJob & {
+    creator_name: string;
+    milestone_number: number;
+    post_preview_url: string;
+    post_title: string;
+    share_link: string;
+    reactions_link: string;
+  };
+
+  debugLog(`[worker] Processing post highlight email for ${jobData.to}`);
+
+  const result = await sendPostHighlightEmail({
+    to: jobData.to,
+    creatorName: jobData.creator_name,
+    milestoneNumber: jobData.milestone_number,
+    postPreviewUrl: jobData.post_preview_url,
+    postTitle: jobData.post_title,
+    shareLink: jobData.share_link,
+    reactionsLink: jobData.reactions_link,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send post highlight email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('follows.athlete_followed', async (job) => {
+  const jobData = job.data as EmailJob & {
+    athlete_name: string;
+    follower_name: string;
+    follower_profile_url: string;
+    follow_back_link: string;
+    dm_link: string;
+    follower_stats: string;
+  };
+
+  debugLog(`[worker] Processing athlete follower notification for ${jobData.to}`);
+
+  const result = await sendAthleteFollowerNotificationEmail({
+    to: jobData.to,
+    athleteName: jobData.athlete_name,
+    followerName: jobData.follower_name,
+    followerProfileUrl: jobData.follower_profile_url,
+    followBackLink: jobData.follow_back_link,
+    dmLink: jobData.dm_link,
+    followerStats: jobData.follower_stats,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send athlete follower notification to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('auth.account_recovery', async (job) => {
+  const jobData = job.data as EmailJob & {
+    user_name: string;
+    recovery_type: 'password_reset' | 'email_change';
+    recovery_time: string;
+    ip_address?: string;
+    undo_link?: string;
+    undo_expiry_hours?: number;
+    support_url: string;
+  };
+
+  debugLog(`[worker] Processing account recovery email for ${jobData.to}`);
+
+  const result = await sendAccountRecoveryEmail({
+    to: jobData.to,
+    userName: jobData.user_name,
+    recoveryType: jobData.recovery_type,
+    recoveryTime: jobData.recovery_time,
+    ipAddress: jobData.ip_address,
+    undoLink: jobData.undo_link,
+    undoExpiryHours: jobData.undo_expiry_hours,
+    supportUrl: jobData.support_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send account recovery email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('onboarding.profile_incomplete', async (job) => {
+  const jobData = job.data as EmailJob & {
+    user_name: string;
+    missing_fields: string[];
+    profile_edit_url: string;
+    completion_benefit: string;
+    estimated_time: string;
+  };
+
+  debugLog(`[worker] Processing profile completion nudge for ${jobData.to}`);
+
+  const result = await sendProfileCompletionNudgeEmail({
+    to: jobData.to,
+    userName: jobData.user_name,
+    missingFields: jobData.missing_fields,
+    profileEditUrl: jobData.profile_edit_url,
+    completionBenefit: jobData.completion_benefit,
+    estimatedTime: jobData.estimated_time,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send profile completion nudge to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('onboarding.dormant_user_digest', async (job) => {
+  const jobData = job.data as EmailJob & {
+    user_name: string;
+    days_absent: number;
+    nearby_games_count: number;
+    nearby_games_list: string;
+    trending_posts_count: number;
+    open_app_link: string;
+    explore_link: string;
+  };
+
+  debugLog(`[worker] Processing dormant user digest for ${jobData.to}`);
+
+  const result = await sendDormantUserDigestEmail({
+    to: jobData.to,
+    userName: jobData.user_name,
+    daysAbsent: jobData.days_absent,
+    nearbyGamesCount: jobData.nearby_games_count,
+    nearbyGamesList: jobData.nearby_games_list,
+    trendingPostsCount: jobData.trending_posts_count,
+    openAppLink: jobData.open_app_link,
+    exploreLink: jobData.explore_link,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send dormant user digest to ${jobData.to}`);
   }
 
   return { success: true, email: jobData.to };

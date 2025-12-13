@@ -1098,3 +1098,222 @@ export async function sendReportResolutionEmail(params: {
     return false;
   }
 }
+
+/**
+ * P2: Send season wrap-up email
+ * Sent when season is locked/concluded
+ */
+export async function sendSeasonWrapUpEmail(params: {
+  to: string;
+  coachName: string;
+  teamName: string;
+  seasonYear: number;
+  gamesPlayed: number;
+  winLossRecord: string;
+  seasonHighlightsUrl: string;
+  nextSeasonSignupUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        coach_name: params.coachName,
+        team_name: params.teamName,
+        season_year: params.seasonYear,
+        games_played: params.gamesPlayed,
+        win_loss_record: params.winLossRecord,
+        season_highlights_url: params.seasonHighlightsUrl,
+        next_season_signup_url: params.nextSeasonSignupUrl,
+      },
+    });
+    debugLog(`✅ Season wrap-up email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send season wrap-up email:', error);
+    return false;
+  }
+}
+
+/**
+ * P2: Send post highlight milestone email
+ * Sent when post reaches reaction milestone (e.g., 100, 250, 500)
+ */
+export async function sendPostHighlightEmail(params: {
+  to: string;
+  creatorName: string;
+  milestoneNumber: number;
+  postPreviewUrl: string;
+  postTitle: string;
+  shareLink: string;
+  reactionsLink: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        creator_name: params.creatorName,
+        milestone_number: params.milestoneNumber,
+        post_preview_url: params.postPreviewUrl,
+        post_title: params.postTitle,
+        share_link: params.shareLink,
+        reactions_link: params.reactionsLink,
+        action_text: 'View Post',
+      },
+    });
+    debugLog(`✅ Post highlight email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send post highlight email:', error);
+    return false;
+  }
+}
+
+/**
+ * P2: Send athlete follower notification
+ * Sent when athlete gains a new follower
+ */
+export async function sendAthleteFollowerNotificationEmail(params: {
+  to: string;
+  athleteName: string;
+  followerName: string;
+  followerProfileUrl: string;
+  followBackLink: string;
+  dmLink: string;
+  followerStats: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        athlete_name: params.athleteName,
+        follower_name: params.followerName,
+        follower_profile_url: params.followerProfileUrl,
+        follow_back_link: params.followBackLink,
+        dm_link: params.dmLink,
+        follower_stats: params.followerStats,
+        action_text: 'View Profile',
+      },
+    });
+    debugLog(`✅ Athlete follower notification sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send athlete follower notification:', error);
+    return false;
+  }
+}
+
+/**
+ * P2: Send account recovery confirmation
+ * Sent after password reset or email change
+ */
+export async function sendAccountRecoveryEmail(params: {
+  to: string;
+  userName: string;
+  recoveryType: 'password_reset' | 'email_change';
+  recoveryTime: string;
+  ipAddress?: string;
+  undoLink?: string;
+  undoExpiryHours?: number;
+  supportUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        user_name: params.userName,
+        recovery_type: params.recoveryType,
+        recovery_time: params.recoveryTime,
+        ip_address: params.ipAddress || 'N/A',
+        undo_link: params.undoLink || '',
+        undo_expiry_hours: params.undoExpiryHours || 24,
+        support_url: params.supportUrl,
+        action_text: 'Review Activity',
+      },
+    });
+    debugLog(`✅ Account recovery email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send account recovery email:', error);
+    return false;
+  }
+}
+
+/**
+ * P2: Send profile completion nudge
+ * Sent to users with incomplete profiles after 3 days
+ */
+export async function sendProfileCompletionNudgeEmail(params: {
+  to: string;
+  userName: string;
+  missingFields: string[];
+  profileEditUrl: string;
+  completionBenefit: string;
+  estimatedTime: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        user_name: params.userName,
+        missing_fields: params.missingFields.join(', '),
+        profile_edit_url: params.profileEditUrl,
+        completion_benefit: params.completionBenefit,
+        estimated_time: params.estimatedTime,
+        action_text: 'Complete Profile',
+      },
+    });
+    debugLog(`✅ Profile completion nudge sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send profile completion nudge:', error);
+    return false;
+  }
+}
+
+/**
+ * P2: Send dormant user digest
+ * Sent to inactive users with nearby games and trending posts
+ */
+export async function sendDormantUserDigestEmail(params: {
+  to: string;
+  userName: string;
+  daysAbsent: number;
+  nearbyGamesCount: number;
+  nearbyGamesList: string;
+  trendingPostsCount: number;
+  openAppLink: string;
+  exploreLink: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        user_name: params.userName,
+        days_absent: params.daysAbsent,
+        nearby_games_count: params.nearbyGamesCount,
+        nearby_games_list: params.nearbyGamesList,
+        trending_posts_count: params.trendingPostsCount,
+        open_app_link: params.openAppLink,
+        explore_link: params.exploreLink,
+        action_text: 'Open VarsityHub',
+      },
+    });
+    debugLog(`✅ Dormant user digest sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send dormant user digest:', error);
+    return false;
+  }
+}

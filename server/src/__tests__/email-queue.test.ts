@@ -230,4 +230,106 @@ describe('Email Queue System', () => {
       expect(['waiting', 'active', 'completed']).toContain(await job.getState());
     });
   });
+
+  describe('P2: Season Wrap-Up', () => {
+    it('should queue season wrap-up email', async () => {
+      const job = await emailQueue.add('seasons.wrap_up', {
+        to: 'coach@example.com',
+        coach_name: 'John Coach',
+        team_name: 'Varsity Basketball',
+        season_year: 2025,
+        games_played: 18,
+        win_loss_record: '15-3',
+        season_highlights_url: 'https://app.example.com/highlights',
+        next_season_signup_url: 'https://app.example.com/signup',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(['waiting', 'active', 'completed']).toContain(await job.getState());
+    });
+  });
+
+  describe('P2: Post Highlight Milestone', () => {
+    it('should queue post highlight email', async () => {
+      const job = await emailQueue.add('posts.milestone_reached', {
+        to: 'athlete@example.com',
+        creator_name: 'Jane Athlete',
+        milestone_number: 100,
+        post_preview_url: 'https://cdn.example.com/post-preview.jpg',
+        post_title: 'Amazing Game Highlight',
+        share_link: 'https://app.example.com/share/post123',
+        reactions_link: 'https://app.example.com/post/post123/reactions',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(job.opts.attempts).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('P2: Athlete Follower Notification', () => {
+    it('should queue athlete follower email', async () => {
+      const job = await emailQueue.add('follows.athlete_followed', {
+        to: 'athlete@example.com',
+        athlete_name: 'Jane Athlete',
+        follower_name: 'John Fan',
+        follower_profile_url: 'https://app.example.com/profile/john',
+        follow_back_link: 'https://app.example.com/follow/john',
+        dm_link: 'https://app.example.com/dm/john',
+        follower_stats: 'Joined 3 months ago, follows 45 athletes',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(['waiting', 'active', 'completed']).toContain(await job.getState());
+    });
+  });
+
+  describe('P2: Account Recovery', () => {
+    it('should queue account recovery email', async () => {
+      const job = await emailQueue.add('auth.account_recovery', {
+        to: 'user@example.com',
+        user_name: 'John User',
+        recovery_type: 'password_reset',
+        recovery_time: '2025-12-13 10:30 AM',
+        ip_address: '192.168.1.1',
+        support_url: 'https://app.example.com/support/security',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(['waiting', 'active', 'completed']).toContain(await job.getState());
+    });
+  });
+
+  describe('P2: Profile Completion Nudge', () => {
+    it('should queue profile completion nudge email', async () => {
+      const job = await emailQueue.add('onboarding.profile_incomplete', {
+        to: 'newuser@example.com',
+        user_name: 'Jane Newbie',
+        missing_fields: ['Bio', 'Jersey Number'],
+        profile_edit_url: 'https://app.example.com/profile/edit',
+        completion_benefit: 'Helps recruiters find you',
+        estimated_time: '2 minutes',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(job.opts.attempts).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('P2: Dormant User Digest', () => {
+    it('should queue dormant user digest email', async () => {
+      const job = await emailQueue.add('onboarding.dormant_user_digest', {
+        to: 'dormant@example.com',
+        user_name: 'John Dormant',
+        days_absent: 14,
+        nearby_games_count: 3,
+        nearby_games_list: 'Game 1 - Dec 15, Game 2 - Dec 17, Game 3 - Dec 20',
+        trending_posts_count: 5,
+        open_app_link: 'varsityhub://home?source=dormant-digest',
+        explore_link: 'https://app.example.com/explore',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(['waiting', 'active', 'completed']).toContain(await job.getState());
+    });
+  });
 });
