@@ -1089,23 +1089,35 @@ export async function sendStaffInvitationConfirmationEmail(params: {
 export async function sendReportResolutionEmail(params: {
   to: string;
   userName: string;
+  reportId: string;
   reportType: string;
   resolutionStatus: 'resolved' | 'dismissed';
   resolutionReason: string;
   appealUrl: string;
+  submitDate?: string;
 }) {
+  const submitDate = params.submitDate
+    ? new Date(params.submitDate).toISOString().split('T')[0]
+    : undefined;
   try {
     await sgMail.send({
       to: params.to,
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
       dynamicTemplateData: {
+        // Match SendGrid template variables
+        USERNAME: params.userName,
+        REPORT_ID: params.reportId,
+        REPORT_TYPE: params.reportType,
+        SUBMIT_DATE: submitDate,
+        RESOLUTION_SUMMARY: params.resolutionReason,
+        // Keep legacy fields for backward-compatible templates
         user_name: params.userName,
         report_type: params.reportType,
         resolution_status: params.resolutionStatus,
         resolution_reason: params.resolutionReason,
         appeal_url: params.appealUrl,
-        action_text: 'Review Decision',
+        action_text: 'View Full Details',
       },
     });
     debugLog(`✅ Report resolution email sent to ${params.to}`);

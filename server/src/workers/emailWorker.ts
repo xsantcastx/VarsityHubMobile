@@ -213,10 +213,12 @@ emailQueue.process('staff.invitation_sent', async (job) => {
 emailQueue.process('reports.resolved', async (job) => {
   const jobData = job.data as EmailJob & {
     user_name: string;
+    report_id: string;
     report_type: string;
     resolution_status: 'resolved' | 'dismissed';
     resolution_reason: string;
     appeal_url: string;
+    submit_date?: string;
   };
 
   debugLog(`[worker] Processing report resolution email for ${jobData.to}`);
@@ -224,10 +226,12 @@ emailQueue.process('reports.resolved', async (job) => {
   const result = await sendReportResolutionEmail({
     to: jobData.to,
     userName: jobData.user_name,
+    reportId: jobData.report_id,
     reportType: jobData.report_type,
     resolutionStatus: jobData.resolution_status,
     resolutionReason: jobData.resolution_reason,
     appealUrl: jobData.appeal_url,
+    submitDate: jobData.submit_date,
   });
 
   if (!result) {

@@ -23,16 +23,19 @@ async function queueReportResolutionEmail(report: any, status: string, resolutio
   const email = report.reporter?.email || report.reporter_email;
   if (!email) return;
   const appealUrl = `${APP_BASE_URL}/support/appeals/${report.id}`;
+  const submitDate = report.created_at ? new Date(report.created_at).toISOString() : undefined;
   try {
     await emailQueue.add(
       'reports.resolved',
       {
         to: email,
         user_name: report.reporter?.display_name || 'VarsityHub member',
+        report_id: report.id,
         report_type: report.subject || 'report',
         resolution_status: status,
         resolution_reason: resolutionNote || 'Our Trust & Safety team reviewed your report.',
         appeal_url: appealUrl,
+        submit_date: submitDate,
       },
       { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
     );
