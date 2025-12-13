@@ -961,3 +961,140 @@ export async function sendAdGoesLiveEmail(params: {
     return false;
   }
 }
+
+/**
+ * P1: Send roster threshold alert to coach
+ * Triggers when team reaches roster size threshold that affects billing
+ */
+export async function sendRosterThresholdAlertEmail(params: {
+  to: string;
+  coachName: string;
+  teamName: string;
+  rosterCount: number;
+  thresholdCost: number;
+  manageBillingUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.BILLING_NOTICE,
+      dynamicTemplateData: {
+        coach_name: params.coachName,
+        team_name: params.teamName,
+        roster_count: params.rosterCount,
+        threshold_cost: `$${params.thresholdCost.toFixed(2)}/month`,
+        manage_billing_url: params.manageBillingUrl,
+        action_text: 'Review Billing & Team Settings',
+      },
+    });
+    debugLog(`✅ Roster threshold alert sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send roster threshold alert:', error);
+    return false;
+  }
+}
+
+/**
+ * P1: Send staff invitation email to invitee
+ * Sent when head coach invites assistant coach or staff member
+ */
+export async function sendStaffInvitationEmail(params: {
+  to: string;
+  inviteeName: string;
+  inviterName: string;
+  teamName: string;
+  inviteLink: string;
+  expiryDays: number;
+  onboardingUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.TEAM_INVITE,
+      dynamicTemplateData: {
+        invitee_name: params.inviteeName,
+        inviter_name: params.inviterName,
+        team_name: params.teamName,
+        invite_link: params.inviteLink,
+        expiry_days: params.expiryDays,
+        onboarding_url: params.onboardingUrl,
+      },
+    });
+    debugLog(`✅ Staff invitation email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send staff invitation email:', error);
+    return false;
+  }
+}
+
+/**
+ * P1: Send staff invitation confirmation email to head coach
+ * Confirms that invitation was sent successfully
+ */
+export async function sendStaffInvitationConfirmationEmail(params: {
+  to: string;
+  coachName: string;
+  inviteeName: string;
+  inviteeEmail: string;
+  teamName: string;
+  manageBillingUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.TEAM_INVITE,
+      dynamicTemplateData: {
+        coach_name: params.coachName,
+        invitee_name: params.inviteeName,
+        invitee_email: params.inviteeEmail,
+        team_name: params.teamName,
+        manage_staff_url: params.manageBillingUrl,
+        action_text: 'Manage Staff',
+      },
+    });
+    debugLog(`✅ Staff invitation confirmation sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send staff invitation confirmation:', error);
+    return false;
+  }
+}
+
+/**
+ * P1: Send report resolution notification
+ * Sent when abuse/violation report is resolved by Trust & Safety team
+ */
+export async function sendReportResolutionEmail(params: {
+  to: string;
+  userName: string;
+  reportType: string;
+  resolutionStatus: 'resolved' | 'dismissed';
+  resolutionReason: string;
+  appealUrl: string;
+}) {
+  try {
+    await sgMail.send({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.SYSTEM_NOTIFICATION,
+      dynamicTemplateData: {
+        user_name: params.userName,
+        report_type: params.reportType,
+        resolution_status: params.resolutionStatus,
+        resolution_reason: params.resolutionReason,
+        appeal_url: params.appealUrl,
+        action_text: 'Review Decision',
+      },
+    });
+    debugLog(`✅ Report resolution email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send report resolution email:', error);
+    return false;
+  }
+}

@@ -2,7 +2,7 @@ import { debugLog } from '../lib/debugLog.js';
 import {
     sendAdGoesLiveEmail,
     sendAdReservationEmail,
-    sendPaymentRequiredEmail,
+    sendPaymentRequiredEmail
 } from '../lib/email.js';
 import { emailQueue } from '../lib/queue.js';
 
@@ -116,6 +116,118 @@ emailQueue.process('ads.goes_live', async (job) => {
 
   if (!result) {
     throw new Error(`Failed to send ad goes live email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+// P1 Job Handlers
+
+emailQueue.process('teams.roster_threshold_alert', async (job) => {
+  const jobData = job.data as EmailJob & {
+    coach_name: string;
+    team_name: string;
+    roster_count: number;
+    threshold_cost: number;
+    manage_billing_url: string;
+  };
+
+  debugLog(`[worker] Processing roster threshold alert for ${jobData.to}`);
+
+  const result = await sendRosterThresholdAlertEmail({
+    to: jobData.to,
+    coachName: jobData.coach_name,
+    teamName: jobData.team_name,
+    rosterCount: jobData.roster_count,
+    thresholdCost: jobData.threshold_cost,
+    manageBillingUrl: jobData.manage_billing_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send roster threshold alert to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('staff.invited_to_team', async (job) => {
+  const jobData = job.data as EmailJob & {
+    invitee_name: string;
+    inviter_name: string;
+    team_name: string;
+    invite_link: string;
+    expiry_days: number;
+    onboarding_url: string;
+  };
+
+  debugLog(`[worker] Processing staff invitation email for ${jobData.to}`);
+
+  const result = await sendStaffInvitationEmail({
+    to: jobData.to,
+    inviteeName: jobData.invitee_name,
+    inviterName: jobData.inviter_name,
+    teamName: jobData.team_name,
+    inviteLink: jobData.invite_link,
+    expiryDays: jobData.expiry_days,
+    onboardingUrl: jobData.onboarding_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send staff invitation email to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('staff.invitation_sent', async (job) => {
+  const jobData = job.data as EmailJob & {
+    coach_name: string;
+    invitee_name: string;
+    invitee_email: string;
+    team_name: string;
+    manage_staff_url: string;
+  };
+
+  debugLog(`[worker] Processing staff invitation confirmation for ${jobData.to}`);
+
+  const result = await sendStaffInvitationConfirmationEmail({
+    to: jobData.to,
+    coachName: jobData.coach_name,
+    inviteeName: jobData.invitee_name,
+    inviteeEmail: jobData.invitee_email,
+    teamName: jobData.team_name,
+    manageBillingUrl: jobData.manage_staff_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send staff invitation confirmation to ${jobData.to}`);
+  }
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('reports.resolved', async (job) => {
+  const jobData = job.data as EmailJob & {
+    user_name: string;
+    report_type: string;
+    resolution_status: 'resolved' | 'dismissed';
+    resolution_reason: string;
+    appeal_url: string;
+  };
+
+  debugLog(`[worker] Processing report resolution email for ${jobData.to}`);
+
+  const result = await sendReportResolutionEmail({
+    to: jobData.to,
+    userName: jobData.user_name,
+    reportType: jobData.report_type,
+    resolutionStatus: jobData.resolution_status,
+    resolutionReason: jobData.resolution_reason,
+    appealUrl: jobData.appeal_url,
+  });
+
+  if (!result) {
+    throw new Error(`Failed to send report resolution email to ${jobData.to}`);
   }
 
   return { success: true, email: jobData.to };

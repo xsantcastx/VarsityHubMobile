@@ -165,4 +165,69 @@ describe('Email Queue System', () => {
       expect(new Set(jobs).size).toBe(5); // All unique IDs
     });
   });
+
+  describe('P1: Roster Threshold Alert', () => {
+    it('should queue roster threshold alert email', async () => {
+      const job = await emailQueue.add('teams.roster_threshold_alert', {
+        to: 'coach@example.com',
+        coach_name: 'John Coach',
+        team_name: 'Varsity Basketball',
+        roster_count: 15,
+        threshold_cost: 99.99,
+        manage_billing_url: 'https://app.example.com/billing',
+      });
+
+      expect(job.id).toBeDefined();
+      const jobStatus = await job.getState();
+      expect(['waiting', 'active', 'completed']).toContain(jobStatus);
+    });
+  });
+
+  describe('P1: Staff Invitation', () => {
+    it('should queue staff invitation email to invitee', async () => {
+      const job = await emailQueue.add('staff.invited_to_team', {
+        to: 'assistant@example.com',
+        invitee_name: 'Jane Assistant',
+        inviter_name: 'John Coach',
+        team_name: 'Varsity Basketball',
+        invite_link: 'https://app.example.com/invite?token=abc123',
+        expiry_days: 7,
+        onboarding_url: 'https://docs.example.com/onboarding',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(job.opts.attempts).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should queue staff invitation confirmation email to coach', async () => {
+      const job = await emailQueue.add('staff.invitation_sent', {
+        to: 'coach@example.com',
+        coach_name: 'John Coach',
+        invitee_name: 'Jane Assistant',
+        invitee_email: 'assistant@example.com',
+        team_name: 'Varsity Basketball',
+        manage_staff_url: 'https://app.example.com/staff',
+      });
+
+      expect(job.id).toBeDefined();
+      const jobStatus = await job.getState();
+      expect(['waiting', 'active', 'completed']).toContain(jobStatus);
+    });
+  });
+
+  describe('P1: Report Resolution', () => {
+    it('should queue report resolution email', async () => {
+      const job = await emailQueue.add('reports.resolved', {
+        to: 'user@example.com',
+        user_name: 'John User',
+        report_type: 'harassment',
+        resolution_status: 'resolved',
+        resolution_reason: 'Violation confirmed and action taken',
+        appeal_url: 'https://app.example.com/appeal/report123',
+      });
+
+      expect(job.id).toBeDefined();
+      expect(['waiting', 'active', 'completed']).toContain(await job.getState());
+    });
+  });
 });
