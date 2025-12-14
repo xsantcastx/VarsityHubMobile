@@ -1,7 +1,7 @@
+import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
 
 import { Support, User } from '@/api/entities';
 import { Button } from '@/components/ui/button';

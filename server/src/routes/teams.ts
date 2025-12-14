@@ -920,6 +920,15 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  
+  // Check if user is owner or admin (authorization)
+  const membership = await prisma.teamMembership.findUnique({
+    where: { team_id_user_id: { team_id: id, user_id: req.user.id } }
+  });
+  const isAdmin = await getIsAdmin(req as any);
+  if (!isAdmin && (!membership || membership.role !== 'owner')) {
+    return res.status(403).json({ error: 'Only team owners can invite members' });
+  }
   // PLAN LIMITS: Enforce authorized user caps
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });

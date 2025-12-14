@@ -304,8 +304,8 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     }
   }
   
-  // Coaches/organizers get auto-approval, fans need approval
-  const autoApprove = userRole === 'coach' || userRole === 'organizer';
+  // Coaches get auto-approval, fans need approval
+  const autoApprove = userRole === 'coach';
   
   const event = await prisma.event.create({
     data: {
@@ -368,8 +368,8 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
   const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
   
-  // Only coaches, organizers, and admins can view pending events
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  // Only coaches and admins can view pending events
+  if (!isAdmin && userRole !== 'coach') {
     return res.status(403).json({ error: 'Only coaches and admins can view pending events' });
   }
   
@@ -399,7 +399,7 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
   
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  if (!isAdmin && userRole !== 'coach') {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });
   }
   
@@ -458,7 +458,7 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   const userRole = prefs.role || 'fan';
   const isAdmin = await getIsAdmin(req as any);
   
-  if (!isAdmin && userRole !== 'coach' && userRole !== 'organizer') {
+  if (!isAdmin && userRole !== 'coach') {
     return res.status(403).json({ error: 'Only coaches and admins can reject events' });
   }
   
