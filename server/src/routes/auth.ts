@@ -8,6 +8,7 @@ import {
     sendCoachOnboardingEmail,
     sendFanWelcomeEmail,
     sendPasswordResetEmail,
+    sendPasswordChangedEmail,
     sendSecurityAlertEmail,
     sendVerificationEmail,
 } from '../lib/email.js';
@@ -418,7 +419,9 @@ authRouter.post('/password/forgot', async (req, res) => {
 
   try {
     debugLog('[email] Sending password reset email to:', user.email);
-    const resetLink = `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/reset/${encodeURIComponent(code)}`;
+    // Normalize base URL and enforce /reset/<token> path
+    const base = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+    const resetLink = `${base}/reset/${encodeURIComponent(code)}`;
     const sent = await sendPasswordResetEmail(
       user.email,
       code,
@@ -472,16 +475,19 @@ authRouter.post('/password/reset', async (req, res) => {
     },
   });
 
-  if (user.email) {
-    try {
-      await sendSecurityAlertEmail({
-        to: user.email,
-        alertType: 'password_change',
-        ipAddress: req.ip,
-      });
-    } catch (err) {
-      console.warn('[security-email] Failed to send password change alert:', (err as any)?.message || err);
-    }
+  // Send password changed security alert
+  try {
+    await sendPasswordChangedEmail(
+      user.email,
+      user.display_name || user.email.split('@')[0],
+      new Date().toLocaleString('en-US', { 
+        dateStyle: 'long', 
+        timeStyle: 'short', 
+        timeZone: 'America/Chicago' 
+      })
+    );
+  } catch (err) {
+    console.warn('[security-email] Failed to send password change alert (settings):', (err as any)?.message || err);
   }
 
   return res.json({ ok: true });
@@ -508,14 +514,17 @@ authRouter.post('/password/change', async (req: AuthedRequest, res) => {
   const password_hash = await bcrypt.hash(new_password, 10);
   await prisma.user.update({ where: { id: user.id }, data: { password_hash } });
 
-  // Send security alert
+  // Send password changed security alert
   try {
-    await sendSecurityAlertEmail({
-      to: user.email,
-      alertType: 'password_change',
-      ipAddress: (req as any)?.ip || 'unknown',
-      manageUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/security`,
-    });
+    await sendPasswordChangedEmail(
+      user.email,
+      user.display_name || user.email.split('@')[0],
+      new Date().toLocaleString('en-US', { 
+        dateStyle: 'long', 
+        timeStyle: 'short', 
+        timeZone: 'America/Chicago' 
+      })
+    );
   } catch (err) {
     console.warn('[security-email] Failed to send password change alert (settings):', (err as any)?.message || err);
   }

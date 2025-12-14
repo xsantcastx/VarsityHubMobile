@@ -14,6 +14,8 @@ const TEMPLATE_IDS = {
   TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
   ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
   PASSWORD_RESET: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID || '',
+  PASSWORD_CHANGED: process.env.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID || '',
+  ACCOUNT_RECOVERY: process.env.SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID || '',
   ABUSE_REPORT: process.env.SENDGRID_ABUSE_REPORT_TEMPLATE_ID || '',
   JOIN_REQUEST_ADMIN: process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID || '',
   JOIN_REQUEST_APPROVED: process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID || '',
@@ -145,6 +147,80 @@ export async function sendPasswordResetEmail(
     return true;
   } catch (error) {
     console.error('❌ Failed to send password reset email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send password changed security alert
+ * Template expects: USERNAME, CHANGE_DATE, USER_EMAIL
+ */
+export async function sendPasswordChangedEmail(
+  email: string,
+  userName?: string,
+  changeDate?: string
+): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PASSWORD_CHANGED) {
+    console.warn('[email] SendGrid password changed template not configured');
+    return false;
+  }
+
+  try {
+    await sgMail.send({
+      to: email,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
+      dynamicTemplateData: {
+        USERNAME: userName || 'VarsityHub member',
+        CHANGE_DATE: changeDate || new Date().toLocaleString('en-US', { 
+          dateStyle: 'long', 
+          timeStyle: 'short', 
+          timeZone: 'America/Chicago' 
+        }),
+        USER_EMAIL: email,
+      },
+    });
+    debugLog(`✅ Password changed alert sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send password changed email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send account recovery confirmation
+ * Template expects: USERNAME, ACCOUNT_EMAIL, RECOVERY_DATE
+ */
+export async function sendAccountRecoveryEmail(
+  email: string,
+  userName?: string,
+  recoveryDate?: string
+): Promise<boolean> {
+  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ACCOUNT_RECOVERY) {
+    console.warn('[email] SendGrid account recovery template not configured');
+    return false;
+  }
+
+  try {
+    await sgMail.send({
+      to: email,
+      from: EMAIL_FROM,
+      templateId: TEMPLATE_IDS.ACCOUNT_RECOVERY,
+      dynamicTemplateData: {
+        USERNAME: userName || 'VarsityHub member',
+        ACCOUNT_EMAIL: email,
+        RECOVERY_DATE: recoveryDate || new Date().toLocaleString('en-US', { 
+          dateStyle: 'long', 
+          timeStyle: 'short', 
+          timeZone: 'America/Chicago' 
+        }),
+      },
+    });
+    debugLog(`✅ Account recovery email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send account recovery email:', error);
     return false;
   }
 }
