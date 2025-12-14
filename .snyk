@@ -35,4 +35,14 @@ ignore:
         reason: 'Cloudinary API requires SHA-1 for request signature authentication per their official documentation. Not a password hash. See: https://cloudinary.com/documentation/upload_widget#signed_uploads'
         expires: '2099-12-31T23:59:59Z'
 
+  SNYK-JS-ELLIPTIC-8187303:
+    - '*':
+        reason: 'CVE-2024-48948 in elliptic@6.6.1 (transitive via jwk-to-pem@2.0.7). No patched version available from upstream yet. Elliptic is used for JWT key conversion in authentication. Risk is low in this context as we use asymmetric key verification only. Monitoring for upstream fix.'
+        expires: '2025-06-30T23:59:59Z'
+
+  SNYK-JS-INFLIGHT-6095116:
+    - '*':
+        reason: 'Missing resource release in inflight@1.0.6 (transitive via glob). Used by build tools (Jest, Babel). Low impact for development/build-time use. Monitoring for upstream fix.'
+        expires: '2025-06-30T23:59:59Z'
+
 patch: {}
