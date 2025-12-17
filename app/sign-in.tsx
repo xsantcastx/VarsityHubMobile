@@ -37,7 +37,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
-  const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
+  const { signInWithApple } = useAppleAuth();
   const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
@@ -52,7 +52,6 @@ export default function SignInScreen() {
       
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
-        if (__DEV__) console.error(errMsg);
         captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
         setError('Invalid login response');
         return;
@@ -61,19 +60,15 @@ export default function SignInScreen() {
       // If email verification is needed, call checkAuth with pendingVerification flag
       // AuthProvider will detect and navigate to /verify-email
       if (res?.needs_verification) {
-        if (__DEV__) console.log('[sign-in] Email verification required for:', email);
         await checkAuth({ email, pendingVerification: true });
         // AuthProvider routing will handle the navigation to /verify-email
         return;
       }
 
       // Otherwise, refresh auth state - AuthProvider will handle routing
-      if (__DEV__) console.log('[sign-in] Login successful, calling checkAuth');
       await checkAuth();
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
-      if (__DEV__) console.error('Login failed', e);
-      
       // Capture error with context
       captureException(
         typeof e === 'string' ? new Error(e) : e,
@@ -100,20 +95,17 @@ export default function SignInScreen() {
       
       if (!response?.user?.email && !response?.email) {
         const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
-        if (__DEV__) console.error(errMsg);
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
         setError('Failed to retrieve email from Google');
         return;
       }
 
       // Call checkAuth to set user state; AuthProvider will handle routing
-      if (__DEV__) console.log('[sign-in] Google login successful, calling checkAuth');
       await checkAuth();
       // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
-        console.log('[sign-in] User cancelled Google sign-in (ignoring)');
         return;
       }
       
@@ -122,7 +114,6 @@ export default function SignInScreen() {
         return;
       }
       
-      if (__DEV__) console.error('Google sign-in error:', e);
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'google-signin' } }
@@ -143,14 +134,12 @@ export default function SignInScreen() {
       
       if (!response?.user && !response?.email) {
         const errMsg = `Apple sign-in: missing user in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
-        if (__DEV__) console.error(errMsg);
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
         setError('Failed to complete sign-in. Please try again.');
         return;
       }
 
       // Call checkAuth to set user state; AuthProvider will handle routing
-      if (__DEV__) console.log('[sign-in] Apple login successful, calling checkAuth');
       await checkAuth();
       // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
@@ -164,11 +153,9 @@ export default function SignInScreen() {
         code.includes('cancelled') ||
         code === 'err_request_canceled'
       ) {
-        console.log('[sign-in] User canceled Apple sign-in (ignoring)');
         return;
       }
       
-      if (__DEV__) console.error('Apple sign-in error:', e);
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'apple-signin' } }
@@ -458,7 +445,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
 
 
 

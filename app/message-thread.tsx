@@ -49,22 +49,22 @@ export default function MessageThreadScreen() {
       // Show oldest first in chat view
       list = Array.isArray(list) ? list.slice().reverse() : [];
       setMsgs(list);
-    } catch (e: any) {
+    } catch {
       setError('Unable to load conversation. You may need to sign in.');
     } finally {
       setLoading(false);
     }
   }, [conversation_id, withParam]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   // Mark as read on open
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         if (conversation_id) await MessageApi.markReadByConversation(String(conversation_id));
         else if (withParam) await MessageApi.markReadWith(String(withParam));
-      } catch (_error) {}
+      } catch {}
     })();
   }, [conversation_id, withParam]);
 
@@ -92,7 +92,7 @@ export default function MessageThreadScreen() {
           setMsgs(list);
           setMe(user);
         }
-      } catch (_error) {
+      } catch {
         // Silently fail - don't disrupt conversation
       }
     }, 3000); // Check for new messages every 3 seconds
@@ -148,7 +148,7 @@ export default function MessageThreadScreen() {
 
       const created = await MessageApi.send(payload);
       setMsgs((arr) => arr.concat(created));
-    } catch (_error) {
+    } catch {
       setError('Failed to send message');
     }
   };

@@ -143,7 +143,7 @@ export default function Step1Role() {
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
     useCallback(() => {
-      (async () => {
+      void (async () => {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
@@ -170,17 +170,18 @@ export default function Step1Role() {
           // eslint-disable-next-line no-console
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
           if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
-        } catch (e) {
+        } catch {
           // ignore; best-effort
         }
-      } catch (e) {
-        // best-effort; swallow but log for debugging
-        // eslint-disable-next-line no-console
-        console.warn('[Onboarding][Step1] failed to persist role to server', e);
+      } catch (error) {
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[Onboarding][Step1] failed to persist role to server', error);
+        }
       }
       try {
         // eslint-disable-next-line no-console
-      } catch (_error) {}
+      } catch {}
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
@@ -351,8 +352,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-
-
 
 

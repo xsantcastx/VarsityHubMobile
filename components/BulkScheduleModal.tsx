@@ -124,7 +124,7 @@ export default function BulkScheduleModal({
     };
 
     if (visible) {
-      loadTeams();
+      void loadTeams();
     }
   }, [visible, currentTeamId]);
 
@@ -184,7 +184,7 @@ export default function BulkScheduleModal({
         location: '',
         type: 'home',
       }]);
-    } catch (_error) {
+    } catch {
       Alert.alert('Error', 'Failed to create games. Please try again.');
     } finally {
       setLoading(false);
@@ -218,6 +218,10 @@ export default function BulkScheduleModal({
             </Text>
           </Pressable>
         </View>
+
+        <Text style={[styles.teamContext, { color: Colors[colorScheme].mutedText }]}>
+          Scheduling for {currentTeamName || 'your team'}
+        </Text>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Template Settings */}
@@ -629,6 +633,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  teamContext: {
+    textAlign: 'center',
+    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 4,
   },
   content: {
     flex: 1,

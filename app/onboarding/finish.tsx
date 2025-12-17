@@ -21,7 +21,7 @@ export default function OnboardingFinish() {
   const [cooldown, setCooldown] = useState(0);
   const timerRef = useRef<any>(null);
 
-  useEffect(() => { (async () => { try { setMe(await User.me()); } catch (_error) {} })(); }, []);
+  useEffect(() => { void (async () => { try { setMe(await User.me()); } catch {} })(); }, []);
   useEffect(() => {
     if (cooldown <= 0) return; 
     timerRef.current = setTimeout(() => setCooldown((c) => c - 1), 1000);
@@ -48,6 +48,7 @@ export default function OnboardingFinish() {
         // Marking onboarding as complete
         await User.completeOnboarding({});
         const updatedUser: any = await checkAuth();
+        setMe(updatedUser);
         // Onboarding marked complete
       } catch (completeErr) {
         console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);
@@ -73,6 +74,7 @@ export default function OnboardingFinish() {
     try {
       await User.completeOnboarding({});
       const updatedUser: any = await checkAuth();
+      setMe(updatedUser);
       // Onboarding marked complete during skip
     } catch (completeErr) {
       console.error('[Onboarding][Finish] Failed to mark onboarding complete:', completeErr);

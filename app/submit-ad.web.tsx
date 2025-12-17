@@ -67,7 +67,7 @@ export default function SubmitAdScreen() {
         if (!normalizedEmail && typeof me?.email === 'string') {
           normalizedEmail = me.email.trim().toLowerCase();
         }
-      } catch (_error) {}
+      } catch {}
 
       // Try server-side creation first
       let serverId: string | null = null;
@@ -88,7 +88,7 @@ export default function SubmitAdScreen() {
         if (typeof created?.contact_email === 'string') {
           normalizedEmail = created.contact_email.trim().toLowerCase();
         }
-      } catch (_error) {}
+      } catch {}
 
       const adId = serverId || `local-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
       // Keep a local copy so My Ads can show offline
@@ -120,7 +120,7 @@ export default function SubmitAdScreen() {
             await settings.setJson(baseKey, legacyFiltered);
           }
         }
-      } catch (_error) {}
+      } catch {}
 
       router.push({ pathname: '/ad-calendar', params: { adId } });
     } catch (e: any) {
@@ -152,7 +152,10 @@ export default function SubmitAdScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <ScrollView 
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: topPadding, paddingBottom: bottomPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

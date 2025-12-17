@@ -167,11 +167,11 @@ export default function PostDetailScreen() {
       try {
         const user = await User.me();
         setCurrentUser(user);
-      } catch (_error) {
+      } catch {
         setCurrentUser(null);
       }
     };
-    loadUser();
+    void loadUser();
   }, []);
 
   const load = useCallback(async (postId?: string) => {
@@ -210,7 +210,7 @@ export default function PostDetailScreen() {
   }, [currentPostId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // Handle post change when swiping
@@ -221,7 +221,7 @@ export default function PostDetailScreen() {
         setCurrentPostIndex(visibleIndex);
         const newPostId = postIdsArray[visibleIndex];
         if (newPostId) {
-          load(newPostId);
+          void load(newPostId);
         }
       }
     }
@@ -326,7 +326,7 @@ export default function PostDetailScreen() {
         await User.follow(post.author_id);
         setFollowing(true);
       }
-    } catch (_error) {
+    } catch {
       console.error('Error toggling follow:', error);
       // Revert optimistic update on error
       setFollowing(following);
@@ -345,7 +345,7 @@ export default function PostDetailScreen() {
         // Fallback to toggle if API doesn't return the state
         setSaved(!saved);
       }
-    } catch (_error) {
+    } catch {
       console.error('Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);

@@ -1,3 +1,5 @@
+import { httpGet } from '@/api/http';
+
 /**
  * Zip Code Radius & Alternatives Utilities
  * 
@@ -115,18 +117,49 @@ export async function checkZipCapacity(
   zip: string,
   dateRange: string[]
 ): Promise<ZipCodeAvailability> {
-  // TODO: Replace with actual API call
-  // Example: const response = await Advertisement.checkCapacity(zip, dateRange);
-  
-  // Mock implementation
-  const capacity = 10; // slots per day
-  const reserved = Math.floor(Math.random() * 12); // Random for demo
-  
+  const normalizedZip = normalizeZipCode(zip);
+  const uniqueDates = Array.from(
+    new Set(
+      dateRange
+        .map((d) => String(d).trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!uniqueDates.length) {
+    throw new Error('No reservation dates provided');
+  }
+
+  const sortedDates = [...uniqueDates].sort();
+  const from = sortedDates[0];
+  const to = sortedDates[sortedDates.length - 1];
+
+  const query = `/ads/availability?zip=${encodeURIComponent(normalizedZip)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const response = await httpGet(query);
+
+  const maxSlotsPerDate =
+    typeof response?.maxSlotsPerDate === 'number' ? response.maxSlotsPerDate : 3;
+  const availability: Record<
+    string,
+    { available?: boolean; slotsUsed?: number; slotsRemaining?: number }
+  > = response?.availability || {};
+
+  let highestReserved = 0;
+  const allDatesAvailable = uniqueDates.every((date) => {
+    const entry = availability[date];
+    const slotsUsed = typeof entry?.slotsUsed === 'number' ? entry.slotsUsed : 0;
+    highestReserved = Math.max(highestReserved, slotsUsed);
+    if (entry?.available === false) {
+      return false;
+    }
+    return true;
+  });
+
   return {
-    zip,
-    available: reserved < capacity,
-    capacity,
-    reserved: Math.min(reserved, capacity),
+    zip: normalizedZip,
+    available: allDatesAvailable,
+    capacity: maxSlotsPerDate,
+    reserved: Math.min(maxSlotsPerDate, highestReserved),
   };
 }
 

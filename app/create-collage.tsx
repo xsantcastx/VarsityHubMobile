@@ -1,4 +1,6 @@
 import { Post } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
+import { uploadFile } from '@/api/upload';
 import CollageView, { type CollageData, type CollageFrame } from '@/components/CollageView';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
@@ -57,12 +59,13 @@ export default function CreateCollageScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [template, setTemplate] = useState<keyof typeof templates>('organic2');
-  const [gutter, setGutter] = useState(8);
-  const [radius, setRadius] = useState(8);
-  const [bg, setBg] = useState(colorScheme === 'dark' ? '#1F2937' : '#FFFFFF');
+  const [gutter] = useState(8);
+  const [radius] = useState(8);
+  const [bg] = useState(colorScheme === 'dark' ? '#1F2937' : '#FFFFFF');
   const [frames, setFrames] = useState<CollageFrame[]>(templates['organic2'].map(f => ({
     ...f, media: { url: '', type: 'image', scale: 1, translateX: 0, translateY: 0, rotation: 0 }
   })));
+  const [publishing, setPublishing] = useState(false);
   const ref = useRef<View|null>(null);
 
   const collage: CollageData = useMemo(() => ({
@@ -92,19 +95,26 @@ export default function CreateCollageScreen() {
   };
 
   const onPublish = async () => {
+    if (publishing) return;
     try {
       if (!frames.some(f => f.media.url)) {
         Alert.alert('Add media', 'Please add at least one image.');
         return;
       }
+      setPublishing(true);
       const previewUri = await captureRef(ref, { format: 'jpg', quality: 0.92 } as any);
-      // TODO: Upload previewUri to your image endpoint if needed
-      // For now, create collage with local file (server should handle upload separately if needed)
-      await Post.createCollage({ caption: '', preview_url: String(previewUri), collage });
+      const uploadResult = await uploadFile(getApiBaseUrl(), String(previewUri), 'collage.jpg', 'image/jpeg');
+      const remoteUrl = uploadResult?.url || uploadResult?.path;
+      if (!remoteUrl) {
+        throw new Error('Upload failed. Please try again.');
+      }
+      await Post.createCollage({ caption: '', preview_url: remoteUrl, collage });
       Alert.alert('Published', 'Your collage has been posted.');
       router.back();
     } catch (e: any) {
       Alert.alert('Publish failed', e?.message || 'Try again later.');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -140,7 +150,9 @@ export default function CreateCollageScreen() {
 
       <View style={{ height: 16 }} />
 
-      <Button onPress={onPublish}><Text>Publish</Text></Button>
+      <Button onPress={onPublish} disabled={publishing}>
+        <Text>{publishing ? 'Publishing…' : 'Publish'}</Text>
+      </Button>
     </ScrollView>
   );
 }

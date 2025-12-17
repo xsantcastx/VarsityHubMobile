@@ -156,9 +156,9 @@ export default function UserProfileScreen() {
   const userThemeColor = user?.preferences?.theme_color || '#3B82F6';
   const headerBackgroundImage = user?.preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(typeof user?.preferences?.header_image_focus_y === 'number' ? user.preferences.header_image_focus_y : 0, -1, 1);
-  const heroGradientColors = headerBackgroundImage
+  const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : getGradientForColor(userThemeColor);
+    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
 
   return (
     <SafeAreaView style={[S.page, { backgroundColor: theme.background }]} edges={['bottom']}>

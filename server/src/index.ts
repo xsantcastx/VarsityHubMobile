@@ -2,9 +2,11 @@ import cors from 'cors';
 import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
+import cron from 'node-cron';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueue } from './lib/queue.js';
@@ -77,6 +79,13 @@ validateEnvironmentVariables();
 
 // Initialize Sentry for error tracking (must be before other middleware)
 initSentry(app);
+
+// Verify Sentry initialization
+if (process.env.SENTRY_DSN) {
+  console.log('✅ Sentry error tracking enabled');
+} else {
+  console.warn('⚠️  Sentry DSN not configured - error tracking disabled');
+}
 
 // Initialize SendGrid email service
 initEmailService();
@@ -267,4 +276,10 @@ addSentryErrorHandler(app);
 
 app.listen(PORT, HOST, () => {
   debugLog(`API listening on http://${HOST}:${PORT}`);
+});
+
+// Schedule subscription expiry checker (runs daily at 9 AM UTC)
+cron.schedule('0 9 * * *', async () => {
+  console.log('[cron] Running subscription expiry check...');
+  await checkExpiringSubscriptions();
 });

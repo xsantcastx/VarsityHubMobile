@@ -40,16 +40,6 @@ type TeamMember = {
   };
 };
 
-type LeagueData = {
-  id: string;
-  name: string;
-  display_name?: string;
-  avatar_url?: string;
-  bio?: string;
-  cover_url?: string;
-  contact_info?: string;
-};
-
 export default function TeamScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
@@ -241,12 +231,8 @@ export default function TeamScreen() {
   }, [loadTeam]);
 
   useEffect(() => {
-    loadTeam();
+    void loadTeam();
   }, [loadTeam]);
-
-  const handleTeamPress = (teamId: string) => {
-    router.push(`/my-team?id=${teamId}` as any);
-  };
 
   const handleFollowPress = () => {
     setIsFollowing(!isFollowing);
@@ -255,37 +241,6 @@ export default function TeamScreen() {
       `You ${isFollowing ? 'unfollowed' : 'are now following'} ${team?.name || 'this team'}`
     );
   };
-
-  const renderTeamCard = ({ item }: { item: LeagueTeam }) => (
-    <Pressable
-      style={[styles.teamCard, { 
-        backgroundColor: theme.card,
-        borderColor: theme.border,
-      }]}
-      onPress={() => handleTeamPress(item.id)}
-    >
-      <View style={styles.teamCardContent}>
-        {item.logo_url ? (
-          <Image source={{ uri: item.logo_url }} style={styles.teamLogo} contentFit="cover" />
-        ) : (
-          <View style={[styles.teamLogoPlaceholder, { backgroundColor: theme.surface }]}>
-            <Ionicons name="people" size={24} color={theme.mutedText} />
-          </View>
-        )}
-        <View style={styles.teamInfo}>
-          <Text style={[styles.teamCardName, { color: theme.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          {item.sport && (
-            <Text style={[styles.teamMeta, { color: theme.mutedText }]} numberOfLines={1}>
-              {item.sport}{item.season ? ` • ${item.season}` : ''}
-            </Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.mutedText} />
-      </View>
-    </Pressable>
-  );
 
   const renderMemberCard = ({ item }: { item: TeamMember & { team_name?: string } }) => {
     const displayName = item.user?.display_name || item.user?.full_name || 'Player';

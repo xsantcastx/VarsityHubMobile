@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Textarea from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
-import { User, Support } from '@/api/entities';
+import { Support, User } from '@/api/entities';
 
 export default function RequestHostEventScreen() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function RequestHostEventScreen() {
   const [venue, setVenue] = useState('');
   const [dates, setDates] = useState('');
   const [sending, setSending] = useState(false);
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch (_error) {} })(); }, []);
+  useEffect(() => { void (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
   const onSubmit = async () => {
     if (!org.trim()) { Alert.alert('Enter organization name'); return; }
     setSending(true);

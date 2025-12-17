@@ -70,10 +70,9 @@ export default function TeamProfileScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'members' | 'settings'>('overview');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('player');
   const [sendingInvite, setSendingInvite] = useState(false);
-  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [customRoles] = useState<CustomRole[]>([]);
 
   // Modal state for universal action modal
   // (Removed duplicate actionModal declaration)
@@ -220,22 +219,6 @@ export default function TeamProfileScreen() {
     },
   ], []);
 
-  // Sport-specific positions (basketball example)
-  const sportPositions = useMemo(() => {
-    const teamSport = team?.sport?.toLowerCase() || 'basketball';
-    
-    const positionMap: Record<string, string[]> = {
-      basketball: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
-      soccer: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Winger'],
-      football: ['Quarterback', 'Running Back', 'Wide Receiver', 'Tight End', 'Offensive Line', 'Defensive Line', 'Linebacker', 'Cornerback', 'Safety'],
-      baseball: ['Pitcher', 'Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Outfield'],
-      volleyball: ['Setter', 'Outside Hitter', 'Middle Blocker', 'Opposite Hitter', 'Libero'],
-      hockey: ['Goalie', 'Defenseman', 'Left Wing', 'Right Wing', 'Center'],
-    };
-
-    return positionMap[teamSport] || [];
-  }, [team?.sport]);
-
   const allRoles = useMemo(() => [...defaultRoles, ...customRoles], [defaultRoles, customRoles]);
 
   const getRoleById = (roleId: string): CustomRole | undefined => {
@@ -270,18 +253,51 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberPosition = async (memberId: string, position: string) => {
-    try {
-      setMembers(prev => prev.map(m => 
-        m.id === memberId 
-          ? { ...m, customPosition: position.trim() || undefined }
-          : m
-      ));
-      // TODO: Save to backend
-    } catch (_error) {
+    if (!team?.id) {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: 'Failed to update member position',
+        message: 'Team details not loaded yet.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const member = members.find(m => m.id === memberId);
+    if (!member?.user?.id) {
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Unable to identify this member. Please refresh and try again.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const trimmed = position.trim();
+    const previous = member.customPosition || undefined;
+    setMembers(prev => prev.map(m => 
+      m.id === memberId 
+        ? { ...m, customPosition: trimmed || undefined }
+        : m
+    ));
+    try {
+      await TeamApi.updateMember(team.id, member.user.id, { custom_position: trimmed || null });
+      setActionModal({
+        visible: true,
+        title: 'Updated!',
+        message: trimmed
+          ? `${member.user.display_name || 'Member'} is now listed as ${trimmed}`
+          : 'Custom position cleared.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+    } catch (error: any) {
+      console.error('Failed to update custom position:', error);
+      setMembers(prev => prev.map(m => 
+        m.id === memberId ? { ...m, customPosition: previous } : m
+      ));
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: error?.message || 'Failed to update member position',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     }
@@ -321,7 +337,7 @@ export default function TeamProfileScreen() {
           mutual_friends: user.mutual_friends || 0,
         }));
       setSearchResults(convertedResults);
-    } catch (_error) {
+    } catch (error) {
       console.error('User search failed:', error);
       setSearchResults([]);
       setActionModal({
@@ -346,7 +362,7 @@ export default function TeamProfileScreen() {
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      searchUsers(searchQuery);
+      void searchUsers(searchQuery);
     }, 300);
 
     return () => clearTimeout(timer);
@@ -376,6 +392,7 @@ export default function TeamProfileScreen() {
             email: user.email || '',
             avatar_url: user.avatar_url || '',
           },
+          customPosition: typeof m.custom_position === 'string' && m.custom_position.length ? m.custom_position : undefined,
           role: m.role || 'player',
           status: m.status || 'active',
           joined_date: m.joined_date || m.created_at,
@@ -392,7 +409,7 @@ export default function TeamProfileScreen() {
   }, [params?.id]);
 
   useEffect(() => {
-    loadTeamData();
+    void loadTeamData();
   }, [loadTeamData]);
 
   const onRefresh = useCallback(async () => {
@@ -473,20 +490,42 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberRole = async (memberId: string, newRole: string) => {
+    if (!team?.id) {
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Team details not loaded yet.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const member = members.find(m => m.id === memberId);
+    if (!member?.user?.id) {
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Unable to identify this member. Please refresh and try again.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const previousRole = member.role;
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
     try {
-      // Update member role via API
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
+      await TeamApi.updateMember(team.id, member.user.id, { role: newRole });
       setActionModal({
         visible: true,
         title: 'Updated!',
         message: 'Member role updated successfully',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
-    } catch (_error) {
+    } catch (error: any) {
+      console.error('Failed to update member role:', error);
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: previousRole } : m));
       setActionModal({
         visible: true,
         title: 'Error',
-        message: 'Failed to update member role',
+        message: error?.message || 'Failed to update member role',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     }
@@ -500,9 +539,27 @@ export default function TeamProfileScreen() {
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Remove', isDestructive: true, onPress: async () => {
+            if (!team?.id) {
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: 'Team details not loaded yet.',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+              return;
+            }
+            const member = members.find(m => m.id === memberId);
+            if (!member?.user?.id) {
+              setActionModal({
+                visible: true,
+                title: 'Error',
+                message: 'Unable to identify this member. Please refresh and try again.',
+                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+              });
+              return;
+            }
             try {
-              // Use TeamApi.membersRemove or similar if available, fallback to local remove
-              // await TeamApi.removeMember(team.id, memberId); // If this exists
+              await TeamApi.removeMember(team.id, member.user.id);
               setMembers(prev => prev.filter(m => m.id !== memberId));
               setActionModal({
                 visible: true,
@@ -510,11 +567,12 @@ export default function TeamProfileScreen() {
                 message: 'Member removed from team',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
-            } catch (_error) {
+            } catch (error: any) {
+              console.error('Failed to remove member:', error);
               setActionModal({
                 visible: true,
                 title: 'Error',
-                message: 'Failed to remove member',
+                message: error?.message || 'Failed to remove member',
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             }
@@ -851,7 +909,7 @@ export default function TeamProfileScreen() {
                     'This will hide the team from your active list. You can restore it later.',
                     [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Archive', style: 'destructive', onPress: () => console.log('Archive team') }
+                      { text: 'Archive', style: 'destructive', onPress: () => Alert.alert('Archived', 'Team archived (coming soon).') }
                     ]
                   );
                 }}

@@ -23,7 +23,7 @@ export default function GameReviewsScreen() {
     } finally { setLoading(false); }
   }, [game_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const _loadMore = async () => {
     if (!game_id || !cursor) return;

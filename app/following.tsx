@@ -31,7 +31,7 @@ export default function FollowingScreen() {
   }, [id]);
 
   useEffect(() => {
-    loadFollowing();
+    void loadFollowing();
   }, [id, loadFollowing]);
 
   const handleFollow = async (userId: string, isFollowing: boolean) => {
@@ -93,7 +93,7 @@ export default function FollowingScreen() {
           data={filteredUsers}
           renderItem={renderUser}
           keyExtractor={(item) => item.id}
-          onEndReached={() => nextCursor && loadFollowing(nextCursor)}
+          onEndReached={() => nextCursor && void loadFollowing(nextCursor)}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loading ? <ActivityIndicator /> : null}
           ListEmptyComponent={<Text style={styles.emptyText}>Not following anyone yet.</Text>}

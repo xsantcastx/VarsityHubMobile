@@ -28,16 +28,16 @@ After 2 teams, users must upgrade to Veteran or Legend to add more teams.
 ---
 
 ### Veteran Account
-- **Price:** $2.50/month **per team** (beyond first 2 free)
+- **Price:** $1.50/month **per team** (beyond first 2 free)
 - **Stripe Product ID:** `prod_TCjgM4tFKjUigv`
 - **Stripe Price ID:** `price_1SCd6HRuB2a0vFjp1QlboTEv` (from server/.env)
 - **Billing:** Monthly recurring per team
-- **Backend Code:** 250 cents = $2.50/month
+- **Backend Code:** 150 cents = $1.50/month
 
 **Pricing Model:**
 - First 2 teams: FREE (Rookie)
-- Team 3+: $2.50/month each
-- Example: 5 teams = 2 free + 3 paid = $7.50/month total
+- Team 3+: $1.50/month each
+- Example: 5 teams = 2 free + 3 paid = $4.50/month total
 
 **Features:**
 - All Rookie features
@@ -53,21 +53,21 @@ Each team beyond 2 incurs a $2.50/month charge.
 ---
 
 ### Legend Account
-- **Price:** $19.99/year (flat rate, unlimited)
+- **Price:** $20.00/year (flat rate, unlimited)
 - **Stripe Product ID:** `prod_TGw0PNT97OCrl8`
 - **Stripe Price ID:** `price_1SCd6IRuB2a0vFjpQOSdctN4` (from server/.env)
 - **Billing:** Annual recurring
-- **Backend Code:** 1999 cents = $19.99/year
+- **Backend Code:** 2000 cents = $20.00/year
 
 **Pricing Model:**
 - Unlimited teams for one annual fee
 - Best value for organizations with 3+ teams
 
 **Value Calculation:**
-- 3 teams on Veteran: $2.50 × 1 team × 12 months = $30/year
-- 3 teams on Legend: $19.99/year (saves $10.01 + gets premium features)
-- 10 teams on Veteran: $2.50 × 8 teams × 12 months = $240/year
-- 10 teams on Legend: $19.99/year (saves $220.01!)
+- 3 teams on Veteran: $1.50 × 1 team × 12 months = $18/year
+- 3 teams on Legend: $20/year (comparable + premium features)
+- 10 teams on Veteran: $1.50 × 8 teams × 12 months = $144/year
+- 10 teams on Legend: $20/year (saves $124!)
 
 **Features:**
 - All Veteran features
@@ -116,8 +116,8 @@ Each team beyond 2 incurs a $2.50/month charge.
 | Tier / Product | Description | Price | Stripe Product ID | Stripe Price ID | Backend (cents) |
 |----------------|-------------|-------|-------------------|-----------------|-----------------|
 | **Rookie** | First two teams free | FREE | N/A | N/A | N/A |
-| **Veteran** | Per-team monthly subscription | $2.50/month per team | `prod_TCjgM4tFKjUigv` | `price_1SCd6HRuB2a0vFjp1QlboTEv` | 250 |
-| **Legend** | Annual unlimited subscription | $19.99/year | `prod_TGw0PNT97OCrl8` | `price_1SCd6IRuB2a0vFjpQOSdctN4` | 1999 |
+| **Veteran** | Per-team monthly subscription | $1.50/month per team | `prod_TCjgM4tFKjUigv` | `price_1SCd6HRuB2a0vFjp1QlboTEv` | 150 |
+| **Legend** | Annual unlimited subscription | $20.00/year | `prod_TGw0PNT97OCrl8` | `price_1SCd6IRuB2a0vFjpQOSdctN4` | 2000 |
 | **Ad (Mon–Thu)** | Weekday ad slot | $8/week | `prod_TJtJaRjlcRrFQM` | TBD | 800 |
 | **Ad (Fri–Sun)** | Weekend ad slot | $10/week | `prod_TJtKOftqpmv4Zp` | TBD | 1000 |
 
@@ -147,15 +147,15 @@ File: `server/src/routes/payments.ts`
 // Membership fallback (lines 103-116)
 price_data: {
   currency: 'usd',
-  unit_amount: chosen === 'veteran' ? 250 : 1999, // $2.50 or $19.99
+  unit_amount: chosen === 'veteran' ? 150 : 2000, // $1.50 or $20.00
   recurring: { 
     interval: chosen === 'veteran' ? 'month' : 'year' 
   },
   product_data: {
     name: 'Membership - ' + chosen,
     description: chosen === 'veteran' 
-      ? 'Veteran plan - $2.50/month per team' 
-      : 'Legend plan - $19.99/year unlimited (fallback price)',
+      ? 'Veteran plan - $1.50/month per team' 
+      : 'Legend plan - $20.00/year unlimited (fallback price)',
   },
 }
 ```
@@ -193,21 +193,21 @@ price_data: {
 
 ### Small Organization (3 teams)
 - **Rookie:** FREE (2 teams) → $0/year
-- **Veteran:** $2.50 × 1 team × 12 months = $30/year
-- **Legend:** $19.99/year
-- **Best Choice:** Legend (saves $10.01 + premium features)
+- **Veteran:** $1.50 × 1 team × 12 months = $18/year
+- **Legend:** $20/year
+- **Best Choice:** Comparable pricing; Legend adds premium features
 
 ### Medium Organization (5 teams)
 - **Rookie:** Not allowed (2 team limit)
-- **Veteran:** $2.50 × 3 teams × 12 months = $90/year
-- **Legend:** $19.99/year
-- **Best Choice:** Legend (saves $70.01!)
+- **Veteran:** $1.50 × 3 teams × 12 months = $54/year
+- **Legend:** $20/year
+- **Best Choice:** Legend (saves $34!)
 
 ### Large Organization (10 teams)
 - **Rookie:** Not allowed (2 team limit)
-- **Veteran:** $2.50 × 8 teams × 12 months = $240/year
-- **Legend:** $19.99/year
-- **Best Choice:** Legend (saves $220.01!)
+- **Veteran:** $1.50 × 8 teams × 12 months = $144/year
+- **Legend:** $20/year
+- **Best Choice:** Legend (saves $124!)
 
 **Insight:** Legend becomes dramatically more valuable with more teams, naturally driving enterprise customers to premium tier.
 

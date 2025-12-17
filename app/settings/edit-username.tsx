@@ -15,11 +15,11 @@ export default function EditUsernameScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { 
-    (async () => { 
+    void (async () => { 
       try { 
         const me: any = await User.me(); 
         setName(me?.display_name || ''); 
-      } catch (_error) {} 
+      } catch {} 
     })(); 
   }, []);
 

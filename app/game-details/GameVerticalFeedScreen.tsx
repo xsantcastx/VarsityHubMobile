@@ -37,7 +37,7 @@ const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 let FastImage: any = null;
 try {
   FastImage = require('react-native-fast-image');
-} catch (_error) {
+} catch {
   FastImage = ({ source, style, resizeMode }: any) => (
     <Image
       source={source}
@@ -46,8 +46,6 @@ try {
     />
   );
 }
-
-type VoteOption = 'A' | 'B';
 
 export type FeedPost = {
   id: string;
@@ -121,9 +119,9 @@ type GameVerticalFeedScreenProps = {
   // When provided, the screen acts as a generic vertical viewer for these posts and will not fetch by game.
   initialPosts?: FeedPost[];
   startIndex?: number;
-  title?: string | null;
   // Exclude any posts whose media_url matches one of these URLs (case-insensitive, query/hash ignored)
   excludeMediaUrls?: string[];
+  title?: string;
 };
 
 
@@ -182,7 +180,7 @@ const FeedCard = memo(
           console.error('Failed to load user:', error);
         }
       };
-      loadUser();
+      void loadUser();
     }, []);
 
     // Check if current user is the author of the post
@@ -222,7 +220,7 @@ const FeedCard = memo(
       p.loop = true;
       p.muted = true;
       if (isActive && post.media_type === 'video') {
-        try { p.play(); } catch (_error) {}
+        try { p.play(); } catch {}
       }
     });
 
@@ -235,7 +233,7 @@ const FeedCard = memo(
       if (post.media_type !== 'video') return;
       try {
         if (isActive) player.play(); else player.pause();
-      } catch (_error) {}
+      } catch {}
     }, [isActive, post.media_type, player]);
 
     const handleTap = () => {
@@ -255,7 +253,7 @@ const FeedCard = memo(
         if (perm.status !== 'granted') return;
         const uri = await captureRef(collageRef, { format: 'jpg', quality: 0.92 } as any);
         await MediaLibrary.saveToLibraryAsync(uri as any);
-      } catch (_error) {}
+      } catch {}
     }, [post?.collage]);
 
     return (
@@ -435,7 +433,7 @@ const FeedCard = memo(
 );
 FeedCard.displayName = 'FeedCard';
 
-export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, title, excludeMediaUrls = [] }: GameVerticalFeedScreenProps = {}) {
+export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId, showHeader = true, countryCode, initialPosts, startIndex = 0, excludeMediaUrls = [], title }: GameVerticalFeedScreenProps = {}) {
   const { id: gameIdParam } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -455,7 +453,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       s = s.replace(/^https?:\/\//i, '');
       s = s.replace(/\/+$/, '');
       return s.toLowerCase();
-    } catch (_error) {
+    } catch {
       return null;
     }
   }, []);
@@ -477,8 +475,6 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   const [game, setGame] = useState<GameSummary | null>(null);
   const [posts, setPosts] = useState<FeedPost[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -493,6 +489,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const [commentsCursor, setCommentsCursor] = useState<string | null>(null);
   const [commentTarget, setCommentTarget] = useState<FeedPost | null>(null);
   const [meInfo, setMeInfo] = useState<{ id?: string; display_name?: string | null; username?: string | null } | null>(null);
+  const headerTitle = title || game?.title || 'Game';
 
   // Store VideoPlayer instances by post id
   const videoRefs = useRef<Record<string, any | null>>({});
@@ -506,7 +503,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     setter((prev: any) => {
       try {
         if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch (_error) {
+      } catch {
         // If comparison fails, fall back to setting the new value
       }
       return next;
@@ -519,12 +516,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     // This prevents repeated effect runs from creating new object/array instances
     // which can otherwise trigger re-renders and lead to "maximum update depth" loops.
     _resetRunCount.current += 1;
-    if (__DEV__) {
-      if (_resetRunCount.current > 5) console.debug('GameVerticalFeedScreen reset effect executed repeatedly', { run: _resetRunCount.current, gameId, usingInitial });
-    }
     setIfDifferent(setPosts, []);
-    setIfDifferent(setCursor, null);
-    setIfDifferent(setHasMore, true);
     cursorRef.current = null;
     hasMoreRef.current = true;
     setIfDifferent(setActiveIndex, 0);
@@ -556,16 +548,12 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     // Create a small signature to avoid reseeding the same content repeatedly
     const sig = filtered.map((p) => p.id).join('|') + `::${startIndex || 0}`;
     if (_initialSeedSig.current === sig) {
-      if (__DEV__) console.debug('GameVerticalFeedScreen initial posts seed skipped (same signature)');
       return;
     }
     _initialSeedSig.current = sig;
-    if (__DEV__) console.debug('GameVerticalFeedScreen seeding initial posts', { count: filtered.length, sig });
     setIfDifferent(setPosts, filtered);
     setIfDifferent(setActiveIndex, Math.min(Math.max(0, startIndex || 0), Math.max(0, items.length - 1)));
-    setIfDifferent(setCursor, null);
     cursorRef.current = null;
-    setIfDifferent(setHasMore, false);
     hasMoreRef.current = false;
     setIfDifferent(setLoading, false);
   }, [usingInitial, initialPosts, startIndex, excludeSet, normalizeUrl, setIfDifferent]);
@@ -584,7 +572,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       return () => {
         isScreenFocusedRef.current = false;
         Object.values(videoRefs.current).forEach((player) => {
-          try { player?.pause?.(); } catch (_error) {}
+          try { player?.pause?.(); } catch {}
         });
       };
     }, []),
@@ -597,14 +585,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       return;
     }
     let cancelled = false;
-    if (__DEV__) console.debug('GameVerticalFeedScreen.summary effect starting', { gameId });
-    (async () => {
+    void (async () => {
       try {
         const summary: any = await Game.summary(gameId).catch(() => null);
         if (!cancelled && summary) {
           setGame({ id: summary.id, title: summary.title || 'Game', date: summary.date ?? null });
         }
-      } catch (_error) {
+      } catch {
         if (!cancelled) setGame(null);
       }
     })();
@@ -615,7 +602,6 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   const loadFeed = useCallback(
     async (reset = false) => {
-      if (__DEV__) console.debug('GameVerticalFeedScreen.loadFeed called', { reset, gameId, usingInitial });
       if (usingInitial) {
         // No-op: using provided posts
         setLoading(false);
@@ -646,11 +632,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           }
           setPosts(mapped);
           cursorRef.current = null;
-          setCursor(null);
           hasMoreRef.current = false;
-          setHasMore(false);
-        } catch (error) {
-          if (__DEV__) console.warn('Global highlights feed load failed', error);
+        } catch {
         } finally {
           setLoading(false);
           setRefreshing(false);
@@ -681,12 +664,9 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         setPosts((prev) => (reset ? filtered : [...prev, ...filtered]));
         const nextCursor = page?.nextCursor ?? null;
         cursorRef.current = nextCursor;
-        setCursor(nextCursor);
         const more = Boolean(page?.nextCursor);
         hasMoreRef.current = more;
-        setHasMore(more);
-      } catch (error) {
-        if (__DEV__) console.warn('Feed load failed', error);
+      } catch {
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -697,8 +677,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   useEffect(() => {
-    if (__DEV__) console.debug('GameVerticalFeedScreen.loadFeed trigger effect', { usingInitial, gameId });
-    loadFeed(true);
+    void loadFeed(true);
   }, [gameId, loadFeed, usingInitial]);
 
   // When using initial posts, jump to the provided startIndex on mount/update
@@ -707,20 +686,19 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     const target = Math.min(Math.max(0, startIndex || 0), Math.max(0, posts.length - 1));
     if (!posts.length) return;
     try {
-      if (__DEV__) console.debug('GameVerticalFeedScreen initial scroll effect', { target, postsLength: posts.length });
       // Give FlatList a tick to mount
       requestAnimationFrame(() => {
         flatListRef.current?.scrollToIndex({ index: target, animated: false });
         setActiveIndex(target);
       });
-    } catch (_error) {}
+    } catch {}
   }, [gameId, posts.length, startIndex, usingInitial]);
 
   const onEndReached = useCallback(() => {
     if (!gameId) return;
     if (!loading && !loadingMore && hasMoreRef.current) {
       setLoadingMore(true);
-      loadFeed(false);
+      void loadFeed(false);
     }
   }, [gameId, loadFeed, loading, loadingMore]);
 
@@ -728,9 +706,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     if (loading) return;
     cursorRef.current = null;
     hasMoreRef.current = true;
-    setCursor(null);
-    setHasMore(true);
-    loadFeed(true);
+    void loadFeed(true);
   }, [loadFeed, loading]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -751,7 +727,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         } else {
           player.pause?.();
         }
-      } catch (_error) {}
+      } catch {}
     });
   }, [activeIndex, posts]);
 
@@ -778,7 +754,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           has_upvoted: Boolean(res?.has_upvoted ?? res?.upvoted),
           upvotes_count: typeof res?.upvotes_count === 'number' ? res.upvotes_count : typeof res?.count === 'number' ? res.count : p.upvotes_count,
         }));
-      } catch (_error) {
+      } catch {
         updatePost(post.id, (p) => ({
           ...p,
           has_upvoted: post.has_upvoted,
@@ -804,7 +780,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           has_bookmarked: Boolean(res?.has_bookmarked ?? res?.bookmarked),
           bookmarks_count: typeof res?.bookmarks_count === 'number' ? res.bookmarks_count : p.bookmarks_count,
         }));
-      } catch (_error) {
+      } catch {
         updatePost(post.id, (p) => ({
           ...p,
           has_bookmarked: post.has_bookmarked,
@@ -830,7 +806,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           await User.unfollow(authorId);
           optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: false }));
         }
-      } catch (_error) {
+      } catch {
         optimisticUpdateAllFromAuthor(authorId, (p) => ({ ...p, is_following_author: post.is_following_author }));
       }
     },
@@ -875,7 +851,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           try {
             const me: any = await User.me();
             setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
-          } catch (error) {}
+          } catch {}
         }
         const res: any = await fetchCommentsPage(post.id);
         const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
@@ -898,7 +874,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       const items = Array.isArray(res?.items) ? res.items : [];
       setComments((prev) => [...prev, ...items]);
       setCommentsCursor(res?.nextCursor ?? null);
-    } catch (_error) {
+    } catch {
       setCommentsCursor(null);
     } finally {
       setCommentsLoading(false);
@@ -926,7 +902,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
       // Notify profile interactions that a new comment was made
       events.emit('comment:created', { post_id: commentTarget.id });
-    } catch (_error) {
+    } catch {
       setComments((prev) => prev.filter((c) => !c.optimistic));
       setCommentsError('Unable to send comment right now.');
     } finally {
@@ -937,7 +913,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const handleDoubleTap = useCallback(
     (post: FeedPost) => {
       if (!post.has_upvoted) {
-        handleToggleUpvote(post);
+        void handleToggleUpvote(post);
       }
     },
     [handleToggleUpvote],
@@ -972,13 +948,13 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   // hide the follow button on our own posts and space the rail.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         if (!cancelled && me) {
           setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
         }
-      } catch (_error) {}
+      } catch {}
     })();
     return () => { cancelled = true; };
   }, []);
@@ -1035,7 +1011,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
           <View style={styles.titleTextWrap}>
-            <Text style={styles.titleText}>{game?.title || 'Game'}</Text>
+            <Text style={styles.titleText}>{headerTitle}</Text>
             {game?.date ? <Text style={styles.titleSubtitle}>{new Date(game.date).toLocaleDateString()}</Text> : null}
           </View>
         </View>
@@ -1044,6 +1020,9 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           <Pressable style={styles.backBtn} onPress={handleBack}>
             <Ionicons name="chevron-back" size={24} color="#fff" />
           </Pressable>
+          <View style={styles.titleTextWrap}>
+            <Text style={styles.titleText}>{headerTitle}</Text>
+          </View>
         </View>
       ) : null}
 

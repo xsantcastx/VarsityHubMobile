@@ -83,7 +83,7 @@ export default function FavoritesScreen() {
 
   useEffect(() => {
     let canceled = false;
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         if (canceled) return;
@@ -93,7 +93,7 @@ export default function FavoritesScreen() {
         } else {
           setError('Unable to determine your account. Please sign in again.');
         }
-      } catch (_error) {
+      } catch {
         if (!canceled) {
           setError('Unable to load your favorites right now.');
           setLoading(false);
@@ -164,17 +164,17 @@ export default function FavoritesScreen() {
 
   useEffect(() => {
     if (!userId) return;
-    fetchSaved({ mode: 'initial' });
+    void fetchSaved({ mode: 'initial' });
   }, [userId, fetchSaved]);
 
   const handleRefresh = useCallback(() => {
     if (!userId) return;
-    fetchSaved({ mode: 'refresh', cursor: null });
+    void fetchSaved({ mode: 'refresh', cursor: null });
   }, [userId, fetchSaved]);
 
   const handleLoadMore = useCallback(() => {
     if (!hasMore || loadingMore || !cursor) return;
-    fetchSaved({ cursor, mode: 'append' });
+    void fetchSaved({ cursor, mode: 'append' });
   }, [cursor, hasMore, loadingMore, fetchSaved]);
 
   const listEmptyComponent = useMemo(() => {

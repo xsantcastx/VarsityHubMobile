@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useLocalSearchParams, useRouter, useSegments } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -57,7 +57,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   const w = useWindowDimensions().width;
   const progress = useRef(new Animated.Value(0)).current;
   const [paused, setPaused] = useState(false);
-  const [playing, setPlaying] = useState(false);
   const progressFracRef = useRef(0);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -161,10 +160,6 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
   useEffect(() => {
     progress.stopAnimation();
     progress.setValue(0);
-    const item = items[current];
-    const isVideo = item?.kind === 'video' || (item?.url && VIDEO_EXT.test(item.url));
-    // Autoplay videos when story changes
-    setPlaying(isVideo);
   }, [current, progress, items]);
 
   // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
@@ -248,7 +243,7 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
               <Pressable 
                 onPress={(e) => {
                   e?.stopPropagation?.();
-                  handleDelete();
+                  void handleDelete();
                 }}
                 style={({ pressed }) => [
                   styles.storyDeleteBtn, 
@@ -370,8 +365,6 @@ type GameVM = {
   isPast: boolean;
 };
 
-type SectionKey = 'overview';
-
 type VoteSummary = {
   teamA: number;
   teamB: number;
@@ -473,12 +466,10 @@ const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
 };
 
 const GameDetailsScreen = () => {
-  const { id, teamId, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
+  const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
-  const segments = useSegments();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
-  const { width: windowWidth } = useWindowDimensions();
   const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const scrollRef = useRef<any>(null);
   const sectionOffsets = useRef<{ media: number; posts: number }>({ media: 0, posts: 0 });
@@ -488,7 +479,6 @@ const GameDetailsScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamInfo[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionKey>('overview');
   const [rsvpBusy, setRsvpBusy] = useState(false);
   const [viewer, setViewer] = useState<{ visible: boolean; url: string | null; kind: 'photo' | 'video' } | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
@@ -549,7 +539,7 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v)).catch(() => {});
     const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
-    return () => { try { ev?.remove?.(); } catch (_error) {} };
+    return () => { try { ev?.remove?.(); } catch {} };
   }, []);
 
   // update display percentages from animated numeric values
@@ -560,8 +550,8 @@ const GameDetailsScreen = () => {
     numAnimA.setValue(displayPctA);
     numAnimB.setValue(displayPctB);
     return () => {
-      try { numAnimA.removeListener(idA); } catch (_error) {}
-      try { numAnimB.removeListener(idB); } catch (_error) {}
+      try { numAnimA.removeListener(idA); } catch {}
+      try { numAnimB.removeListener(idB); } catch {}
     };
   }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
@@ -592,7 +582,6 @@ const GameDetailsScreen = () => {
     }
   }, [THRESHOLD]);
 
-  const canonicalGameId = vm?.gameId;
   const displayDate = formatDateLabel(vm?.date);
   const displayTime = formatTimeLabel(vm?.date);
   const goingCount = capCount(vm?.rsvpCount, vm?.capacity);
@@ -713,16 +702,6 @@ const GameDetailsScreen = () => {
 
   const postsCount = Array.isArray(vm?.posts) ? vm.posts.length : 0;
   const postsSubtitle = postsCount ? `${postsCount} highlight${postsCount === 1 ? '' : 's'}` : 'No highlights yet';
-  const previewImage = useMemo(() => {
-    if (!vm) return bannerUrl;
-    const posts = Array.isArray(vm.posts) ? vm.posts : [];
-    const firstWithMedia = posts.find((post: any) => typeof post?.media_url === 'string' && post.media_url);
-    if (firstWithMedia?.media_url) return String(firstWithMedia.media_url);
-    const mediaItems = Array.isArray(vm.media) ? vm.media : [];
-    const firstMedia = mediaItems.find((item) => typeof item?.url === 'string' && item.url);
-    if (firstMedia?.url) return String(firstMedia.url);
-    return bannerUrl;
-  }, [vm, bannerUrl]);
 
   const { teamALabel, teamBLabel } = useMemo(() => {
     const home = vm?.homeTeam?.trim();
@@ -829,7 +808,6 @@ const GameDetailsScreen = () => {
           isPast: false,
         };
         setVm(vmPayload);
-        setActiveSection('overview');
         return;
       }
 
@@ -1012,7 +990,6 @@ const GameDetailsScreen = () => {
       };
 
       setVm(vmPayload);
-      setActiveSection('overview');
       } catch (error) {
         console.error('Error in loadGameById:', error);
         throw error; // Re-throw to be caught by outer try-catch
@@ -1052,20 +1029,9 @@ const GameDetailsScreen = () => {
         isPast: computeIsPast(dateIso),
       };
       setVm(vmPayload);
-      setActiveSection('overview');
     },
     [replaceToCanonicalGame],
   );
-
-  const handleCreatePost = useCallback(() => {
-    if (!vm?.gameId) return;
-    void router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'post' } });
-  }, [router, vm?.gameId]);
-
-  const handleCreateHighlight = useCallback(() => {
-    if (!vm?.gameId) return;
-    void router.push({ pathname: '/create-post', params: { gameId: vm.gameId, type: 'highlight' } });
-  }, [router, vm?.gameId]);
 
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
@@ -1302,11 +1268,11 @@ const GameDetailsScreen = () => {
   );
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   useEffect(() => {
-    _refreshVotes();
+    void _refreshVotes();
   }, [_refreshVotes]);
 
   useEffect(() => {
@@ -1315,9 +1281,9 @@ const GameDetailsScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      _refreshVotes();
+      void _refreshVotes();
       const interval = setInterval(() => {
-        _refreshVotes();
+        void _refreshVotes();
       }, 10000);
       return () => clearInterval(interval);
     }, [_refreshVotes]),
@@ -1341,7 +1307,7 @@ const GameDetailsScreen = () => {
   }, [numAnimA, numAnimB, pctAnimA, pctAnimB, prefersReducedMotion, voteAnimated.A, voteAnimated.B, _voteSummary?.pctA, _voteSummary?.pctB, _voteSummary?.total]);
 
   const onRefresh = useCallback(() => {
-    load(true);
+    void load(true);
   }, [load]);
 
   const onToggleRsvp = useCallback(async () => {
@@ -1423,17 +1389,9 @@ const GameDetailsScreen = () => {
     if (vm?.location) openMaps(vm.location);
   }, [vm?.location]);
 
-  const _scrollToSection = useCallback(
-    (key: SectionKey) => {
-      setActiveSection(key);
-      // Tabs removed - keeping Overview only, no scrolling needed
-    },
-    [],
-  );
-
   const handleVote = useCallback(
     async (team: VoteOption) => {
-      if (vm.isPast) return;
+      if (vm?.isPast) return;
       // Event-only pages (no gameId) only update local state
       const isEventOnly = !vm?.gameId && vm?.eventId;
 
@@ -1487,7 +1445,7 @@ const GameDetailsScreen = () => {
   );
 
   const handleClearVote = useCallback(async () => {
-    if (vm.isPast) return;
+    if (vm?.isPast) return;
     // Event-only pages (no gameId) only update local state
     const isEventOnly = !vm?.gameId && vm?.eventId;
 
@@ -1527,7 +1485,7 @@ const GameDetailsScreen = () => {
     } finally {
       setVoteBusy(false);
     }
-  }, [vm?.gameId, vm?.isPast, router]);
+  }, [vm?.gameId, vm?.eventId, vm?.isPast, router]);
 
   const renderStoriesCarousel = () => {
     const mediaItems = (vm?.media ?? []).map((m) => ({ 
@@ -1680,15 +1638,6 @@ const renderBanner = () => {
   const isHero = Boolean(leftLogo && rightLogo) && !finalsBanner;
   const bannerHeight = isHero ? 320 : 240;
 
-  // DEBUG: Log what we're rendering
-  if (finalsBanner) {
-    console.log('[GameDetailsScreen] Finals banner detected:', finalsBanner);
-    console.log('[GameDetailsScreen] leftLogo:', leftLogo, 'rightLogo:', rightLogo);
-    console.log('[GameDetailsScreen] isHero:', isHero);
-    console.log('[GameDetailsScreen] bannerImageUrl:', bannerImageUrl);
-    console.log('[GameDetailsScreen] bannerImageUrl && !isHero:', bannerImageUrl && !isHero);
-  }
-
   // attempt to pull team color accents from vm.teams if present
   const homeTeamObj = vm?.teams?.find((t: any) => t.name === vm?.homeTeam)
   const awayTeamObj = vm?.teams?.find((t: any) => t.name === vm?.awayTeam)
@@ -1700,8 +1649,6 @@ const renderBanner = () => {
       style={styles.bannerImage}
       contentFit="cover"
       cachePolicy="memory-disk"
-      onLoad={() => console.log('[GameDetailsScreen] Banner image loaded:', bannerImageUrl)}
-      onError={(err) => console.error('[GameDetailsScreen] Banner image failed:', bannerImageUrl, err)}
     />
     ) : leftLogo && rightLogo ? (
       <MatchBanner
@@ -2105,8 +2052,15 @@ const renderBanner = () => {
                   <Pressable 
                     style={styles.addPostButton}
                     onPress={() => {
-                      // TODO: Navigate to create post screen with game context
-                      router.push(`/create-post?gameId=${vm?.gameId || vm?.eventId}`);
+                      const targetGameId = vm?.gameId || vm?.eventId;
+                      if (!targetGameId) {
+                        Alert.alert('Create Post', 'Reload this event before creating a post.');
+                        return;
+                      }
+                      void router.push({
+                        pathname: '/create-post',
+                        params: { gameId: String(targetGameId), type: 'highlight' },
+                      } as any);
                     }}
                   >
                     <Ionicons name="add-circle" size={28} color={Colors[colorScheme].tint} />
@@ -2338,10 +2292,10 @@ const renderBanner = () => {
                         style={[styles.vsTeamCard, { backgroundColor: selected === 'A' ? bgOn : bgA } as any]}
                         onPress={() => {
                           if (selected === 'A') {
-                            handleClearVote();
+                            void handleClearVote();
                             if (!prefersReducedMotion) Animated.spring(vsScaleA, { toValue: 1, useNativeDriver: true }).start();
                           } else {
-                            handleVote('A');
+                            void handleVote('A');
                             if (!prefersReducedMotion) Animated.sequence([
                               Animated.spring(vsScaleA, { toValue: 1.06, useNativeDriver: true }),
                               Animated.spring(vsScaleA, { toValue: 1, useNativeDriver: true }),
@@ -2378,10 +2332,10 @@ const renderBanner = () => {
                         style={[styles.vsTeamCard, { backgroundColor: selected === 'B' ? bgOn : bgA } as any]}
                         onPress={() => {
                           if (selected === 'B') {
-                            handleClearVote();
+                            void handleClearVote();
                             if (!prefersReducedMotion) Animated.spring(vsScaleB, { toValue: 1, useNativeDriver: true }).start();
                           } else {
-                            handleVote('B');
+                            void handleVote('B');
                             if (!prefersReducedMotion) Animated.sequence([
                               Animated.spring(vsScaleB, { toValue: 1.06, useNativeDriver: true }),
                               Animated.spring(vsScaleB, { toValue: 1, useNativeDriver: true }),

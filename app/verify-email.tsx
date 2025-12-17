@@ -47,12 +47,9 @@ export default function VerifyEmailScreen() {
     const email = pendingVerificationEmail || user?.email;
     
     try {
-      if (__DEV__) console.log(`[verify-email] Verifying code for ${email}...`);
-      
       await User.verifyEmail(code.trim());
       const verifyDuration = Date.now() - startTime;
       
-      if (__DEV__) console.log(`[verify-email] ✅ Code verified in ${verifyDuration}ms`);
       captureException(new Error(`[TELEMETRY] Email verified in ${verifyDuration}ms`), {
         tags: { context: 'verify-email-success', duration_ms: String(verifyDuration) },
         extra: { email },
@@ -64,7 +61,6 @@ export default function VerifyEmailScreen() {
       
       // After successful verification, refresh auth state and navigate
       try {
-        if (__DEV__) console.log('[verify-email] Refreshing auth after verification...');
         await checkAuth();
 
         let destination: any = '/(tabs)/feed';
@@ -78,7 +74,6 @@ export default function VerifyEmailScreen() {
             await markOnboardingCompleteLocally();
           }
         } catch (profileError) {
-          console.error('[verify-email] Failed to fetch profile:', profileError);
           captureException(
             typeof profileError === 'string' ? new Error(profileError) : (profileError as Error),
             { tags: { context: 'verify-email-profile' }, extra: { email } }
@@ -89,7 +84,6 @@ export default function VerifyEmailScreen() {
           router.replace(destination);
         }, 1200);
       } catch (userError) {
-        console.error('[verify-email] Failed to refresh auth:', userError);
         captureException(
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
           { tags: { context: 'verify-email-refresh' }, extra: { email } }
@@ -99,7 +93,6 @@ export default function VerifyEmailScreen() {
       }
     } catch (e: any) {
       const errorDuration = Date.now() - startTime;
-      console.error(`[verify-email] Verification error after ${errorDuration}ms:`, e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
         extra: { email, code_length: String(code).length },
@@ -118,12 +111,9 @@ export default function VerifyEmailScreen() {
     const email = pendingVerificationEmail || user?.email;
     
     try {
-      if (__DEV__) console.log(`[verify-email] Requesting new code for ${email}...`);
-      
       const res: any = await User.requestVerification();
       const resendDuration = Date.now() - startTime;
       
-      if (__DEV__) console.log(`[verify-email] ✅ Code requested in ${resendDuration}ms`);
       captureException(new Error(`[TELEMETRY] Resend requested in ${resendDuration}ms`), {
         tags: { context: 'verify-email-resend-success', duration_ms: String(resendDuration) },
         extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
@@ -137,7 +127,6 @@ export default function VerifyEmailScreen() {
       }
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
-      console.error(`[verify-email] Resend failed after ${resendDuration}ms:`, e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
         extra: { email, error_code: e?.data?.error },
@@ -184,7 +173,6 @@ export default function VerifyEmailScreen() {
         setInfo('Dev code unavailable. Check backend configuration.');
       }
     } catch (e: any) {
-      console.error('[verify-email] Dev code fetch failed:', e);
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'verify-email-dev-code' },
       });

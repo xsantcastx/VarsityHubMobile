@@ -29,14 +29,14 @@ export default function RoleOnboardingScreen() {
   const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showCoachTierSelection, setShowCoachTierSelection] = useState(false);
   const logTelemetry = (event: string, data?: Record<string, unknown>) => {
-    try {
-    } catch (_error) {
-      // ignore logging failures
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log(`[RoleOnboarding] ${event}`, data || {});
     }
   };
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         const userRole = me?.role;
@@ -72,7 +72,7 @@ export default function RoleOnboardingScreen() {
         if (!userRole) {
           setShowAccountSelection(true);
         }
-      } catch (_error) {
+      } catch {
         setShowAccountSelection(true);
       }
     })();

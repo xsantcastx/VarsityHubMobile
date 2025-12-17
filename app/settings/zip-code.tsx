@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 
@@ -17,7 +17,7 @@ export default function ZipCodeScreen() {
   const [zip, setZip] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch (_error) {} })(); }, []);
+  useEffect(() => { void (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch {} })(); }, []);
 
   const onSave = async () => {
     const v = zip.trim();

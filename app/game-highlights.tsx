@@ -22,7 +22,7 @@ export default function GameHighlightsScreen() {
     } finally { setLoading(false); }
   }, [game_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const _loadMore = async () => {
     if (!game_id || !cursor) return;
@@ -46,7 +46,7 @@ export default function GameHighlightsScreen() {
         data={items}
         keyExtractor={(i) => String(i.id)}
         numColumns={3}
-        renderItem={({ item }) => (
+        renderItem={({ item: _item }) => (
           <Pressable>
             <View style={styles.cellVideo}>
               <Ionicons name="play" size={22} color="#fff" />
@@ -66,4 +66,3 @@ const styles = StyleSheet.create({
   cellVideo: { width: 110, height: 110, margin: 2, borderRadius: 8, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   muted: { color: '#6b7280', textAlign: 'center', marginTop: 16 },
 });
-

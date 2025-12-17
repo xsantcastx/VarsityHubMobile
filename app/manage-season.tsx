@@ -4,7 +4,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Game as GameAPI, Team as TeamAPI } from '@/api/entities';
@@ -115,11 +115,12 @@ export default function ManageSeasonScreen() {
         if (me?.preferences?.role !== 'coach') {
           router.replace('/(tabs)');
         }
-      } catch (_error) {}
+      } catch {}
     })().catch(() => {});
   }, [router]);
 
   const loadTeam = useCallback(async () => {
+    setLoading(true);
     try {
       if (params.teamId) {
         const teamData = await TeamAPI.get(params.teamId);
@@ -146,6 +147,8 @@ export default function ManageSeasonScreen() {
       }
     } catch (error) {
       console.error('Error loading team:', error);
+    } finally {
+      setLoading(false);
     }
   }, [params.teamId, router]);
 
@@ -503,6 +506,7 @@ export default function ManageSeasonScreen() {
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit', onPress: () => handleEditGame(game) },
+        { label: 'Change Status', onPress: () => handleChangeGameStatus(game) },
         { label: 'Delete', isDestructive: true, onPress: () => handleDeleteGame(game) },
       ],
     });
@@ -949,10 +953,14 @@ export default function ManageSeasonScreen() {
   };
 
   const handleSchedulePlayoffGame = (matchup: PlayoffMatchup) => {
+    const matchupLabel =
+      matchup.team1 && matchup.team2
+        ? `${matchup.team1.name} vs ${matchup.team2.name}`
+        : 'Enter playoff matchup details';
     setPromptModal({
       visible: true,
       title: 'Schedule Game',
-      message: 'Enter game date (YYYY-MM-DD):',
+      message: `${matchupLabel}\nEnter game date (YYYY-MM-DD):`,
       defaultValue: new Date().toISOString().split('T')[0],
       onSubmit: (dateInput) => {
         if (dateInput) {
@@ -1038,6 +1046,62 @@ export default function ManageSeasonScreen() {
           </View>
         </View>
       </CustomActionModal>
+
+      {/* Team selector modal */}
+      <CustomActionModal
+        visible={teamSelectorOpen}
+        title="Select a Team"
+        message={
+          managedTeams.length
+            ? 'Choose which roster you would like to manage.'
+            : 'You do not manage any teams yet.'
+        }
+        options={
+          managedTeams.length
+            ? [{ label: 'Close', onPress: () => setTeamSelectorOpen(false), color: undefined }]
+            : [
+                { label: 'Cancel', onPress: () => setTeamSelectorOpen(false), color: undefined },
+                {
+                  label: 'Create Team',
+                  onPress: () => { void router.push('/create-team'); },
+                  color: Colors[colorScheme].tint,
+                },
+              ]
+        }
+        onClose={() => setTeamSelectorOpen(false)}
+      >
+        {managedTeams.length > 0 ? (
+          <View style={{ width: '100%', gap: 12 }}>
+            {managedTeams.map((team) => (
+              <Pressable
+                key={team.id}
+                style={[
+                  styles.teamOptionButton,
+                  { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface },
+                ]}
+                onPress={() => {
+                  setCurrentTeam(team);
+                  setTeamSelectorOpen(false);
+                }}
+              >
+                <Ionicons name="shield-outline" size={18} color={Colors[colorScheme].tint} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: Colors[colorScheme].text }}>
+                    {team.name}
+                  </Text>
+                  <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>
+                    Tap to switch to this team
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Text style={{ textAlign: 'center', color: Colors[colorScheme].mutedText }}>
+            Create a team to unlock the season dashboard.
+          </Text>
+        )}
+      </CustomActionModal>
       <Stack.Screen 
         options={{ 
           title: 'Manage Season',
@@ -1065,6 +1129,15 @@ export default function ManageSeasonScreen() {
         </View>
       </View>
 
+      {loading && (
+        <View style={[styles.loadingState, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <ActivityIndicator color={Colors[colorScheme].tint} />
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
+            Refreshing season data...
+          </Text>
+        </View>
+      )}
+
       {/* Quick Actions - SIMPLIFIED: Add Event Only */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
         <Pressable 
@@ -1074,6 +1147,70 @@ export default function ManageSeasonScreen() {
           <Ionicons name="add-outline" size={20} color="#fff" />
           <Text style={styles.quickActionText}>Add Event</Text>
         </Pressable>
+      </View>
+
+      {/* Season snapshot */}
+      <View style={[
+        styles.statsGradient,
+        { backgroundColor: Colors[colorScheme].tint, borderColor: Colors[colorScheme].border }
+      ]}>
+        <View style={styles.seasonHeader}>
+          <View style={styles.seasonInfo}>
+            <Text style={styles.seasonTitle}>{currentTeam?.name || 'Season Overview'}</Text>
+            <Text style={styles.seasonSubtitle}>
+              {seasonStats.gamesPlayed} / {seasonStats.totalGames} games played
+            </Text>
+          </View>
+          <View style={styles.settingsButton}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>{getWinPercentage()}%</Text>
+          </View>
+        </View>
+        <View style={styles.statsGrid}>
+          {[
+            { label: 'Wins', value: seasonStats.wins },
+            { label: 'Losses', value: seasonStats.losses },
+            { label: 'Points For', value: seasonStats.pointsFor },
+            { label: 'Points Against', value: seasonStats.pointsAgainst },
+          ].map((stat) => (
+            <View key={stat.label} style={styles.statItem}>
+              <Text style={styles.statNumber}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Tab controls */}
+      <View style={[
+        styles.tabContainer,
+        { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border, borderWidth: StyleSheet.hairlineWidth }
+      ]}>
+        {(['schedule', 'standings', 'playoffs'] as const).map((tabKey) => {
+          const isActive = selectedTab === tabKey;
+          const label =
+            tabKey === 'schedule' ? 'Schedule' : tabKey === 'standings' ? 'Standings' : 'Playoffs';
+          return (
+            <Pressable
+              key={tabKey}
+              style={[
+                styles.tab,
+                {
+                  backgroundColor: isActive ? Colors[colorScheme].tint : 'transparent',
+                },
+              ]}
+              onPress={() => setSelectedTab(tabKey)}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  { color: isActive ? '#fff' : Colors[colorScheme].text },
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Main Content - No Tabs, Just Schedule */}
@@ -1589,6 +1726,10 @@ const styles = StyleSheet.create({
   },
   statsGradient: {
     padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   seasonHeader: {
     flexDirection: 'row',
@@ -1622,9 +1763,12 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    rowGap: 12,
   },
   statItem: {
-    alignItems: 'center',
+    width: '48%',
+    alignItems: 'flex-start',
   },
   statNumber: {
     fontSize: 20,
@@ -1661,6 +1805,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  loadingState: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  teamOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   tabContainer: {
     flexDirection: 'row',

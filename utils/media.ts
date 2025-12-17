@@ -25,7 +25,7 @@ export function normalizeMediaUrl(input?: string | null): string | null {
       return parsed.toString();
     }
     return parsed.toString();
-  } catch (_error) {
+  } catch {
     return url;
   }
 }

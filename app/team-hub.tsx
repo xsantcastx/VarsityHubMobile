@@ -59,7 +59,7 @@ export default function TeamHubScreen() {
         if (mounted) setEventsLoading(false);
       }
     };
-    loadEvents();
+    void loadEvents();
     return () => { mounted = false; };
   }, []);
 

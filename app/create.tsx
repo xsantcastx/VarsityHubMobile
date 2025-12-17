@@ -11,7 +11,7 @@ export default function CreateScreen() {
   const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);
   const verified = !!me?.email_verified;
-  useEffect(() => { (async () => { try { const u = await User.me(); setMe(u); } catch (_error) {} })(); }, []);
+  useEffect(() => { void (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
   const go = (path: string) => {
     if (!verified) return void router.push('/verify-email');
     void router.push(path as any);
@@ -86,4 +86,3 @@ const styles = StyleSheet.create({
   cancel: {},
   itemText: { fontWeight: '700' },
 });
-

@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
 
@@ -21,7 +21,7 @@ export default function GamePhotosScreen() {
     } finally { setLoading(false); }
   }, [game_id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const _loadMore = async () => {
     if (!game_id || !cursor) return;

@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import {
     Alert,
     Image,
+    Linking,
     Modal,
     Platform,
     Pressable,
@@ -566,7 +567,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!pickerResult.canceled && pickerResult.assets[0]) {
         await uploadCustomBanner(pickerResult.assets[0].uri);
       }
-    } catch (_error) {
+    } catch {
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
@@ -590,7 +591,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
       if (!pickerResult.canceled && pickerResult.assets[0]) {
         await uploadCustomBanner(pickerResult.assets[0].uri);
       }
-    } catch (_error) {
+    } catch {
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
@@ -666,9 +667,21 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
             }
           </Text>
           
-          <Pressable style={styles.headerButton} onPress={handleSave}>
-            <Text style={[styles.headerButtonText, { color: Colors[colorScheme].tint }]}>
-              {initialData ? 'Save' : 'Add'}
+          <Pressable
+            style={[
+              styles.headerButton,
+              uploadingBanner && styles.headerButtonDisabled,
+            ]}
+            onPress={handleSave}
+            disabled={uploadingBanner}
+          >
+            <Text
+              style={[
+                styles.headerButtonText,
+                { color: uploadingBanner ? Colors[colorScheme].mutedText : Colors[colorScheme].tint },
+              ]}
+            >
+              {uploadingBanner ? 'Generating...' : initialData ? 'Save' : 'Add'}
             </Text>
           </Pressable>
         </View>
@@ -1027,7 +1040,7 @@ export default function QuickAddGameModal({ visible, onClose, onSave, currentTea
                         // Open in browser or maps app
                         Alert.alert('Open in Maps', 'This will open Google Maps', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Open', onPress: () => { /* TODO: open maps app */ } }
+                          { text: 'Open', onPress: () => { void Linking.openURL(url); } }
                         ]);
                       }}
                     >
@@ -1477,6 +1490,9 @@ const styles = StyleSheet.create({
   headerButton: {
     paddingVertical: 8,
     paddingHorizontal: 4,
+  },
+  headerButtonDisabled: {
+    opacity: 0.6,
   },
   headerButtonText: {
     fontSize: 16,

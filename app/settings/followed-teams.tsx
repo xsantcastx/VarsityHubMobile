@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { Stack } from 'expo-router';
 import { httpGet } from '@/api/http';
+import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 export default function FollowedTeamsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
-  useEffect(() => { (async () => {
+  useEffect(() => { void (async () => {
     setLoading(true); setError(null);
     try { const rows = await httpGet('/follows/teams?user_id=me'); setItems(Array.isArray(rows) ? rows : []); }
     catch (e: any) { setError(e?.message || 'Failed to load'); }

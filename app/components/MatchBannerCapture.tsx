@@ -1,7 +1,7 @@
 import { uploadFile } from '@/api/upload';
 import { getApiBaseUrl } from '../../api/http';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import MatchBanner from './MatchBanner';
 

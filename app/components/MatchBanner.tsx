@@ -2,7 +2,6 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Dimensions, Easing, Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MatchBannerLottie from './MatchBannerLottie';
 import MatchBannerOverlayLayer from './MatchBannerOverlayLayer';
 
@@ -37,16 +36,12 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
   const vsAnim = vsAnimRef.current;
   const sparkleAnimRef = useRef(new Animated.Value(0));
   const sparkleAnim = sparkleAnimRef.current;
-  const insets = useSafeAreaInsets()
   const [lottieLoaded, setLottieLoaded] = useState(false)
   const handleLottieLoaded = useCallback((v: boolean) => {
     setLottieLoaded(v);
   }, []);
   const rightAnimRef = useRef(new Animated.Value(0))
   const rightAnim = rightAnimRef.current
-  const [leftMeasured, _setLeftMeasured] = useState({ width: 0, fontSize: 34 })
-  const [rightMeasured, _setRightMeasured] = useState({ width: 0, fontSize: 28 })
-
   useEffect(() => {
     let mounted = true;
 
@@ -58,17 +53,17 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
       try {
         const enabled = await AccessibilityInfo.isReduceMotionEnabled();
         if (mounted) update(enabled);
-      } catch (_error) {}
+      } catch {}
     };
 
-    fetch();
+    void fetch();
     const subscription = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (enabled) => update(enabled));
     return () => {
       mounted = false;
       if (subscription && typeof subscription.remove === 'function') {
         subscription.remove();
       } else if (subscription) {
-        try { (subscription as any)(); } catch (_error) {}
+        try { (subscription as any)(); } catch {}
       }
     };
   }, []);
@@ -131,15 +126,12 @@ export default function MatchBanner({ leftImage, rightImage, leftName = '', righ
   const glow = reduceMotionEnabled ? 1 : vsAnim.interpolate({ inputRange: [0, 1], outputRange: [hero ? 0.7 : 0.6, 1] });
 
   const compact = variant === 'compact';
-  const topBarBaseHeight = compact ? 36 : 44
   const shouldAnimate = !reduceMotionEnabled;
   const containerBackground = colorScheme === 'dark' ? '#020617' : '#e2e8f0';
-  const topBarHeight = topBarBaseHeight + Math.max(0, insets.top)
 
   // adaptive font sizes for long names
   const leftFontSize = compact ? (leftName.length > 18 ? 16 : 20) : (leftName.length > 20 ? 28 : 34)
   const rightFontSize = compact ? (rightName.length > 18 ? 14 : 16) : (rightName.length > 20 ? 22 : 28)
-  const rightRotate = rightAnim.interpolate({ inputRange: [0, 1], outputRange: ['16deg', '26deg'] }) as any
 
   // Combine headerFade (if provided) with local vs scale/glow for entrance
   const rootOpacity = headerFade ? headerFade : 1;

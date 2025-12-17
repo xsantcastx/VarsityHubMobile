@@ -85,7 +85,7 @@ export default function CreatePostScreen() {
       return;
     }
 
-    (async () => {
+    void (async () => {
       try {
         const { Image: RNImageModule } = require('react-native');
         RNImageModule.getSize(
@@ -103,7 +103,7 @@ export default function CreatePostScreen() {
         setMediaDimensions(null);
       }
     })();
-  }, [picked?.uri, picked?.type]);
+  }, [picked]);
 
   // Rotate placeholder prompts
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function CreatePostScreen() {
   useEffect(() => {
     if (!gameId) return;
     
-    (async () => {
+    void (async () => {
       try {
         const game = await Game.get(gameId);
         if (game) {
@@ -154,7 +154,7 @@ export default function CreatePostScreen() {
     // If we have permission but no coordinates yet, wait before attempting auto-suggest
     if (permissionGranted && !locationReady) return;
     
-    (async () => {
+    void (async () => {
       try {
         const now = new Date();
         const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -246,7 +246,7 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch (_error) {}
+        } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
     }
@@ -302,7 +302,7 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch (error) {}
+        } catch {}
       }
       setPicked({ uri, type: media, mime: mimeType });
     }
@@ -336,7 +336,7 @@ export default function CreatePostScreen() {
     
     try {
       // Ensure user is authenticated
-      try { await User.me(); } catch (_error) { throw new Error('Please sign in to create a post.'); }
+      try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
       let finalMediaUrl = '';
       if (picked?.uri) {
         const { getApiBaseUrl } = await import('../api/http');
@@ -472,7 +472,7 @@ export default function CreatePostScreen() {
             <Text style={[styles.nearbyGamesHint, { color: Colors[colorScheme].mutedText }]}>
               Select a game to attach your post to
             </Text>
-            {nearbyGames.slice(0, 3).map((game, idx) => (
+            {nearbyGames.slice(0, 3).map((game) => (
               <Pressable
                 key={game.id}
                 style={[styles.nearbyGameCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}

@@ -2,11 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
 import {
-  sendJoinRequestApproved,
-  sendJoinRequestDenied,
-  sendMembershipDecisionEmail,
-  sendOrganizationInviteEmail,
-  sendPlanLimitWarningEmail,
+    sendOrganizationInvitationEmail,
+    sendPlanLimitWarningEmail,
+    sendStaffMemberJoinedEmail
 } from '../lib/email.js';
 import { sendOrganizationApprovalEmail } from '../lib/notifications.js';
 import { getAuthorizedUsersOrgLimit, getPlanDisplayName, resolvePlan } from '../lib/planLimits.js';
@@ -229,6 +227,7 @@ const createOrganizationSchema = z.object({
 
 // Create organization
 organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   // Enforce coach role and plan limits
   const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
@@ -366,6 +365,7 @@ const createOrganizationWithTeamsSchema = z.object({
 
 // Enhanced create organization for onboarding
 organizationsRouter.post('/create', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   // Enforce coach role and plan limits
   const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
@@ -488,13 +488,16 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
         skipDuplicates: true,
       });
       // Send invite emails (best effort)
-      const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
+      const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
       await Promise.all(invites.map(inv => 
-        sendOrganizationInviteEmail({
+        sendOrganizationInvitationEmail({
           to: inv.email,
+          recipientName: inv.email.split('@')[0],
+          inviterName: inviter?.display_name || 'An organizer',
           organizationName: organization.name,
           role: inv.role,
-          inviterName: inviter?.display_name || 'An organizer',
+          acceptLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites?invite=${organization.id}`,
+          declineLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites/${organization.id}/decline`,
         }).catch(() => false)
       ));
     }
@@ -559,13 +562,16 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
   });
   // Send email (best effort)
   const org = await prisma.organization.findUnique({ where: { id }, select: { name: true } });
-  const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true } });
+  const inviter = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { display_name: true, email: true } });
   if (org) {
-    await sendOrganizationInviteEmail({
+    await sendOrganizationInvitationEmail({
       to: email,
+      recipientName: email.split('@')[0],
+      inviterName: inviter?.display_name || 'An organizer',
       organizationName: org.name,
       role: role || 'member',
-      inviterName: inviter?.display_name || 'An organizer',
+      acceptLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites?invite=${invite.id}`,
+      declineLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organization-invites/${invite.id}/decline`,
     }).catch(() => false);
   }
   
@@ -592,7 +598,10 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  const invite = await prisma.organizationInvite.findUnique({ where: { id: inviteId } });
+  const invite = await prisma.organizationInvite.findUnique({ 
+    where: { id: inviteId },
+    include: { organization: true }
+  });
   if (!invite || invite.email !== user.email || invite.status !== 'pending') {
     return res.status(404).json({ error: 'Invite not found or not valid' });
   }
@@ -607,10 +616,45 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
   ]);
   
   // Send welcome email
-  const org = await prisma.organization.findUnique({ where: { id: invite.organization_id }, select: { name: true } });
-  if (org) {
-    await sendOrganizationApprovalEmail({ to: user.email, organizationName: org.name }).catch(err => 
+  if (invite.organization) {
+    await sendOrganizationApprovalEmail({ to: user.email, organizationName: invite.organization.name }).catch(err => 
       console.warn('[org-invite-accept] Email send failed:', err)
+    );
+    
+    // Send staff member joined notification to organization admins
+    const admins = await prisma.organizationMembership.findMany({
+      where: {
+        organization_id: invite.organization_id,
+        role: { in: ['owner', 'manager', 'administrator'] },
+        user_id: { not: user.id },
+        status: 'active'
+      },
+      include: { user: true }
+    });
+    
+    const joinedDate = new Date().toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'America/Chicago',
+    });
+    
+    await Promise.all(
+      admins.map(admin => 
+        sendStaffMemberJoinedEmail({
+          to: admin.user.email!,
+          recipientName: admin.user.display_name || admin.user.email!,
+          newMemberName: user.display_name || user.email,
+          memberRole: invite.role,
+          teamName: invite.organization.name,
+          joinedDate: joinedDate,
+          organizationName: invite.organization.name,
+          viewTeamLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organizations/${invite.organization_id}/members`,
+          manageStaffLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/organizations/${invite.organization_id}/staff`,
+        }).catch((err: Error) => {
+          console.error('[organizations] Failed to send staff member joined email:', err);
+        })
+      )
     );
   }
   
@@ -958,32 +1002,33 @@ organizationsRouter.post('/join-requests/:requestId/approve', requireAuth as any
     })
   ]);
   
-  // Send approval email to user (new template with fallback)
+  // Send approval email to user (disabled - templates removed from approved list)
   const adminUser = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: { display_name: true }
   });
   
-  let membershipEmailSent = false;
-  try {
-    membershipEmailSent = await sendMembershipDecisionEmail({
-      to: joinRequest.user.email,
-      teamName: joinRequest.organization.name,
-      organizationName: joinRequest.organization.name,
-      approved: true,
-    });
-  } catch (err) {
-    console.warn('[org-join] membership approval email failed:', (err as any)?.message || err);
-  }
+  // DISABLED: sendMembershipDecisionEmail and sendJoinRequestApproved - templates removed
+  // let membershipEmailSent = false;
+  // try {
+  //   membershipEmailSent = await sendMembershipDecisionEmail({
+  //     to: joinRequest.user.email,
+  //     teamName: joinRequest.organization.name,
+  //     organizationName: joinRequest.organization.name,
+  //     approved: true,
+  //   });
+  // } catch (err) {
+  //   console.warn('[org-join] membership approval email failed:', (err as any)?.message || err);
+  // }
   
-  if (!membershipEmailSent) {
-    await sendJoinRequestApproved({
-      userEmail: joinRequest.user.email,
-      userName: joinRequest.user.display_name || 'User',
-      organizationName: joinRequest.organization.name,
-      adminName: adminUser?.display_name || 'Admin',
-    });
-  }
+  // if (!membershipEmailSent) {
+  //   await sendJoinRequestApproved({
+  //     userEmail: joinRequest.user.email,
+  //     userName: joinRequest.user.display_name || 'User',
+  //     organizationName: joinRequest.organization.name,
+  //     adminName: adminUser?.display_name || 'Admin',
+  //   });
+  // }
   
   return res.json({ message: 'Join request approved' });
 });
@@ -1046,27 +1091,27 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
     }
   });
   
-  // Send denial email to user (new template with fallback)
-  let denialEmailSent = false;
-  try {
-    denialEmailSent = await sendMembershipDecisionEmail({
-      to: joinRequest.user.email,
-      teamName: joinRequest.organization.name,
-      organizationName: joinRequest.organization.name,
-      approved: false,
-    });
-  } catch (err) {
-    console.warn('[org-join] membership denial email failed:', (err as any)?.message || err);
-  }
+  // DISABLED: sendMembershipDecisionEmail and sendJoinRequestDenied - templates removed
+  // let denialEmailSent = false;
+  // try {
+  //   denialEmailSent = await sendMembershipDecisionEmail({
+  //     to: joinRequest.user.email,
+  //     teamName: joinRequest.organization.name,
+  //     organizationName: joinRequest.organization.name,
+  //     approved: false,
+  //   });
+  // } catch (err) {
+  //   console.warn('[org-join] membership denial email failed:', (err as any)?.message || err);
+  // }
   
-  if (!denialEmailSent) {
-    await sendJoinRequestDenied({
-      userEmail: joinRequest.user.email,
-      userName: joinRequest.user.display_name || 'User',
-      organizationName: joinRequest.organization.name,
-      reason: reason,
-    });
-  }
+  // if (!denialEmailSent) {
+  //   await sendJoinRequestDenied({
+  //     userEmail: joinRequest.user.email,
+  //     userName: joinRequest.user.display_name || 'User',
+  //     organizationName: joinRequest.organization.name,
+  //     reason: reason,
+  //   });
+  // }
   
   return res.json({ message: 'Join request denied' });
 });

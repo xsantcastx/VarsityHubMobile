@@ -21,7 +21,7 @@ export default function ReportAbuseScreen() {
 
   useEffect(() => {
     let canceled = false;
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         if (canceled) return;
@@ -31,7 +31,7 @@ export default function ReportAbuseScreen() {
         if (typeof me?.email === 'string' && !email) {
           setEmail(me.email);
         }
-      } catch (_error) {
+      } catch {
         // Ignore, user can fill fields manually.
       }
     })();
@@ -52,14 +52,19 @@ export default function ReportAbuseScreen() {
 
     setSubmitting(true);
     try {
+      const compiledMessage = [
+        details.trim(),
+        accused.trim() ? `Reported user: ${accused.trim()}` : null,
+        contextUrl.trim() ? `Context: ${contextUrl.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
       await Support.contact({
         name: name.trim() || 'VarsityHub user',
         email: email.trim(),
         subject: subject.trim(),
-        message: details.trim(),
-        reported_user_email: accused.trim() || undefined,
-        reported_user_name: accused.trim() || undefined,
-        context_url: contextUrl.trim() || undefined,
+        message: compiledMessage,
       });
       Alert.alert(
         'Report sent',

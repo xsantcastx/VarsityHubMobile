@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
@@ -69,7 +69,7 @@ export default function EditTeamScreen() {
 
   useEffect(() => {
     if (params?.id) {
-      loadTeam();
+      void loadTeam();
     }
   }, [loadTeam, params?.id]);
 
@@ -613,4 +613,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

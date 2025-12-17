@@ -17,6 +17,7 @@ import { initSentry } from '@/utils/sentry';
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
+    // eslint-disable-next-line no-console
     console.log(...args);
   }
 };
@@ -41,7 +42,7 @@ if (Platform.OS === 'web' && __DEV__) {
 //     setTimeout(() => {
 //       captureException(new Error('Sentry smoke test: dev boot'));
 //     }, 300);
-//   } catch (_error) {}
+//   } catch {}
 // }
 
 export default function RootLayout() {
@@ -126,7 +127,10 @@ export default function RootLayout() {
             devLog('[Notifications] Unknown notification type:', data.type);
         }
       } catch (error) {
-        console.error('[Notifications] Navigation error:', error);
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.error('[Notifications] Navigation error:', error);
+        }
       }
     });
 

@@ -2,10 +2,9 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface TeamStats {
   gamesPlayed: number;
@@ -39,11 +38,8 @@ interface PlayerStat {
 }
 
 export default function SeasonStatsScreen() {
-  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   
-  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'team' | 'players' | 'games'>('team');
 

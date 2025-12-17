@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -208,6 +209,14 @@ export default function AddGameModal({ visible, onClose, onSave, currentTeamName
 
         <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
           <View style={styles.form}>
+            {loadingTeams && (
+              <View style={styles.loadingTeamsRow}>
+                <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+                <Text style={{ color: Colors[colorScheme].mutedText, marginLeft: 8, fontWeight: '600' }}>
+                  Fetching your teams...
+                </Text>
+              </View>
+            )}
             
             {/* Current Team */}
             <View style={styles.formSection}>
@@ -731,6 +740,11 @@ const styles = StyleSheet.create({
   },
   form: {
     padding: 20,
+  },
+  loadingTeamsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   formSection: {
     marginBottom: 24,

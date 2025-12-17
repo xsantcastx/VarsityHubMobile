@@ -169,7 +169,7 @@ export default function CommunityDiscoverScreen() {
       try {
         const trending = await Post.trendingPage(undefined, 20);
         items = Array.isArray(trending.items) ? trending.items : [];
-      } catch (error) {
+      } catch {
         const postsPage = await Post.listPage(undefined, 20, '-created_date');
         items = Array.isArray(postsPage.items) ? postsPage.items : [];
       }
@@ -684,7 +684,7 @@ export default function CommunityDiscoverScreen() {
                           } else {
                             await User.unfollow(authorId);
                           }
-                        } catch (error) {
+                        } catch {
                           // Revert on failure
                           setFollowingPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));
                           setDiscoverPosts((prev) => prev.map((item) => item.id === p.id ? { ...item, is_following_author: !nextVal } : item));

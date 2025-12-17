@@ -165,7 +165,7 @@ function getTierBenefits(tier: CoachTier) {
   switch (tier) {
     case 'legend':
       return {
-        price: '$19.99/year',
+        price: '$20/year',
         description: 'Best value for established multi-team programs',
         features: [
           'Unlimited teams',

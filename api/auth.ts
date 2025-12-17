@@ -13,7 +13,7 @@ async function saveToken(token: string | null) {
     } else {
       await SecureStore.setItemAsync(TOKEN_KEY, token || '');
     }
-  } catch (_error) {}
+  } catch {}
 }
 
 export async function loadToken(): Promise<string | null> {
@@ -23,7 +23,7 @@ export async function loadToken(): Promise<string | null> {
   try {
     if (Platform.OS === 'web') t = window.localStorage.getItem(TOKEN_KEY);
     else t = await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch (_error) {}
+  } catch {}
   if (t) setAuthToken(t);
   return t;
 }
@@ -64,7 +64,7 @@ export const auth = {
     } catch (e: any) {
       // Only clear session on explicit unauthenticated (401).
       if (e && e.status === 401) {
-        try { await auth.logout(); } catch (_error) {}
+        try { await auth.logout(); } catch {}
       }
       throw e;
     }
@@ -74,7 +74,7 @@ export const auth = {
     try {
       if (Platform.OS === 'web') window.localStorage.removeItem(TOKEN_KEY);
       else await SecureStore.deleteItemAsync(TOKEN_KEY);
-    } catch (_error) {}
+    } catch {}
   },
   async requestEmailVerification() {
     await loadToken();
@@ -90,8 +90,14 @@ export const auth = {
   async resetPassword(email: string, code: string, password: string) {
     return httpPost('/auth/password/reset', { email, code, password });
   },
+  async changePassword(currentPassword: string, newPassword: string) {
+    await loadToken();
+    return httpPost('/auth/password/change', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  },
   getToken: loadToken,
 };
 
 export default auth;
-

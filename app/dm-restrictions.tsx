@@ -17,7 +17,7 @@ export default function DMRestrictionsScreen() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       const p = await settingsStore.getString(SETTINGS_KEYS.DM_POLICY, 'everyone');
       if (!mounted) return;
       setPolicy((p as Policy) || 'everyone');

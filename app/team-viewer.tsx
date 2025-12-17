@@ -110,7 +110,7 @@ export default function TeamViewerScreen() {
   }, [params.id]);
 
   useEffect(() => {
-    loadTeamData();
+    void loadTeamData();
   }, [loadTeamData]);
 
   const onRefresh = useCallback(async () => {

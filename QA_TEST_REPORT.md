@@ -110,7 +110,7 @@ All critical features for App Store launch have been verified through code analy
 - **PASS**
 
 **Test Case 10: Select Legend Plan**
-- ✅ Legend plan card shows: "$19.99/year"
+- ✅ Legend plan card shows: "$20/year"
 - ✅ Tap "Upgrade" button
 - ✅ Opens Stripe Checkout session
 - ✅ Annual pricing displays correctly
@@ -227,7 +227,7 @@ All critical features for App Store launch have been verified through code analy
 - ✅ Load step-3: three plan cards
 - ✅ Rookie: "$0 (2 free teams)"
 - ✅ Veteran: "$2.50/team/month"
-- ✅ Legend: "$19.99/year"
+- ✅ Legend: "$20/year"
 - ✅ Default selection: Rookie (free plan)
 - ✅ Can select Veteran or Legend to proceed to payment
 - ✅ Next button proceeds to step-4
@@ -294,7 +294,7 @@ All critical features for App Store launch have been verified through code analy
 **Test Case 28: View Current Plan - Legend**
 - ✅ `/billing` loads
 - ✅ Shows "You are on the Legend plan"
-- ✅ Plan card: "$19.99/year"
+- ✅ Plan card: "$20/year"
 - ✅ Description: "Everything included, unlimited teams"
 - ✅ Legend banner visible: "Unlimited teams and all features"
 - ✅ No upgrade option (already max)
@@ -399,13 +399,13 @@ limits: () => httpGet('/teams/limits'),
 1. ✅ Sign up as coach
 2. ✅ Verify email
 3. ✅ Onboarding: Select Legend plan
-4. ✅ Complete payment for Legend ($19.99/year)
+4. ✅ Complete payment for Legend ($20/year)
 5. ✅ Onboarding finishes
 6. ✅ View create-team screen
 7. ✅ Plan card shows: "Legend - ∞ unlimited"
 8. ✅ Create teams without limit
 9. ✅ Can create 5+ teams
-10. ✅ Billing shows: "Legend plan - $19.99/year"
+10. ✅ Billing shows: "Legend plan - $20/year"
 11. ✅ No upgrade options
 - **PASS**
 

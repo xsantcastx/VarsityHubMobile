@@ -3,7 +3,7 @@ import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
@@ -16,10 +16,9 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const colorScheme = useColorScheme();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
-  const { registerPushToken, checkAuth, user } = useAuth();
+  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { registerPushToken, user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
@@ -30,21 +29,18 @@ export default function Step9Features() {
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
     if (!user) {
-      console.warn('[Step9Features] Unauthenticated user - redirecting to sign-in');
       router.replace('/sign-in');
     }
   }, [user, router]);
 
   const styles = useMemo(() => createStyles(colorScheme), [colorScheme]);
 
-  const returnToConfirmation = params.returnToConfirmation === 'true';
-
   useEffect(() => {
     let cancelled = false;
     // Skip auto-registration on simulators or when the toggle is off
     if (!notificationsEnabled || !isDevice) return;
 
-    (async () => {
+    void (async () => {
       const granted = await registerPushToken();
       if (!cancelled && !granted) {
         setNotificationsEnabled(false);
@@ -58,7 +54,7 @@ export default function Step9Features() {
     return () => {
       cancelled = true;
     };
-  }, [notificationsEnabled, registerPushToken]);
+  }, [notificationsEnabled, registerPushToken, isDevice]);
 
   const enableLocation = async () => {
     if (locationEnabled) {
@@ -77,16 +73,13 @@ export default function Step9Features() {
           [{ text: 'OK' }]
         );
       }
-    } catch (error) {
-      console.error('Error requesting location permission:', error);
+    } catch {
       Alert.alert('Error', 'Unable to request location permission. You can enable this later in settings.');
     }
   };
 
   const handleNotificationsToggle = useCallback(
     (value: boolean) => {
-      console.log('Push notifications toggle clicked:', value);
-
       if (value && !isDevice) {
         // Simulators can't receive push tokens; avoid failing the flow with a noisy alert
         Alert.alert(

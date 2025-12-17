@@ -7,6 +7,21 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
+
+type ProfilePreferences = {
+  role?: string | null;
+  plan?: string | null;
+  position?: string | null;
+  jersey_number?: string | number | null;
+  grade_level?: string | null;
+  graduation_year?: string | number | null;
+  accolades?: string | null;
+  primary_sport?: Sport | string | null;
+  sport?: string | null;
+  header_image_url?: string | null;
+  header_image_focus_y?: number | null;
+  location?: string | null;
+};
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -405,12 +420,10 @@ export default function ProfileScreen() {
     }
   }, [interCursor, interHasMore, interLoading, interType, sort]);
 
-  const preferences = me?.preferences as { role?: string | null; plan?: string | null } | null;
+  const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
-  const planLabel = typeof preferences?.plan === 'string' ? preferences.plan : null;
-  const formattedPlan = planLabel ? `${planLabel.charAt(0).toUpperCase()}${planLabel.slice(1)}` : null;
   const name = me?.display_name || me?.username || 'User';
   
   // Athlete-specific data from preferences
@@ -423,9 +436,9 @@ export default function ProfileScreen() {
   const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
-  const heroGradientColors = headerBackgroundImage
+  const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : getGradientForColor(userThemeColor);
+    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
   
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },

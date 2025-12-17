@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ const Audio = {
   },
   RecordingOptionsPresets: { HIGH_QUALITY: {} },
   Sound: {
-    createAsync: (source: any, initialStatus?: any) => Promise.resolve({ sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() } })
+    createAsync: (_source: any, _initialStatus?: any) => Promise.resolve({ sound: { playAsync: () => Promise.resolve(), unloadAsync: () => Promise.resolve() } })
   }
 };
 
@@ -79,7 +79,6 @@ interface TeamMember {
 
 export default function TeamChatScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   
   // Modal state for replacing Alert.alert
@@ -102,7 +101,6 @@ export default function TeamChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   // const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recording, setRecording] = useState<any>(null);
-  const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [audioPosition, setAudioPosition] = useState<{ [key: string]: number }>({});
@@ -186,7 +184,7 @@ export default function TeamChatScreen() {
 
   // Animated typing dots
   const startTypingAnimation = useCallback(() => {
-    const animateDot = (animValue: Animated.Value, delay: number) => {
+    const animateDot = (animValue: Animated.Value) => {
       Animated.loop(
         Animated.sequence([
           Animated.timing(animValue, {
@@ -205,9 +203,9 @@ export default function TeamChatScreen() {
     };
 
     // Start animations with staggered delays
-    setTimeout(() => animateDot(dot1Anim, 0), 0);
-    setTimeout(() => animateDot(dot2Anim, 200), 200);
-    setTimeout(() => animateDot(dot3Anim, 400), 400);
+    setTimeout(() => animateDot(dot1Anim), 0);
+    setTimeout(() => animateDot(dot2Anim), 200);
+    setTimeout(() => animateDot(dot3Anim), 400);
   }, [dot1Anim, dot2Anim, dot3Anim]);
 
   const stopTypingAnimation = useCallback(() => {
@@ -240,53 +238,7 @@ export default function TeamChatScreen() {
     ]).start();
   }, [messageAnimations]);
 
-  const animateReaction = useCallback((reactionRef: Animated.Value) => {
-    Animated.sequence([
-      Animated.spring(reactionRef, {
-        toValue: 1.3,
-        tension: 300,
-        friction: 5,
-        useNativeDriver: true,
-      }),
-      Animated.spring(reactionRef, {
-        toValue: 1,
-        tension: 300,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  // Mock files data
-  const mockFiles = useMemo(() => [
-    {
-      id: '1',
-      name: 'Team_Roster_2024.pdf',
-      size: '2.5 MB',
-      type: 'pdf',
-      uploadedBy: 'Coach Johnson',
-      uploadedAt: '2025-09-20T14:30:00Z',
-      url: 'https://example.com/roster.pdf',
-    },
-    {
-      id: '2',
-      name: 'Practice_Schedule.xlsx',
-      size: '1.2 MB',
-      type: 'excel',
-      uploadedBy: 'Alex Wilson',
-      uploadedAt: '2025-09-22T09:15:00Z',
-      url: 'https://example.com/schedule.xlsx',
-    },
-    {
-      id: '3',
-      name: 'Team_Photo_Sept.jpg',
-      size: '5.8 MB',
-      type: 'image',
-      uploadedBy: 'Sarah Johnson',
-      uploadedAt: '2025-09-23T11:45:00Z',
-      url: 'https://example.com/photo.jpg',
-    },
-  ], []);
+  // Removed legacy reaction and mock file helpers to reduce bundle size
 
   // Mock messages data
   const mockMessages: ChatMessage[] = useMemo(() => [
@@ -347,7 +299,7 @@ export default function TeamChatScreen() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       if (!id) { setError('Missing team id'); setLoading(false); return; }
       setLoading(true); setError(null);
       try {
@@ -383,14 +335,13 @@ export default function TeamChatScreen() {
         setFiles(savedFiles);
         
         // Initialize with empty files list - files will be added as they're uploaded
-        // setFiles(mockFiles);
         
         // Mock typing users for demo
         setTimeout(() => {
           setTypingUsers(['Mike Davis']);
           setTimeout(() => setTypingUsers([]), 3000);
         }, 2000);
-      } catch (e: any) {
+      } catch {
         if (!mounted) return; 
         setError('Failed to load team chat');
       } finally { 
@@ -430,7 +381,7 @@ export default function TeamChatScreen() {
       
       setMessages(prev => {
         const updated = [...prev, message];
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       setNewMessage('');
@@ -465,8 +416,8 @@ export default function TeamChatScreen() {
       
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (error) {
-  showModal('Error', 'Failed to send message');
+    } catch {
+      showModal('Error', 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -615,7 +566,7 @@ export default function TeamChatScreen() {
       
       setMessages(prev => {
         const updated = [...prev, message];
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       setReplyingTo(null);
@@ -648,7 +599,7 @@ export default function TeamChatScreen() {
         const updated = prev.map(msg => 
           msg.id === message.id ? updatedMessage : msg
         );
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       
@@ -670,7 +621,7 @@ export default function TeamChatScreen() {
       
       setFiles(prev => {
         const updated = [newFile, ...prev];
-        saveFiles(updated);
+        void saveFiles(updated);
         return updated;
       });
       
@@ -690,7 +641,7 @@ export default function TeamChatScreen() {
           }
           return msg;
         });
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       
@@ -709,7 +660,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (error) {
+    } catch {
       showModal('Error', 'Failed to pick image');
     }
   }, [sendImageMessage, showModal]);
@@ -724,7 +675,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (error) {
+    } catch {
       showModal('Error', 'Failed to take photo');
     }
   }, [sendImageMessage, showModal]);
@@ -743,8 +694,8 @@ export default function TeamChatScreen() {
       
       await MediaLibrary.saveToLibraryAsync(imageUri);
       showToast('Image saved to gallery!');
-    } catch (error) {
-  showModal('Error', 'Failed to save image to gallery');
+    } catch {
+      showModal('Error', 'Failed to save image to gallery');
     }
   }, [showModal, showToast]);
 
@@ -781,7 +732,7 @@ export default function TeamChatScreen() {
       
       setMessages(prev => {
         const updated = [...prev, message];
-        saveMessages(updated); // Save to storage
+        void saveMessages(updated); // Save to storage
         return updated;
       });
       setReplyingTo(null);
@@ -800,12 +751,12 @@ export default function TeamChatScreen() {
           const updated = prev.map(msg => 
             msg.id === message.id ? { ...msg, status: 'sent' as const } : msg
           );
-          saveMessages(updated);
+          void saveMessages(updated);
           return updated;
         });
       }, 800);
       
-    } catch (error) {
+    } catch {
       showModal('Error', 'Failed to send voice message');
     }
   }, [animateNewMessage, replyingTo, saveMessages, showModal]);
@@ -824,15 +775,14 @@ export default function TeamChatScreen() {
       const uri = recording.getURI();
       
       if (uri) {
-        setRecordingUri(uri);
         const status = await recording.getStatusAsync();
         await sendVoiceMessage(uri, status.durationMillis || 0);
       }
       
       setRecording(null);
       setRecordingDuration(0);
-    } catch (error) {
-  showModal('Error', 'Failed to stop recording');
+    } catch {
+      showModal('Error', 'Failed to stop recording');
       setRecording(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -891,8 +841,8 @@ export default function TeamChatScreen() {
       // Play the sound
       await sound.playAsync();
       setPlayingAudio(messageId);
-    } catch (error) {
-  showModal('Error', 'Failed to play voice message');
+    } catch {
+      showModal('Error', 'Failed to play voice message');
     }
   }, [playingAudio, showModal, soundObjects]);
 
@@ -928,7 +878,7 @@ export default function TeamChatScreen() {
       
       setMessages(prev => {
         const updated = [...prev, message];
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       setReplyingTo(null);
@@ -967,7 +917,7 @@ export default function TeamChatScreen() {
         const updated = prev.map(msg => 
           msg.id === message.id ? updatedMessage : msg
         );
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       
@@ -989,7 +939,7 @@ export default function TeamChatScreen() {
       
       setFiles(prev => {
         const updated = [newFile, ...prev];
-        saveFiles(updated);
+        void saveFiles(updated);
         return updated;
       });
       
@@ -998,7 +948,6 @@ export default function TeamChatScreen() {
       console.error('File upload failed:', error);
       
       // Update message to show error - use a new variable since message is not in scope
-      const messageId = Date.now().toString();
       setMessages(prev => {
         const updated = prev.map(msg => {
           if (msg.status === 'sending' && msg.type === 'file' && msg.file?.name === fileAsset.name) {
@@ -1010,12 +959,11 @@ export default function TeamChatScreen() {
           }
           return msg;
         });
-        saveMessages(updated);
+        void saveMessages(updated);
         return updated;
       });
       
-  showModal('Error', 'Failed to upload file to server');
-  showModal('Error', 'Failed to upload file to server');
+      showModal('Error', 'Failed to upload file to server');
     }
   }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
@@ -1030,7 +978,7 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendFileMessage(result.assets[0]);
       }
-    } catch (error) {
+    } catch {
       showModal('Error', 'Failed to pick document');
     }
   }, [sendFileMessage, showModal]);
@@ -1064,7 +1012,7 @@ export default function TeamChatScreen() {
         // Use document picker for documents
         await pickDocument();
       }
-    } catch (error) {
+    } catch {
       showToast('Failed to upload file', 'error');
     } finally {
       setIsUploadingFile(false);
@@ -1140,7 +1088,7 @@ export default function TeamChatScreen() {
         try {
           await sound.stopAsync();
           await sound.unloadAsync();
-        } catch (error) {
+        } catch {
           // Ignore cleanup errors
         }
       });
@@ -1203,11 +1151,6 @@ export default function TeamChatScreen() {
       addReaction(item.id, '👍');
     };
 
-    const handleDoubleTap = () => {
-      // Quick love reaction on double tap
-      addReaction(item.id, '❤️');
-    };
-    
     return (
       <Animated.View
         style={[
@@ -1348,7 +1291,7 @@ export default function TeamChatScreen() {
                 style={[styles.fileMessageContainer, { 
                   backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.1)' : Colors[colorScheme].background 
                 }]}
-                onPress={() => handleFilePress(item.file!)}
+                onPress={() => void handleFilePress(item.file!)}
               >
                 <View style={[styles.fileIcon, { backgroundColor: getFileIconColor(item.file.type) }]}>
                   <Ionicons 
@@ -1759,7 +1702,7 @@ export default function TeamChatScreen() {
               renderItem={({ item }) => (
                 <Pressable 
                   style={[styles.fileItem, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => handleFilePress({ uri: item.url, name: item.name, type: item.type })}
+                  onPress={() => void handleFilePress({ uri: item.url, name: item.name, type: item.type })}
                 >
                   <View style={[styles.fileIcon, { backgroundColor: getFileColor(item.type) + '20' }]}>
                     <Ionicons 
@@ -1781,7 +1724,7 @@ export default function TeamChatScreen() {
                   </View>
                   <Pressable 
                     style={styles.fileDownloadButton}
-                    onPress={() => handleFilePress({ uri: item.url, name: item.name, type: item.type })}
+                    onPress={() => void handleFilePress({ uri: item.url, name: item.name, type: item.type })}
                   >
                     <Ionicons name="download-outline" size={20} color={Colors[colorScheme].tint} />
                   </Pressable>
@@ -1834,7 +1777,7 @@ export default function TeamChatScreen() {
                 style={[styles.imageActionButton, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => {
                   if (selectedImage) {
-                    saveImageToGallery(selectedImage.uri);
+                    void saveImageToGallery(selectedImage.uri);
                   }
                 }}
               >
@@ -1878,7 +1821,7 @@ export default function TeamChatScreen() {
                 onPress={() => {
                   if (!isUploadingFile) {
                     setShowAttachmentMenu(false);
-                    handleFileUpload('media');
+                    void handleFileUpload('media');
                   }
                 }}
                 disabled={isUploadingFile}
@@ -1911,7 +1854,7 @@ export default function TeamChatScreen() {
                 onPress={() => {
                   if (!isUploadingFile) {
                     setShowAttachmentMenu(false);
-                    handleFileUpload('document');
+                    void handleFileUpload('document');
                   }
                 }}
                 disabled={isUploadingFile}
@@ -1972,7 +1915,7 @@ export default function TeamChatScreen() {
                 style={[styles.menuOption, { backgroundColor: Colors[colorScheme].background }]}
                 onPress={() => {
                   setShowImageOptionsMenu(false);
-                  takePhoto();
+                  void takePhoto();
                 }}
               >
                 <View style={[styles.menuIconContainer, { backgroundColor: '#E8F5E8' }]}>
@@ -1992,7 +1935,7 @@ export default function TeamChatScreen() {
                 style={[styles.menuOption, { backgroundColor: Colors[colorScheme].background }]}
                 onPress={() => {
                   setShowImageOptionsMenu(false);
-                  pickImage();
+                  void pickImage();
                 }}
               >
                 <View style={[styles.menuIconContainer, { backgroundColor: '#FFF3E0' }]}>

@@ -27,8 +27,6 @@ export default function Step4Organization() {
   const [orgName, setOrgName] = useState('');
   const [location, setLocation] = useState('');
   const [orgType, setOrgType] = useState<'school' | 'club' | 'league' | 'tournament' | 'university' | 'college' | 'professional' | null>(null);
-  const [teamName, setTeamName] = useState('');
-  const [ageGroup, setAgeGroup] = useState<'youth' | 'adult' | 'mixed' | null>(null);
   const [saving, setSaving] = useState(false);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [existingTeam, setExistingTeam] = useState<any>(null);
@@ -57,32 +55,27 @@ export default function Step4Organization() {
 
   // Check email verification status
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const me: any = await (await import('@/api/entities')).User.me();
-        const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
-        console.log('[Step4] Email check start. e2e=', e2e, 'me.email_verified=', me?.email_verified);
         setEmailVerified(me?.email_verified ?? null);
-        console.log('[Step4] Email check set state ->', me?.email_verified ?? null);
-      } catch (error) {
-        console.error('Failed to check email verification:', error);
+      } catch {
+        // ignore
       }
     })();
   }, []);
 
   // Check if user already has a team or organization in the database
   useEffect(() => {
-    (async () => {
+    void (async () => {
       setChecking(true);
       try {
         const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
-        console.log('[Step4] Existing check start. e2e=', e2e, 'plan=', ob.plan);
         // Check for existing managed teams
         const teams = await Team.managed();
         if (teams && teams.length > 0) {
           const firstTeam = teams[0];
           setExistingTeam(firstTeam);
-          setTeamName(firstTeam.name || '');
           setAlreadyExists(true);
           // Update onboarding state with existing team
           setOB((prev) => ({ 
@@ -100,8 +93,6 @@ export default function Step4Organization() {
               router.replace('/onboarding/step-6-authorized-users');
             }
             return;
-          } else {
-            console.log('[Step4] E2E mode: suppressing auto-skip for existing team');
           }
         } else if (ob.plan === 'veteran' || ob.plan === 'legend') {
           // Check for existing organizations that the user can manage
@@ -127,22 +118,18 @@ export default function Step4Organization() {
                 router.replace('/onboarding/step-6-authorized-users');
               }
               return;
-            } else {
-              console.log('[Step4] E2E mode: suppressing auto-skip for existing org');
-            }
+          }
           }
         }
-      } catch (error) {
-        console.error('Error checking existing team/org:', error);
+      } catch {
+        Alert.alert('Error', 'Unable to check existing organizations. Please try again.');
       } finally {
         setChecking(false);
-        console.log('[Step4] Existing check done. alreadyExists=', alreadyExists);
       }
     })();
   }, [ob.plan, returnToConfirmation, router, setOB, setProgress]);
 
   useEffect(() => {
-    if (ob.team_name && !existingTeam) setTeamName(ob.team_name);
     if (ob.organization_name && !existingOrg) setOrgName(ob.organization_name);
     if ((ob.affiliation as string) === 'school') setOrgType('school');
     else if ((ob.affiliation as string) === 'club') setOrgType('club');
@@ -153,7 +140,7 @@ export default function Step4Organization() {
     if (!alreadyExists && (ob.team_id || ob.organization_id)) {
       setAlreadyExists(true);
     }
-  }, [alreadyExists, existingOrg, existingTeam, ob.affiliation, ob.organization_id, ob.team_id, ob.team_name, ob.organization_name]);
+  }, [alreadyExists, existingOrg, ob.affiliation, ob.organization_id, ob.team_id, ob.organization_name]);
 
   // Determine what type of page to create based on plan
   const pageConfig = useMemo(() => {
@@ -248,7 +235,7 @@ export default function Step4Organization() {
     }
     if (text.trim().length >= 2) {
       searchTimerRef.current = setTimeout(() => {
-        executeNearbySearch(text);
+        void executeNearbySearch(text);
       }, 400);
     } else {
       clearOrganizations();
@@ -276,7 +263,7 @@ export default function Step4Organization() {
       setSearchZip(normalizedZip);
     }
     // Check for duplicates by place_id
-    (async () => {
+    void (async () => {
       try {
         const res = await httpPost('/organizations/check-duplicate', {
           place_id: suggestion.place_id,
@@ -287,7 +274,7 @@ export default function Step4Organization() {
         } else {
           setDuplicateWarning(null);
         }
-      } catch (err) {
+      } catch {
         setDuplicateWarning(null);
       }
     })();
@@ -420,7 +407,7 @@ export default function Step4Organization() {
         `"${orgName.trim()}" has been created successfully.`,
         [{ text: 'Continue', onPress: () => {
           // If onboarding indicates payment is pending, persist that to server preferences
-          (async () => {
+          void (async () => {
             try {
               if (ob.payment_pending) {
                 await (await import('@/api/entities')).User.updatePreferences({ payment_pending: true });
@@ -861,7 +848,7 @@ export default function Step4Organization() {
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$19.99/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
                   </>

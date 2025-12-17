@@ -14,7 +14,7 @@ import {
     TextInput,
     View
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { httpPost } from '@/api/http';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
@@ -30,7 +30,6 @@ const EVENT_TYPES = [
 
 export default function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   
   const [title, setTitle] = useState('');

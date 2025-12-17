@@ -26,13 +26,6 @@ type ManagedAd = {
   isLocal?: boolean;
 };
 
-function matchesAccount(ad: ManagedAd, userId: string | null, userEmail: string | null) {
-  const normalizedAdEmail = (ad.contact_email || '').trim().toLowerCase();
-  if (userId && ad.owner_id && ad.owner_id === userId) return true;
-  if (userEmail && normalizedAdEmail && normalizedAdEmail === userEmail) return true;
-  return false;
-}
-
 export default function MyAdsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
@@ -40,22 +33,18 @@ export default function MyAdsScreen() {
   const [ads, setAds] = useState<ManagedAd[]>([]);
   const [datesByAd, setDatesByAd] = useState<Record<string, string[]>>({});
   const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userLoaded, setUserLoaded] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const me: any = await User.me();
         if (!mounted) return;
         setUserId(me?.id ? String(me.id) : null);
-        const email = typeof me?.email === 'string' ? me.email.trim().toLowerCase() : null;
-        setUserEmail(email && email.length ? email : null);
-      } catch (_error) {
+      } catch {
         if (!mounted) return;
         setUserId(null);
-        setUserEmail(null);
       } finally {
         if (mounted) setUserLoaded(true);
       }
@@ -77,7 +66,7 @@ export default function MyAdsScreen() {
       try {
         const s = await AdsApi.listMine();
         serverAds = Array.isArray(s) ? s : [];
-      } catch (_error) { serverAds = null; }
+      } catch { serverAds = null; }
 
       const localAds = await settings.getJson<ManagedAd[]>(getLocalAdsKey(), []);
       const combined: ManagedAd[] = [];
@@ -107,7 +96,7 @@ export default function MyAdsScreen() {
           try {
             const r: any = await AdsApi.reservationsForAd(ad.id);
             return [ad.id, Array.isArray(r?.dates) ? r.dates : []] as const;
-          } catch (_error) { return [ad.id, []] as const; }
+          } catch { return [ad.id, []] as const; }
         })
       );
       const map: Record<string, string[]> = {};
@@ -118,7 +107,7 @@ export default function MyAdsScreen() {
 
   useEffect(() => {
     if (userLoaded) {
-      load();
+      void load();
     }
   }, [userLoaded, load]);
 
@@ -131,24 +120,26 @@ export default function MyAdsScreen() {
         { 
           text: 'Delete', 
           style: 'destructive', 
-          onPress: async () => {
-            try {
-              // Delete from server
-              await AdsApi.delete(id);
-              
-              // Also remove from local storage
-              const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
-              const next = list.filter((a) => a.id !== id);
-              await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
-              
-              // Reload the list
-              await load();
-              
-              Alert.alert('Success', 'Ad deleted successfully');
-            } catch (error) {
-              console.error('[my-ads2] Error deleting ad:', error);
-              Alert.alert('Error', 'Failed to delete ad. Please try again.');
-            }
+          onPress: () => {
+            void (async () => {
+              try {
+                // Delete from server
+                await AdsApi.delete(id);
+                
+                // Also remove from local storage
+                const list = await settings.getJson<ManagedAd[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
+                const next = list.filter((a) => a.id !== id);
+                await settings.setJson(settings.SETTINGS_KEYS.LOCAL_ADS, next);
+                
+                // Reload the list
+                await load();
+                
+                Alert.alert('Success', 'Ad deleted successfully');
+              } catch (error) {
+                console.error('[my-ads2] Error deleting ad:', error);
+                Alert.alert('Error', 'Failed to delete ad. Please try again.');
+              }
+            })();
           }
         }
       ]
@@ -170,7 +161,7 @@ export default function MyAdsScreen() {
         } else {
           future.push(dateStr);
         }
-      } catch (_error) {
+      } catch {
         // If date parsing fails, assume future
         future.push(dateStr);
       }
@@ -186,7 +177,7 @@ export default function MyAdsScreen() {
         day: 'numeric', 
         year: 'numeric' 
       });
-    } catch (_error) {
+    } catch {
       return d;
     }
   };
@@ -198,7 +189,6 @@ export default function MyAdsScreen() {
     const hasUpcoming = future.length > 0;
     const hasDates = dates.length > 0;
     const isPaid = item.payment_status === 'paid';
-    const isActive = item.status === 'active';
     
     return (
       <View style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
@@ -337,7 +327,7 @@ export default function MyAdsScreen() {
         <View style={styles.actionsContainer}>
           <Pressable 
             style={[styles.actionButton, styles.actionButtonPrimary, { backgroundColor: Colors[colorScheme].tint }]} 
-            onPress={() => void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } })}
+            onPress={() => { void router.push({ pathname: '/ad-calendar', params: { adId: item.id, isPaid: String(isPaid) } }); }}
           >
             <Ionicons name="calendar" size={18} color="#FFFFFF" />
             <Text style={styles.actionButtonTextPrimary}>
@@ -350,7 +340,7 @@ export default function MyAdsScreen() {
               backgroundColor: Colors[colorScheme].surface,
               borderColor: Colors[colorScheme].border
             }]} 
-            onPress={() => void router.push({ pathname: '/edit-ad', params: { id: item.id } })}
+            onPress={() => { void router.push({ pathname: '/edit-ad', params: { id: item.id } }); }}
           >
             <Ionicons name="create-outline" size={18} color={Colors[colorScheme].text} />
             <Text style={[styles.actionButtonTextSecondary, { color: Colors[colorScheme].text }]}>Edit</Text>
@@ -392,7 +382,7 @@ export default function MyAdsScreen() {
         <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
         <Pressable 
           style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => void router.push('/submit-ad')}
+          onPress={() => { void router.push('/submit-ad'); }}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </Pressable>
@@ -415,7 +405,7 @@ export default function MyAdsScreen() {
             </Text>
             <Pressable 
               style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
-              onPress={() => void router.push('/submit-ad')}
+              onPress={() => { void router.push('/submit-ad'); }}
             >
               <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
               <Text style={styles.emptyButtonText}>Create Your First Ad</Text>

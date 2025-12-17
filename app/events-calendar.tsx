@@ -77,7 +77,7 @@ export default function EventsCalendarScreen() {
       }
     };
 
-    loadData();
+    void loadData();
     return () => { mounted = false; };
   }, []);
 
@@ -100,7 +100,7 @@ export default function EventsCalendarScreen() {
         }
         map.get(dateKey)!.push(game);
       } catch (error) {
-        console.error('Invalid game date:', game.date);
+        console.error('Invalid game date:', game.date, error);
       }
     });
     return map;

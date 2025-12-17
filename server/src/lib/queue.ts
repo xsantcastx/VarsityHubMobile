@@ -5,16 +5,18 @@ import { debugLog } from './debugLog.js';
 // Redis connection details
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
+// Helper to appease TS when using CommonJS default export
+const RedisCtor = Redis as unknown as new (url?: string) => import('ioredis').default;
+
 // Create Redis connections (one for client, one for subscriber)
-export const redis = new Redis(REDIS_URL);
-export const redisSubscriber = new Redis(REDIS_URL);
+export const redis = new RedisCtor(REDIS_URL);
+export const redisSubscriber = new RedisCtor(REDIS_URL);
 
 // Initialize email queue
 export const emailQueue = new Queue('email', REDIS_URL, {
   settings: {
     // Attempt retry up to 3 times with exponential backoff
     retryProcessDelay: 5000, // 5 seconds between retries
-    maxStalledCount: 2,
     stalledInterval: 5000,
     maxStalledCount: 2,
     lockDuration: 30000,
@@ -22,8 +24,8 @@ export const emailQueue = new Queue('email', REDIS_URL, {
 });
 
 // Queue event listeners
-emailQueue.on('waiting', (job) => {
-  debugLog(`[queue] Email job waiting: ${job.id}`);
+emailQueue.on('waiting', (jobId) => {
+  debugLog(`[queue] Email job waiting: ${jobId}`);
 });
 
 emailQueue.on('active', (job) => {

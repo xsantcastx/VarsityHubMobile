@@ -99,7 +99,7 @@ fi
 
 step "1.2: Select Veteran plan in Step 3"
 check "Click 'Veteran' plan card"
-check "Verify plan selected: 2.50/team/month (or similar pricing)"
+check "Verify plan selected: \$1.50/team/month (or similar pricing)"
 check "Click 'Continue to Payment'"
 read -p "Press ENTER after plan selected..."
 
@@ -180,7 +180,7 @@ pass "Legend test user account created"
 
 step "2.2: Select Legend plan in Step 3"
 check "Click 'Legend' plan card"
-check "Verify plan selected: \$19.99/year (or similar)"
+check "Verify plan selected: \$20.00/year (or similar)"
 check "Click 'Continue to Payment'"
 read -p "Press ENTER after plan selected..."
 

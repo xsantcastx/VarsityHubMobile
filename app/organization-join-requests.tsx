@@ -68,7 +68,7 @@ export default function OrganizationJoinRequestsScreen() {
   }, [loadRequests]);
 
   useEffect(() => {
-    loadRequests();
+    void loadRequests();
   }, [loadRequests]);
 
   const handleApprove = async (request: JoinRequest) => {
@@ -80,19 +80,21 @@ export default function OrganizationJoinRequestsScreen() {
         {
           text: 'Approve',
           style: 'default',
-          onPress: async () => {
-            setProcessingId(request.id);
-            try {
-              await Organization.approveJoinRequest(request.id);
-              Alert.alert('Success', `${request.team_name} has been added to your organization!`);
-              await loadRequests();
-            } catch (err: any) {
-              console.error('[OrganizationJoinRequests] Error approving request:', err);
-              captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
-              Alert.alert('Error', err?.message || 'Failed to approve request');
-            } finally {
-              setProcessingId(null);
-            }
+          onPress: () => {
+            void (async () => {
+              setProcessingId(request.id);
+              try {
+                await Organization.approveJoinRequest(request.id);
+                Alert.alert('Success', `${request.team_name} has been added to your organization!`);
+                await loadRequests();
+              } catch (err: any) {
+                console.error('[OrganizationJoinRequests] Error approving request:', err);
+                captureException(err, { tags: { screen: 'organization-join-requests', action: 'approve' } });
+                Alert.alert('Error', err?.message || 'Failed to approve request');
+              } finally {
+                setProcessingId(null);
+              }
+            })();
           },
         },
       ]
@@ -103,29 +105,31 @@ export default function OrganizationJoinRequestsScreen() {
     setRejectModal({ visible: true, request, reason: '' });
   };
 
-  const submitReject = async () => {
-    if (!rejectModal.request) return;
-    
-    // Validate reason is not empty
-    const reason = rejectModal.reason.trim();
-    if (!reason) {
-      Alert.alert('Reason Required', 'Please provide a reason for rejecting this request.');
-      return;
-    }
-    
-    setProcessingId(rejectModal.request.id);
-    try {
-      await Organization.rejectJoinRequest(rejectModal.request.id, reason);
-      Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
-      await loadRequests();
-    } catch (err: any) {
-      console.error('[OrganizationJoinRequests] Error rejecting request:', err);
-      captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
-      Alert.alert('Error', err?.message || 'Failed to reject request');
-    } finally {
-      setProcessingId(null);
-      setRejectModal({ visible: false, request: null, reason: '' });
-    }
+  const submitReject = () => {
+    void (async () => {
+      if (!rejectModal.request) return;
+      
+      // Validate reason is not empty
+      const reason = rejectModal.reason.trim();
+      if (!reason) {
+        Alert.alert('Reason Required', 'Please provide a reason for rejecting this request.');
+        return;
+      }
+      
+      setProcessingId(rejectModal.request.id);
+      try {
+        await Organization.rejectJoinRequest(rejectModal.request.id, reason);
+        Alert.alert('Request Rejected', `${rejectModal.request.team_name} has been notified.`);
+        await loadRequests();
+      } catch (err: any) {
+        console.error('[OrganizationJoinRequests] Error rejecting request:', err);
+        captureException(err, { tags: { screen: 'organization-join-requests', action: 'reject' } });
+        Alert.alert('Error', err?.message || 'Failed to reject reject');
+      } finally {
+        setProcessingId(null);
+        setRejectModal({ visible: false, request: null, reason: '' });
+      }
+    })();
   };
 
   const formatDate = (dateString: string): string => {
@@ -143,14 +147,12 @@ export default function OrganizationJoinRequestsScreen() {
       if (diffDays < 7) return `${diffDays}d ago`;
 
       return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    } catch (_error) {
+    } catch {
       return dateString;
     }
   };
 
   const pendingRequests = requests.filter((r) => r.status === 'pending');
-  const processedRequests = requests.filter((r) => r.status !== 'pending');
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen

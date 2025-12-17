@@ -18,17 +18,16 @@ export default function RsvpHistoryScreen() {
   const [items, setItems] = useState<Item[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       setLoading(true); setError(null);
       try {
         const list: any[] = await EventApi.myRsvps();
         if (!mounted) return;
         setItems(Array.isArray(list) ? list : []);
-      } catch (e: any) {
+      } catch {
         if (!mounted) return; setError('Failed to load RSVP history');
       } finally { if (mounted) setLoading(false); }
     })();
@@ -170,4 +169,3 @@ const styles = StyleSheet.create({
   card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   title: { fontWeight: '700' },
 });
-

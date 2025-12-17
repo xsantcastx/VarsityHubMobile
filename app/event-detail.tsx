@@ -70,7 +70,7 @@ export default function EventDetailScreen() {
         if (mounted) setLoading(false);
       }
     };
-    load();
+    void load();
     return () => { mounted = false; };
   }, [id]);
 

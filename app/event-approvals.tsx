@@ -83,12 +83,12 @@ export default function EventApprovalsScreen() {
   };
   
   useEffect(() => {
-    loadPendingEvents();
+    void loadPendingEvents();
   }, []);
   
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadPendingEvents();
+    void loadPendingEvents();
   }, []);
   
   const handleApprove = async (eventId: number) => {

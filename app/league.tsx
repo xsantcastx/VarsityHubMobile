@@ -1,5 +1,6 @@
 import { Event, Organization, Team } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -180,6 +181,7 @@ export default function LeagueScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; name?: string }>();
+  const { user, isAdmin: hasGlobalAdmin } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +189,25 @@ export default function LeagueScreen() {
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
   const [events, setEvents] = useState<LeagueEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false); // TODO: Check actual admin status
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const resolveOrgAdmin = useCallback(
+    (orgData: any) => {
+      if (hasGlobalAdmin) return true;
+      if (!orgData || !user?.id) return false;
+      const memberships = Array.isArray(orgData.memberships) ? orgData.memberships : [];
+      return memberships.some((membership: any) => {
+        const memberUserId = membership?.user?.id || membership?.user_id;
+        if (!memberUserId) return false;
+        const role = String(membership?.role || '').toLowerCase();
+        return (
+          memberUserId === user.id &&
+          ['owner', 'manager', 'administrator', 'admin'].includes(role)
+        );
+      });
+    },
+    [hasGlobalAdmin, user?.id]
+  );
 
   const loadLeague = useCallback(async () => {
     setLoading(true);
@@ -239,6 +259,7 @@ export default function LeagueScreen() {
           bio: organizationData.bio || organizationData.description,
           contact_info: organizationData.contact_info,
         });
+        setIsAdmin(resolveOrgAdmin(organizationData));
       } else {
         // Fallback to params if no org found
         const leagueName = params.name || 'Athletic Organization';
@@ -248,6 +269,7 @@ export default function LeagueScreen() {
           display_name: leagueName,
           bio: 'Home of champions',
         });
+        setIsAdmin(resolveOrgAdmin(null));
       }
 
       const formattedTeams = extractLeagueTeams(organizationData, params.name);
@@ -314,10 +336,11 @@ export default function LeagueScreen() {
     } catch (err) {
       console.error('[League] Error loading league:', err);
       setError('Failed to load league information');
+      setIsAdmin(resolveOrgAdmin(null));
     } finally {
       setLoading(false);
     }
-  }, [params.id, params.name]);
+  }, [params.id, params.name, resolveOrgAdmin]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -326,7 +349,7 @@ export default function LeagueScreen() {
   }, [loadLeague]);
 
   useEffect(() => {
-    loadLeague();
+    void loadLeague();
   }, [loadLeague]);
 
   const handleTeamPress = (team: LeagueTeam) => {
@@ -366,7 +389,7 @@ export default function LeagueScreen() {
         year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
       };
       return date.toLocaleDateString(undefined, options);
-    } catch (_error) {
+    } catch {
       return dateString;
     }
   };

@@ -26,21 +26,6 @@ type LeagueTeam = {
   };
 };
 
-type TeamMember = {
-  id: string;
-  user_id?: string;
-  team_id?: string;
-  role?: string;
-  jersey_number?: string | number;
-  position?: string;
-  user?: {
-    id: string;
-    display_name?: string;
-    full_name?: string;
-    avatar_url?: string;
-  };
-};
-
 export default function OrganizationScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
@@ -166,7 +151,7 @@ export default function OrganizationScreen() {
   }, [loadOrganization]);
 
   useEffect(() => {
-    loadOrganization();
+    void loadOrganization();
   }, [loadOrganization]);
 
   const handleTeamPress = (teamId: string) => {
@@ -357,6 +342,30 @@ export default function OrganizationScreen() {
                   <Text style={styles.heroTitle}>Organization</Text>
                   <Text style={styles.heroSubtitle}>ID: {organizationId?.substring(0, 8)}...</Text>
                 </View>
+                <Pressable
+                  onPress={handleFollowPress}
+                  style={[
+                    styles.followButton,
+                    {
+                      backgroundColor: isFollowing ? '#fff' : 'rgba(255,255,255,0.15)',
+                      borderColor: 'rgba(255,255,255,0.35)',
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={isFollowing ? 'checkmark-circle' : 'person-add'}
+                    size={18}
+                    color={isFollowing ? theme.tint : '#fff'}
+                  />
+                  <Text
+                    style={[
+                      styles.followButtonText,
+                      { color: isFollowing ? theme.tint : '#fff' },
+                    ]}
+                  >
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </Text>
+                </Pressable>
               </View>
               
               {/* Floating Stats Cards */}
@@ -453,6 +462,18 @@ const styles = StyleSheet.create({
   heroText: {
     flex: 1,
     justifyContent: 'center',
+  },
+  followButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+  },
+  followButtonText: {
+    fontWeight: '700',
   },
   heroTitle: {
     fontSize: 28,

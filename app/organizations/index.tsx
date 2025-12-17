@@ -39,7 +39,7 @@ export default function OrganizationsIndexScreen() {
             combined.find((o) => o.name.toLowerCase().includes('westhill')) || combined[0] || null;
           setFeatured(westhill);
         }
-      } catch (_e: any) {
+      } catch {
         if (!cancelled) {
           const fallback = ensureSeededOrganizations<Organization>([]);
           setOrgs(fallback);
@@ -49,7 +49,7 @@ export default function OrganizationsIndexScreen() {
         if (!cancelled) setLoading(false);
       }
     }
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [apiUrl]);
 

@@ -76,7 +76,7 @@ export default function ManageTeamsSimpleScreen() {
           Alert.alert('Restricted', 'Only coach accounts can access Manage Teams.');
           router.replace('/(tabs)');
         }
-      } catch (_error) {
+      } catch {
         // silently ignore
       }
     })().catch(() => {});
@@ -91,34 +91,6 @@ export default function ManageTeamsSimpleScreen() {
   // Get organization from first team that has one
   const organization = teams.find(t => t.organization)?.organization;
   const activeTeams = teams.filter(t => t.status === 'active');
-
-  const getRoleBadge = (role?: string | null) => {
-    if (!role) return null;
-    const roleMap: Record<string, { label: string; color: string }> = {
-      owner: { label: 'Owner', color: '#8B5CF6' },
-      manager: { label: 'Manager', color: '#3B82F6' },
-      coach: { label: 'Coach', color: '#10B981' },
-      assistant_coach: { label: 'Asst. Coach', color: '#F59E0B' },
-    };
-    const info = roleMap[role] || { label: role, color: '#6B7280' };
-    return (
-      <View style={[styles.roleBadge, { backgroundColor: info.color }]}>
-        <Text style={styles.roleBadgeText}>{info.label}</Text>
-      </View>
-    );
-  };
-
-  const getSportIcon = (sport?: string | null) => {
-    const sportIcons: Record<string, any> = {
-      football: 'football',
-      basketball: 'basketball',
-      baseball: 'baseball',
-      soccer: 'football-outline',
-      volleyball: 'tennisball',
-      hockey: 'paw',
-    };
-    return sportIcons[sport?.toLowerCase() || ''] || 'trophy';
-  };
 
   const handleQuickAddGame = async (data: QuickGameData) => {
     try {
@@ -216,7 +188,7 @@ export default function ManageTeamsSimpleScreen() {
 
 
       // Create game using the API
-      const newGame = await GameApi.create(gamePayload);
+      await GameApi.create(gamePayload);
 
       setShowQuickAddModal(false);
       Alert.alert(

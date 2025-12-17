@@ -10,9 +10,10 @@
 
 ### What Was Done
 - [x] `SENDGRID_API_KEY` set in `server/.env`
-- [x] `SENDGRID_VERIFICATION_TEMPLATE_ID` = `d-e6e34f349f364529a046d530ba3e03bd`
-- [x] `SENDGRID_PASSWORD_RESET_TEMPLATE_ID` = `d-0f8c1353d4d44599bff28635cd39c167`
-- [x] `SENDGRID_TEAM_INVITE_TEMPLATE_ID` = `d-04a0746f62e04d9bbd63f8f70ff7897b`
+- [x] `SENDGRID_PASSWORD_RESET_TEMPLATE_ID` = `d-97a704ec6a35434195364e0ed9dfaf21`
+- [x] `SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID` = `d-6f11ea835053413296e159c91204b658`
+- [x] `SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID` = `d-36ff36687ae8433ba49ae88e533904d6`
+- [ ] Verification template disabled (not configured)
 - [x] `EMAIL_FROM` = `noreply@varsityhub.app`
 - [x] `APP_BASE_URL` = `http://localhost:3000`
 - [x] `TWILIO_*` vars documented (optional)
@@ -23,6 +24,7 @@
 - Backend `server/src/routes/auth.ts` line 721: confirm endpoint ready
 - Helper `server/src/lib/email.ts` line 41: checks for API key + template ID
 - Twilio helper `server/src/lib/twilio.ts` line 8: isTwilioConfigured() ready
+- Note: Email verification template is disabled; sendVerificationEmail will log and no-op.
 
 ---
 

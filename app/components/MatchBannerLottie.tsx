@@ -18,21 +18,21 @@ export default function MatchBannerLottie({ style, onLoaded, tintColor, size = 8
 
     if (disabled) {
       setLottieView(null);
-      try { onLoadedRef.current && onLoadedRef.current(false); } catch (_error) {}
+      try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
       return () => {
         mounted = false;
       };
     }
 
-    (async () => {
+    void (async () => {
       try {
         const mod = await import('lottie-react-native');
         if (mounted) {
           setLottieView(() => mod.default || mod);
-          try { onLoadedRef.current && onLoadedRef.current(true); } catch (_error) {}
+          try { onLoadedRef.current && onLoadedRef.current(true); } catch {}
         }
-      } catch (_error) {
-        try { onLoadedRef.current && onLoadedRef.current(false); } catch (_error) {}
+      } catch {
+        try { onLoadedRef.current && onLoadedRef.current(false); } catch {}
       }
     })();
 

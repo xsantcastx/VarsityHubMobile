@@ -58,20 +58,16 @@ You agree NOT to:
 ## 6. Subscriptions and Payments
 
 ### Subscription Tiers
-- **Rookie (Free)**: Basic features
-- **Veteran ($9.99/month)**: Enhanced features
-- **Legend ($19.99/month)**: Premium features
+- **Rookie (Free)**: First two teams are free; basic features
+- **Veteran ($1.50/month per additional team)**: Pay only for teams beyond the first two; enhanced features
+- **Legend ($20/year)**: Flat annual pricing with premium features
 
 ### Billing
-- Subscriptions auto-renew monthly unless cancelled
+- Subscriptions auto-renew according to the plan period unless cancelled
 - Prices are in USD and subject to change with 30 days notice
 - Payment processing handled by Stripe
 - Refunds handled on a case-by-case basis
 - You can cancel anytime through app settings
-
-### Free Trial
-- If offered, free trials automatically convert to paid subscriptions unless cancelled
-- Cancel before trial ends to avoid charges
 
 ## 7. Advertising
 

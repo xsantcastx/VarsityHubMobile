@@ -97,7 +97,7 @@ async function sendSubscriptionEmail({
     await sendPaymentReceiptEmail({
       to: email,
       planName,
-      amount: formatUsd(totalCents) || (plan === 'legend' ? '$19.99' : '$0.00'),
+      amount: formatUsd(totalCents) || (plan === 'legend' ? '$20.00' : '$0.00'),
       billingPeriod,
     });
   } catch (err) {
@@ -197,13 +197,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 150 : 1999, // Veteran: $1.50/month per additional team, Legend: $19.99/year
+          unit_amount: chosen === 'veteran' ? 150 : 2000, // Veteran: $1.50/month per additional team, Legend: $20.00/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
               ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $19.99/year unlimited (fallback price)',
+              : 'Legend plan - $20.00/year unlimited (fallback price)',
           },
         },
       }];
@@ -259,7 +259,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 150 * billableQuantity : 1999; // Veteran billed only for additional teams
+  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran billed only for additional teams
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -303,15 +303,16 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Ensure ad exists
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  const adType = (ad as { type?: string | null }).type || '';
 
   // Map ad.type to Stripe price ID
   const adTypeToPriceId: Record<string, string> = {
     'Fri-Sun Advertising': 'price_1SNFXxGJt8CsPE1ECbmJRQDa',
     'Mond-Thurs Advertising': 'price_1SNFWzGJt8CsPE1EIikRsZif',
   };
-  const priceId = adTypeToPriceId[ad.type];
+  const priceId = adTypeToPriceId[adType];
   if (!priceId) {
-    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType: ad.type });
+    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType });
   }
 
   // Calculate sales tax based on ad's target zip code
@@ -460,10 +461,21 @@ paymentsRouter.post('/webhook', async (req, res) => {
   if (event.type === 'invoice.payment_failed') {
     const invoice = event.data.object as Stripe.Invoice;
     if (invoice.customer_email) {
+      const paymentError = (invoice as Stripe.Invoice & { last_payment_error?: { message?: string } }).last_payment_error;
+      const amount = invoice.amount_due ? formatUsd(invoice.amount_due) : '$0.00';
+      const failedDate = new Date(invoice.created * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      const retryDate = invoice.next_payment_attempt ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'within 3 days';
+      
       await sendPaymentFailedEmail({
         to: invoice.customer_email,
+        userName: 'User',
+        paymentMethodLast4: '****',
+        failedAmount: amount,
+        failedDate: failedDate,
         planName: invoice.lines.data[0]?.description || 'VarsityHub Subscription',
-        reason: invoice.last_payment_error?.message,
+        retryDate: retryDate,
+        updatePaymentLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/billing/payment-methods`,
+        contactSupportLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/support`,
       }).catch(err => console.warn('[billing-email] payment_failed failed:', err));
     }
   }
@@ -588,7 +600,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     try {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       
-      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+      if (subscription.status !== 'active') {
         return res.status(400).json({ error: 'Subscription is not active' });
       }
       
@@ -647,7 +659,7 @@ paymentsRouter.get('/debug/subscription-status', requireVerified as any, async (
 
     // Check if there's a mismatch
     const hasPaidPlan = storedPlan !== 'rookie';
-    const hasValidStripeSubscription = stripeStatus === 'active' || stripeStatus === 'trialing';
+    const hasValidStripeSubscription = stripeStatus === 'active';
     const mismatch = hasPaidPlan && !hasValidStripeSubscription;
 
     return res.json({
@@ -699,15 +711,15 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $19.99
-      annual_cost = 19.99;
+      // Annual cost fixed at $20.00
+      annual_cost = 20;
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
           if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-        } catch (_error) {}
+        } catch {}
       }
     }
 
@@ -899,7 +911,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (_error) {}
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,

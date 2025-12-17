@@ -50,7 +50,7 @@ export default function EditProfileScreen() {
   const [headerImageTouched, setHeaderImageTouched] = useState(false);
   const [uploadingHeaderImage, setUploadingHeaderImage] = useState(false);
   const [headerImageOffset, setHeaderImageOffset] = useState(0); // normalized -1..1
-  const [headerImageOffsetTouched, setHeaderImageOffsetTouched] = useState(false);
+  const [, setHeaderImageOffsetTouched] = useState(false);
   
   // Sports interests
   const [sportsInterests, setSportsInterests] = useState<string[]>([]);
@@ -105,7 +105,7 @@ export default function EditProfileScreen() {
         try {
           const date = new Date(dobValue);
           setDateOfBirth(date);
-        } catch (_error) {
+        } catch {
           console.warn('Invalid date format:', dobValue);
           setDateOfBirth(null);
         }
@@ -166,13 +166,13 @@ export default function EditProfileScreen() {
   }, []);
 
   useEffect(() => {
-    loadUserData();
+    void loadUserData();
   }, [loadUserData]);
 
   // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      loadUserData();
+      void loadUserData();
     }, [loadUserData])
   );
 
@@ -1414,11 +1414,6 @@ const styles = StyleSheet.create({
   gradeOptionText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  textArea: {
-    minHeight: 60,
-    textAlignVertical: 'top',
-    paddingTop: 12,
   },
   helperText: {
     fontSize: 12,

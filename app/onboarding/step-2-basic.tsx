@@ -37,19 +37,19 @@ export default function Step2Basic() {
   // Check email verification status when screen focuses
   useFocusEffect(
     useCallback(() => {
-      (async () => {
+      void (async () => {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
-        } catch (error) {
-          console.error('Failed to check email verification:', error);
+        } catch {
+          setEmailVerified(null);
         }
       })();
     }, [])
   );
 
   useEffect(() => { 
-    (async () => { 
+    void (async () => { 
       try { 
         const me: any = await User.me();
         const displayName = me?.display_name || '';
@@ -63,17 +63,17 @@ export default function Step2Basic() {
           try {
             const r: any = await User.usernameAvailable(displayName);
             setAvailable(!!r?.available);
-          } catch (_error) {
+          } catch {
             setAvailable(null);
           }
         }
-      } catch (_error) {} 
+      } catch {} 
     })(); 
   }, []);
-  useEffect(() => { if (ob.affiliation) setAffiliation(ob.affiliation); if (ob.dob) setDob(ob.dob || '');
-    try { // eslint-disable-next-line no-console
-    } catch (_error) {}
-  }, [dob, ob.affiliation, ob.dob]);
+  useEffect(() => {
+    if (ob.affiliation) setAffiliation(ob.affiliation);
+    if (ob.dob) setDob(ob.dob || '');
+  }, [ob.affiliation, ob.dob]);
 
   useEffect(() => {
     // Normalize live input (replace spaces) so user doesn't get stuck on Continue
@@ -94,7 +94,7 @@ export default function Step2Basic() {
       try {
         const r: any = await User.usernameAvailable(username);
         setAvailable(!!r?.available);
-      } catch (_error) {
+      } catch {
         setAvailable(null);
       } finally {
         setChecking(false);
@@ -131,8 +131,6 @@ export default function Step2Basic() {
     setSaving(true);
     try {
       setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
-      try { // eslint-disable-next-line no-console
-      } catch (_error) {}
       await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
@@ -172,9 +170,11 @@ export default function Step2Basic() {
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { setAvailable(null); }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
       }} />
-      {checking ? (
+      {usernameError ? (
+        <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>
+      ) : checking ? (
         <Text style={styles.muted}>Checking availability…</Text>
       ) : available === false ? (
         <Text style={styles.error}>That username is taken</Text>

@@ -15,7 +15,7 @@ class Events {
 
   emit<T = any>(event: string, payload?: T) {
     this.listeners[event]?.forEach((cb) => {
-      try { (cb as Listener<T>)(payload as T); } catch (_error) {}
+      try { (cb as Listener<T>)(payload as T); } catch {}
     });
   }
 }

@@ -231,7 +231,7 @@ These are the flows that MUST work for launch. If any fail, it's a blocker.
 
 ### Prerequisites
 - Stripe test keys configured in Railway
-- Account with Veteran plan (unpaid trial)
+- Account with Veteran plan (active subscription — no trials)
 
 ### Steps
 1. **Go to Settings → Billing**

@@ -30,7 +30,6 @@ export default function RequestJoinOrganizationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ team_id: string; team_name?: string }>();
 
-  const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [organizations, setOrganizations] = useState<OrgData[]>([]);
@@ -82,7 +81,7 @@ export default function RequestJoinOrganizationScreen() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      handleSearch();
+      void handleSearch();
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, handleSearch]);

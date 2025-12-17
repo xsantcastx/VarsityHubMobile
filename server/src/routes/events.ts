@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendEventDecisionEmail } from '../lib/email.js';
+import { sendEventDecisionEmail, sendEventRsvpConfirmedEmail } from '../lib/email.js';
 import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -242,6 +242,48 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
     await prisma.eventRsvp.create({ data: { event_id: id, user_id: me.id, user_email: me.email } });
     // Schedule game reminder notifications (12h and 1h before)
     await scheduleGameReminders(id, me.id);
+    
+    // Send RSVP confirmation email
+    const fullEvent = await prisma.event.findUnique({ 
+      where: { id },
+      select: { 
+        title: true, 
+        date: true, 
+        location: true,
+        description: true,
+        max_attendees: true
+      } 
+    });
+    
+    if (fullEvent && me.email) {
+      const eventDate = new Date(fullEvent.date);
+      const rsvpCount = await prisma.eventRsvp.count({ where: { event_id: id } });
+      
+      await sendEventRsvpConfirmedEmail({
+        to: me.email,
+        userName: me.display_name || me.email.split('@')[0],
+        eventName: fullEvent.title,
+        eventDate: eventDate.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'America/Chicago',
+        }),
+        eventTime: eventDate.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZone: 'America/Chicago',
+        }),
+        eventLocation: fullEvent.location || 'TBD',
+        rsvpConfirmedAt: new Date().toISOString(),
+        organizationName: 'VarsityHub',
+        eventDetailLink: `${appBaseUrl}/events/${id}`,
+        calendarLink: `${appBaseUrl}/events/${id}/calendar`,
+        cancelRsvpLink: `${appBaseUrl}/events/${id}/rsvp/cancel`,
+      }).catch((err: Error) => {
+        console.error('[events] Failed to send RSVP confirmation email:', err);
+      });
+    }
   } else if (!desired && current) {
     await prisma.eventRsvp.delete({ where: { event_id_user_id: { event_id: id, user_id: me.id } } as any });
     // Cancel scheduled reminders
@@ -424,8 +466,10 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
     try {
       await sendEventDecisionEmail({
         to: updated.creator.email,
+        coachName: updated.creator.display_name || 'Coach',
         eventName: updated.title,
         eventDate: formatEventDateLabel(updated.date),
+        eventLocation: updated.location || undefined,
         approved: true,
         reviewUrl: `${appBaseUrl}/events/${eventId}`,
       });
@@ -487,6 +531,7 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
     try {
       await sendEventDecisionEmail({
         to: updated.creator.email,
+        coachName: updated.creator.display_name || 'Coach',
         eventName: updated.title,
         eventDate: formatEventDateLabel(updated.date),
         approved: false,

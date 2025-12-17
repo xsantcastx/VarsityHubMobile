@@ -73,7 +73,7 @@ export default function MessagesScreen() {
       try {
         const u = await User.me();
         setMe(u);
-      } catch (e) {}
+      } catch {}
 
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)
@@ -92,13 +92,14 @@ export default function MessagesScreen() {
 
   // Load on mount
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // Reload when screen comes into focus (after returning from a thread)
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      return undefined;
     }, [load])
   );
 

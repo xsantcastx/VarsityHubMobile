@@ -31,7 +31,7 @@ The payments and coach permissions system is **production-ready with consistent 
 | Feature | Rookie | Veteran | Legend |
 |---------|--------|---------|--------|
 | **Teams** | 2 free | Unlimited | Unlimited |
-| **Cost** | Free | $2.50/team/month (3+ only) | $19.99/year |
+| **Cost** | Free | $1.50/team/month (3+ only) | $20/year |
 | **Authorized Users/Team** | 1 | 2 | Unlimited |
 | **Extracurricular Clubs** | ✗ | ✗ | ✓ |
 | **Org-Level Authorizations** | 1 | 2×team_count | Unlimited |
@@ -68,7 +68,7 @@ const PLAN_OPTIONS: PlanOption[] = [
   {
     id: 'legend',
     name: 'Legend',
-    price: '$19.99',
+    price: '$20',
     period: '/ year',
     priceId: 'prod_RNLdYADy7i6dB5',
     features: [
@@ -132,7 +132,7 @@ if (ownedTeamsCount >= maxTeams) {
 if (clubType === 'extracurricular' && userPlan !== 'legend') {
   return res.status(403).json({
     error: 'Extracurricular clubs require Legend tier',
-    message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs...',
+    message: 'Upgrade to Legend ($20/year) to create extracurricular clubs...',
     code: 'LEGEND_TIER_REQUIRED',
   });
 }
@@ -460,7 +460,7 @@ useEffect(() => {
 
 ### Test Case 3: Legend Plan (Extracurricular Clubs)
 **Steps:**
-1. Sign up as coach, upgrade to Legend ($19.99/year)
+1. Sign up as coach, upgrade to Legend ($20/year)
 2. Create regular team → ✅ Success
 3. Try to create extracurricular club (Theater, Chess, etc.) → ✅ Should succeed
 4. As Rookie/Veteran user, try extracurricular → ❌ Should fail with 403 "Legend tier required"

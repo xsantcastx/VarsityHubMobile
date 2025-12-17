@@ -305,7 +305,7 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 
 ### 12. Billing Notice (`SENDGRID_BILLING_NOTICE_TEMPLATE_ID`)
 
-**Purpose:** Sent for billing events (trial ending, payment success/failure, subscription changes).
+**Purpose:** Sent for billing events (payment success/failure, subscription changes). Trials are not offered.
 
 **Dynamic Template Data:**
 ```json
@@ -321,7 +321,7 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 ```
 
 **Template Placeholders:**
-- `{{notice_type}}` - One of: `trial_ending`, `payment_succeeded`, `payment_failed`, `subscription_canceled`, `subscription_renewed`
+- `{{notice_type}}` - One of: `payment_succeeded`, `payment_failed`, `subscription_canceled`, `subscription_renewed`
 - `{{plan_name}}` - Subscription plan name
 - `{{amount}}` - Dollar amount (e.g., "$49.99")
 - `{{manage_url}}` - Link to subscription management page
@@ -330,7 +330,6 @@ Use `{{#if reason}}{{reason}}{{/if}}` to show reason only when provided.
 - `{{perks}}` - Array of plan benefits
 
 **Subject (varies by type):**
-- `trial_ending`: "Your trial is ending soon"
 - `payment_succeeded`: "Payment received — thank you!"
 - `payment_failed`: "Payment failed — action required"
 - `subscription_canceled`: "Your subscription has been canceled"

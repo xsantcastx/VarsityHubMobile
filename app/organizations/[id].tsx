@@ -2,7 +2,7 @@ import { getConfig } from '@/config/env';
 import { findSeedOrganization, seedOrganizationToPayload } from '@/data/seedOrganizations';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 
 interface Organization {
   id: string;
@@ -60,7 +60,7 @@ export default function OrganizationDetailScreen() {
         if (!cancelled) setLoading(false);
       }
     }
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [normalizedId, apiUrl, seedOrg]);
 
@@ -87,6 +87,24 @@ export default function OrganizationDetailScreen() {
     );
   }
 
+  const handleContactPress = async () => {
+    const subject = encodeURIComponent(`Organization inquiry: ${org.name}`);
+    const body = encodeURIComponent(`Organization ID: ${org.id}\n\nHi VarsityHub team,\n\n`);
+    const mailto = `mailto:customerservice@varsityhub.app?subject=${subject}&body=${body}`;
+    try {
+      const supported = await Linking.canOpenURL(mailto);
+      if (!supported) {
+        throw new Error('Mail client unavailable');
+      }
+      await Linking.openURL(mailto);
+    } catch {
+      Alert.alert(
+        'Contact VarsityHub',
+        'Email us at customerservice@varsityhub.app and mention which organization you are contacting about.'
+      );
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
       <Text accessibilityRole="header" style={{ fontSize: 24, fontWeight: '700' }}>{org.name}</Text>
@@ -99,14 +117,13 @@ export default function OrganizationDetailScreen() {
 
       {/* CTA row */}
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-        {/* TODO: Create /contact route or use existing contact mechanism */}
-        {/* <Pressable
+        <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/contact', params: { orgId: org.id } })}
+          onPress={handleContactPress}
           style={{ backgroundColor: '#111', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff' }}>Contact</Text>
-        </Pressable> */}
+        </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/request-join-organization', params: { orgId: org.id } } as any)}

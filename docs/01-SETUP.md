@@ -188,8 +188,8 @@ See: [Environment Setup](./03-ENVIRONMENT.md#google-maps)
 1. Go to: https://dashboard.stripe.com
 2. Get API keys from **Developers → API Keys**
 3. Create products and prices:
-   - Veteran: $9.99/month
-   - Legend: $19.99/month
+   - Veteran: $1.50/team/month
+   - Legend: $20/year
 4. Copy price IDs to `server/.env`
 5. Set up webhook endpoint (for production)
 

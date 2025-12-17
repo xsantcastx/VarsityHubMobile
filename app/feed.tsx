@@ -162,7 +162,7 @@ export default function FeedScreen() {
   const [gamesCursor, setGamesCursor] = useState<string | null>(null);
   const [hasMoreGames, setHasMoreGames] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
   const emailVerified = !!me?.email_verified;
@@ -328,21 +328,21 @@ export default function FeedScreen() {
   }, [loadingMore, hasMoreGames, gamesCursor]);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       await load();
     })();
   }, [load]);
 
   useEffect(() => {
     if (!games.length) return;
-    preloadVoteSummaries(games.slice(0, 12));
+    void preloadVoteSummaries(games.slice(0, 12));
   }, [games, preloadVoteSummaries]);
 
   useFocusEffect(
     useCallback(() => {
-      load({ silent: true });
+      void load({ silent: true });
       // Check for unread notifications when feed gains focus
-      (async () => {
+      void (async () => {
         try {
           const page = await NotificationApi.listPage(null, 1, true);
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
@@ -385,7 +385,7 @@ export default function FeedScreen() {
       }
     };
     
-    loadModalData();
+    void loadModalData();
   }, [notificationsMenuOpen]);
 
   const onRefresh = useCallback(async () => {

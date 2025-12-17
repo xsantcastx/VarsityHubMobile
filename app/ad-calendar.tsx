@@ -170,7 +170,7 @@ export default function AdCalendarScreen() {
           // Load availability for next 8 weeks
           await loadAvailability(zip);
         }
-      } catch (_error) {
+      } catch {
         if (mounted) setReserved(new Set());
       }
     })();
@@ -479,7 +479,7 @@ export default function AdCalendarScreen() {
               text: 'Continue to Payment',
               onPress: async () => {
                 try {
-                  const result = await WebBrowser.openBrowserAsync(String(data.url));
+                  await WebBrowser.openBrowserAsync(String(data.url));
                   
                   // Reset submitting state
                   setSubmitting(false);

@@ -24,7 +24,7 @@ export default function BlockedUsersScreen() {
   }, []);
 
   useEffect(() => {
-    loadBlocked();
+    void loadBlocked();
   }, [loadBlocked]);
 
   const add = useCallback(async () => {

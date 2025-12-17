@@ -47,7 +47,10 @@ export class ErrorBoundary extends Component<Props, State> {
           tags: { component: 'ErrorBoundary' }
         });
       } catch (sentryError) {
-        // [ErrorBoundary] Failed to send to Sentry: sentryError
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[ErrorBoundary] Failed to send to Sentry', sentryError);
+        }
       }
     }
   }

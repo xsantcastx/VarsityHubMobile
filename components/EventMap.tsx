@@ -47,7 +47,7 @@ export default function EventMap({
 
   // Request location permissions and get user location
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         if (showUserLocation) {
           const { status } = await Location.requestForegroundPermissionsAsync();

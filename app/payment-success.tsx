@@ -79,15 +79,15 @@ export default function PaymentSuccessScreen() {
                 setError('Payment verification timed out. Your payment may still be processing. Please refresh or contact support.');
                 setLoading(false);
               }
-            } catch (_error) {
+            } catch (error) {
               // If user fetch fails on last attempt, show error
               if (verificationAttempt >= maxVerificationAttempts - 1) {
-                console.error('[payment-success] User.me() failed after retries:', _error);
+                console.error('[payment-success] User.me() failed after retries:', error);
                 setError('Unable to verify payment. Please contact support.');
                 setLoading(false);
               } else {
                 // Retry on error
-                console.warn('[payment-success] User.me() failed, retrying...', _error);
+                console.warn('[payment-success] User.me() failed, retrying...', error);
                 clearRetryTimeout();
                 retryTimeoutRef.current = setTimeout(() => {
                   setVerificationAttempt((attempt) => attempt + 1);

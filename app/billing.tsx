@@ -32,7 +32,7 @@ export default function BillingScreen() {
       try {
         const s = await Subscriptions.getSummary();
         setSummary(s);
-        if (s?.quantity) setQty(String(s.quantity));
+        if (typeof s?.quantity === 'number') setQty(String(s.quantity + 2)); // include 2 free Rookie teams
       } catch {
         // ignore
       } finally {
@@ -54,7 +54,8 @@ export default function BillingScreen() {
       const s = await Subscriptions.getSummary();
       setSummary(s);
       setShowQtyEditor(false);
-      Alert.alert('Updated', `Subscription updated to ${n} teams ($${(n * 2.5).toFixed(2)}/month).`);
+      const billable = Math.max(0, n - 2);
+      Alert.alert('Updated', `Subscription updated to ${n} total teams (${billable} billed at $1.50 each = $${(billable * 1.5).toFixed(2)}/month).`);
     } catch (e: any) {
       Alert.alert('Update failed', e?.message || 'Unable to update quantity.');
     } finally {
@@ -97,7 +98,7 @@ export default function BillingScreen() {
       case 'veteran':
         return 'First 2 teams free, then $1.50/month per additional team. Up to 2 authorized users per team.';
       case 'legend':
-        return 'Unlimited teams at $19.99/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
+        return 'Unlimited teams at $20/year. Create extracurricular clubs (Theater, Chess, etc.). Unlimited authorized users.';
       default:
         return 'Free plan with 2 teams. 1 authorized user per team.';
     }
@@ -118,8 +119,8 @@ export default function BillingScreen() {
         <View style={styles.banner}>
           <Text style={styles.bannerTitle}>Veteran Plan</Text>
           <Text style={styles.bannerDescription}>{getPlanDescription('veteran')}</Text>
-          <Text style={styles.bannerLine}>Paid teams: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
-          <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 2.5).toFixed(2)}</Text></Text>
+          <Text style={styles.bannerLine}>Billable teams beyond 2 free: <Text style={styles.bold}>{summary.quantity ?? '—'}</Text></Text>
+          <Text style={styles.bannerLine}>Monthly: <Text style={styles.bold}>${summary.monthly_cost?.toFixed?.(2) ?? ((summary.quantity || 0) * 1.5).toFixed(2)}</Text></Text>
           {!!summary.current_period_end && (
             <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}
@@ -151,7 +152,7 @@ export default function BillingScreen() {
         <View style={[styles.banner, styles.bannerLegend]}>
           <Text style={[styles.bannerTitle, styles.bannerTitleLegend]}>Legend Plan</Text>
           <Text style={styles.bannerDescription}>{getPlanDescription('legend')}</Text>
-          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$19.99/year</Text></Text>
+          <Text style={styles.bannerLine}>Annual: <Text style={styles.bold}>$20/year</Text></Text>
           {!!summary.current_period_end && (
             <Text style={styles.bannerHint}>Renews: {new Date(summary.current_period_end).toLocaleDateString()}</Text>
           )}

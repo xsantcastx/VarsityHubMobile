@@ -24,7 +24,7 @@
 - **Backend:** 250 cents
 
 #### LEGEND
-- **Price:** $19.99/year
+- **Price:** $20/year
 - **Features:**
   - Unlimited teams
   - Unlimited authorized users

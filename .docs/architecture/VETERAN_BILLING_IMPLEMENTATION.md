@@ -43,7 +43,7 @@ Implemented comprehensive team count tracking and billing validation for Veteran
 - **Detection** - Checks if user is on Veteran plan before creating team
 - **Alert improvements**:
   - Shows current team count and new total
-  - Displays new monthly cost (e.g., "Adding this team will increase your monthly charge to $10.00/month (4 teams × $2.50)")
+  - Displays new monthly cost (e.g., "Adding this team will increase your monthly charge to $3.00/month (4 total teams = 2 billed × $1.50)")
   - Explains subscription will be updated automatically
 - **Subscription update** - Calls `Subscriptions.updateQuantity(newTeamCount)` before creating team
 - **Error handling** - Shows user-friendly error if subscription update fails
@@ -54,7 +54,7 @@ Implemented comprehensive team count tracking and billing validation for Veteran
 - **Team count check** - Counts user's owned active teams
 - **Subscription verification**:
   - Checks user has `subscription_id` in preferences
-  - Retrieves Stripe subscription to verify status (active/trialing)
+  - Retrieves Stripe subscription to verify status (must be `active`)
   - Gets paid quantity from subscription item
 - **Enforcement logic**:
   - If creating team #4 but only paid for 3 → reject with error
@@ -76,16 +76,16 @@ Implemented comprehensive team count tracking and billing validation for Veteran
 
 ### Onboarding with Veteran Plan:
 1. User selects "Veteran" plan on step 3
-2. Modal appears asking "How Many Teams?"
+2. Modal appears asking "How Many Total Teams?" (first 2 stay free)
 3. User adjusts count (min 3) using +/- buttons
-4. Sees real-time pricing: "$7.50/month (3 teams × $2.50)"
+4. Sees real-time pricing: "$1.50/month (3 total teams = 1 billed × $1.50)"
 5. Clicks "Continue to Checkout"
 6. Stripe checkout created with quantity=3, total $7.50/month
 7. After payment, subscription stored with quantity=3
 
 ### Adding a Team as Veteran User:
 1. Veteran user (paid for 3 teams, has 3 teams) clicks "Create Team"
-2. Alert shows: "Adding this team will increase your monthly charge to $10.00/month (4 teams × $2.50)"
+2. Alert shows: "Adding this team will increase your monthly charge to $3.00/month (4 total teams = 2 billed × $1.50)"
 3. User clicks "Continue"
 4. Frontend calls `Subscriptions.updateQuantity(4)`
 5. Stripe subscription updated to quantity=4 ($10/month)
@@ -129,9 +129,9 @@ Implemented comprehensive team count tracking and billing validation for Veteran
 
 ## Testing Checklist
 
-- [ ] Onboarding: Select Veteran with 3 teams → Verify $7.50/month checkout
-- [ ] Onboarding: Select Veteran with 5 teams → Verify $12.50/month checkout
-- [ ] Add team: Veteran with 3 teams (paid for 3) → Should prompt to upgrade to $10/month
+- [ ] Onboarding: Select Veteran with 3 total teams → Verify $1.50/month checkout (1 billed × $1.50)
+- [ ] Onboarding: Select Veteran with 5 total teams → Verify $4.50/month checkout (3 billed × $1.50)
+- [ ] Add team: Veteran with 3 total teams (1 billed) → Should prompt to upgrade to $3.00/month (2 billed × $1.50)
 - [ ] Add team: After payment, verify Stripe subscription quantity updated
 - [ ] Backend validation: Try to create team without updating subscription → Should fail with 403
 - [ ] Edge case: Rookie user creates 2 teams → Should work
@@ -150,7 +150,7 @@ STRIPE_PRICE_VETERAN=price_1SGKDDGJt8CsPE1EY6aFs7Hz
 ✅ **Backend validation** - Cannot bypass by manipulating frontend
 ✅ **Stripe source of truth** - Always checks actual subscription quantity
 ✅ **Plan verification** - Validates user plan before applying rules
-✅ **Subscription status** - Only allows active/trialing subscriptions
+✅ **Subscription status** - Only allows active subscriptions (no trials)
 ✅ **Error codes** - Structured errors prevent information leakage
 
 ## Future Enhancements

@@ -20,13 +20,13 @@ export default function ManageUsersScreen() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       setLoading(true); setError(null);
       try {
         const list: any[] = await TeamApi.allMembers();
         if (!mounted) return;
         setRows(list);
-      } catch (e: any) {
+      } catch {
         if (!mounted) return; setError('Failed to load users');
       } finally { if (mounted) setLoading(false); }
     })();

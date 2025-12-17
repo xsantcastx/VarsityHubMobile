@@ -50,7 +50,7 @@ export default function EditAdScreen() {
         setDesc(ad?.description || '');
         setStatus((ad?.status || 'draft') as any);
         setPayment((ad?.payment_status || 'unpaid') as any);
-      } catch (_error) {
+      } catch {
         // Fallback to local draft
         const local = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
         const found = local.find((a) => String(a.id) === String(id));
@@ -69,7 +69,7 @@ export default function EditAdScreen() {
     } finally { setLoading(false); }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const pickBanner = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -103,7 +103,7 @@ export default function EditAdScreen() {
           target_zip_code: zip.trim(),
           description: desc.trim() || undefined,
         });
-      } catch (e: any) {
+      } catch {
         // If not permitted or offline, update local draft copy
         const list = await settings.getJson<any[]>(settings.SETTINGS_KEYS.LOCAL_ADS, []);
         const idx = list.findIndex((a) => String(a.id) === String(id));

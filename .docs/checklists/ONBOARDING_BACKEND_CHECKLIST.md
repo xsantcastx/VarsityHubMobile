@@ -160,7 +160,7 @@ npx prisma generate
 **Frontend Expectations:**
 - **Rookie Plan:** Max 2 teams, 1 authorized user
 - **Veteran Plan:** Unlimited teams ($2.50/month each after first 2), 2 authorized users per team
-- **Legend Plan:** Unlimited teams (flat $19.99/year), unlimited authorized users
+- **Legend Plan:** Unlimited teams (flat $20/year), unlimited authorized users
 
 **Current Backend Status:**
 - ❌ No team count limit enforcement

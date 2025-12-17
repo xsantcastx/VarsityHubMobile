@@ -52,6 +52,7 @@ export function BannerUpload({
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
   const handlePickImage = async () => {
+    setUploading(true);
     try {
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -91,6 +92,8 @@ export function BannerUpload({
     } catch (error) {
       console.error('Image picker error:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -135,7 +138,7 @@ export function BannerUpload({
         Animated.timing(hintOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start(() => setShowHint(false));
     }
-  }, [value, fitMode]);
+  }, [value, fitMode, hintOpacity]);
 
   return (
     <View style={styles.container}>

@@ -14,7 +14,7 @@ export default function FeedbackScreen() {
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => { (async () => { try { await User.me(); } catch (_error) {} })(); }, []);
+  useEffect(() => { void (async () => { try { await User.me(); } catch {} })(); }, []);
 
   const onSubmit = async () => {
     if (!message.trim()) { Alert.alert('Please enter a message'); return; }

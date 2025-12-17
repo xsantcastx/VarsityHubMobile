@@ -223,7 +223,7 @@ eas submit --platform ios --latest
 - Team Limits feature allows coaches to manage multiple teams based on subscription tier
 - Rookie plan: 2 free teams
 - Veteran plan: Unlimited teams at $2.50/team/month
-- Legend plan: All features, unlimited teams at $19.99/year
+- Legend plan: All features, unlimited teams at $20/year
 - Email verification ensures account security
 - Stripe payment processing handles subscription management
 

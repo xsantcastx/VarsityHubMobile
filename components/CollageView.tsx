@@ -110,7 +110,7 @@ const CollageView: React.FC<Props> = memo(({ collage, style }) => {
 
   return (
     <View onLayout={onLayout} style={[styles.container, { backgroundColor: bg, borderRadius: r, padding: g/2 }, style]}>
-      {size.w > 0 && size.h > 0 ? frames.map((f, index) => {
+      {size.w > 0 && size.h > 0 ? frames.map((f) => {
         const left = f.x * size.w;
         const top = f.y * size.h;
         const width = f.w * size.w;

@@ -7,11 +7,13 @@ import {
     isSendGridConfigured,
     sendCoachOnboardingEmail,
     sendFanWelcomeEmail,
-    sendPasswordResetEmail,
+    sendLoginFromNewDeviceEmail,
     sendPasswordChangedEmail,
-    sendSecurityAlertEmail,
-    sendVerificationEmail,
+    sendPasswordResetEmail,
+    sendUserConfirmationEmail,
+    sendVerificationEmail
 } from '../lib/email.js';
+import { verifyAppleToken } from '../lib/appleAuth.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -110,6 +112,20 @@ authRouter.post('/register', async (req, res) => {
     console.error('[email] Email send failed:', e);
     req.log?.warn?.({ err: e }, 'Email send failed; returning code in dev'); 
   }
+  
+  // Send user confirmation email
+  try {
+    await sendUserConfirmationEmail({
+      to: email,
+      userName: display_name || sanitizedEmail.split('@')[0],
+      confirmationLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/onboarding`,
+      expiresIn: '30 days',
+    }).catch((err: Error) => {
+      console.error('[email] User confirmation email failed:', err);
+    });
+  } catch (e) {
+    console.error('[email] User confirmation email error:', e);
+  }
   const sendGridReady = isSendGridConfigured();
   const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
   const payload: any = { access_token, user: sanitizeUser(user) };
@@ -146,20 +162,97 @@ authRouter.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   
+  // NEW DEVICE DETECTION: Check User-Agent and IP for suspicious login
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || 
+                    (req.headers['x-real-ip'] as string) || 
+                    req.socket.remoteAddress || 
+                    'unknown';
+  
+  const deviceFingerprint = crypto.createHash('md5')
+    .update(`${userAgent}|${ipAddress}`)
+    .digest('hex');
+  
+  const lastLogins = ((user as any)?.preferences?.last_logins || []) as Array<{
+    fingerprint: string;
+    timestamp: string;
+    ip: string;
+    userAgent: string;
+  }>;
+  
+  const isKnownDevice = lastLogins.some(login => login.fingerprint === deviceFingerprint);
+  
+  if (!isKnownDevice && user.email) {
+    // New device detected - send alert email
+    const loginDate = new Date().toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'America/Chicago',
+      timeZoneName: 'short'
+    });
+    
+    // Extract device info from user agent
+    const deviceInfo = userAgent.includes('Mobile') ? 'Mobile Device' : 
+                      userAgent.includes('Tablet') ? 'Tablet' : 
+                      'Desktop Computer';
+    const browserInfo = userAgent.includes('Chrome') ? 'Chrome' :
+                       userAgent.includes('Safari') ? 'Safari' :
+                       userAgent.includes('Firefox') ? 'Firefox' :
+                       'Unknown Browser';
+    
+    await sendLoginFromNewDeviceEmail({
+      to: user.email,
+      userName: user.display_name || user.email.split('@')[0],
+      deviceType: `${deviceInfo} - ${browserInfo}`,
+      deviceLocation: ipAddress !== 'unknown' ? ipAddress : 'Unknown location',
+      loginDate: new Date().toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'America/Chicago',
+      }),
+      loginTime: new Date().toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'America/Chicago',
+      }),
+      ipAddress: ipAddress !== 'unknown' ? ipAddress : 'Unknown',
+      secureAccountLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/security`,
+      changePasswordLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/settings/password`,
+      contactSupportLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/support`,
+    }).catch((err: Error) => {
+      console.error('[auth] Failed to send new device login email:', err);
+    });
+  }
+  
+  // Update last logins history (keep last 5 devices)
+  const updatedLogins = [
+    { fingerprint: deviceFingerprint, timestamp: new Date().toISOString(), ip: ipAddress, userAgent },
+    ...lastLogins.filter(l => l.fingerprint !== deviceFingerprint).slice(0, 4)
+  ];
+  
   // ADMIN BYPASS: Admin accounts (emilmancero@gmail.com) skip onboarding
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const isAdmin = adminEmails.includes(sanitizedEmail);
   
   // Only update onboarding_completed if user is new or missing the flag
   const currentPrefs = (user as any)?.preferences || {};
-  const needsPreferenceUpdate = currentPrefs.onboarding_completed === undefined || currentPrefs.onboarding_completed === null;
+  const needsPreferenceUpdate = currentPrefs.onboarding_completed === undefined || 
+                                currentPrefs.onboarding_completed === null ||
+                                JSON.stringify(currentPrefs.last_logins || []) !== JSON.stringify(updatedLogins);
   
   let updatedUser = user;
   if (needsPreferenceUpdate) {
     updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
-        preferences: mergePreferences(currentPrefs, { onboarding_completed: true }),
+        preferences: mergePreferences(currentPrefs, { 
+          onboarding_completed: true,
+          last_logins: updatedLogins 
+        }),
       },
     });
     Object.assign(user, updatedUser);
@@ -310,11 +403,13 @@ authRouter.post('/apple', async (req, res) => {
       email = `${appleId}@privaterelay.appleid.com`;
       // Using development token for simulator
     } else {
-      // In production, you would verify the identity_token with Apple's servers
-      // For now, we'll accept any token and extract a pseudo-ID
-      // TODO: Implement proper Apple token verification in production
-      appleId = `apple_${Buffer.from(identity_token).toString('base64').substring(0, 32)}`;
-      debugLog('[auth/apple] Processing Apple sign-in (production verification not yet implemented)');
+      const decoded = await verifyAppleToken(identity_token);
+      if (!decoded) {
+        req.log?.warn?.({ reason: 'apple_token_invalid' }, '[auth/apple] token verification failed');
+        return res.status(400).json({ error: 'Invalid Apple credential' });
+      }
+      appleId = decoded.sub;
+      email = decoded.email ?? null;
     }
 
     if (!appleId) {
@@ -662,7 +757,11 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const incoming = parsed.data as any;
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const onboardingCompleted = current?.preferences?.onboarding_completed === true;
+  const currentPrefs =
+    current?.preferences && typeof current.preferences === 'object'
+      ? (current.preferences as Record<string, any>)
+      : {};
+  const onboardingCompleted = currentPrefs.onboarding_completed === true;
 
   if ('role' in incoming) {
     if (onboardingCompleted) {
@@ -696,7 +795,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  const merged = mergePreferences(defaults, mergePreferences(current?.preferences || {}, incoming));
+  const merged = mergePreferences(defaults, mergePreferences(currentPrefs, incoming));
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });

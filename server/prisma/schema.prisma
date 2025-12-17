@@ -18,7 +18,7 @@ model User {
   google_id                  String?   @unique
   apple_id                   String?   @unique
   display_name               String?
-  username                   String?   // Will add unique constraint later after data migration
+  username                   String? // Will add unique constraint later after data migration
   avatar_url                 String?
   bio                        String?
   created_at                 DateTime  @default(now())
@@ -29,29 +29,30 @@ model User {
   password_reset_expires     DateTime?
   banned                     Boolean   @default(false)
   // Trust & Safety
-  offense_count              Int        @default(0)
+  offense_count              Int       @default(0)
   suspension_until           DateTime?
   suspension_reason          String?
-  permanent_ban              Boolean    @default(false)
+  permanent_ban              Boolean   @default(false)
   preferences                Json      @default("{}")
-  
+
   // Subscription/Premium fields
-  subscription_tier          String    @default("free") // free | premium | pro
-  subscription_status        String    @default("active") // active | cancelled | expired
-  subscription_expires_at    DateTime?
-  stripe_customer_id         String?
-  max_teams                  Int       @default(2) // Free users get 2 teams
+  subscription_tier       String    @default("free") // free | premium | pro
+  subscription_status     String    @default("active") // active | cancelled | expired
+  subscription_expires_at DateTime?
+  stripe_customer_id      String?
+  max_teams               Int       @default(2) // Free users get 2 teams
 
   // Relations
-  memberships TeamMembership[]
-  orgMemberships OrganizationMembership[]
-  orgJoinRequests OrganizationJoinRequest[]
-  rsvps       EventRsvp[]
-  createdEvents Event[]
-  stories     Story[]
-  ads         Ad[]
-  posts       Post[]
-  categoryFollows CategoryFollow[]
+  memberships      TeamMembership[]
+  removedMembers   TeamMembership[] @relation("RemovedMembers")
+  orgMemberships   OrganizationMembership[]
+  orgJoinRequests  OrganizationJoinRequest[]
+  rsvps            EventRsvp[]
+  createdEvents    Event[]
+  stories          Story[]
+  ads              Ad[]
+  posts            Post[]
+  categoryFollows  CategoryFollow[]
   promoRedemptions PromoRedemption[]
   transactionLogs  TransactionLog[]
 
@@ -60,98 +61,99 @@ model User {
   followers Follows[] @relation("followers")
 
   // Messages
-  messagesSent     Message[] @relation("message_sender")
-  messagesReceived Message[] @relation("message_recipient")
+  messagesSent     Message[]      @relation("message_sender")
+  messagesReceived Message[]      @relation("message_recipient")
   Comment          Comment[]
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
 
   // Blocking
-  blocking BlockedUser[] @relation("blocker")
+  blocking  BlockedUser[] @relation("blocker")
   blockedBy BlockedUser[] @relation("blocked")
 
   // Group Chats
-  createdGroupChats GroupChat[]
+  createdGroupChats    GroupChat[]
   groupChatMemberships GroupChatMember[]
-  groupChatMessages GroupChatMessage[]
+  groupChatMessages    GroupChatMessage[]
 
   // Notifications
-  notifications   Notification[] @relation("notification_user")
-  actions         Notification[] @relation("notification_actor")
-  
+  notifications Notification[] @relation("notification_user")
+  actions       Notification[] @relation("notification_actor")
+
   // Games (approval workflow)
-  createdGames    Game[] @relation("created_games")
-  approvedGames   Game[] @relation("approved_games")
-  
+  createdGames  Game[] @relation("created_games")
+  approvedGames Game[] @relation("approved_games")
+
   // Abuse Reports
-  abuseReports    AbuseReport[]
+  abuseReports   AbuseReport[] @relation("user_reports")
+  reportsAgainst AbuseReport[] @relation("reported_user")
 }
 
 model Game {
-  id              String   @id @default(cuid())
-  title           String
-  date            DateTime
-  location        String?
-  latitude        Float?
-  longitude       Float?
-  
+  id        String   @id @default(cuid())
+  title     String
+  date      DateTime
+  location  String?
+  latitude  Float?
+  longitude Float?
+
   // New: Team relationships
-  home_team_id    String?
-  away_team_id    String?
-  homeTeam        Team?    @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
-  awayTeam        Team?    @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
-  
+  home_team_id String?
+  away_team_id String?
+  homeTeam     Team?   @relation("home_games", fields: [home_team_id], references: [id], onDelete: SetNull)
+  awayTeam     Team?   @relation("away_games", fields: [away_team_id], references: [id], onDelete: SetNull)
+
   // Team names for display (backward compatibility)
-  home_team       String?
-  away_team       String?
-  away_team_name  String?
-  
+  home_team      String?
+  away_team      String?
+  away_team_name String?
+
   // Venue information
-  venue_place_id  String?
-  venue_address   String?
-  venue_lat       Float?
-  venue_lng       Float?
-  is_neutral      Boolean  @default(false)
-  
-  description     String?
-  cover_image_url String?
-  banner_url      String?
+  venue_place_id String?
+  venue_address  String?
+  venue_lat      Float?
+  venue_lng      Float?
+  is_neutral     Boolean @default(false)
+
+  description         String?
+  cover_image_url     String?
+  banner_url          String?
   // Optional appearance/preset for the match banner (e.g. classic, sparkle, sporty)
-  appearance      String?
+  appearance          String?
   // Expected attendance for events (optional)
   expected_attendance Int?
   // Event type: game, fundraiser, watch_party, team_trip, meeting, other
-  event_type      String?  @default("game")
-  
+  event_type          String? @default("game")
+
   // Event type-specific fields
-  donation_goal   Float?   // For fundraisers - target amount
-  watch_location  String?  // For watch parties - viewing location
-  watch_location_lat Float? // Watch party location latitude
-  watch_location_lng Float? // Watch party location longitude
+  donation_goal           Float? // For fundraisers - target amount
+  watch_location          String? // For watch parties - viewing location
+  watch_location_lat      Float? // Watch party location latitude
+  watch_location_lng      Float? // Watch party location longitude
   watch_location_place_id String? // Google Places ID for watch location
-  destination     String?  // For team trips - destination city/venue
-  
+  destination             String? // For team trips - destination city/venue
+
   // Approval workflow
-  approval_status String   @default("approved") // approved | pending | rejected
+  approval_status String    @default("approved") // approved | pending | rejected
   created_by_id   String?
-  created_by      User?    @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
+  created_by      User?     @relation("created_games", fields: [created_by_id], references: [id], onDelete: SetNull)
   approved_by_id  String?
-  approved_by     User?    @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
+  approved_by     User?     @relation("approved_games", fields: [approved_by_id], references: [id], onDelete: SetNull)
   approved_at     DateTime?
-  
+
   // Tournament fields
   tournament_organization_id String?
   tournament_organization    Organization? @relation("TournamentGames", fields: [tournament_organization_id], references: [id], onDelete: SetNull)
-  
-  group           String?        // For tournament groups (e.g., "Group A")
-  round           String?        // For tournament rounds (e.g., "Group Stage", "Quarterfinal")
-  stadium         String?        // Tournament stadium name
-  stadium_name    String?        // Tournament stadium (legacy field)
-  stadium_capacity Int?          // Stadium capacity
-  banner_image_url String?       // For tournament match banners
-  
-  created_at      DateTime @default(now())
+
+  group            String? // For tournament groups (e.g., "Group A")
+  round            String? // For tournament rounds (e.g., "Group Stage", "Quarterfinal")
+  stadium          String? // Tournament stadium name
+  stadium_name     String? // Tournament stadium (legacy field)
+  stadium_capacity Int? // Stadium capacity
+  banner_image_url String? // For tournament match banners
+
+  created_at DateTime @default(now())
 
   // Back-relations
   posts   Post[]
@@ -189,10 +191,10 @@ model Post {
 
   created_at DateTime @default(now())
 
-  comments Comment[]
-  upvotes PostUpvote[]
-  bookmarks PostBookmark[]
-  categories CategoryAssignment[]
+  comments      Comment[]
+  upvotes       PostUpvote[]
+  bookmarks     PostBookmark[]
+  categories    CategoryAssignment[]
   notifications Notification[]
 
   @@index([created_at])
@@ -212,17 +214,17 @@ model Event {
   status     String   @default("draft") // draft, approved, rejected, cancelled
   capacity   Int?
   created_at DateTime @default(now())
-  
+
   // Fan event creation fields
   creator_id      String?
-  creator_role    String?   // fan, coach, organizer
+  creator_role    String? // fan, coach, organizer
   approval_status String    @default("pending") // pending, approved, rejected
-  event_type      String?   // game, watch_party, fundraiser, tryout, bbq, other
+  event_type      String? // game, watch_party, fundraiser, tryout, bbq, other
   description     String?
-  linked_league   String?   // League/school name or ID
+  linked_league   String? // League/school name or ID
   max_attendees   Int?
   contact_info    String?
-  approved_by     String?   // User ID of approver
+  approved_by     String? // User ID of approver
   approved_at     DateTime?
   rejected_reason String?
 
@@ -280,20 +282,20 @@ model GroupChat {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  team       Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
-  creator    User               @relation(fields: [created_by], references: [id], onDelete: Cascade)
-  members    GroupChatMember[]
-  messages   GroupChatMessage[]
+  team     Team?              @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  creator  User               @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  members  GroupChatMember[]
+  messages GroupChatMessage[]
 
   @@index([team_id])
   @@index([created_by])
 }
 
 model GroupChatMember {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   chat_id      String
   user_id      String
-  joined_at    DateTime @default(now())
+  joined_at    DateTime  @default(now())
   last_read_at DateTime?
 
   chat GroupChat @relation(fields: [chat_id], references: [id], onDelete: Cascade)
@@ -401,7 +403,7 @@ model Ad {
   business_name   String?
   banner_url      String?
   banner_fit_mode String?  @default("fill") // letterbox | fill | stretch
-  target_url      String?  // URL to open when ad is clicked
+  target_url      String? // URL to open when ad is clicked
   target_zip_code String?
   radius          Int      @default(45) // non-null with default
   description     String?
@@ -457,7 +459,7 @@ model CategoryAssignment {
 // ===========================
 
 model GameVote {
-  id         String     @id @default(cuid())
+  id         String   @id @default(cuid())
   game_id    String
   user_id    String
   team       String
@@ -509,9 +511,9 @@ model Notification {
   created_at DateTime         @default(now())
   read_at    DateTime?
 
-  user   User @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
-  actor  User @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
-  post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  user    User     @relation("notification_user", fields: [user_id], references: [id], onDelete: Cascade)
+  actor   User     @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [post_id], references: [id], onDelete: SetNull)
   comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
 
   @@index([user_id, created_at])
@@ -524,109 +526,108 @@ model Notification {
 // ===========================
 
 model Team {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
+  id                       String    @id @default(cuid())
+  name                     String
+  description              String?
   // Logo and optional avatar URL for backward compatibility with front-end
-  logo_url    String?
-  avatar_url  String?
-  sport       String?
-  club_type   String   @default("sport") // "sport" or "extracurricular"
+  logo_url                 String?
+  avatar_url               String?
+  sport                    String?
+  club_type                String    @default("sport") // "sport" or "extracurricular"
   extracurricular_category String? // theater | chess | debate | robotics | band | student_government | academic_decathlon | etc.
-  season_start DateTime?
-  season_end  DateTime?
-  organization_id String?
-  status      String   @default("active")
-  
-  // Venue information
-  venue_place_id String?
-  venue_lat      Float?
-  venue_lng      Float?
-  venue_address  String?
-  venue_updated_at DateTime?
-  
-  // Additional metadata for search/disambiguation
-  city           String?
-  state          String?
-  league         String?
-  
-  created_at  DateTime @default(now())
+  season_start             DateTime?
+  season_end               DateTime?
+  organization_id          String?
+  status                   String    @default("active")
 
-  organization Organization? @relation(fields: [organization_id], references: [id], onDelete: SetNull)
-  memberships TeamMembership[]
-  invites     TeamInvite[]
-  groupChats  GroupChat[]
-  
+  // Venue information
+  venue_place_id   String?
+  venue_lat        Float?
+  venue_lng        Float?
+  venue_address    String?
+  venue_updated_at DateTime?
+
+  // Additional metadata for search/disambiguation
+  city   String?
+  state  String?
+  league String?
+
+  created_at DateTime @default(now())
+
+  organization Organization?    @relation(fields: [organization_id], references: [id], onDelete: SetNull)
+  memberships  TeamMembership[]
+  invites      TeamInvite[]
+  groupChats   GroupChat[]
+
   // Game relations
-  homeGames   Game[] @relation("home_games")
-  awayGames   Game[] @relation("away_games")
-  
+  homeGames Game[] @relation("home_games")
+  awayGames Game[] @relation("away_games")
+
   @@index([name])
   @@index([city, state])
   @@index([sport])
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  type        String   @default("organization") // organization | tournament
-  sport       String?
-  org_type    String?  // school | club | league | tournament | other
-  logo_url    String?  // For tournaments
-  location    String?  // City, State format
+  id                String    @id @default(cuid())
+  name              String
+  description       String?
+  type              String    @default("organization") // organization | tournament
+  sport             String?
+  org_type          String? // school | club | league | tournament | other
+  logo_url          String? // For tournaments
+  location          String? // City, State format
   formatted_address String?
-  place_id    String?  @unique
-  zip_code    String?  // For nearby search
-  season_start DateTime?
-  season_end  DateTime?
-  status      String   @default("active")
-  created_by  String?  // User ID of tournament creator
-  
+  place_id          String?   @unique
+  zip_code          String? // For nearby search
+  season_start      DateTime?
+  season_end        DateTime?
+  status            String    @default("active")
+  created_by        String? // User ID of tournament creator
+
   // Tournament-specific fields
-  is_tournament         Boolean?        @default(false)
-  tournament_format     String?         // GROUP_STAGE | KNOCKOUT | ROUND_ROBIN
+  is_tournament         Boolean?  @default(false)
+  tournament_format     String? // GROUP_STAGE | KNOCKOUT | ROUND_ROBIN
   tournament_start_date DateTime?
   tournament_end_date   DateTime?
   tournament_location   String?
   tournament_rules      String?
   tournament_logo_url   String?
-  
-  stadium_name    String?
-  capacity        Int?
-  opened_year     Int?
-  latitude        Float?
-  longitude       Float?
-  
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
 
-  teams       Team[]
-  memberships OrganizationMembership[]
-  invites     OrganizationInvite[]
+  stadium_name String?
+  capacity     Int?
+  opened_year  Int?
+  latitude     Float?
+  longitude    Float?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  teams        Team[]
+  memberships  OrganizationMembership[]
+  invites      OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
-  games       Game[]   @relation("TournamentGames")
-  
+  games        Game[]                    @relation("TournamentGames")
+
   @@unique([name, zip_code])
   @@index([zip_code])
   @@index([location])
   @@index([type])
 }
 
-
 model OrganizationJoinRequest {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   organization_id String
   user_id         String
-  status          String   @default("pending") // pending | approved | denied
-  message         String?  // Optional message from user
-  created_at      DateTime @default(now())
+  status          String    @default("pending") // pending | approved | denied
+  message         String? // Optional message from user
+  created_at      DateTime  @default(now())
   reviewed_at     DateTime?
-  reviewed_by     String?  // user_id of admin who reviewed
-  
+  reviewed_by     String? // user_id of admin who reviewed
+
   organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
+
   @@unique([organization_id, user_id])
   @@index([organization_id, status])
   @@index([user_id, status])
@@ -669,24 +670,30 @@ model TeamMembership {
   team_id String
   user_id String
 
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("active") // active | invited | archived
-  created_at DateTime @default(now())
+  role            String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
+  status          String   @default("active") // active | invited | archived
+  custom_position String?
+  removed_by      String? // user_id of person who removed this member
+  removal_reason  String? // Optional reason for removal
+  removal_date    DateTime? // When member was removed
+  created_at      DateTime @default(now())
 
-  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  team       Team  @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user       User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  remover    User? @relation("RemovedMembers", fields: [removed_by], references: [id], onDelete: SetNull)
 
   @@unique([team_id, user_id])
   @@index([team_id, created_at])
 }
 
 model TeamInvite {
-  id         String   @id @default(cuid())
-  team_id    String
-  email      String
-  role       String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
-  status     String   @default("pending") // pending | accepted | declined | revoked
-  created_at DateTime @default(now())
+  id              String   @id @default(cuid())
+  team_id         String
+  email           String
+  role            String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
+  status          String   @default("pending") // pending | accepted | declined | revoked
+  declined_reason String?  // Optional reason provided when declining invitation
+  created_at      DateTime @default(now())
 
   team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
 
@@ -711,9 +718,6 @@ model Follows {
   @@index([following_id])
 }
 
-
-
-
 // ===========================
 // Promotions
 // ===========================
@@ -724,11 +728,11 @@ enum PromoType {
 }
 
 model PromoCode {
-  id              String    @id @default(cuid())
-  code            String    @unique
-  type            PromoType
-  percent_off     Int?
-  enabled         Boolean   @default(true)
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        PromoType
+  percent_off Int?
+  enabled     Boolean   @default(true)
 
   start_at        DateTime?
   end_at          DateTime?
@@ -738,27 +742,26 @@ model PromoCode {
 
   applies_to_service String?
 
-  note        String?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  note       String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   redemptions PromoRedemption[]
 }
 
 model PromoRedemption {
-  id                       String   @id @default(cuid())
-  promo_id                 String
-  user_id                  String
-  order_id                 String?
-  amount_discounted_cents  Int
-  created_at               DateTime @default(now())
+  id                      String   @id @default(cuid())
+  promo_id                String
+  user_id                 String
+  order_id                String?
+  amount_discounted_cents Int
+  created_at              DateTime @default(now())
 
   promo PromoCode @relation(fields: [promo_id], references: [id])
   user  User      @relation(fields: [user_id], references: [id])
 
   @@index([promo_id, user_id])
 }
-
 
 // ===========================
 // Transaction Logging
@@ -782,46 +785,46 @@ enum TransactionStatus {
 }
 
 model TransactionLog {
-  id                  String            @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Transaction identification
-  transaction_type    TransactionType
-  status              TransactionStatus @default(PENDING)
-  stripe_session_id   String?           @unique
+  transaction_type         TransactionType
+  status                   TransactionStatus @default(PENDING)
+  stripe_session_id        String?           @unique
   stripe_payment_intent_id String?
   stripe_subscription_id   String?
-  
+
   // User and order details
-  user_id             String?
-  user_email          String?
-  order_id            String?           // Ad ID, subscription ID, etc.
-  
+  user_id    String?
+  user_email String?
+  order_id   String? // Ad ID, subscription ID, etc.
+
   // Financial details (all in cents)
-  subtotal_cents      Int               @default(0)
-  tax_cents           Int               @default(0)
-  stripe_fee_cents    Int               @default(0)
-  discount_cents      Int               @default(0)
-  total_cents         Int               @default(0)
-  net_cents           Int               @default(0)  // total - stripe_fee
-  
+  subtotal_cents   Int @default(0)
+  tax_cents        Int @default(0)
+  stripe_fee_cents Int @default(0)
+  discount_cents   Int @default(0)
+  total_cents      Int @default(0)
+  net_cents        Int @default(0) // total - stripe_fee
+
   // Promo code tracking
-  promo_code          String?
-  promo_discount_cents Int              @default(0)
-  
+  promo_code           String?
+  promo_discount_cents Int     @default(0)
+
   // Metadata
-  currency            String            @default("usd")
-  payment_method      String?           // "card", "bank_transfer", etc.
-  metadata            Json?             // Additional context (dates, zip codes, etc.)
-  
+  currency       String  @default("usd")
+  payment_method String? // "card", "bank_transfer", etc.
+  metadata       Json? // Additional context (dates, zip codes, etc.)
+
   // Audit trail
-  ip_address          String?
-  user_agent          String?
-  created_at          DateTime          @default(now())
-  updated_at          DateTime          @updatedAt
-  
+  ip_address String?
+  user_agent String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   // Relations
-  user                User?             @relation(fields: [user_id], references: [id])
-  
+  user User? @relation(fields: [user_id], references: [id])
+
   @@index([user_id])
   @@index([stripe_session_id])
   @@index([transaction_type])
@@ -834,16 +837,16 @@ model TransactionLog {
 // ===========================
 
 model AdminActivityLog {
-  id           String   @id @default(cuid())
-  admin_id     String
-  admin_email  String
-  action       String   // e.g., "Ban User", "Delete Team", "Approve Ad"
-  target_type  String   // e.g., "user", "team", "ad", "post"
-  target_id    String   // ID of the affected resource
-  description  String   // Human-readable description
-  metadata     Json?    // Additional context (old values, new values, etc.)
-  timestamp    DateTime @default(now())
-  
+  id          String   @id @default(cuid())
+  admin_id    String
+  admin_email String
+  action      String // e.g., "Ban User", "Delete Team", "Approve Ad"
+  target_type String // e.g., "user", "team", "ad", "post"
+  target_id   String // ID of the affected resource
+  description String // Human-readable description
+  metadata    Json? // Additional context (old values, new values, etc.)
+  timestamp   DateTime @default(now())
+
   @@index([admin_id])
   @@index([target_type])
   @@index([target_id])
@@ -855,32 +858,28 @@ model AdminActivityLog {
 // ===========================
 
 model AbuseReport {
-  id              String   @id @default(cuid())
-  reporter_id     String   // User who submitted the report
-  reporter_name   String
-  reporter_email  String
+  id                  String    @id @default(cuid())
+  reporter_id         String // User who submitted the report
+  reporter_name       String
+  reporter_email      String
   // Accused user (optional if unknown)
   reported_user_id    String?
   reported_user_name  String?
   reported_user_email String?
   context_url         String?
-  subject         String
-  message         String   @db.Text
-  status          String   @default("pending") // "pending", "reviewed", "resolved", "dismissed"
-  reviewed_by     String?  // Admin ID who reviewed
-  reviewed_at     DateTime?
-  resolution_note String?  @db.Text // Admin notes about resolution
-  created_at      DateTime @default(now())
-  
-  reporter        User     @relation(fields: [reporter_id], references: [id], onDelete: Cascade)
-  reportedUser    User?    @relation("reported_user", fields: [reported_user_id], references: [id], onDelete: SetNull)
-  
+  subject             String
+  message             String    @db.Text
+  status              String    @default("pending") // "pending", "reviewed", "resolved", "dismissed"
+  reviewed_by         String? // Admin ID who reviewed
+  reviewed_at         DateTime?
+  resolution_note     String?   @db.Text // Admin notes about resolution
+  created_at          DateTime  @default(now())
+
+  reporter     User  @relation("user_reports", fields: [reporter_id], references: [id], onDelete: Cascade)
+  reportedUser User? @relation("reported_user", fields: [reported_user_id], references: [id], onDelete: SetNull)
+
   @@index([reporter_id])
   @@index([reported_user_id])
   @@index([status])
   @@index([created_at])
 }
-
-
-
-

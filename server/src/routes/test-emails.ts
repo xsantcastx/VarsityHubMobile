@@ -1,17 +1,14 @@
 import { Router } from 'express';
 import {
-  sendBillingNoticeEmail,
-  sendContentModerationEmail,
-  sendJoinRequestApproved,
-  sendJoinRequestDenied,
-  sendJoinRequestToAdmin,
-  sendOrganizationApprovalEmail,
-  sendOrganizationDenialEmail,
-  sendOrganizationInviteEmail,
-  sendPasswordResetEmail,
-  sendSecurityAlertEmail,
-  sendTeamInviteEmail,
-  sendVerificationEmail,
+    sendBillingNoticeEmail,
+    sendContentModerationEmail,
+    sendOrganizationApprovalEmail,
+    sendOrganizationDenialEmail,
+    sendOrganizationInviteEmail,
+    sendPasswordResetEmail,
+    sendSecurityAlertEmail,
+    sendTeamInviteEmail,
+    sendVerificationEmail,
 } from '../lib/email.js';
 
 const router = Router();
@@ -73,25 +70,36 @@ router.post('/org-invite', async (req, res) => {
 });
 
 router.post('/join-admin', async (req, res) => {
+  // PHASE 1: Minimal accurate data from current backend schema
+  // See docs/EMAIL_TEMPLATE_FUTURE_PHASE2.md for full vision requiring team/role/seat tracking
   const {
     adminEmail = 'admin@example.com',
     adminName = 'Director Johnson',
     requesterName = 'John Smith',
+    requesterEmail = 'john@example.com',
     organizationName = 'Texas Elite Sports',
     message = 'I would love to volunteer as a coach.',
-    requestId = 'req_test_123',
+    requestId = 'req_123',
+    requestedAt = new Date().toISOString(),
+    approveUrl = 'https://varsityhub.app/org/req_123/approve',
+    denyUrl = 'https://varsityhub.app/org/req_123/deny',
     orgLogoUrl,
   } = req.body || {};
-  const ok = await sendJoinRequestToAdmin({
-    adminEmail,
-    adminName,
-    requesterName,
-    organizationName,
-    message,
-    requestId,
-    orgLogoUrl,
-  });
-  return res.json({ ok });
+  // DISABLED: sendJoinRequestToAdmin - template removed from approved list
+  // const ok = await sendJoinRequestToAdmin({
+  //   adminEmail,
+  //   adminName,
+  //   requesterName,
+  //   requesterEmail,
+  //   organizationName,
+  //   message,
+  //   requestId,
+  //   requestedAt,
+  //   approveUrl,
+  //   denyUrl,
+  //   orgLogoUrl,
+  // });
+  return res.json({ ok: false, message: 'Template disabled' });
 });
 
 router.post('/join-approved', async (req, res) => {
@@ -102,14 +110,15 @@ router.post('/join-approved', async (req, res) => {
     adminName = 'Director Johnson',
     orgLogoUrl,
   } = req.body || {};
-  const ok = await sendJoinRequestApproved({
-    userEmail,
-    userName,
-    organizationName,
-    adminName,
-    orgLogoUrl,
-  });
-  return res.json({ ok });
+  // DISABLED: sendJoinRequestApproved - template removed from approved list
+  // const ok = await sendJoinRequestApproved({
+  //   userEmail,
+  //   userName,
+  //   organizationName,
+  //   adminName,
+  //   orgLogoUrl,
+  // });
+  return res.json({ ok: false, message: 'Template disabled' });
 });
 
 router.post('/join-denied', async (req, res) => {
@@ -120,14 +129,15 @@ router.post('/join-denied', async (req, res) => {
     reason = 'We are currently at capacity.',
     orgLogoUrl,
   } = req.body || {};
-  const ok = await sendJoinRequestDenied({
-    userEmail,
-    userName,
-    organizationName,
-    reason,
-    orgLogoUrl,
-  });
-  return res.json({ ok });
+  // DISABLED: sendJoinRequestDenied - template removed from approved list
+  // const ok = await sendJoinRequestDenied({
+  //   userEmail,
+  //   userName,
+  //   organizationName,
+  //   reason,
+  //   orgLogoUrl,
+  // });
+  return res.json({ ok: false, message: 'Template disabled' });
 });
 
 router.post('/moderation', async (req, res) => {

@@ -17,7 +17,6 @@ export default function GameMapScreen() {
   
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState<EventMapData[]>([]);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   const loadGames = useCallback(async () => {
     setLoading(true);
@@ -33,10 +32,6 @@ export default function GameMapScreen() {
           lat = location.coords.latitude;
           lng = location.coords.longitude;
         }
-      }
-
-      if (lat && lng) {
-        setUserLocation({ latitude: lat, longitude: lng });
       }
 
       // Fetch ALL games worldwide - no location filter
@@ -68,7 +63,7 @@ export default function GameMapScreen() {
   }, [params.lat, params.lng]);
 
   useEffect(() => {
-    loadGames();
+    void loadGames();
   }, [loadGames]);
 
   const handleEventPress = (eventId: string) => {

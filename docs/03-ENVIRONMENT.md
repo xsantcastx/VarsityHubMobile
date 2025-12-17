@@ -407,13 +407,13 @@ STRIPE_SECRET_KEY=sk_live_YOUR_LIVE_SECRET_KEY
 **Veteran Tier:**
 - Name: `Veteran Membership`
 - Description: `Access to advanced features`
-- Pricing: `$9.99/month` recurring
+- Pricing: `$1.50/month per team` recurring
 - Copy **Price ID**: `price_...` → `STRIPE_PRICE_VETERAN`
 
 **Legend Tier:**
 - Name: `Legend Membership`
 - Description: `Access to all premium features`
-- Pricing: `$19.99/month` recurring
+- Pricing: `$20/year` recurring
 - Copy **Price ID**: `price_...` → `STRIPE_PRICE_LEGEND`
 
 ### Step 4: Configure Webhooks

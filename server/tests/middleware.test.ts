@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { paymentErrorLogging, paymentLogging, requestLogging } from '../src/middleware/logging';
 
 describe('Logging Middleware', () => {
@@ -165,13 +166,13 @@ describe('Logging Middleware', () => {
         expect.stringContaining('❌ Payment Error')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Status: 402')
+        expect.stringContaining('Status Code: 402')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Type: StripeCardError')
+        expect.stringContaining('Error Type: StripeCardError')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Message: Your card was declined')
+        expect.stringContaining('❌ Payment Error: Your card was declined')
       );
       expect(mockNext).toHaveBeenCalledWith(mockErr);
     });

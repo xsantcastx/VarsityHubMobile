@@ -1,21 +1,31 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
-import { sendPlanLimitWarningEmail, sendTeamInviteEmail } from '../lib/email.js';
-import { emailQueue } from '../lib/queue.js';
+import {
+    sendAthleteInvitationEmail,
+    sendInvitationDeclinedEmail,
+    sendMemberRemovedEmail,
+    sendPlanLimitWarningEmail,
+    sendRoleAssignmentEmail,
+    sendRosterThresholdEmail,
+    sendStaffMemberJoinedEmail,
+    sendTeamInvitationEmail,
+    sendTeamRosterUpdateEmail
+} from '../lib/email.js';
+import {
+    getAuthorizedUsersOrgLimit,
+    getAuthorizedUsersPerTeam,
+    getMaxTeamsForPlan,
+    getPlanDisplayName,
+    planSupportsExtracurricular,
+    resolvePlan,
+} from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
+import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import {
-  getAuthorizedUsersOrgLimit,
-  getAuthorizedUsersPerTeam,
-  getMaxTeamsForPlan,
-  getPlanDisplayName,
-  planSupportsExtracurricular,
-  resolvePlan,
-} from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
 
@@ -138,21 +148,21 @@ async function maybeQueueRosterThresholdAlert({
     owners.map((membership) => {
       const email = membership.user?.email;
       if (!email) return Promise.resolve();
-      return emailQueue.add(
-        'teams.roster_threshold_alert',
-        {
-          to: email,
-          coach_name: membership.user?.display_name || 'Coach',
-          team_name: teamName,
-          roster_count: newCount,
-          threshold_cost: ROSTER_THRESHOLD_COST,
-          manage_billing_url: MANAGE_BILLING_URL,
-        },
-        { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-      );
+      
+      // Send roster threshold email directly
+      return sendRosterThresholdEmail({
+        to: email,
+        coachName: membership.user?.display_name || 'Coach',
+        teamName: teamName,
+        currentRosterCount: newCount,
+        maxRosterCount: ROSTER_THRESHOLD,
+        upgradeLink: MANAGE_BILLING_URL,
+      }).catch((err: Error) => {
+        console.error('[teams] Failed to send roster threshold email:', err);
+      });
     })
   ).catch((error) => {
-    console.error('[teams] Failed to enqueue roster threshold alert:', error);
+    console.error('[teams] Failed to send roster threshold alert:', error);
   });
 }
 
@@ -431,7 +441,17 @@ teamsRouter.get('/:id/members', async (req, res) => {
     orderBy: { created_at: 'asc' },
     include: { user: true },
   });
-  const list = mems.map((m) => ({ id: m.id, role: m.role, status: m.status, user: { id: m.user_id, email: (m as any).user?.email || null, display_name: (m as any).user?.display_name || null } }));
+  const list = mems.map((m) => ({
+    id: m.id,
+    role: m.role,
+    status: m.status,
+    custom_position: m.custom_position || null,
+    user: {
+      id: m.user_id,
+      email: (m as any).user?.email || null,
+      display_name: (m as any).user?.display_name || null,
+    },
+  }));
   return res.json(list);
 });
 
@@ -749,7 +769,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      message: 'Upgrade to Legend ($20/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
       code: 'LEGEND_TIER_REQUIRED',
       feature: 'extracurricular_clubs',
     });
@@ -790,7 +810,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
       
-      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
+      if (subscription.status !== 'active') {
         return res.status(403).json({
           error: 'Subscription not active',
           message: 'Your Veteran subscription is not active. Please update your billing settings.',
@@ -891,16 +911,16 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
         await Promise.all(invites.map(async (inv) => {
           try {
-            await sendTeamInviteEmail({
+            await sendTeamInvitationEmail({
               to: inv.email,
-              teamName: team.name,
-              organizationName: null,
-              role: inv.role,
+              recipientName: inv.email.split('@')[0],
               inviterName: inviter?.display_name || 'Team Owner',
-              teamHeroUrl: team.logo_url || undefined,
-              teamLogoUrl: team.avatar_url || undefined,
+              teamName: team.name,
+              role: inv.role,
+              acceptLink: `${APP_BASE_URL}/team-invites?invite=${team.id}`,
+              declineLink: `${APP_BASE_URL}/team-invites/${team.id}/decline`,
             });
-          } catch (_error) {
+          } catch {
             /* ignore */
           }
         }));
@@ -963,17 +983,39 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
     where: { id: req.user.id },
     select: { display_name: true, email: true },
   });
+  const teamWithOrg = await prisma.team.findUnique({
+    where: { id },
+    include: { organization: { select: { name: true } } }
+  });
+  
+  // Determine if this is an athlete invitation
+  const isAthleteRole = ['athlete', 'player'].includes((role || 'member').toLowerCase());
+  
   try {
-    await sendTeamInviteEmail({
-      to: email,
-      teamName: team.name,
-      organizationName: null,
-      role: role || 'member',
-      teamHeroUrl: team.logo_url || undefined,
-      teamLogoUrl: team.avatar_url || undefined,
-      inviterName: inviter?.display_name || 'Team Owner',
-    });
-  } catch (_error) {}
+    if (isAthleteRole) {
+      // Send athlete-specific invitation
+      await sendAthleteInvitationEmail({
+        to: email,
+        athleteName: invitedUser?.display_name || email.split('@')[0],
+        coachName: inviter?.display_name || 'Team Owner',
+        teamName: team.name,
+        sport: team.sport || 'athletics',
+        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
+        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
+      });
+    } else {
+      // Send standard team invitation
+      await sendTeamInvitationEmail({
+        to: email,
+        recipientName: invitedUser?.display_name || email.split('@')[0],
+        inviterName: inviter?.display_name || 'Team Owner',
+        teamName: team.name,
+        role: role || 'member',
+        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
+        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
+      });
+    }
+  } catch {}
   await queueStaffInviteEmails({
     teamId: id,
     teamName: team.name,
@@ -1050,6 +1092,50 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     }),
     prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
   ]);
+  
+  // Send staff member joined notification to team owner/managers
+  if (!wasActiveMember) {
+    const teamDetails = await prisma.team.findUnique({
+      where: { id: invite.team_id },
+      include: {
+        organization: { select: { name: true } },
+        memberships: {
+          where: { 
+            role: { in: ['owner', 'manager'] },
+            status: 'active',
+            user_id: { not: user.id } // Don't notify the person who just joined
+          },
+          include: { user: true }
+        }
+      }
+    });
+    
+    const joinedDate = new Date().toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'America/Chicago',
+    });
+    
+    await Promise.all(
+      (teamDetails?.memberships || []).map(manager => 
+        sendStaffMemberJoinedEmail({
+          to: manager.user.email!,
+          recipientName: manager.user.display_name || manager.user.email!,
+          newMemberName: user.display_name || user.email,
+          memberRole: roleToApply,
+          teamName: team.name,
+          organizationName: teamDetails?.organization?.name || 'your organization',
+          joinedDate: joinedDate,
+          viewTeamLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/roster`,
+          manageStaffLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/settings`,
+        }).catch((err: Error) => {
+          console.error('[teams] Failed to send staff member joined email:', err);
+        })
+      )
+    );
+  }
+  
   if (!wasActiveMember) {
     const newCount = await prisma.teamMembership.count({
       where: { team_id: invite.team_id, status: 'active' },
@@ -1119,11 +1205,281 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
 // Decline invite
 teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
   const inviteId = String(req.params.inviteId);
-  const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
-  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
+  const { reason } = req.body;
+  
+  const invite = await prisma.teamInvite.findUnique({ 
+    where: { id: inviteId },
+    include: { team: true }
+  });
+  
+  if (!invite || invite.status !== 'pending') {
+    return res.status(404).json({ error: 'Invite not found' });
+  }
+  
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
-  await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
+    return res.status(403).json({ error: 'Invite not for this user' });
+  }
+  
+  // Update invite with declined status and optional reason
+  await prisma.teamInvite.update({ 
+    where: { id: invite.id }, 
+    data: { 
+      status: 'declined',
+      declined_reason: reason ? String(reason).trim() : null
+    } 
+  });
+  
+  // Get team owner to send notification
+  const teamOwner = await prisma.teamMembership.findFirst({
+    where: { team_id: invite.team.id, role: 'owner', status: 'active' },
+    include: { user: true }
+  });
+  
+  if (teamOwner?.user.email) {
+    const declinedDate = new Date().toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'America/Chicago',
+      timeZoneName: 'short'
+    });
+    
+    // Send invitation declined email to team owner
+    await sendInvitationDeclinedEmail({
+      to: teamOwner.user.email,
+      senderName: teamOwner.user.display_name || 'Team Owner',
+      declinedByName: user.display_name || user.email || 'User',
+      teamName: invite.team.name,
+      role: invite.role,
+      declinedDate: declinedDate,
+      reasonProvided: reason ? String(reason).trim() : undefined,
+      viewTeamUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}`,
+      resendInvitationUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}/invite`,
+    }).catch((err: Error) => {
+      console.error('[teams] Failed to send invitation declined email:', err);
+    });
+  }
+  
   return res.json({ ok: true });
+});
+
+// ✅ Update team member role (owners/managers only)
+const memberUpdateSchema = z.object({
+  role: z.string().min(1).max(64).optional(),
+  custom_position: z
+    .union([z.string().max(60), z.literal('')])
+    .optional()
+    .nullable(),
+}).refine(
+  (value) => typeof value.role === 'string' || value.custom_position !== undefined,
+  { message: 'No changes provided' }
+);
+
+teamsRouter.patch('/:id/members/:userId', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const teamId = String(req.params.id);
+  const userIdToUpdate = String(req.params.userId);
+  const parsedBody = memberUpdateSchema.safeParse(req.body);
+  if (!parsedBody.success) {
+    return res.status(400).json({ error: parsedBody.error.issues?.[0]?.message || 'Invalid payload' });
+  }
+  const { role: newRole, custom_position: rawCustomPosition } = parsedBody.data;
+  const trimmedPosition =
+    rawCustomPosition === undefined || rawCustomPosition === null
+      ? undefined
+      : rawCustomPosition.trim().length
+        ? rawCustomPosition.trim()
+        : null;
+  
+  // Verify team exists
+  const team = await prisma.team.findUnique({ 
+    where: { id: teamId },
+    include: { 
+      memberships: {
+        where: { status: 'active' },
+        include: { user: true }
+      }
+    }
+  });
+  
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+  
+  // Check if requester is owner or manager
+  const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
+  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
+    return res.status(403).json({ error: 'Only team owners and managers can update member roles' });
+  }
+  
+  // Find the member to update
+  const memberToUpdate = team.memberships.find(m => m.user_id === userIdToUpdate);
+  if (!memberToUpdate) {
+    return res.status(404).json({ error: 'Member not found' });
+  }
+  
+  // Prevent changing the owner role
+  if (newRole && memberToUpdate.role === 'owner') {
+    return res.status(403).json({ error: 'Cannot change owner role' });
+  }
+  
+  const oldRole = memberToUpdate.role;
+  const updateData: Record<string, unknown> = {};
+  if (newRole) updateData.role = newRole;
+  if (trimmedPosition !== undefined) updateData.custom_position = trimmedPosition;
+  if (!Object.keys(updateData).length) {
+    return res.status(400).json({ error: 'No changes provided' });
+  }
+  
+  const updated = await prisma.teamMembership.update({
+    where: { id: memberToUpdate.id },
+    data: updateData,
+    select: { role: true, custom_position: true },
+  });
+  
+  // Send role assignment notification to member
+  if (newRole && memberToUpdate.user.email && oldRole !== newRole) {
+    const assignmentDate = new Date().toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'America/Chicago',
+    });
+    
+    const requester = await prisma.user.findUnique({ where: { id: req.user.id } });
+    
+    await sendRoleAssignmentEmail({
+      to: memberToUpdate.user.email,
+      userName: memberToUpdate.user.display_name || memberToUpdate.user.email,
+      teamName: team.name,
+      newRole: newRole,
+      assignedBy: requester?.display_name || 'Team Manager',
+      assignedDate: assignmentDate,
+      dashboardLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}`,
+    }).catch((err: Error) => {
+      console.error('[teams] Failed to send role assignment email:', err);
+    });
+  }
+  
+  return res.json({ ok: true, role: updated.role, custom_position: updated.custom_position || null });
+});
+
+// ✅ Remove team member (owners/managers only)
+teamsRouter.delete('/:id/members/:userId', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const teamId = String(req.params.id);
+  const userIdToRemove = String(req.params.userId);
+  const { reason } = req.body;
+  
+  // Verify team exists
+  const team = await prisma.team.findUnique({ 
+    where: { id: teamId },
+    include: { 
+      organization: true,
+      memberships: {
+        where: { status: 'active' },
+        include: { user: true }
+      }
+    }
+  });
+  
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+  
+  // Check if requester is owner or manager
+  const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
+  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
+    return res.status(403).json({ error: 'Only team owners and managers can remove members' });
+  }
+  
+  // Find the member to remove
+  const memberToRemove = team.memberships.find(m => m.user_id === userIdToRemove);
+  if (!memberToRemove) {
+    return res.status(404).json({ error: 'Member not found or already removed' });
+  }
+  
+  // Prevent removing the owner
+  if (memberToRemove.role === 'owner') {
+    return res.status(403).json({ error: 'Cannot remove team owner' });
+  }
+  
+  // Prevent managers from removing other managers
+  if (requesterMembership.role === 'manager' && memberToRemove.role === 'manager') {
+    return res.status(403).json({ error: 'Managers cannot remove other managers' });
+  }
+  
+  // Get requester details for email
+  const requester = await prisma.user.findUnique({ where: { id: req.user.id } });
+  
+  // Update membership with removal details
+  const removalDate = new Date();
+  await prisma.teamMembership.update({
+    where: { id: memberToRemove.id },
+    data: {
+      status: 'archived',
+      removed_by: req.user.id,
+      removal_reason: reason ? String(reason).trim() : null,
+      removal_date: removalDate,
+    }
+  });
+  
+  // Send notification email to removed member
+  if (memberToRemove.user.email) {
+    const formattedRemovalDate = removalDate.toLocaleString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'America/Chicago',
+      timeZoneName: 'short'
+    });
+    
+    await sendMemberRemovedEmail({
+      to: memberToRemove.user.email,
+      userName: memberToRemove.user.display_name || memberToRemove.user.email || 'User',
+      teamName: team.name,
+      organizationName: team.organization?.name || 'your organization',
+      removedBy: requester?.display_name || 'Team Manager',
+      removalDate: formattedRemovalDate,
+      removalReason: reason ? String(reason).trim() : 'No reason provided',
+      contactEmail: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
+    }).catch((err: Error) => {
+      console.error('[teams] Failed to send member removed email:', err);
+    });
+    
+    // Send roster update notification to team owner/managers
+    const managementMembers = team.memberships.filter(m => 
+      ['owner', 'manager'].includes(m.role) && 
+      m.user_id !== req.user!.id && 
+      m.user.email
+    );
+    
+    await Promise.all(managementMembers.map(manager => 
+      sendTeamRosterUpdateEmail({
+        to: manager.user.email!,
+        coachName: manager.user.display_name || manager.user.email!,
+        teamName: team.name,
+        updateType: 'member_removed',
+        playerName: memberToRemove.user.display_name || memberToRemove.user.email || 'User',
+        updateDate: formattedRemovalDate,
+        viewRosterLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}/roster`,
+      }).catch((err: Error) => {
+        console.error('[teams] Failed to send roster update email:', err);
+      })
+    ));
+  }
+  
+  return res.json({ 
+    success: true, 
+    message: 'Member removed successfully' 
+  });
 });

@@ -121,40 +121,44 @@ export default function Step3Plan() {
     }
   };
 
-  const onVerifyEmail = async () => {
-    if (!verificationCode.trim()) return;
-    setVerifying(true);
-    setVerificationError(null);
-    setVerificationInfo(null);
-    
-    try {
-      await User.verifyEmail(verificationCode.trim());
-      setVerificationInfo('Email verified!');
-      setShowVerifyModal(false);
-      // Now retry the subscription
-      setTimeout(() => {
-        onContinue();
-      }, 500);
-    } catch (e: any) {
-      setVerificationError(e?.message || 'Verification failed');
-    } finally {
-      setVerifying(false);
-    }
+  const onVerifyEmail = () => {
+    void (async () => {
+      if (!verificationCode.trim()) return;
+      setVerifying(true);
+      setVerificationError(null);
+      setVerificationInfo(null);
+      
+      try {
+        await User.verifyEmail(verificationCode.trim());
+        setVerificationInfo('Email verified!');
+        setShowVerifyModal(false);
+        // Now retry the subscription
+        setTimeout(() => {
+          void onContinue();
+        }, 500);
+      } catch (e: any) {
+        setVerificationError(e?.message || 'Verification failed');
+      } finally {
+        setVerifying(false);
+      }
+    })();
   };
 
-  const onResendCode = async () => {
-    setResending(true);
-    setVerificationError(null);
-    setVerificationInfo(null);
-    
-    try {
-      const res: any = await User.requestVerification();
-      setVerificationInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
-    } catch (e: any) {
-      setVerificationError(e?.message || 'Resend failed');
-    } finally {
-      setResending(false);
-    }
+  const onResendCode = () => {
+    void (async () => {
+      setResending(true);
+      setVerificationError(null);
+      setVerificationInfo(null);
+      
+      try {
+        const res: any = await User.requestVerification();
+        setVerificationInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
+      } catch (e: any) {
+        setVerificationError(e?.message || 'Resend failed');
+      } finally {
+        setResending(false);
+      }
+    })();
   };
 
   const onContinue = async () => {
@@ -439,7 +443,7 @@ export default function Step3Plan() {
                 style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
                 onPress={() => {
                   setShowTeamCountModal(false);
-                  onContinue();
+                  void onContinue();
                 }}
               >
                 <Text style={styles.verifyButtonText}>Continue to Checkout</Text>

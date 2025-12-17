@@ -13,7 +13,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function OfflineBanner() {
   const { healthOk, healthError, checkAuth } = useAuth();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
 
   const [retrying, setRetrying] = React.useState(false);
 
@@ -30,8 +30,8 @@ export function OfflineBanner() {
 
   if (healthOk) return null;
 
-  const errorColor = '#DC2626';
-  const errorBg = '#FEE2E2';
+  const errorColor = colorScheme === 'dark' ? '#FCA5A5' : '#DC2626';
+  const errorBg = colorScheme === 'dark' ? '#7F1D1D' : '#FEE2E2';
 
   return (
     <View style={[styles.banner, { backgroundColor: errorBg }]}>

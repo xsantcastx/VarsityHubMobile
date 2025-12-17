@@ -41,8 +41,6 @@ export default function Step10Confirmation() {
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
-    const isFan = ob.role === 'fan';
-
     const checks = [
       {
         label: 'Role Selected',
@@ -145,7 +143,7 @@ export default function Step10Confirmation() {
     try {
       // Debug: log final payload
       try { // eslint-disable-next-line no-console
-      } catch (_error) {}
+      } catch {}
       // Ensure basic preferences (role etc.) persisted before finalizing onboarding
       try {
         const prefsPatch: any = {};
@@ -161,7 +159,7 @@ export default function Step10Confirmation() {
             // eslint-disable-next-line no-console
             // Merge server prefs into onboarding state if present
             if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
-          } catch (e) {}
+          } catch {}
       } catch (e) {
         // best-effort; continue to complete onboarding
         // eslint-disable-next-line no-console
@@ -355,7 +353,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
                  ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
-                 ob.plan === 'legend' ? 'Legend ($19.99/year unlimited)' : 'Not selected'}
+                 ob.plan === 'legend' ? 'Legend ($20/year unlimited)' : 'Not selected'}
               </Text>
             </View>
           )}

@@ -9,7 +9,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Dimensions,
     FlatList,
     Platform,
     Pressable,
@@ -31,11 +30,8 @@ import { BackHeader } from '@/components/ui/BackHeader';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH - 32; // Single column with margins
-const CARD_HEIGHT = 220; // Larger cards for sports app feel
-
 type TabType = 'trending' | 'recent' | 'top';
+const CARD_HEIGHT = 220;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
@@ -117,8 +113,6 @@ const HighlightCard = ({
   userLocation,
   onPress,
   onAuthorPress,
-  onTeamPress,
-  onEventPress,
   colorScheme 
 }: { 
   item: HighlightItem; 
@@ -129,8 +123,6 @@ const HighlightCard = ({
   userLocation?: { lat: number; lng: number };
   onPress: (item: HighlightItem) => void;
   onAuthorPress?: (authorId: string) => void;
-  onTeamPress?: (teamId: string) => void;
-  onEventPress?: (eventId: string) => void;
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
@@ -277,7 +269,7 @@ const HighlightCard = ({
                 try {
                   const link = AppLinks.post(String(item.id), item.caption || item.title);
                   await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
-                } catch (_error) {
+                } catch {
                   try {
                     const mod = await import('expo-clipboard').catch(() => null);
                     const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
@@ -288,7 +280,7 @@ const HighlightCard = ({
                     } else {
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
-                  } catch (_error) {}
+                  } catch {}
                 }
               }}
             >
@@ -401,7 +393,7 @@ export default function HighlightsScreen() {
   }, [load]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // Global search function for teams, events, users, and posts
@@ -448,7 +440,7 @@ export default function HighlightsScreen() {
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      performGlobalSearch(searchQuery);
+      void performGlobalSearch(searchQuery);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery, performGlobalSearch]);
@@ -461,16 +453,6 @@ export default function HighlightsScreen() {
   const handleAuthorPress = useCallback((authorId: string) => {
     // Navigate to user profile
     router.push(`/user-profile?id=${authorId}`);
-  }, [router]);
-
-  const handleTeamPress = useCallback((teamId: string) => {
-    // Navigate to team page
-    router.push(`/team-profile?id=${teamId}`);
-  }, [router]);
-
-  const handleEventPress = useCallback((eventId: string) => {
-    // Navigate to event page
-    router.push(`/event-detail?id=${eventId}`);
   }, [router]);
 
   const getFilteredHighlights = useCallback(() => {
@@ -539,13 +521,9 @@ export default function HighlightsScreen() {
       userLocation={userLocation}
       onPress={handleHighlightPress}
       onAuthorPress={handleAuthorPress}
-      onTeamPress={handleTeamPress}
-      onEventPress={handleEventPress}
       colorScheme={colorScheme} 
     />
   );
-
-  const statusBarHeight = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
 
   if (loading) {
     return (
@@ -658,7 +636,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={team.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => void router.push(`/team-profile?id=${team.id}`)}
+                    onPress={() => { void router.push(`/team-profile?id=${team.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{team.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -677,7 +655,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={event.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => void router.push(`/event-detail?id=${event.id}`)}
+                    onPress={() => { void router.push(`/event-detail?id=${event.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -696,7 +674,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={user.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => void router.push(`/user-profile?id=${user.id}`)}
+                    onPress={() => { void router.push(`/user-profile?id=${user.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{user.display_name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -715,7 +693,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={org.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => void router.push(`/league?id=${org.id}`)}
+                    onPress={() => { void router.push(`/league?id=${org.id}`); }}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{org.name}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
@@ -741,8 +719,6 @@ export default function HighlightsScreen() {
                     userLocation={userLocation}
                     onPress={handleHighlightPress}
                     onAuthorPress={handleAuthorPress}
-                    onTeamPress={handleTeamPress}
-                    onEventPress={handleEventPress}
                     colorScheme={colorScheme} 
                   />
                 ))}

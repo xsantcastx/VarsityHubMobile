@@ -1,12 +1,24 @@
 import { debugLog } from '../lib/debugLog.js';
 import {
+    sendAccountRecoveryEmail,
     sendAdGoesLiveEmail,
     sendAdReservationEmail,
+    sendAthleteFollowerNotificationEmail,
+    sendDormantUserDigestEmail,
+    sendEventApprovedEmail,
+    sendEventCanceledEmail,
+    sendEventDeniedEmail,
+    sendEventReminderEmail,
+    sendEventSubmissionReceivedEmail,
+    sendEventUpdatedEmail,
     sendPaymentRequiredEmail,
+    sendPostHighlightEmail,
+    sendProfileCompletionNudgeEmail,
     sendReportResolutionEmail,
     sendRosterThresholdAlertEmail,
+    sendSeasonWrapUpEmail,
     sendStaffInvitationConfirmationEmail,
-    sendStaffInvitationEmail
+    sendStaffInvitationEmail,
 } from '../lib/email.js';
 import { emailQueue } from '../lib/queue.js';
 
@@ -68,7 +80,7 @@ emailQueue.process('payments.checkout_abandoned', async (job) => {
   // Double-check that payment hasn't been completed (job should have been cancelled, but defensive check)
   if (jobData.session_id) {
     const { prisma } = await import('../lib/prisma.js');
-    const transaction = await prisma.transaction.findFirst({
+    const transaction = await prisma.transactionLog.findFirst({
       where: { stripe_session_id: jobData.session_id },
     });
     
@@ -200,7 +212,7 @@ emailQueue.process('staff.invitation_sent', async (job) => {
     inviteeName: jobData.invitee_name,
     inviteeEmail: jobData.invitee_email,
     teamName: jobData.team_name,
-    manageBillingUrl: jobData.manage_staff_url,
+    manageStaffUrl: jobData.manage_staff_url,
   });
 
   if (!result) {
@@ -241,6 +253,199 @@ emailQueue.process('reports.resolved', async (job) => {
   if (!result) {
     throw new Error(`Failed to send report resolution email to ${jobData.to}`);
   }
+
+  return { success: true, email: jobData.to };
+});
+
+// Event Management job handlers
+emailQueue.process('events.submission_received', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    event_start_date: string;
+    event_location_name?: string;
+    event_city?: string;
+    event_state?: string;
+    submission_status_url: string;
+    review_timeline_hours?: number;
+  };
+
+  debugLog(`[worker] Processing event submission received email for ${jobData.to}`);
+
+  await sendEventSubmissionReceivedEmail({
+    to: jobData.to,
+    coachName: jobData.to_name || 'Coach',
+    eventName: jobData.event_name,
+    eventDate: jobData.event_start_date,
+    eventTime: jobData.event_time || 'TBD',
+    eventLocation: `${jobData.event_location_name}, ${jobData.event_city}, ${jobData.event_state}`,
+    submissionDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    organizationName: jobData.organization_name || 'VarsityHub',
+    statusLink: jobData.submission_status_url,
+  });
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('events.approved', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    event_start_date: string;
+    event_location_name?: string;
+    event_city?: string;
+    event_state?: string;
+    view_event_url: string;
+    manage_event_url: string;
+    approval_notes?: string;
+  };
+
+  debugLog(`[worker] Processing event approved email for ${jobData.to}`);
+
+  await sendEventApprovedEmail({
+    to: jobData.to,
+    coachName: jobData.to_name || 'Coach',
+    eventName: jobData.event_name,
+    eventDate: jobData.event_start_date,
+    eventTime: 'TBD',
+    eventLocation: `${jobData.event_location_name || ''}, ${jobData.event_city || ''}, ${jobData.event_state || ''}`.trim(),
+    opponent: undefined,
+    organizationName: 'VarsityHub',
+    approvalNotes: jobData.approval_notes,
+    eventLink: jobData.view_event_url,
+    manageLink: jobData.manage_event_url,
+  });
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('events.denied', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    denial_reason: string;
+    submit_new_event_url: string;
+    contact_support_url: string;
+  };
+
+  debugLog(`[worker] Processing event denied email for ${jobData.to}`);
+
+  await sendEventDeniedEmail({
+    to: jobData.to,
+    coachName: jobData.to_name || 'Coach',
+    eventName: jobData.event_name,
+    eventDate: 'N/A',
+    denialReason: jobData.denial_reason,
+    resubmitLink: jobData.submit_new_event_url,
+    supportLink: jobData.contact_support_url,
+    organizationName: 'VarsityHub',
+  });
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('events.reminder', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    event_start_date: string;
+    event_location_name?: string;
+    event_city?: string;
+    event_state?: string;
+    check_in_url: string;
+    add_to_calendar_url: string;
+    get_directions_url: string;
+    preferences_url: string;
+  };
+
+  debugLog(`[worker] Processing event reminder email for ${jobData.to}`);
+
+  await sendEventReminderEmail({
+    to: jobData.to,
+    recipientName: jobData.to_name || 'Team Member',
+    eventName: jobData.event_name,
+    eventDate: jobData.event_start_date,
+    eventTime: 'TBD',
+    eventLocation: `${jobData.event_location_name || ''}, ${jobData.event_city || ''}, ${jobData.event_state || ''}`.trim(),
+    opponent: undefined,
+    organizationName: 'VarsityHub',
+    checkInLink: jobData.check_in_url,
+    calendarLink: jobData.add_to_calendar_url,
+    directionsLink: jobData.get_directions_url,
+    preferencesLink: jobData.preferences_url,
+  });
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('events.updated', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    event_start_date: string;
+    event_location_name?: string;
+    event_city?: string;
+    event_state?: string;
+    update_summary?: string;
+    changed_fields_text?: string;
+    view_event_url: string;
+    manage_event_url: string;
+  };
+
+  debugLog(`[worker] Processing event updated email for ${jobData.to}`);
+
+  await sendEventUpdatedEmail({
+    to: jobData.to,
+    recipientName: jobData.to_name || 'Team Member',
+    eventName: jobData.event_name,
+    eventDate: jobData.event_start_date,
+    eventTime: 'TBD',
+    eventLocation: `${jobData.event_location_name || ''}, ${jobData.event_city || ''}, ${jobData.event_state || ''}`.trim(),
+    organizationName: 'VarsityHub',
+    updatedAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    changeSummary: jobData.update_summary || jobData.changed_fields_text || 'Event details have been updated',
+    eventDetailLink: jobData.view_event_url,
+    calendarLink: jobData.manage_event_url,
+  });
+
+  return { success: true, email: jobData.to };
+});
+
+emailQueue.process('events.canceled', async (job) => {
+  const jobData = job.data as EmailJob & {
+    to_name?: string;
+    event_id: string | number;
+    event_name: string;
+    event_start_date: string;
+    event_location_name?: string;
+    event_city?: string;
+    event_state?: string;
+    cancellation_reason: string;
+    contact_support_url: string;
+    manage_event_url?: string;
+  };
+
+  debugLog(`[worker] Processing event canceled email for ${jobData.to}`);
+
+  await sendEventCanceledEmail({
+    to: jobData.to,
+    recipientName: jobData.to_name || 'Team Member',
+    eventName: jobData.event_name,
+    eventDate: jobData.event_start_date,
+    eventTime: 'TBD',
+    eventLocation: `${jobData.event_location_name || ''}, ${jobData.event_city || ''}, ${jobData.event_state || ''}`.trim(),
+    canceledAt: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    organizationName: 'VarsityHub',
+    cancelReason: jobData.cancellation_reason,
+    rescheduleInfo: undefined,
+    upcomingEventsLink: jobData.manage_event_url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/events`,
+    contactOrganizerLink: jobData.contact_support_url,
+  });
 
   return { success: true, email: jobData.to };
 });
@@ -349,16 +554,11 @@ emailQueue.process('auth.account_recovery', async (job) => {
 
   debugLog(`[worker] Processing account recovery email for ${jobData.to}`);
 
-  const result = await sendAccountRecoveryEmail({
-    to: jobData.to,
-    userName: jobData.user_name,
-    recoveryType: jobData.recovery_type,
-    recoveryTime: jobData.recovery_time,
-    ipAddress: jobData.ip_address,
-    undoLink: jobData.undo_link,
-    undoExpiryHours: jobData.undo_expiry_hours,
-    supportUrl: jobData.support_url,
-  });
+  const result = await sendAccountRecoveryEmail(
+    jobData.to,
+    jobData.user_name,
+    jobData.recovery_time
+  );
 
   if (!result) {
     throw new Error(`Failed to send account recovery email to ${jobData.to}`);
