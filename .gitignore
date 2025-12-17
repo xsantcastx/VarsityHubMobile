@@ -78,6 +78,7 @@ lint-warnings-summary.txt
 overnight-results/
 *.ipa
 build-*.ipa
+ENV_ALIGNMENT_REPORT.md
 
 # Test/output artifacts
 coverage/

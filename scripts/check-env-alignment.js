@@ -5,6 +5,8 @@ const REQUIRED_KEYS = [
   'SENDGRID_API_KEY',
   'SENDGRID_VERIFICATION_TEMPLATE_ID',
   'SENDGRID_PASSWORD_RESET_TEMPLATE_ID',
+  'SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID',
+  'SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID',
   'SENDGRID_TEAM_INVITE_TEMPLATE_ID',
   'EMAIL_FROM',
 ];
@@ -35,6 +37,14 @@ function main() {
 
   const rootEnv = readEnv(rootEnvPath);
   const serverEnv = readEnv(serverEnvPath);
+
+  // Support alias used in examples: FROM_EMAIL maps to EMAIL_FROM
+  if (!rootEnv.EMAIL_FROM && rootEnv.FROM_EMAIL) {
+    rootEnv.EMAIL_FROM = rootEnv.FROM_EMAIL;
+  }
+  if (!serverEnv.EMAIL_FROM && serverEnv.FROM_EMAIL) {
+    serverEnv.EMAIL_FROM = serverEnv.FROM_EMAIL;
+  }
 
   const statuses = REQUIRED_KEYS.map((key) => {
     const rootVal = rootEnv[key];
