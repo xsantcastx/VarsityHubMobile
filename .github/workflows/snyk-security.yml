@@ -35,10 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Snyk Code & Dependency Scan
     # Allow opting out via commit message tag or repo variable
+    # NOTE: Requires SNYK_TOKEN secret to be configured in GitHub repo settings
+    # Add at: Settings → Secrets and variables → Actions → New repository secret
     if: >-
       ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
           (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') }}
+          (vars.SKIP_SNYK != 'true') &&
+          secrets.SNYK_TOKEN != '' }}
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 

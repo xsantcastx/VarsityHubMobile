@@ -1,5 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
+const { jest } = require('@jest/globals');
 const { config } = require('dotenv');
 
 // Mimic server/src/lib/load-env.ts without importing TS during tests.

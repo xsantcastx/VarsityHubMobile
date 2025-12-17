@@ -1,0 +1,44 @@
+name: Expo Doctor
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - app.json
+      - package.json
+      - package-lock.json
+      - metro.config.js
+      - .github/workflows/expo-doctor.yml
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (CI)
+        run: npm ci
+
+      - name: Metro config loads
+        run: node -e "require('./metro.config.js'); console.log('ok')"
+
+      - name: Expo SDK version check
+        run: npx expo install --check --non-interactive
+
+      - name: Expo Doctor
+        run: npx expo-doctor
+
+      - name: Snyk Code (optional)
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        uses: snyk/actions/node@master
+        with:
+          command: code test --severity-threshold=medium
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

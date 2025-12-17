@@ -35,7 +35,7 @@ healthRouter.get('/', (req, res) => {
 
   res.json({
     status: 'ok',
-    version: 'v2025.12.17-rw-redeploy',
+    version: 'v2024.12.17-sendgrid-fix',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     integrations,

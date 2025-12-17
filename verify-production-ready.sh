@@ -39,14 +39,14 @@ echo "2️⃣  Docker Configuration"
 # 3. Documentation
 echo ""
 echo "3️⃣  Documentation"
-[ -f "DOCKER_DEPLOYMENT.md" ] && pass "Docker deployment guide exists" || fail "DOCKER_DEPLOYMENT.md missing"
-[ -f "QA_CHECKLIST.md" ] && pass "QA checklist exists" || fail "QA_CHECKLIST.md missing"
-[ -f "AUDIT_SUMMARY.md" ] && pass "Audit summary exists" || fail "AUDIT_SUMMARY.md missing"
+[ -f ".docs/guides/DOCKER_DEPLOYMENT.md" ] && pass "Docker deployment guide exists" || fail "DOCKER_DEPLOYMENT.md missing"
+[ -f ".docs/checklists/QA_CHECKLIST.md" ] && pass "QA checklist exists" || fail "QA_CHECKLIST.md missing"
+[ -f ".docs/AUDIT_SUMMARY.md" ] && pass "Audit summary exists" || fail "AUDIT_SUMMARY.md missing"
 
 # 4. Configuration
 echo ""
 echo "4️⃣  Configuration"
-grep -q "DATABASE_URL" DOCKER_DEPLOYMENT.md && pass "Environment vars documented" || fail "Env vars not documented"
+grep -q "DATABASE_URL" .docs/guides/DOCKER_DEPLOYMENT.md && pass "Environment vars documented" || fail "Env vars not documented"
 grep -q "HEALTHCHECK" server/Dockerfile && pass "Docker healthcheck configured" || fail "Healthcheck missing"
 
 # 5. Error handling

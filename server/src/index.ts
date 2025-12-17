@@ -1,8 +1,5 @@
 // Load .env only in development (not in production where Railway provides vars)
-import { config } from 'dotenv';
-if (process.env.NODE_ENV !== 'production') {
-  config();
-}
+import './lib/load-env.js';
 
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
