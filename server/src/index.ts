@@ -1,17 +1,17 @@
-import cors from 'cors';
+// Load .env early, but don't override production env vars
 import { config } from 'dotenv';
-import express, { NextFunction, Request, Response } from 'express';
-
-// Load .env only if not in production or if env vars not already set
 if (process.env.NODE_ENV !== 'production' || !process.env.SENDGRID_API_KEY) {
   config();
 }
+
+import cors from 'cors';
+import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import cron from 'node-cron';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-import { EventEmitter } from 'node:events';
 import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
