@@ -14,7 +14,7 @@ jobs:
     # Allow manual override with warning in case of emergency
     # (comment "FORCE_DEPLOY" to override)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check for force override
         id: force
