@@ -1,6 +1,9 @@
 # Use Node.js 20 LTS Debian-based image for broader libc/SSL support
 FROM node:20-bookworm-slim
 
+# Build cache-buster for Railway
+ARG BUILD_REVISION=dev-local
+
 # Set working directory
 WORKDIR /app
 
@@ -32,6 +35,8 @@ RUN npm prune --omit=dev
 
 # Set runtime environment
 ENV NODE_ENV=production
+# OCI label aids cache-busting and traceability
+LABEL org.opencontainers.image.revision=$BUILD_REVISION
 
 # Expose the API port (app respects Railway-assigned PORT at runtime)
 EXPOSE 4000
