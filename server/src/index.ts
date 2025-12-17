@@ -1,6 +1,6 @@
-// Load .env early, but don't override production env vars
+// Load .env only in development (not in production where Railway provides vars)
 import { config } from 'dotenv';
-if (process.env.NODE_ENV !== 'production' || !process.env.SENDGRID_API_KEY) {
+if (process.env.NODE_ENV !== 'production') {
   config();
 }
 
