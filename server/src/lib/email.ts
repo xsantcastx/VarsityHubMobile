@@ -4,7 +4,6 @@ import { debugLog } from './debugLog.js';
 // Initialize SendGrid
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
-console.log(`🔑 SendGrid init: KEY=${SENDGRID_API_KEY ? 'SET (len=' + SENDGRID_API_KEY.length + ')' : 'MISSING'}, NODE_ENV=${process.env.NODE_ENV}`);
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 
