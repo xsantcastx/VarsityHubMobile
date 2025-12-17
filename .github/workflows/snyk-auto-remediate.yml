@@ -121,7 +121,7 @@ jobs:
           cat snyk-summary.md
 
       - name: Upload Snyk reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: snyk-reports
           path: |
