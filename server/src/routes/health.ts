@@ -12,6 +12,7 @@ export const healthRouter = Router();
 healthRouter.get('/', (req, res) => {
   const missingEmailTemplates = getMissingEmailTemplates();
   const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0;
+  const sgKeyLen = (process.env.SENDGRID_API_KEY || '').length;
 
   const integrations = {
     database: !!process.env.DATABASE_URL,
@@ -48,6 +49,7 @@ healthRouter.get('/', (req, res) => {
     ],
     metadata: {
       missingEmailTemplates,
+      debug: { sgKeyLen, nodeEnv: process.env.NODE_ENV },
     },
   });
 });
