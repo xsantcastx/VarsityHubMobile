@@ -224,8 +224,8 @@ export async function sendAccountRecoveryEmail(
         USERNAME: userName || 'VarsityHub member',
         ACCOUNT_EMAIL: email,
         RECOVERY_DATE: recoveryDate || new Date().toLocaleString('en-US', chicagoTimeFormat),
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Account recovery email sent to ${email}`);
@@ -498,8 +498,8 @@ export async function sendOrganizationInvitationEmail(params: {
         role: params.role,
         accept_link: params.acceptLink,
         decline_link: params.declineLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Organization invitation email sent to ${params.to}`);
@@ -548,8 +548,8 @@ export async function sendTeamInvitationEmail(params: {
         accept_link: params.acceptLink,
         declineLink: params.declineLink,
         decline_link: params.declineLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
         logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
       },
     });
@@ -594,8 +594,8 @@ export async function sendAthleteInvitationEmail(params: {
         sport: params.sport,
         accept_link: params.acceptLink,
         decline_link: params.declineLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Athlete invitation email sent to ${params.to}`);
@@ -639,8 +639,8 @@ export async function sendRoleAssignmentEmail(params: {
         assigned_by: params.assignedBy,
         assigned_date: params.assignedDate,
         dashboard_link: params.dashboardLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Role assignment email sent to ${params.to}`);
@@ -682,8 +682,8 @@ export async function sendRosterThresholdEmail(params: {
         current_roster_count: params.currentRosterCount,
         max_roster_count: params.maxRosterCount,
         upgrade_link: params.upgradeLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Roster threshold email sent to ${params.to}`);
@@ -731,8 +731,8 @@ export async function sendInvitationDeclinedEmail(params: {
         reason_provided: params.reasonProvided || 'No reason provided',
         view_team_url: params.viewTeamUrl,
         resend_invitation_url: params.resendInvitationUrl,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Invitation declined email sent to ${params.to}`);
@@ -776,8 +776,8 @@ export async function sendTeamRosterUpdateEmail(params: {
         player_name: params.playerName,
         update_date: params.updateDate,
         view_roster_link: params.viewRosterLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Team roster update email sent to ${params.to}`);
@@ -815,8 +815,8 @@ export async function sendUserConfirmationEmail(params: {
         user_name: params.userName,
         confirmation_link: params.confirmationLink,
         expires_in: params.expiresIn,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ User confirmation email sent to ${params.to}`);
@@ -861,8 +861,8 @@ export async function sendMemberRemovedEmail(params: {
         removed_by: params.removedBy,
         removal_date: params.removalDate,
         removal_reason: params.removalReason || 'No reason provided',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
         contact_email: params.contactEmail,
       },
     });
@@ -911,8 +911,8 @@ export async function sendPaymentFailedEmail(params: {
         retry_date: params.retryDate,
         update_payment_link: params.updatePaymentLink,
         contact_support_link: params.contactSupportLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Payment failed email sent to ${params.to}`);
@@ -963,8 +963,8 @@ export async function sendReportResolutionEmail(params: {
         submit_date: params.submitDate || '',
         resolution_date: params.resolutionDate || '',
         report_detail_link: params.reportDetailLink || '',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Report resolution email (${params.resolutionStatus}) sent to ${params.to}`);
@@ -1012,8 +1012,8 @@ export async function sendEventSubmissionReceivedEmail(params: {
         submission_date: params.submissionDate,
         organization_name: params.organizationName,
         status_link: params.statusLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event submission email sent to ${params.to}`);
@@ -1064,8 +1064,8 @@ export async function sendEventApprovedEmail(params: {
         approval_notes: params.approvalNotes || 'Your event has been approved. Great work!',
         event_link: params.eventLink,
         manage_link: params.manageLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event approved email sent to ${params.to}`);
@@ -1110,8 +1110,8 @@ export async function sendEventDeniedEmail(params: {
         resubmit_link: params.resubmitLink,
         support_link: params.supportLink,
         organization_name: params.organizationName,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event denied email sent to ${params.to}`);
@@ -1164,8 +1164,8 @@ export async function sendEventReminderEmail(params: {
         calendar_link: params.calendarLink,
         directions_link: params.directionsLink,
         preferences_link: params.preferencesLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event reminder email sent to ${params.to}`);
@@ -1216,8 +1216,8 @@ export async function sendEventUpdatedEmail(params: {
         change_summary: params.changeSummary,
         event_detail_link: params.eventDetailLink,
         calendar_link: params.calendarLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event updated email sent to ${params.to}`);
@@ -1270,8 +1270,8 @@ export async function sendEventCanceledEmail(params: {
         reschedule_info: params.rescheduleInfo || 'No reschedule information available at this time.',
         upcoming_events_link: params.upcomingEventsLink,
         contact_organizer_link: params.contactOrganizerLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Event canceled email sent to ${params.to}`);
@@ -1314,8 +1314,8 @@ export async function sendAccountWarningEmail(params: {
         violation_type: params.violationType,
         warning_reason: params.warningReason || 'Your account received a warning for violating our Community Guidelines.',
         appeal_url: params.appealUrl,
-        community_guidelines_url: params.communityGuidelinesUrl || 'https://varsityhub.app/community-guidelines',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
+        community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Account warning email sent to ${params.to}`);
@@ -1365,8 +1365,8 @@ export async function sendContentRemovedEmail(params: {
         content_preview: params.contentPreview || undefined,
         removal_reason: params.removalReason,
         appeal_url: params.appealUrl,
-        community_guidelines_url: params.communityGuidelinesUrl || 'https://varsityhub.app/community-guidelines',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
+        community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Content removed email sent to ${params.to}`);
@@ -1430,8 +1430,8 @@ export async function sendAccountSuspensionEmail(params: {
         reportType: params.violationType,
         appeal_url: params.appealUrl,
         appealUrl: params.appealUrl,
-        community_guidelines_url: params.communityGuidelinesUrl || 'https://varsityhub.app/community-guidelines',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
+        community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
         logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
       },
     });
@@ -1485,8 +1485,8 @@ export async function sendAccountPermanentBanEmail(params: {
         ban_reason: params.banReason,
         appeal_url: params.appealUrl,
         support_email: params.supportEmail || 'customerservice@varsityhub.app',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
-        privacy_policy_url: 'https://varsityhub.app/privacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Account permanent ban email sent to ${params.to}`);
@@ -1551,8 +1551,8 @@ export async function sendEventRsvpConfirmedEmail(params: {
         calendarLink: params.calendarLink,
         cancel_rsvp_link: params.cancelRsvpLink,
         cancelRsvpLink: params.cancelRsvpLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
         logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
       },
     });
@@ -1875,8 +1875,8 @@ export async function sendLoginFromNewDeviceEmail(params: {
         secure_account_link: params.secureAccountLink,
         change_password_link: params.changePasswordLink,
         contact_support_link: params.contactSupportLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Login new device email sent to ${params.to}`);
@@ -1927,8 +1927,8 @@ export async function sendStaffMemberJoinedEmail(params: {
         organization_name: params.organizationName,
         view_team_link: params.viewTeamLink,
         manage_staff_link: params.manageStaffLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Staff member joined email sent to ${params.to}`);
@@ -1979,8 +1979,8 @@ export async function sendSubscriptionExpiringEmail(params: {
         features_losing: params.featuresLosing,
         renew_link: params.renewLink,
         manage_subscription_link: params.manageSubscriptionLink,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
       },
     });
     debugLog(`✅ Subscription expiring email sent to ${params.to}`);
