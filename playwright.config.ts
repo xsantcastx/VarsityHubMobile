@@ -4,7 +4,7 @@ const skipEmbeddedServer = process.env.PLAYWRIGHT_SKIP_SERVER === '1';
 const webServerConfig = skipEmbeddedServer
   ? undefined
   : {
-      command: 'npm run web',
+      command: 'npm run web:playwright',
       url: 'http://localhost:8081',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

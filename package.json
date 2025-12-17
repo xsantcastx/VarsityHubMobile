@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "web:playwright": "cross-env CI=1 RCT_METRO_PORT=8081 expo start --web --non-interactive",
     "start:ci": "set CI=1&& expo start --port 19001",
     "web:ci": "set CI=1&& expo start --web --port 9500",
     "android:ci": "set CI=1&& expo start --android --port 19002",

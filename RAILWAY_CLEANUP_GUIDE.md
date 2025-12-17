@@ -65,12 +65,24 @@ After disabling services:
 2. Click **Redeploy** to trigger a fresh build
 3. Monitor the build logs to verify success
 
+### Required build configuration
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| **Root directory** | `server` | Keeps deployments scoped to the API code + package-lock |
+| **Install command** | `npm ci` | Ensures prod deps (typescript/tsx) are installed even with `--omit=dev` defaults |
+| **Build command** | `npm run build` | Runs `prisma generate` + `tsc -p .` |
+| **Start command** | `npm start` | Launches compiled server (`node dist/index.js`) |
+| **Post-deploy (optional)** | `npx prisma migrate deploy` | Applies DB schema changes before traffic hits |
+
+> Tip: If Railway still caches an old build, trigger **Deploy from scratch** so the new dependency graph is used.
+
 Expected build output:
 ```
-[1/4] FROM node:18-alpine
+[1/4] FROM node:20-bookworm-slim
 [2/4] WORKDIR /app
-[3/4] COPY . . && npm ci --omit=dev
-[4/4] npm start
+[3/4] COPY server/package*.json ./ && npm ci
+[4/4] npm run build && npm prune --omit=dev
 ✓ Build successful
 ```
 

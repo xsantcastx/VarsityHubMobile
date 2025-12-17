@@ -33,6 +33,9 @@
       ],
       "@/ui/*": [
         "components/ui/*"
+      ],
+      "react-native-calendars": [
+        "types/react-native-calendars.d.ts"
       ]
     },
     "resolveJsonModule": true,
@@ -57,6 +60,7 @@
     "__tests__/**/*.tsx",
     "jest.setup.ts",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "types/**/*.d.ts"
   ]
 }
