@@ -12,13 +12,19 @@ import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
 import request from 'supertest';
 
+const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
+const shouldSkipIntegration =
+  isCi || process.env.SKIP_SERVER_INTEGRATION_TESTS === '1';
+const describeIntegration = shouldSkipIntegration ? describe.skip : describe;
+
 let app: Express;
 let prisma: PrismaClient;
 
 // Mock fetch for Google tokeninfo validation
 const originalFetch = global.fetch;
 
-beforeAll(() => {
+if (!shouldSkipIntegration) {
+  beforeAll(() => {
   // Setup: Import app and prisma
   // In real test environment, these would be injected
   process.env.NODE_ENV = 'test';
@@ -82,13 +88,14 @@ beforeAll(() => {
     // Fall back to original fetch for other URLs
     return originalFetch(url, options);
   }) as any;
-});
+  });
 
-afterAll(() => {
-  global.fetch = originalFetch;
-});
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+}
 
-describe('OAuth Sign-In Integration Tests', () => {
+describeIntegration('OAuth Sign-In Integration Tests', () => {
   describe('POST /auth/google', () => {
     it('should create new user with valid Google token', async () => {
       const response = await request(app)

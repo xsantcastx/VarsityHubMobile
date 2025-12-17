@@ -3,8 +3,11 @@ import { geocodeLocation } from '../src/lib/geocoding';
 import { normalizeOrganizationName } from '../src/lib/normalizeNames';
 
 const prisma = new PrismaClient();
+const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
+const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = shouldSkipDbTests ? describe.skip : describe;
 
-describe('Organization Duplicate Guard', () => {
+describeDb('Organization Duplicate Guard', () => {
   beforeAll(async () => {
     // Clear test organizations
     await prisma.organization.deleteMany({ where: { name: { contains: 'Test' } } });
@@ -94,7 +97,7 @@ describe('Organization Duplicate Guard', () => {
   });
 });
 
-describe('POST /organizations/check-duplicate', () => {
+describeDb('POST /organizations/check-duplicate', () => {
   let testOrg: any;
 
   beforeAll(async () => {

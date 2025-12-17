@@ -176,6 +176,7 @@ export default function RootLayout() {
                 <Stack.Screen name="sign-up" options={{ headerShown: false }} />
                 <Stack.Screen name="verify-email" options={{ headerShown: false }} />
                 <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                <Stack.Screen name="reset" options={{ headerShown: false }} />
                 <Stack.Screen name="reset-password" options={{ headerShown: false }} />
                 <Stack.Screen name="payment-success" options={{ headerShown: false }} />
                 <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />

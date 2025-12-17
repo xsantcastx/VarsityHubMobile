@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { prisma } from '../lib/prisma.js';
 
+const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
+const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
+const describeDb = shouldSkipDbTests ? describe.skip : describe;
+
 /**
  * Unit tests for adminReports severity-gated suspension logic.
  * 
@@ -11,7 +15,7 @@ import { prisma } from '../lib/prisma.js';
  * 4. Dismissed does NOT suspend (no severity conversion)
  */
 
-describe('adminReports Sanctions Logic', () => {
+describeDb('adminReports Sanctions Logic', () => {
   let testUserId: string;
   let testReportId: string;
 

@@ -31,12 +31,64 @@ function readEnv(file) {
   return out;
 }
 
+function loadEnv(primaryPath, fallbackPath) {
+  const primaryExists = fs.existsSync(primaryPath);
+  const fallbackExists = fallbackPath ? fs.existsSync(fallbackPath) : false;
+
+  if (primaryExists) {
+    return {
+      values: readEnv(primaryPath),
+      usedPath: primaryPath,
+      usedLabel: 'primary',
+      primaryPath,
+      fallbackPath,
+    };
+  }
+
+  if (fallbackExists && fallbackPath) {
+    return {
+      values: readEnv(fallbackPath),
+      usedPath: fallbackPath,
+      usedLabel: 'fallback',
+      primaryPath,
+      fallbackPath,
+    };
+  }
+
+  return {
+    values: {},
+    usedLabel: 'missing',
+    primaryPath,
+    fallbackPath,
+  };
+}
+
+function describeSource(source) {
+  const relativize = (filePath) => path.relative(process.cwd(), filePath);
+  if (source.usedLabel === 'primary' && source.usedPath) {
+    return `${relativize(source.usedPath)} (primary)`;
+  }
+  if (source.usedLabel === 'fallback' && source.usedPath) {
+    return `${relativize(source.usedPath)} (fallback)`;
+  }
+  const candidates = [relativize(source.primaryPath)];
+  if (source.fallbackPath) {
+    candidates.push(relativize(source.fallbackPath));
+  }
+  return `missing (${candidates.join(' or ')})`;
+}
+
 function main() {
   const rootEnvPath = path.resolve(process.cwd(), '.env');
+  const rootExamplePath = path.resolve(process.cwd(), '.env.example');
   const serverEnvPath = path.resolve(process.cwd(), 'server/.env');
+  const serverExamplePath = path.resolve(process.cwd(), 'server/.env.example');
 
-  const rootEnv = readEnv(rootEnvPath);
-  const serverEnv = readEnv(serverEnvPath);
+  const rootEnvSource = loadEnv(rootEnvPath, rootExamplePath);
+  const serverEnvSource = loadEnv(serverEnvPath, serverExamplePath);
+
+  const rootEnv = rootEnvSource.values;
+  const serverEnv = serverEnvSource.values;
 
   // Support alias used in examples: FROM_EMAIL maps to EMAIL_FROM
   if (!rootEnv.EMAIL_FROM && rootEnv.FROM_EMAIL) {
@@ -66,8 +118,8 @@ function main() {
   const lines = [];
   lines.push('# Env Alignment Report');
   lines.push('');
-  lines.push(`Root .env: ${fs.existsSync(rootEnvPath) ? 'found' : 'missing'}`);
-  lines.push(`Server .env: ${fs.existsSync(serverEnvPath) ? 'found' : 'missing'}`);
+  lines.push(`Root env source: ${describeSource(rootEnvSource)}`);
+  lines.push(`Server env source: ${describeSource(serverEnvSource)}`);
   lines.push('');
   for (const s of statuses) {
     lines.push(`- ${s.key}: root=${s.presentInRoot ? 'set' : 'missing'} | server=${s.presentInServer ? 'set' : 'missing'} | matches=${s.matches ? 'yes' : 'no'}`);

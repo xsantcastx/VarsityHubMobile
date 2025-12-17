@@ -13,6 +13,8 @@ on:
 jobs:
   doctor:
     runs-on: ubuntu-latest
+    env:
+      CI: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +32,7 @@ jobs:
         run: node -e "require('./metro.config.js'); console.log('ok')"
 
       - name: Expo SDK version check
-        run: npx expo install --check --non-interactive
+        run: npx expo install --check
 
       - name: Expo Doctor
         run: npx expo-doctor

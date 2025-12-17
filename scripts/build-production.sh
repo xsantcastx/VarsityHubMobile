@@ -6,6 +6,12 @@ echo "🚀 VarsityHub Production Build Script"
 echo "======================================"
 echo ""
 
+# Skip interactive work in CI environments
+if [ -n "$CI" ]; then
+    echo "CI environment detected. Skipping EAS build steps (run locally when ready to ship)."
+    exit 0
+fi
+
 # Check if EAS CLI is installed
 if ! command -v eas &> /dev/null
 then

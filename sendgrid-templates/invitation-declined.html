@@ -1,0 +1,167 @@
+<!-- Template: Invitation Declined (INVITATION_DECLINED) -->
+<!-- Template ID: d-38eecf064c2b4d3685c9b98e1eb92c63 -->
+<!-- Source Name: Invitation Declined - VH  -->
+<!-- Subject: An invitation was declined for {{teamName}} -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitation Declined - VarsityHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+                    
+                    <!-- Logo -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
+                        </td>
+                    </tr>
+
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
+                                Invitation Declined
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 0 20px 32px;">
+                            <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Hi {{senderName}},
+                            </p>
+                            
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                <strong>{{declinedByName}}</strong> has declined your invitation to join <strong>{{teamName}}</strong> as <strong>{{role}}</strong>.
+                            </p>
+
+                            <!-- Details Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 12px; font-size: 14px; color: #991b1b; font-weight: 700;">
+                                            📋 Invitation Details
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #991b1b;">Declined By:</td>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #7f1d1d; font-weight: 600; text-align: right;">{{declinedByName}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #991b1b;">Team:</td>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #7f1d1d; font-weight: 600; text-align: right;">{{teamName}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #991b1b;">Role:</td>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #7f1d1d; font-weight: 600; text-align: right;">{{role}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #991b1b;">Declined On:</td>
+                                                <td style="padding: 4px 0; font-size: 14px; color: #7f1d1d; font-weight: 600; text-align: right;">{{declinedDate}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            {{#if reason_provided}}
+                            <!-- Reason Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border-radius: 6px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #6b7280; font-weight: 700;">
+                                            Reason Provided:
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #374151; font-style: italic;">
+                                            "{{reasonProvided}}"
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            {{/if}}
+
+                            <!-- CTA Buttons -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                                <tr>
+                                    <td align="center" style="padding: 0 0 12px 0;">
+                                        <a href="{{viewTeamUrl}}" style="display: inline-block; padding: 14px 28px; background-color: #10b981; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                            View Team Roster
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding: 0;">
+                                        <a href="{{resendInvitationUrl}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                            Send New Invitation
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 0; font-size: 13px; line-height: 1.6; color: #9ca3af; text-align: center;">
+                                You can invite other members to join your team anytime.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <!-- Social Media Icons -->
+                            <table role="presentation" style="border-collapse: collapse; margin: 0 auto 20px auto;">
+                                <tr>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.instagram.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/240px-Instagram_icon.png" alt="Instagram" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.tiktok.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.facebook.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/240px-2023_Facebook_icon.svg.png" alt="Facebook" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.youtube.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/240px-YouTube_full-color_icon_%282017%29.svg.png" alt="YouTube" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://limeprod.com" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Globe_icon_2.svg/240px-Globe_icon_2.svg.png" alt="Website" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Footer Links -->
+                            <p style="margin: 0 0 16px; font-size: 16px; text-align: center; line-height: 1.5;">
+                                <a href="{{privacyPolicyUrl}}" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy</a> & <a href="{{communityGuidelinesUrl}}" style="color: #10b981; text-decoration: none; font-weight: 500;">Community Guidelines</a>
+                            </p>
+
+                            <!-- Copyright -->
+                            <p style="margin: 0; font-size: 14px; text-align: center; color: #9ca3af;">
+                                © 2025 LIME PRODUCTIONS
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

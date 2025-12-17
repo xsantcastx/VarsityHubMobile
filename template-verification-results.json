@@ -1,0 +1,240 @@
+{
+  "found": 0,
+  "missing": 4,
+  "noSubject": 26,
+  "noVariables": 21,
+  "httpImages": 0,
+  "details": [
+    {
+      "name": "Verification Email",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: name, code, verificationLink"
+      ]
+    },
+    {
+      "name": "Password Reset",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: name, code, resetLink"
+      ]
+    },
+    {
+      "name": "Password Changed",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: name, date"
+      ]
+    },
+    {
+      "name": "Account Recovery",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: name, code"
+      ]
+    },
+    {
+      "name": "Login From New Device",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: name, device, location, date"
+      ]
+    },
+    {
+      "name": "Report Resolution",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: userName, reportId, status, appealUrl"
+      ]
+    },
+    {
+      "name": "Report Dismissed",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: reason"
+      ]
+    },
+    {
+      "name": "Account Warning",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line"
+      ]
+    },
+    {
+      "name": "Content Removed",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: reason"
+      ]
+    },
+    {
+      "name": "Account Suspension",
+      "status": "NOT_FOUND",
+      "issues": [
+        "HTTP 404 - Template may be deleted"
+      ]
+    },
+    {
+      "name": "Account Suspension (7 Days)",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: violationType, suspensionDays"
+      ]
+    },
+    {
+      "name": "Account Permanent Ban",
+      "status": "MISSING_ID",
+      "issues": [
+        "No template ID configured in server/.env"
+      ]
+    },
+    {
+      "name": "Event Submission Received",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line"
+      ]
+    },
+    {
+      "name": "Event Approved",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line"
+      ]
+    },
+    {
+      "name": "Event Denied",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: reason"
+      ]
+    },
+    {
+      "name": "Event Reminder",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: userName"
+      ]
+    },
+    {
+      "name": "Event Updated",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: userName, updatedFields"
+      ]
+    },
+    {
+      "name": "Event Canceled",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: userName, reason"
+      ]
+    },
+    {
+      "name": "Event RSVP Confirmed",
+      "status": "NOT_FOUND",
+      "issues": [
+        "HTTP 404 - Template may be deleted"
+      ]
+    },
+    {
+      "name": "Organization Invitation",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line"
+      ]
+    },
+    {
+      "name": "Team Invitation",
+      "status": "NOT_FOUND",
+      "issues": [
+        "HTTP 404 - Template may be deleted"
+      ]
+    },
+    {
+      "name": "Athlete Invitation",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: inviterName, role"
+      ]
+    },
+    {
+      "name": "Role Assignment",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: assigneeName, roleName, organizationName"
+      ]
+    },
+    {
+      "name": "Roster Threshold",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: currentRosterSize, rosterLimit"
+      ]
+    },
+    {
+      "name": "Invitation Declined",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: inviteeName"
+      ]
+    },
+    {
+      "name": "Team Roster Update",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: updatedBy"
+      ]
+    },
+    {
+      "name": "Staff Member Joined",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: staffName, role"
+      ]
+    },
+    {
+      "name": "User Confirmation",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: organizationName"
+      ]
+    },
+    {
+      "name": "Payment Failed",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line"
+      ]
+    },
+    {
+      "name": "Subscription Expiring",
+      "status": "WARNING",
+      "issues": [
+        "Missing subject line",
+        "Missing variables: renewalDate, price"
+      ]
+    }
+  ]
+}

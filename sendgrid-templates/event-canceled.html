@@ -1,0 +1,219 @@
+<!-- Template: Event Canceled (EVENT_CANCELED) -->
+<!-- Template ID: d-1df595aec25a438e8e63befc17e09f13 -->
+<!-- Source Name: Event Cancellation - VH  -->
+<!-- Subject: {{eventName}} has been canceled -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Canceled - VarsityHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+                    
+                    <!-- Logo -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
+                        </td>
+                    </tr>
+
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
+                                ⚠️ Event Canceled
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 0 20px 32px;">
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Hi {{recipientName}},
+                            </p>
+                            
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                We regret to inform you that <strong>{{eventName}}</strong> scheduled for {{eventDate}} has been canceled.
+                            </p>
+
+                            <!-- Status Badge -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <tr>
+                                    <td align="center">
+                                        <div style="display: inline-block; padding: 8px 16px; background-color: #ef4444; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700;">
+                                            CANCELED
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Cancellation Reason Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #991b1b; font-weight: 700;">
+                                            📋 Reason for Cancellation
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #991b1b;">
+                                            {{cancelReason}}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Canceled Event Details -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 16px; font-size: 16px; color: #111827; font-weight: 700;">
+                                            📅 Canceled Event Details
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Event Name:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventName}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Original Date:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventDate}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Original Time:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventTime}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Location:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventLocation}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Canceled On:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{canceledAt}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Organization:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{organizationName}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Rescheduling Info (Conditional) -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #1e40af; font-weight: 700;">
+                                            📆 Rescheduling Information
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #1e40af;">
+                                            {{rescheduleInfo}}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- What to Do Next -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef3c7; border-left: 4px solid #fbbf24; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #92400e; font-weight: 700;">
+                                            💡 What to Do
+                                        </p>
+                                        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #92400e;">
+                                            <li style="margin-bottom: 8px;">Remove this event from your calendar</li>
+                                            <li style="margin-bottom: 8px;">Check VarsityHub for new event postings</li>
+                                            <li style="margin-bottom: 8px;">Follow {{organizationName}} for updates</li>
+                                            <li style="margin-bottom: 0;">Contact the organizer if you have questions</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                                We apologize for any inconvenience. Stay tuned for future events from {{organizationName}}.
+                            </p>
+
+                            <!-- CTA Buttons -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                                <tr>
+                                    <td align="center" style="padding: 0 0 12px 0;">
+                                        <a href="{{upcomingEventsLink}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                            View Upcoming Events
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding: 0;">
+                                        <a href="{{contactOrganizerLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                            Contact Organizer
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 0; font-size: 13px; line-height: 1.6; color: #9ca3af; text-align: center;">
+                                Questions? Reply to this email or contact support.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 40px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <!-- Social Media Icons -->
+                            <table role="presentation" style="border-collapse: collapse; margin: 0 auto 20px auto;">
+                                <tr>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.instagram.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Instagram_icon.png/240px-Instagram_icon.png" alt="Instagram" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.tiktok.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.youtube.com/@varsityhubapp" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/240px-YouTube_full-color_icon_%282017%29.svg.png" alt="YouTube" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://www.facebook.com/varsityhubapp/" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/2023_Facebook_icon.svg/240px-2023_Facebook_icon.svg.png" alt="Facebook" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                    <td style="padding: 0 10px;">
+                                        <a href="https://limeprod.com" style="display: block;">
+                                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Globe_icon_2.svg/240px-Globe_icon_2.svg.png" alt="Lime Productions" style="width: 32px; height: 32px; display: block;" />
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Footer Links -->
+                            <p style="margin: 0 0 16px; font-size: 16px; text-align: center; line-height: 1.5;">
+                                <a href="https://varsityhub.app/privacy" style="color: #10b981; text-decoration: none; font-weight: 500;">Privacy Policy & Community Guidelines</a>
+                            </p>
+
+                            <!-- Copyright -->
+                            <p style="margin: 0; font-size: 14px; text-align: center; color: #9ca3af;">
+                                © 2025 LIME PRODUCTIONS
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

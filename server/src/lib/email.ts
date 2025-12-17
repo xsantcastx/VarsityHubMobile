@@ -153,7 +153,8 @@ export async function sendPasswordResetEmail(
     return false;
   }
 
-  const link = resetLink || `${APP_BASE_URL}/reset/${encodeURIComponent(code)}`;
+  // Use app deep link instead of web URL - varsityhubmobile://reset/CODE
+  const link = resetLink || `varsityhubmobile://reset/${encodeURIComponent(code)}`;
 
   try {
     await sgMail.send({
@@ -161,12 +162,10 @@ export async function sendPasswordResetEmail(
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.PASSWORD_RESET,
       dynamicTemplateData: {
-        USERNAME: userName || 'VarsityHub member',
-        RESET_LINK: link,
-        expires_in: expiresInLabel,
-        reset_code: code,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        name: userName || 'VarsityHub member',
+        resetLink: link,
+        expiresIn: expiresInLabel,
+        code: code,
       },
     });
     debugLog(`✅ Password reset email sent to ${email}`);
@@ -193,11 +192,9 @@ export async function sendPasswordChangedEmail(
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
       dynamicTemplateData: {
-        USERNAME: userName || 'VarsityHub member',
-        CHANGE_DATE: changeDate || new Date().toLocaleString('en-US', chicagoTimeFormat),
-        USER_EMAIL: email,
-        privacy_policy_url: 'https://varsityhub.app/privacy',
-        community_guidelines_url: 'https://varsityhub.app/community-guidelines',
+        name: userName || 'VarsityHub member',
+        date: changeDate || new Date().toLocaleString('en-US', chicagoTimeFormat),
+        email: email,
       },
     });
     debugLog(`✅ Password changed alert sent to ${email}`);

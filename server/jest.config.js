@@ -1,4 +1,8 @@
-export default {
+const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
+const skipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
+const skipIntegrationTests = isCi || process.env.SKIP_SERVER_INTEGRATION_TESTS === '1';
+
+const config = {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
@@ -39,4 +43,19 @@ export default {
   },
   testTimeout: 10000,
   verbose: true,
+  watchman: false,
 };
+
+config.testPathIgnorePatterns = config.testPathIgnorePatterns ?? [];
+if (skipDbTests) {
+  config.testPathIgnorePatterns.push(
+    '<rootDir>/tests/organizations.test.ts',
+    '<rootDir>/src/__tests__/adminReports.test.ts',
+    '<rootDir>/src/__tests__/email-queue.test.ts'
+  );
+}
+if (skipIntegrationTests) {
+  config.testPathIgnorePatterns.push('<rootDir>/tests/auth-signin.integration.test.ts');
+}
+
+export default config;

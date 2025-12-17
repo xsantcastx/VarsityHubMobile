@@ -9,8 +9,8 @@
  * Output: Console output + test-results.json
  */
 
-import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
+import 'dotenv/config';
 
 // Load environment variables
 loadEnv({ path: '.env', override: true });

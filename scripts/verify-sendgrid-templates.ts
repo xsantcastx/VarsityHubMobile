@@ -13,8 +13,8 @@
  * Environment: Requires SENDGRID_API_KEY and server/.env with template IDs
  */
 
-import 'dotenv/config';
 import { config as loadEnv } from 'dotenv';
+import 'dotenv/config';
 
 // Load environment variables
 loadEnv({ path: '.env', override: true });
@@ -31,52 +31,57 @@ if (!SENDGRID_API_KEY) {
 const TEMPLATES = [
   {
     name: 'Verification Email',
-    id: process.env.SENDGRID_VERIFICATION_EMAIL_ID,
+    id: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID,
     requiredVars: ['name', 'code', 'verificationLink'],
   },
   {
     name: 'Password Reset',
-    id: process.env.SENDGRID_PASSWORD_RESET_ID,
+    id: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID,
     requiredVars: ['name', 'code', 'resetLink'],
   },
   {
     name: 'Password Changed',
-    id: process.env.SENDGRID_PASSWORD_CHANGED_ID,
+    id: process.env.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID,
     requiredVars: ['name', 'date'],
   },
   {
     name: 'Account Recovery',
-    id: process.env.SENDGRID_ACCOUNT_RECOVERY_ID,
+    id: process.env.SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID,
     requiredVars: ['name', 'code'],
   },
   {
     name: 'Login From New Device',
-    id: process.env.SENDGRID_LOGIN_NEW_DEVICE_ID,
+    id: process.env.SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID,
     requiredVars: ['name', 'device', 'location', 'date'],
   },
   {
     name: 'Report Resolution',
-    id: process.env.SENDGRID_REPORT_RESOLUTION_ID,
+    id: process.env.SENDGRID_REPORT_RESOLVED_TEMPLATE_ID,
     requiredVars: ['userName', 'reportId', 'status', 'appealUrl'],
   },
   {
     name: 'Report Dismissed',
-    id: process.env.SENDGRID_REPORT_DISMISSED_ID,
+    id: process.env.SENDGRID_REPORT_DISMISSED_TEMPLATE_ID,
     requiredVars: ['userName', 'reportId', 'reason'],
   },
   {
     name: 'Account Warning',
-    id: process.env.SENDGRID_ACCOUNT_WARNING_ID,
+    id: process.env.SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID,
     requiredVars: ['userName', 'reportId', 'violationType'],
   },
   {
     name: 'Content Removed',
-    id: process.env.SENDGRID_CONTENT_REMOVED_ID,
+    id: process.env.SENDGRID_CONTENT_REMOVED_TEMPLATE_ID,
     requiredVars: ['userName', 'reportId', 'contentType', 'reason'],
   },
   {
     name: 'Account Suspension',
-    id: process.env.SENDGRID_ACCOUNT_SUSPENSION_ID,
+    id: process.env.SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID,
+    requiredVars: ['userName', 'violationType', 'suspensionDays', 'appealUrl'],
+  },
+  {
+    name: 'Account Suspension (7 Days)',
+    id: process.env.SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID,
     requiredVars: ['userName', 'violationType', 'suspensionDays', 'appealUrl'],
   },
   {
@@ -86,92 +91,92 @@ const TEMPLATES = [
   },
   {
     name: 'Event Submission Received',
-    id: process.env.SENDGRID_EVENT_SUBMISSION_ID,
+    id: process.env.SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID,
     requiredVars: ['coachName', 'eventName', 'eventDate', 'eventLocation'],
   },
   {
     name: 'Event Approved',
-    id: process.env.SENDGRID_EVENT_APPROVED_ID,
+    id: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID,
     requiredVars: ['coachName', 'eventName', 'eventDate', 'eventLocation'],
   },
   {
     name: 'Event Denied',
-    id: process.env.SENDGRID_EVENT_DENIED_ID,
+    id: process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID,
     requiredVars: ['coachName', 'eventName', 'eventDate', 'reason'],
   },
   {
     name: 'Event Reminder',
-    id: process.env.SENDGRID_EVENT_REMINDER_ID,
+    id: process.env.SENDGRID_EVENT_REMINDER_TEMPLATE_ID,
     requiredVars: ['userName', 'eventName', 'eventDate', 'eventLocation'],
   },
   {
     name: 'Event Updated',
-    id: process.env.SENDGRID_EVENT_UPDATED_ID,
+    id: process.env.SENDGRID_EVENT_UPDATED_TEMPLATE_ID,
     requiredVars: ['userName', 'eventName', 'updatedFields'],
   },
   {
     name: 'Event Canceled',
-    id: process.env.SENDGRID_EVENT_CANCELED_ID,
+    id: process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID,
     requiredVars: ['userName', 'eventName', 'eventDate', 'reason'],
   },
   {
     name: 'Event RSVP Confirmed',
-    id: process.env.SENDGRID_EVENT_RSVP_CONFIRMED_ID,
+    id: process.env.SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID,
     requiredVars: ['userName', 'eventName', 'eventDate', 'eventTime'],
   },
   {
     name: 'Organization Invitation',
-    id: process.env.SENDGRID_ORGANIZATION_INVITATION_ID,
+    id: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID,
     requiredVars: ['organizationName', 'inviterName', 'role'],
   },
   {
     name: 'Team Invitation',
-    id: process.env.SENDGRID_TEAM_INVITATION_ID,
+    id: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID,
     requiredVars: ['recipientName', 'teamName', 'inviterName', 'role'],
   },
   {
     name: 'Athlete Invitation',
-    id: process.env.SENDGRID_ATHLETE_INVITATION_ID,
+    id: process.env.SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID,
     requiredVars: ['inviterName', 'athleteName', 'teamName', 'role'],
   },
   {
     name: 'Role Assignment',
-    id: process.env.SENDGRID_ROLE_ASSIGNMENT_ID,
+    id: process.env.SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID,
     requiredVars: ['assigneeName', 'roleName', 'organizationName'],
   },
   {
     name: 'Roster Threshold',
-    id: process.env.SENDGRID_ROSTER_THRESHOLD_ID,
+    id: process.env.SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID,
     requiredVars: ['teamName', 'currentRosterSize', 'rosterLimit'],
   },
   {
     name: 'Invitation Declined',
-    id: process.env.SENDGRID_INVITATION_DECLINED_ID,
+    id: process.env.SENDGRID_INVITATION_DECLINED_TEMPLATE_ID,
     requiredVars: ['inviteeName', 'role', 'teamName'],
   },
   {
     name: 'Team Roster Update',
-    id: process.env.SENDGRID_TEAM_ROSTER_UPDATE_ID,
+    id: process.env.SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID,
     requiredVars: ['teamName', 'updatedBy', 'changesSummary'],
   },
   {
     name: 'Staff Member Joined',
-    id: process.env.SENDGRID_STAFF_MEMBER_JOINED_ID,
+    id: process.env.SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID,
     requiredVars: ['staffName', 'role', 'teamName'],
   },
   {
     name: 'User Confirmation',
-    id: process.env.SENDGRID_USER_CONFIRMATION_ID,
+    id: process.env.SENDGRID_USER_CONFIRMATION_TEMPLATE_ID,
     requiredVars: ['organizationName', 'userName'],
   },
   {
     name: 'Payment Failed',
-    id: process.env.SENDGRID_PAYMENT_FAILED_ID,
+    id: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID,
     requiredVars: ['userName', 'failedAmount', 'planName'],
   },
   {
     name: 'Subscription Expiring',
-    id: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_ID,
+    id: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID,
     requiredVars: ['userName', 'planName', 'renewalDate', 'price'],
   },
 ];
