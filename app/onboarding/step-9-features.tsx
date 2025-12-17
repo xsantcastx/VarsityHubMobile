@@ -1,8 +1,8 @@
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
@@ -17,8 +17,8 @@ import OnboardingLayout from './components/OnboardingLayout';
 export default function Step9Features() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
-  const { registerPushToken, user, checkAuth, markOnboardingCompleteLocally } = useAuth();
+  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { registerPushToken, user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);
   // Push notifications can't be provisioned on iOS Simulator, so default to off there
   const [notificationsEnabled, setNotificationsEnabled] = useState(Device.isDevice);
@@ -151,20 +151,19 @@ export default function Step9Features() {
         await User.completeOnboarding(payload);
         
         // CRITICAL: Validate server confirmed completion
-        const updatedUser: any = await checkAuth();
+        const updatedUser: any = await User.me();
         if (updatedUser?.preferences?.onboarding_completed !== true) {
           throw new Error('Server did not confirm onboarding completion');
         }
-
-        await markOnboardingCompleteLocally();
-        clearOnboarding();
-        setProgress(OnboardingStepIndex.Confirmation);
+        
+        // Success - navigate to feed
         router.replace('/(tabs)/feed');
         return; // Fans are done; skip coach-only confirmation screen
       }
       
       // For coaches, go to confirmation page
-      setProgress(OnboardingStepIndex.Confirmation);
+      setProgress(7);
+      await AsyncStorage.setItem('@onboarding_progress', '8');
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');

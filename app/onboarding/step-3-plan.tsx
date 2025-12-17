@@ -6,7 +6,6 @@ import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput
 // @ts-ignore
 import { Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -206,7 +205,7 @@ export default function Step3Plan() {
         } catch (err) {
           console.warn('Failed to persist rookie plan to backend:', err);
         }
-        setProgress(OnboardingStepIndex.Organization);
+        setProgress(3);
         navigateNext();
         return;
       }
@@ -228,7 +227,7 @@ export default function Step3Plan() {
           } catch (err) {
             console.warn('Failed to persist free plan to backend:', err);
           }
-          setProgress(OnboardingStepIndex.Organization);
+          setProgress(3);
           navigateNext();
           return;
         }
@@ -236,13 +235,13 @@ export default function Step3Plan() {
           // Stripe checkout was successful, user will pay through Stripe
           // The plan will be saved by the payment finalization process
           await WebBrowser.openBrowserAsync(String(res.url));
-          setProgress(OnboardingStepIndex.Organization);
+          setProgress(3);
           navigateNext();
           return;
         }
         console.warn('Unexpected subscribe response', res);
         Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
-        setProgress(OnboardingStepIndex.Organization);
+        setProgress(3);
         navigateNext();
       } catch (err: any) {
         console.warn('Failed to start subscription checkout for plan:', err);

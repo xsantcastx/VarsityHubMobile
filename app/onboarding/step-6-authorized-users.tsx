@@ -11,7 +11,6 @@ import { Alert, Modal, Pressable, StyleSheet, Text, View, useColorScheme } from 
 import { httpPost } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type TeamRole =
@@ -175,10 +174,10 @@ export default function Step6AuthorizedUsers() {
   const onContinue = () => {
     setOB((prev) => ({ ...prev, authorized: list }));
     if (returnToConfirmation) {
-      setProgress(OnboardingStepIndex.Confirmation);
+      setProgress(7);
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(OnboardingStepIndex.Profile);
+      setProgress(5); // Advance to Step 7
       router.push('/onboarding/step-7-profile');
     }
   };
@@ -187,10 +186,10 @@ export default function Step6AuthorizedUsers() {
     if (isOptional) {
       setOB((prev) => ({ ...prev, authorized: [] }));
       if (returnToConfirmation) {
-        setProgress(OnboardingStepIndex.Confirmation);
+        setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        setProgress(OnboardingStepIndex.Profile);
+        setProgress(5); // Advance to Step 7
         router.push('/onboarding/step-7-profile');
       }
     }
@@ -552,6 +551,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   rowTitle: { fontWeight: '700', color: Colors[colorScheme].text },
   mutedSmall: { color: Colors[colorScheme].mutedText, fontSize: 12 },
 });
+
 
 
 

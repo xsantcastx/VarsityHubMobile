@@ -9,7 +9,6 @@ import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { useEffect } from 'react';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -32,8 +31,8 @@ export default function Step10Confirmation() {
 
   useEffect(() => {
     // Only set progress if not already at step 10
-    if (progress !== OnboardingStepIndex.Confirmation) {
-      setProgress(OnboardingStepIndex.Confirmation);
+    if (progress !== 8) {
+      setProgress(8);
     }
   }, [setProgress, progress]);
 

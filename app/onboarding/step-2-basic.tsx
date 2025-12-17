@@ -9,7 +9,6 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -114,7 +113,7 @@ export default function Step2Basic() {
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      setProgress(OnboardingStepIndex.Role);
+      setProgress(0);
       // Safe navigation - check if we can go back
       if (router.canGoBack()) {
         router.back();
@@ -136,16 +135,18 @@ export default function Step2Basic() {
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
-        setProgress(OnboardingStepIndex.Confirmation);
+        setProgress(7); // step-10 is index 7
         router.replace('/onboarding/step-10-confirmation');
       } else {
+        // Fan: light path → profile setup
         if (ob.role === 'fan') {
-          setProgress(OnboardingStepIndex.Profile);
+          setProgress(5); // step-7 is index 5
           router.push('/onboarding/step-7-profile');
           return;
         }
 
-        setProgress(OnboardingStepIndex.Plan);
+        // Coach: go to plan selection
+        setProgress(2); // step-3 is index 2
         router.push('/onboarding/step-3-plan');
       }
     } catch (e: any) { 

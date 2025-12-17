@@ -1,7 +1,6 @@
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
@@ -50,7 +49,7 @@ export default function Step8Interests() {
       // Then save to backend
       await User.updatePreferences({ primary_intents: sel });
       
-      setProgress(OnboardingStepIndex.Features);
+      setProgress(6); // step-9 is index 6
       
       // Continue to step 9 (features)
       router.push('/onboarding/step-9-features');

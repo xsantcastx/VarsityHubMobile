@@ -12,7 +12,6 @@ import { Organization, Team } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import { httpPost } from '@/api/http';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 import { useOrganizationSearch } from '@/hooks/useOrganizationSearch';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -87,7 +86,7 @@ export default function Step4Organization() {
           
           // Auto-skip this step if team already exists
           if (!e2e) {
-            setProgress(OnboardingStepIndex.AuthorizedUsers);
+            setProgress(5); // step-6
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
@@ -112,7 +111,7 @@ export default function Step4Organization() {
             
             // Auto-skip this step if org already exists
             if (!e2e) {
-              setProgress(OnboardingStepIndex.AuthorizedUsers);
+              setProgress(5); // step-6
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
               } else {
@@ -327,10 +326,10 @@ export default function Step4Organization() {
               }));
               
               if (returnToConfirmation) {
-                setProgress(OnboardingStepIndex.Confirmation);
+                setProgress(7);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(OnboardingStepIndex.AuthorizedUsers);
+                setProgress(5);
                 router.push('/onboarding/step-6-authorized-users');
               }
             }
@@ -368,10 +367,10 @@ export default function Step4Organization() {
       // If team/org already exists, just navigate to next step
       if (alreadyExists) {
         if (returnToConfirmation) {
-          setProgress(OnboardingStepIndex.Confirmation);
+          setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(OnboardingStepIndex.AuthorizedUsers);
+          setProgress(5); // step-6
           router.push('/onboarding/step-6-authorized-users');
         }
         return;
@@ -419,10 +418,10 @@ export default function Step4Organization() {
             
             // Navigate to next step
             if (returnToConfirmation) {
-              setProgress(OnboardingStepIndex.Confirmation);
+              setProgress(7);
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              setProgress(OnboardingStepIndex.AuthorizedUsers);
+              setProgress(5); // step-6
               router.push('/onboarding/step-6-authorized-users');
             }
           })();

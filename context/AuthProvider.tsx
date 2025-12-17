@@ -37,7 +37,7 @@ export interface AuthContextType {
   healthOk: boolean;
   healthError: string | null;
   isAdmin: boolean;
-  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<AuthUser | null>;
+  checkAuth: (options?: { email?: string; pendingVerification?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
   registerPushToken: () => Promise<boolean>;
   markOnboardingCompleteLocally: () => Promise<void>;
@@ -164,23 +164,25 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
   // Check authentication
   const checkAuth = useCallback(
-    async (options?: { email?: string; pendingVerification?: boolean }): Promise<AuthUser | null> => {
+    async (options?: { email?: string; pendingVerification?: boolean }) => {
       try {
+        // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
           setPendingVerificationEmail(options.email);
-          setUser(null);
-          return null;
+          setUser(null); // Don't set user until verification succeeds
+          return;
         }
 
+        // Try to fetch current user only if we have a token
         const token = await auth.getToken();
         if (!token) {
           setUser(null);
-          return null;
+          return;
         }
 
-        const me: AuthUser = await User.me();
+        const me: any = await User.me();
         setUser(me);
-        setPendingVerificationEmail(null);
+        setPendingVerificationEmail(null); // Clear pending email after successful auth
 
         // ALWAYS sync local flag with server truth
         const serverComplete = me?.preferences?.onboarding_completed === true;
@@ -193,11 +195,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
         }
 
+        // Setup push notifications after successful auth
         void setupPushNotifications(me.id);
 
         return me;
       } catch (err: any) {
         setUser(null);
+        // Don't clear onboarding flag on auth error - keep it for when user logs back in
         throw err;
       }
     },

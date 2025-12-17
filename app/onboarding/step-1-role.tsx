@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { OnboardingStepIndex } from '@/constants/onboarding';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -186,12 +185,18 @@ export default function Step1Role() {
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
-        setProgress(OnboardingStepIndex.Confirmation);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // All roles proceed through basic info; fans branch later in step 2
-        setProgress(OnboardingStepIndex.BasicInfo);
-        router.push('/onboarding/step-2-basic');
+        // Route based on role selection for normal onboarding flow
+        if (role === 'fan') {
+          // Fan gets lightest setup - skip to profile
+          setProgress(5); // step-7 is index 5
+          router.push('/onboarding/step-7-profile');
+        } else {
+          // Coach/Organizer gets full onboarding with teams and subscriptions
+          setProgress(1); // step-2 is index 1
+          router.push('/onboarding/step-2-basic');
+        }
       }
     } finally {
       setSaving(false);
@@ -347,4 +352,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
 
