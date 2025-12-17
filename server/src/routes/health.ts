@@ -13,6 +13,7 @@ healthRouter.get('/', (req, res) => {
   const missingEmailTemplates = getMissingEmailTemplates();
   const sendgridReady = isSendGridConfigured() && missingEmailTemplates.length === 0;
   const sgKeyLen = (process.env.SENDGRID_API_KEY || '').length;
+  console.log(`[HEALTH CHECK] SENDGRID_API_KEY length=${sgKeyLen}, NODE_ENV=${process.env.NODE_ENV}`);
 
   const integrations = {
     database: !!process.env.DATABASE_URL,
