@@ -14,9 +14,10 @@ import { prisma } from './prisma.js';
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
 const GEOFENCE_RADIUS_MILES = 0.5; // ~800 meters - at or very near venue
-const POSTING_WINDOW_HOURS_BEFORE = 24;
-const GRACE_PERIOD_HOURS_AFTER = 48;
-const STORY_RADIUS_KM = 30; // ~18.6 miles for story proximity
+const STORY_RADIUS_KM = 2; // Users must be within 2km to post stories
+const POST_RADIUS_KM = 15; // Users must be within 15km to post event posts
+const POSTING_WINDOW_HOURS_BEFORE = 48; // 2 days before event
+const POSTING_WINDOW_HOURS_AFTER = 48; // 2 days after event (120h total: 48h before + 24h during + 48h after)
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -66,103 +67,17 @@ export function isWithinGeofence(
 }
 
 /**
- * Check if posting window is still open for an event
- * Posting opens 24 hours before event and closes 48 hours after
- */
-export function isPostingWindowOpen(eventDate: Date): boolean {
-  const now = new Date();
-  const eventTime = new Date(eventDate);
-  const windowOpenTime = new Date(eventTime.getTime() - POSTING_WINDOW_HOURS_BEFORE * 60 * 60 * 1000);
-  const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
-  
-  return now >= windowOpenTime && now < windowCloseTime;
-}
-
-/**
- * Check if user has valid EventPostAccess for this event
- * Used to allow posts without live location verification if they previously posted while at venue
- */
-export async function hasValidEventPostAccess(
-  eventId: string,
-  userId: string
-): Promise<boolean> {
-  const access = await prisma.eventPostAccess.findUnique({
-    where: {
-      event_id_user_id: {
-        event_id: eventId,
-        user_id: userId,
-      },
-    },
-  });
-
-  if (!access) {
-    return false;
-  }
-
-  const now = new Date();
-  return now < access.expires_at;
-}
-
-/**
- * Create or update an EventPostAccess record for a user at an event
- * This is called when a user successfully posts from within the geofence
- */
-export async function grantEventPostAccess(
-  eventId: string,
-  userId: string,
-  eventDate: Date
-): Promise<void> {
-  const expiresAt = new Date(eventDate.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
-
-  // Upsert: create or update the record
-  await prisma.eventPostAccess.upsert({
-    where: {
-      event_id_user_id: {
-        event_id: eventId,
-        user_id: userId,
-      },
-    },
-    create: {
-      event_id: eventId,
-      user_id: userId,
-      expires_at: expiresAt,
-    },
-    update: {
-      expires_at: expiresAt,
-    },
-  });
-}
-
-/**
- * Check if user has an RSVP for the event and the event has started
- * If true and within the 48-hour window, allow as a bypass
- */
-async function hasRsvpBypass(eventId: string, userId: string, eventDate: Date): Promise<boolean> {
-  const now = new Date();
-  const eventTime = new Date(eventDate);
-  const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
-
-  if (now < eventTime || now >= windowCloseTime) return false;
-
-  const rsvp = await prisma.eventRsvp.findUnique({
-    where: {
-      event_id_user_id: {
-        event_id: eventId,
-        user_id: userId,
-      },
-    },
-  });
-  return !!rsvp;
-}
-
-/**
- * Verify user can post to an event based on location, time, and prior participation
+ * Verify user can post to an event based on location, time window, and proximity
+ * 
+ * BUSINESS RULE:
+ * - Posts allowed in 120-hour window: 48h before event, during event day, 48h after event
+ * - User must be within 15km of venue at time of posting
+ * - No grace period - location checked on every post
  * 
  * Returns result object with:
  * - allowed: boolean - whether post is permitted
  * - reason?: string - why post was rejected (if applicable)
- * - distance?: number - distance from venue in miles
- * - usedCachedAccess?: boolean - whether they used the 48h grace period instead of live location
+ * - distance?: number - distance from venue in km
  */
 export async function verifyEventPostingPermission(
   eventId: string,
@@ -173,7 +88,6 @@ export async function verifyEventPostingPermission(
   allowed: boolean;
   reason?: string;
   distance?: number;
-  usedCachedAccess?: boolean;
 }> {
   // Get event details
   const event = await prisma.event.findUnique({
@@ -192,23 +106,24 @@ export async function verifyEventPostingPermission(
     return { allowed: false, reason: 'Event not found' };
   }
 
-  // Check if posting window is still open (24 h before through 48 h after)
-  if (!isPostingWindowOpen(event.date)) {
-    const eventTime = new Date(event.date);
-    const windowOpenTime = new Date(eventTime.getTime() - POSTING_WINDOW_HOURS_BEFORE * 60 * 60 * 1000);
-    const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
+  // Check if posting window is still open (48h before through 48h after event)
+  const now = new Date();
+  const eventTime = new Date(event.date);
+  const windowOpenTime = new Date(eventTime.getTime() - POSTING_WINDOW_HOURS_BEFORE * 60 * 60 * 1000);
+  const windowCloseTime = new Date(eventTime.getTime() + POSTING_WINDOW_HOURS_AFTER * 60 * 60 * 1000);
 
-    if (new Date() < windowOpenTime) {
-      return {
-        allowed: false,
-        reason: `Posting opens 24 hours before the game at ${windowOpenTime.toLocaleString()}`,
-      };
-    } else {
-      return {
-        allowed: false,
-        reason: `Posting window closed. You can post up to 48 hours after the event (until ${windowCloseTime.toLocaleString()}).`,
-      };
-    }
+  if (now < windowOpenTime) {
+    return {
+      allowed: false,
+      reason: `Posting opens 48 hours before the game at ${windowOpenTime.toLocaleString()}`,
+    };
+  }
+  
+  if (now >= windowCloseTime) {
+    return {
+      allowed: false,
+      reason: `Posting window closed. Posts are available up to 48 hours after the event (until ${windowCloseTime.toLocaleString()}).`,
+    };
   }
 
   // Check if event has location coordinates
@@ -218,52 +133,34 @@ export async function verifyEventPostingPermission(
     return { allowed: true };
   }
 
-  // Check if user has valid EventPostAccess (48-hour grace period)
-  const hasAccess = await hasValidEventPostAccess(eventId, userId);
-  if (hasAccess) {
-    return { allowed: true, usedCachedAccess: true };
-  }
-
-  // Determine if this is a subsequent post for this event
-  const priorPostsCount = await prisma.post.count({ where: { event_id: eventId, author_id: userId } });
-
-  // RSVP-based bypass is allowed for subsequent posts only, once event has started
-  if (priorPostsCount > 0) {
-    const rsvpBypass = await hasRsvpBypass(eventId, userId, event.date);
-    if (rsvpBypass) {
-      return { allowed: true, usedCachedAccess: true };
-    }
-  }
-
-  // User doesn't have cached access; require live location verification
+  // Location is required for every post
   if (userLat === null || userLon === null) {
     return {
       allowed: false,
-      reason: 'Location access required. You must be at the game venue to post.',
+      reason: 'Location access required. You must be within 15km of the venue to post.',
     };
   }
 
-  // Check if user is within geofence
-  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'miles');
-  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude);
-
-  if (!isWithin) {
+  // Check if user is within 15km of venue
+  const distanceKm = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
+  if (distanceKm > POST_RADIUS_KM) {
     return {
       allowed: false,
-      reason: `You must be at ${event.location || 'the game venue'} to post. You are ${distance.toFixed(2)} miles away.`,
-      distance,
+      reason: `You must be within ${POST_RADIUS_KM}km of ${event.location || 'the game venue'} to post. You are ${distanceKm.toFixed(2)}km away.`,
+      distance: distanceKm,
     };
   }
 
-  return { allowed: true, distance };
+  return { allowed: true, distance: distanceKm };
 }
 
 /**
  * Verify user can create a story for a game/event
- * Stories are only allowed on the day of the event (or 24h before if event time is at night)
  * 
- * If stories also require physical presence, this will check geofence and EventPostAccess
- * For now, only time enforcement is required by product rules
+ * BUSINESS RULE:
+ * - Stories allowed only on the calendar day of the event (00:00 - 23:59 local time)
+ * - User must be within 2km of the venue
+ * - Expires at midnight on event day
  */
 export async function verifyStoryCreationPermission(
   gameId: string,
@@ -275,7 +172,6 @@ export async function verifyStoryCreationPermission(
   allowed: boolean;
   reason?: string;
   distance?: number;
-  usedCachedAccess?: boolean;
 }> {
   // Find the game
   const game = await prisma.game.findUnique({
@@ -294,7 +190,7 @@ export async function verifyStoryCreationPermission(
     return { allowed: false, reason: 'Game not found' };
   }
 
-  // Enforce calendar day of the event and proximity within 30km
+  // Enforce calendar day of the event
   const now = new Date();
   const eventDate = new Date(game.date);
   const dayStart = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 0, 0, 0, 0);
@@ -303,7 +199,7 @@ export async function verifyStoryCreationPermission(
   if (now < dayStart || now > dayEnd) {
     return {
       allowed: false,
-      reason: `Stories can be posted only on the day of the event (${dayStart.toDateString()}).`,
+      reason: `Stories are available only on the day of the event (${dayStart.toDateString()}).`,
     };
   }
 
@@ -315,7 +211,7 @@ export async function verifyStoryCreationPermission(
   if (userLat === null || userLon === null) {
     return {
       allowed: false,
-      reason: 'Location required. Stories need your current location to confirm proximity.',
+      reason: 'Location required. Stories need your current location to confirm proximity to the venue.',
     };
   }
 
@@ -323,10 +219,10 @@ export async function verifyStoryCreationPermission(
   if (distanceKm > STORY_RADIUS_KM) {
     return {
       allowed: false,
-      reason: `You must be within ${STORY_RADIUS_KM} km of the venue to post stories. You are ${distanceKm.toFixed(2)} km away.`,
+      reason: `You must be within ${STORY_RADIUS_KM}km of ${game.location || 'the venue'} to post stories. You are ${distanceKm.toFixed(2)}km away.`,
       distance: distanceKm,
     };
   }
 
-  return { allowed: true };
+  return { allowed: true, distance: distanceKm };
 }

@@ -1048,23 +1048,33 @@ const GameDetailsScreen = () => {
       return;
     }
 
-    // Request location permission for story tagging
+    // Request location permission - REQUIRED for story posting
     if (!permissionGranted || (Platform.OS === 'android' && needsPreciseAccuracy)) {
       const granted = await requestPermission();
       if (!granted) {
         Alert.alert(
-          'Location Permission',
-          'Stories can still post without location, but pins and discovery will be less accurate until you enable it.',
+          'Location Required',
+          'You must allow location access to post stories. Stories are only available when you are near the venue on the event day.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openSettings();
+              },
+            },
+          ],
         );
+        return; // Exit early if permission not granted
       }
       if (Platform.OS === 'android' && needsPreciseAccuracy) {
         Alert.alert(
           'Enable Precise Location',
-          'To tag stories to this game automatically, allow precise location in Android settings.',
+          'To post stories, you need precise location enabled in Android settings.',
           [
-            { text: 'Skip', style: 'cancel', onPress: () => {} },
+            { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Open settings',
+              text: 'Open Settings',
               onPress: () => {
                 setPreciseBannerDismissed(true);
                 void openSettings();
@@ -1072,7 +1082,17 @@ const GameDetailsScreen = () => {
             },
           ],
         );
+        return; // Exit early if precise location not granted
       }
+    }
+
+    // Ensure we have device location before proceeding
+    if (!location?.latitude || !location?.longitude) {
+      Alert.alert(
+        'Location Unavailable',
+        'Unable to get your current location. Please check your device settings and try again.',
+      );
+      return;
     }
     
     // Show action sheet with camera first, then gallery
@@ -1118,10 +1138,20 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
+                // Ensure location is available (should always be true due to earlier checks)
+                if (!location?.latitude || !location?.longitude) {
+                  throw new Error('Location unavailable');
                 }
+                
+                const storyPayload = {
+                  media_url: mediaUrl,
+                  location: {
+                    lat: location.latitude,
+                    lng: location.longitude,
+                    source: 'device',
+                  },
+                };
+                
                 await Game.addStory(vm.gameId, storyPayload);
                 try {
                   await loadGameById(vm.gameId);
@@ -1133,7 +1163,17 @@ const GameDetailsScreen = () => {
               }
             } catch (err: any) {
               console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              // Parse backend validation errors
+              let errorMessage = 'Please try again.';
+              if (err?.response?.status === 403) {
+                // Backend denied story creation (calendar day or 2km distance validation failed)
+                errorMessage = err?.response?.data?.message || 'Stories are only available within 2km of the venue on the event day.';
+              } else if (err?.response?.status === 400) {
+                errorMessage = 'Invalid story data. Please try again.';
+              } else if (err?.message) {
+                errorMessage = err.message;
+              }
+              Alert.alert('Unable to add story', errorMessage);
             } finally {
               setStoryBusy(false);
             }
@@ -1176,10 +1216,20 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
-                const storyPayload: any = { media_url: mediaUrl };
-                if (location?.latitude && location?.longitude) {
-                  storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
+                // Ensure location is available (should always be true due to earlier checks)
+                if (!location?.latitude || !location?.longitude) {
+                  throw new Error('Location unavailable');
                 }
+                
+                const storyPayload = {
+                  media_url: mediaUrl,
+                  location: {
+                    lat: location.latitude,
+                    lng: location.longitude,
+                    source: 'device',
+                  },
+                };
+                
                 await Game.addStory(vm.gameId, storyPayload);
                 try {
                   await loadGameById(vm.gameId);
@@ -1191,7 +1241,17 @@ const GameDetailsScreen = () => {
               }
             } catch (err: any) {
               console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              // Parse backend validation errors
+              let errorMessage = 'Please try again.';
+              if (err?.response?.status === 403) {
+                // Backend denied story creation (calendar day or 2km distance validation failed)
+                errorMessage = err?.response?.data?.message || 'Stories are only available within 2km of the venue on the event day.';
+              } else if (err?.response?.status === 400) {
+                errorMessage = 'Invalid story data. Please try again.';
+              } else if (err?.message) {
+                errorMessage = err.message;
+              }
+              Alert.alert('Unable to add story', errorMessage);
             } finally {
               setStoryBusy(false);
             }

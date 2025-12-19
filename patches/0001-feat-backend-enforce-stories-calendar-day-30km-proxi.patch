@@ -1,0 +1,531 @@
+From 367666b92a9417b451ae75d6e92da04e34d35cac Mon Sep 17 00:00:00 2001
+From: EMIL <EMANCERO@VARSITHUB.APP>
+Date: Thu, 18 Dec 2025 21:03:17 -0500
+Subject: [PATCH] feat(backend): enforce stories calendar-day + 30km proximity;
+ event posts persist EventPostAccess (48h grace) and allow RSVP bypass for
+ subsequent posts; add event_id to Post; add EventPostAccess table & migration
+
+---
+ .../migration.sql                             |  34 +++
+ server/prisma/schema.prisma                   |  37 ++-
+ server/src/lib/geofencing.ts                  | 226 ++++++++++++++++--
+ server/src/routes/gameStories.ts              |  17 +-
+ server/src/routes/games.ts                    |   3 +-
+ server/src/routes/posts.ts                    |  15 +-
+ 6 files changed, 308 insertions(+), 24 deletions(-)
+ create mode 100644 server/prisma/migrations/20251218_add_event_post_access/migration.sql
+
+diff --git a/server/prisma/migrations/20251218_add_event_post_access/migration.sql b/server/prisma/migrations/20251218_add_event_post_access/migration.sql
+new file mode 100644
+index 00000000..c8a6c4a1
+--- /dev/null
++++ b/server/prisma/migrations/20251218_add_event_post_access/migration.sql
+@@ -0,0 +1,34 @@
++-- Add event_id field to Post model
++ALTER TABLE "Post" ADD COLUMN "event_id" TEXT;
++
++-- Add foreign key constraint for event_id
++ALTER TABLE "Post" ADD CONSTRAINT "Post_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "Event"("id") ON DELETE SET NULL;
++
++-- Add index for event_id queries
++CREATE INDEX "Post_event_id_created_at_idx" ON "Post"("event_id", "created_at");
++
++-- Create EventPostAccess table
++CREATE TABLE "EventPostAccess" (
++    "id" TEXT NOT NULL PRIMARY KEY,
++    "event_id" TEXT NOT NULL,
++    "user_id" TEXT NOT NULL,
++    "expires_at" TIMESTAMP(3) NOT NULL,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    CONSTRAINT "EventPostAccess_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "Event"("id") ON DELETE CASCADE,
++    CONSTRAINT "EventPostAccess_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "User"("id") ON DELETE CASCADE
++);
++
++-- Create unique constraint for event_id and user_id
++CREATE UNIQUE INDEX "EventPostAccess_event_id_user_id_key" ON "EventPostAccess"("event_id", "user_id");
++
++-- Create index for lookups
++CREATE INDEX "EventPostAccess_event_id_user_id_expires_at_idx" ON "EventPostAccess"("event_id", "user_id", "expires_at");
++
++-- Create index for cleanup queries
++CREATE INDEX "EventPostAccess_user_id_expires_at_idx" ON "EventPostAccess"("user_id", "expires_at");
++
++-- Add posts relation to Event model
++-- (This is implicit in the foreign key above, no SQL needed)
++
++-- Add eventPostAccess relation to Event and User models
++-- (These are implicit in the foreign keys above, no SQL needed)
+diff --git a/server/prisma/schema.prisma b/server/prisma/schema.prisma
+index 3d3b3d43..cc53028c 100644
+--- a/server/prisma/schema.prisma
++++ b/server/prisma/schema.prisma
+@@ -48,6 +48,7 @@ model User {
+   orgMemberships   OrganizationMembership[]
+   orgJoinRequests  OrganizationJoinRequest[]
+   rsvps            EventRsvp[]
++  eventPostAccess  EventPostAccess[]
+   createdEvents    Event[]
+   stories          Story[]
+   ads              Ad[]
+@@ -186,8 +187,11 @@ model Post {
+   lat          Float?
+   lng          Float?
+ 
+-  game_id String?
+-  game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
++  game_id  String?
++  game     Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
++  
++  event_id String?
++  event    Event?  @relation(fields: [event_id], references: [id], onDelete: SetNull)
+ 
+   created_at DateTime @default(now())
+ 
+@@ -200,6 +204,7 @@ model Post {
+   @@index([created_at])
+   @@index([author_id])
+   @@index([game_id, created_at])
++  @@index([event_id, created_at])
+ }
+ 
+ model Event {
+@@ -228,9 +233,11 @@ model Event {
+   approved_at     DateTime?
+   rejected_reason String?
+ 
+-  game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
+-  creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+-  rsvps   EventRsvp[]
++  game         Game?              @relation(fields: [game_id], references: [id], onDelete: SetNull)
++  creator      User?              @relation(fields: [creator_id], references: [id], onDelete: SetNull)
++  rsvps        EventRsvp[]
++  postAccess   EventPostAccess[]
++  posts        Post[]
+ 
+   @@index([date])
+   @@index([game_id])
+@@ -379,6 +386,26 @@ model EventRsvp {
+   @@index([event_id, created_at])
+ }
+ 
++model EventPostAccess {
++  id String @id @default(cuid())
++
++  event_id  String
++  user_id   String
++  
++  // When this record expires (event.date + 48 hours)
++  expires_at DateTime
++
++  // Track when access was granted (first successful post)
++  created_at DateTime @default(now())
++
++  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
++  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@unique([event_id, user_id])
++  @@index([event_id, user_id, expires_at])
++  @@index([user_id, expires_at])
++}
++
+ // ===========================
+ // Ads
+ // ===========================
+diff --git a/server/src/lib/geofencing.ts b/server/src/lib/geofencing.ts
+index bbc08fbd..2198f5f2 100644
+--- a/server/src/lib/geofencing.ts
++++ b/server/src/lib/geofencing.ts
+@@ -3,12 +3,20 @@
+  * 
+  * BUSINESS RULE: Users can only upload content to an event page when physically AT the game location.
+  * This maintains authenticity and prevents users from different states from trolling games.
++ * 
++ * GRACE PERIOD: Once a user successfully posts from within the geofence, they get a 48-hour
++ * grace period (tracked via EventPostAccess) to create additional content without live location checks.
++ * After 48 hours from the event, no new posts are allowed.
+  */
+ 
+ import { prisma } from './prisma.js';
+ 
+ const EARTH_RADIUS_KM = 6371;
+ const EARTH_RADIUS_MILES = 3959;
++const GEOFENCE_RADIUS_MILES = 0.5; // ~800 meters - at or very near venue
++const POSTING_WINDOW_HOURS_BEFORE = 24;
++const GRACE_PERIOD_HOURS_AFTER = 48;
++const STORY_RADIUS_KM = 30; // ~18.6 miles for story proximity
+ 
+ /**
+  * Calculate distance between two coordinates using Haversine formula
+@@ -51,34 +59,122 @@ export function isWithinGeofence(
+   userLon: number,
+   eventLat: number,
+   eventLon: number,
+-  radiusMiles: number = 0.5
++  radiusMiles: number = GEOFENCE_RADIUS_MILES
+ ): boolean {
+   const distance = calculateDistance(userLat, userLon, eventLat, eventLon, 'miles');
+   return distance <= radiusMiles;
+ }
+ 
+ /**
+- * Check if posting window is open for an event
+- * Posting opens 24 hours before game start time
++ * Check if posting window is still open for an event
++ * Posting opens 24 hours before event and closes 48 hours after
+  */
+ export function isPostingWindowOpen(eventDate: Date): boolean {
+   const now = new Date();
+   const eventTime = new Date(eventDate);
+-  const windowOpenTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
++  const windowOpenTime = new Date(eventTime.getTime() - POSTING_WINDOW_HOURS_BEFORE * 60 * 60 * 1000);
++  const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
+   
+-  return now >= windowOpenTime;
++  return now >= windowOpenTime && now < windowCloseTime;
+ }
+ 
+ /**
+- * Verify user can post to an event based on location and time
+- * @returns { allowed: boolean; reason?: string }
++ * Check if user has valid EventPostAccess for this event
++ * Used to allow posts without live location verification if they previously posted while at venue
++ */
++export async function hasValidEventPostAccess(
++  eventId: string,
++  userId: string
++): Promise<boolean> {
++  const access = await prisma.eventPostAccess.findUnique({
++    where: {
++      event_id_user_id: {
++        event_id: eventId,
++        user_id: userId,
++      },
++    },
++  });
++
++  if (!access) {
++    return false;
++  }
++
++  const now = new Date();
++  return now < access.expires_at;
++}
++
++/**
++ * Create or update an EventPostAccess record for a user at an event
++ * This is called when a user successfully posts from within the geofence
++ */
++export async function grantEventPostAccess(
++  eventId: string,
++  userId: string,
++  eventDate: Date
++): Promise<void> {
++  const expiresAt = new Date(eventDate.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
++
++  // Upsert: create or update the record
++  await prisma.eventPostAccess.upsert({
++    where: {
++      event_id_user_id: {
++        event_id: eventId,
++        user_id: userId,
++      },
++    },
++    create: {
++      event_id: eventId,
++      user_id: userId,
++      expires_at: expiresAt,
++    },
++    update: {
++      expires_at: expiresAt,
++    },
++  });
++}
++
++/**
++ * Check if user has an RSVP for the event and the event has started
++ * If true and within the 48-hour window, allow as a bypass
++ */
++async function hasRsvpBypass(eventId: string, userId: string, eventDate: Date): Promise<boolean> {
++  const now = new Date();
++  const eventTime = new Date(eventDate);
++  const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
++
++  if (now < eventTime || now >= windowCloseTime) return false;
++
++  const rsvp = await prisma.eventRsvp.findUnique({
++    where: {
++      event_id_user_id: {
++        event_id: eventId,
++        user_id: userId,
++      },
++    },
++  });
++  return !!rsvp;
++}
++
++/**
++ * Verify user can post to an event based on location, time, and prior participation
++ * 
++ * Returns result object with:
++ * - allowed: boolean - whether post is permitted
++ * - reason?: string - why post was rejected (if applicable)
++ * - distance?: number - distance from venue in miles
++ * - usedCachedAccess?: boolean - whether they used the 48h grace period instead of live location
+  */
+ export async function verifyEventPostingPermission(
+   eventId: string,
+   userId: string,
+   userLat: number | null,
+   userLon: number | null
+-): Promise<{ allowed: boolean; reason?: string; distance?: number }> {
++): Promise<{
++  allowed: boolean;
++  reason?: string;
++  distance?: number;
++  usedCachedAccess?: boolean;
++}> {
+   // Get event details
+   const event = await prisma.event.findUnique({
+     where: { id: eventId },
+@@ -96,25 +192,50 @@ export async function verifyEventPostingPermission(
+     return { allowed: false, reason: 'Event not found' };
+   }
+ 
+-  // Check if posting window is open (24 hours before game)
++  // Check if posting window is still open (24 h before through 48 h after)
+   if (!isPostingWindowOpen(event.date)) {
+     const eventTime = new Date(event.date);
+-    const windowOpenTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000);
+-    return {
+-      allowed: false,
+-      reason: `Posting opens 24 hours before the game at ${windowOpenTime.toLocaleString()}`,
+-    };
++    const windowOpenTime = new Date(eventTime.getTime() - POSTING_WINDOW_HOURS_BEFORE * 60 * 60 * 1000);
++    const windowCloseTime = new Date(eventTime.getTime() + GRACE_PERIOD_HOURS_AFTER * 60 * 60 * 1000);
++
++    if (new Date() < windowOpenTime) {
++      return {
++        allowed: false,
++        reason: `Posting opens 24 hours before the game at ${windowOpenTime.toLocaleString()}`,
++      };
++    } else {
++      return {
++        allowed: false,
++        reason: `Posting window closed. You can post up to 48 hours after the event (until ${windowCloseTime.toLocaleString()}).`,
++      };
++    }
+   }
+ 
+   // Check if event has location coordinates
+   if (!event.latitude || !event.longitude) {
+     // If event doesn't have coordinates, allow posting (legacy support)
+-    // In production, all events should have coordinates
+     console.warn(`Event ${eventId} missing coordinates - allowing post without geofence`);
+     return { allowed: true };
+   }
+ 
+-  // Check if user provided their location
++  // Check if user has valid EventPostAccess (48-hour grace period)
++  const hasAccess = await hasValidEventPostAccess(eventId, userId);
++  if (hasAccess) {
++    return { allowed: true, usedCachedAccess: true };
++  }
++
++  // Determine if this is a subsequent post for this event
++  const priorPostsCount = await prisma.post.count({ where: { event_id: eventId, author_id: userId } });
++
++  // RSVP-based bypass is allowed for subsequent posts only, once event has started
++  if (priorPostsCount > 0) {
++    const rsvpBypass = await hasRsvpBypass(eventId, userId, event.date);
++    if (rsvpBypass) {
++      return { allowed: true, usedCachedAccess: true };
++    }
++  }
++
++  // User doesn't have cached access; require live location verification
+   if (userLat === null || userLon === null) {
+     return {
+       allowed: false,
+@@ -136,3 +257,76 @@ export async function verifyEventPostingPermission(
+ 
+   return { allowed: true, distance };
+ }
++
++/**
++ * Verify user can create a story for a game/event
++ * Stories are only allowed on the day of the event (or 24h before if event time is at night)
++ * 
++ * If stories also require physical presence, this will check geofence and EventPostAccess
++ * For now, only time enforcement is required by product rules
++ */
++export async function verifyStoryCreationPermission(
++  gameId: string,
++  userId: string,
++  userLat: number | null = null,
++  userLon: number | null = null,
++  requirePhysicalPresence: boolean = false
++): Promise<{
++  allowed: boolean;
++  reason?: string;
++  distance?: number;
++  usedCachedAccess?: boolean;
++}> {
++  // Find the game
++  const game = await prisma.game.findUnique({
++    where: { id: gameId },
++    select: {
++      id: true,
++      title: true,
++      date: true,
++      latitude: true,
++      longitude: true,
++      location: true,
++    },
++  });
++
++  if (!game) {
++    return { allowed: false, reason: 'Game not found' };
++  }
++
++  // Enforce calendar day of the event and proximity within 30km
++  const now = new Date();
++  const eventDate = new Date(game.date);
++  const dayStart = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 0, 0, 0, 0);
++  const dayEnd = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
++
++  if (now < dayStart || now > dayEnd) {
++    return {
++      allowed: false,
++      reason: `Stories can be posted only on the day of the event (${dayStart.toDateString()}).`,
++    };
++  }
++
++  if (!game.latitude || !game.longitude) {
++    console.warn(`Game ${gameId} missing coordinates - allowing story without proximity check`);
++    return { allowed: true };
++  }
++
++  if (userLat === null || userLon === null) {
++    return {
++      allowed: false,
++      reason: 'Location required. Stories need your current location to confirm proximity.',
++    };
++  }
++
++  const distanceKm = calculateDistance(userLat, userLon, game.latitude, game.longitude, 'km');
++  if (distanceKm > STORY_RADIUS_KM) {
++    return {
++      allowed: false,
++      reason: `You must be within ${STORY_RADIUS_KM} km of the venue to post stories. You are ${distanceKm.toFixed(2)} km away.`,
++      distance: distanceKm,
++    };
++  }
++
++  return { allowed: true };
++}
+diff --git a/server/src/routes/gameStories.ts b/server/src/routes/gameStories.ts
+index fbbefa0d..74b40615 100644
+--- a/server/src/routes/gameStories.ts
++++ b/server/src/routes/gameStories.ts
+@@ -1,7 +1,8 @@
++import type { PrismaClient } from '@prisma/client';
+ import type { Request, Response } from 'express';
+ import { z } from 'zod';
++import { verifyStoryCreationPermission } from '../lib/geofencing.js';
+ import type { AuthedRequest } from '../middleware/auth.js';
+-import type { PrismaClient } from '@prisma/client';
+ 
+ export const isVideoUrl = (url?: string | null) => {
+   if (!url) return false;
+@@ -21,6 +22,10 @@ export const serializeMedia = (story: any) => ({
+ const storySchema = z.object({
+   media_url: z.string().min(1),
+   caption: z.string().optional(),
++  location: z.object({
++    lat: z.number(),
++    lng: z.number(),
++  }),
+ });
+ 
+ type StoryDeps = { prisma: Pick<PrismaClient, 'story'> };
+@@ -39,6 +44,16 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
+   const id = String(req.params.id);
+   const parsed = storySchema.safeParse(req.body || {});
+   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
++  const { lat, lng } = parsed.data.location;
++  // Verify user can create a story for this game (calendar day + within 30km)
++  const verification = await verifyStoryCreationPermission(id, req.user.id, lat, lng, false);
++  if (!verification.allowed) {
++    return res.status(403).json({
++      error: 'Story creation not allowed',
++      message: verification.reason,
++    });
++  }
++  
+   const story = await prisma.story.create({
+     data: {
+       game_id: id,
+diff --git a/server/src/routes/games.ts b/server/src/routes/games.ts
+index 81a8a0ea..782e7268 100644
+--- a/server/src/routes/games.ts
++++ b/server/src/routes/games.ts
+@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
+ import type { AuthedRequest } from '../middleware/auth.js';
+ import { isEmailAdmin } from '../middleware/requireAdmin.js';
+ import { requireAuth } from '../middleware/requireAuth.js';
++import { requireVerified } from '../middleware/requireVerified.js';
+ import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
+ 
+ export const gamesRouter = Router();
+@@ -856,7 +857,7 @@ gamesRouter.get('/:id/stories', async (req, res) => {
+   return res.json(stories);
+ });
+ 
+-gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
++gamesRouter.post('/:id/stories', requireVerified as any, makeCreateStoryHandler({ prisma }));
+ 
+ // Update cover image
+ gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
+diff --git a/server/src/routes/posts.ts b/server/src/routes/posts.ts
+index 0493eaea..3f9f700c 100644
+--- a/server/src/routes/posts.ts
++++ b/server/src/routes/posts.ts
+@@ -215,7 +215,7 @@ const createPostSchema = z
+ 
+ import { debugLog } from '../lib/debugLog.js';
+ import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
+-import { verifyEventPostingPermission } from '../lib/geofencing.js';
++import { grantEventPostAccess, verifyEventPostingPermission } from '../lib/geofencing.js';
+ import { notifyPostInteraction } from '../lib/notifications.js';
+ 
+ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+@@ -289,6 +289,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
+       type: data.type || 'post',
+       media_url: data.media_url,
+       game_id: data.game_id,
++        event_id: (data as any).event_id || undefined,
+       author_id: req.user.id,
+       country_code: country_code || undefined,
+       admin1: admin1 || undefined,
+@@ -297,6 +298,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
+     },
+   });
+ 
++    // Grant 48-hour grace period for event posts that passed geofencing
++    if ((data as any).event_id) {
++      const event = await prisma.event.findUnique({
++        where: { id: (data as any).event_id },
++        select: { date: true },
++      });
++      if (event) {
++        await grantEventPostAccess((data as any).event_id, req.user.id, event.date);
++        debugLog(`✅ Granted 48-hour event post access to user ${req.user.id} for event ${(data as any).event_id}`);
++      }
++    }
++
+   res.status(201).json({ ...post, location: { lat, lng, place_name, country_code } });
+ });
+ 
+-- 
+2.50.1 (Apple Git-155)
+
