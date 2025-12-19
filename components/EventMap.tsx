@@ -168,6 +168,17 @@ export default function EventMap({
             </Callout>
           </Marker>
         ))}
+        
+        {/* Preview pin when no events */}
+        {eventsWithCoordinates.length === 0 && (
+          <Marker
+            coordinate={{
+              latitude: region.latitude,
+              longitude: region.longitude,
+            }}
+            pinColor={Colors[colorScheme].tint}
+          />
+        )}
       </MapView>
 
       {/* Control Buttons */}
@@ -245,14 +256,6 @@ export default function EventMap({
             >
               Games will appear on the map once they have location data added. Teams can add locations when creating games.
             </Text>
-            <View style={styles.emptyStateHints}>
-              <View style={styles.hint}>
-                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations</Text>
-              </View>
-              <View style={styles.hint}>
-                <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Follow teams near you</Text>
-              </View>
-            </View>
             <Text
               style={[styles.noEventsDismiss, { color: Colors[colorScheme].mutedText }]}
             >
@@ -360,7 +363,7 @@ const styles = StyleSheet.create({
   noEventsDescription: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   emptyStateHints: {
     gap: 8,
@@ -381,6 +384,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
-    marginTop: 8,
+    marginTop: 0,
   },
 });

@@ -302,8 +302,16 @@ const HighlightCard = ({
 };
 
 const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
-  <Pressable style={[styles.tabButton, active && [styles.activeTab, { backgroundColor: Colors[colorScheme].tint }], !active && { backgroundColor: Colors[colorScheme].surface }]} onPress={onPress}>
-    <Text style={[styles.tabText, active && [styles.activeTabText, { color: Colors[colorScheme].background }], !active && { color: Colors[colorScheme].text, opacity: 0.7 }]}>{title}</Text>
+  <Pressable 
+    style={[
+      styles.tabButton, 
+      { backgroundColor: active ? Colors[colorScheme].tint : Colors[colorScheme].surface }
+    ]} 
+    onPress={onPress}
+  >
+    <Text style={[styles.tabText, { color: active ? '#fff' : Colors[colorScheme].text }]}>
+      {title}
+    </Text>
   </Pressable>
 );
 
@@ -560,64 +568,55 @@ export default function HighlightsScreen() {
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-      <BackHeader 
-        title="Highlights"
-        backgroundColor={Colors[colorScheme].card}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
-        showDivider={false}
-      />
       
-      {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: 0, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
-        </View>
-        
-        {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
-          <TextInput
-            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-            placeholder="Search teams, events, users..."
-            placeholderTextColor={Colors[colorScheme].tabIconDefault}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
-            </Pressable>
-          )}
-        </View>
-
-        {/* Tabs */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          style={styles.tabsContainer}
-          contentContainerStyle={styles.tabsContent}
-        >
-          <TabButton 
-            title="🔥 Trending" 
-            active={activeTab === 'trending'} 
-            onPress={() => setActiveTab('trending')} 
-            colorScheme={colorScheme}
-          />
-          <TabButton 
-            title="🕐 Recent" 
-            active={activeTab === 'recent'} 
-            onPress={() => setActiveTab('recent')} 
-            colorScheme={colorScheme}
-          />
-          <TabButton 
-            title="👑 Top" 
-            active={activeTab === 'top'} 
-            onPress={() => setActiveTab('top')} 
-            colorScheme={colorScheme}
-          />
-        </ScrollView>
+      {/* Bold Title Right Under Dynamic Island */}
+      <View style={[styles.titleContainer, { backgroundColor: Colors[colorScheme].background }]}>
+        <Text style={[styles.boldTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
       </View>
+      
+      {/* Search Bar */}
+      <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
+        <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+        <TextInput
+          style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+          placeholder="Search teams, events, users..."
+          placeholderTextColor={Colors[colorScheme].tabIconDefault}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+          </Pressable>
+        )}
+      </View>
+
+      {/* Tabs */}
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        style={styles.tabsContainer}
+        contentContainerStyle={styles.tabsContent}
+      >
+        <TabButton 
+          title="🔥 Trending" 
+          active={activeTab === 'trending'} 
+          onPress={() => setActiveTab('trending')} 
+          colorScheme={colorScheme}
+        />
+        <TabButton 
+          title="🕐 Recent" 
+          active={activeTab === 'recent'} 
+          onPress={() => setActiveTab('recent')} 
+          colorScheme={colorScheme}
+        />
+        <TabButton 
+          title="👑 Top" 
+          active={activeTab === 'top'} 
+          onPress={() => setActiveTab('top')} 
+          colorScheme={colorScheme}
+        />
+      </ScrollView>
 
       {/* Show search results when searching */}
       {searchQuery.trim() ? (
@@ -770,6 +769,31 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  titleContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boldTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  divider: {
+    height: 1,
+  },
+  backButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
+  },
+  tabsContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 8,
+    height: 50,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -805,14 +829,14 @@ const styles = StyleSheet.create({
   },
   header: {
     borderBottomWidth: 1,
-    paddingBottom: 8,
+    paddingBottom: 0,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 28,
@@ -836,7 +860,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 4,
+    marginTop: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
@@ -871,9 +896,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontStyle: 'italic',
   },
-  tabsContainer: {
-    paddingHorizontal: 16,
-  },
   tabsContent: {
     gap: 8,
     paddingVertical: 4,
@@ -882,13 +904,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   activeTab: {},
   tabText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  activeTabText: {},
+  activeTabText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
