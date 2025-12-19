@@ -12,13 +12,8 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
 import request from 'supertest';
-import { createTestApp } from '../src/__tests__/testApp';
+import { createTestApp } from '../src/__tests__/testApp.js';
 import { prisma as sharedPrisma } from '../src/lib/prisma.js';
-
-const TEST_AUTH_PASSWORD =
-  process.env.TEST_PASSWORD ||
-  `P@${Math.random().toString(36).slice(2, 10)}!9`;
-const makeTestHash = (label: string) => `hash-${label}-${process.pid}`;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipIntegration =

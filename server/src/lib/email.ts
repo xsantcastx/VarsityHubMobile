@@ -13,7 +13,6 @@ export function isValidEmail(email: unknown): boolean {
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(trimmed);
 }
-
 // Lightweight sanitization used by tests to strip HTML-ish characters and whitespace
 export function sanitizeInput(input: unknown): string {
   if (typeof input !== 'string') return '';
@@ -1674,7 +1673,7 @@ export async function sendAccountWarningEmail(params: {
     const communityGuidelinesUrl = params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy';
     const privacyPolicyUrl = params.privacyPolicyUrl || 'https://limeprod.com/VarsityHubPrivacy';
 
-    await sendMail({
+  await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
