@@ -126,6 +126,28 @@ export async function verifyEventPostingPermission(
     };
   }
 
+  // AFTER EVENT RULE: If event has ended, only users who posted during the event can continue posting
+  if (now > eventTime) {
+    // Event has ended - check if user posted during the event
+    const userPostedDuringEvent = await prisma.post.findFirst({
+      where: {
+        event_id: eventId,
+        author_id: userId,
+        created_at: {
+          gte: eventTime,
+          lt: new Date(eventTime.getTime() + 24 * 60 * 60 * 1000), // Within 24h after event start
+        },
+      },
+    });
+
+    if (!userPostedDuringEvent) {
+      return {
+        allowed: false,
+        reason: `You must have posted during the event to continue posting after it ends.`,
+      };
+    }
+  }
+
   // Check if event has location coordinates
   if (!event.latitude || !event.longitude) {
     // If event doesn't have coordinates, allow posting (legacy support)
