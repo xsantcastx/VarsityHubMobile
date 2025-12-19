@@ -203,11 +203,32 @@ Then share logs with team for debugging.
 
 | Version | Date | Status | Notes |
 |---------|------|--------|-------|
+| 1.0.1 | 2025-12-19 | Ready | Overnight optimizations: build fixes, sample data removed, security verified |
 | 1.0.1 | 2025-12-05 | Ready | Launch verified, auth flows confirmed |
 | 1.0.0 | - | - | - |
 
 ---
 
-**Last Checked:** 2025-12-05  
-**Status:** ✅ Production Ready  
-**Next Action:** Run QA testing or kick off EAS preview builds
+## Recent Overnight Changes (2025-12-19)
+
+### Build & Configuration
+- ✅ Fixed iOS duplicate linker flags warning (`-lc++`)
+- ✅ Fixed runtime version config (bare workflow compatibility)
+- ✅ Removed sample data from team-page (production-ready)
+
+### Security & Quality
+- ✅ Snyk security scan: PASSED (1 intentional exception documented)
+- ✅ npm audit: 0 vulnerabilities
+- ✅ TypeScript: 0 errors
+- ✅ ESLint: 0 violations
+
+### Files Modified
+- `ios/Podfile` - Added C++ linking deduplication
+- `app.json` - Updated runtimeVersion to "1.0.1"
+- `app/team-page.tsx` - Removed sample data fallback
+
+---
+
+**Last Checked:** 2025-12-19  
+**Status:** ✅ Deployment Ready  
+**Next Action:** Deploy to TestFlight or App Store
