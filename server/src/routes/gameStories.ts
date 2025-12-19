@@ -1,7 +1,8 @@
+import type { PrismaClient } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { verifyStoryCreationPermission } from '../lib/geofencing.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import type { PrismaClient } from '@prisma/client';
 
 export const isVideoUrl = (url?: string | null) => {
   if (!url) return false;
@@ -21,6 +22,10 @@ export const serializeMedia = (story: any) => ({
 const storySchema = z.object({
   media_url: z.string().min(1),
   caption: z.string().optional(),
+  location: z.object({
+    lat: z.number(),
+    lng: z.number(),
+  }),
 });
 
 type StoryDeps = { prisma: Pick<PrismaClient, 'story'> };
@@ -39,6 +44,16 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const id = String(req.params.id);
   const parsed = storySchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const { lat, lng } = parsed.data.location;
+  // Verify user can create a story for this game (calendar day + within 30km)
+  const verification = await verifyStoryCreationPermission(id, req.user.id, lat, lng, false);
+  if (!verification.allowed) {
+    return res.status(403).json({
+      error: 'Story creation not allowed',
+      message: verification.reason,
+    });
+  }
+  
   const story = await prisma.story.create({
     data: {
       game_id: id,

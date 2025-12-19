@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireVerified } from '../middleware/requireVerified.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
 
 export const gamesRouter = Router();
@@ -856,7 +857,7 @@ gamesRouter.get('/:id/stories', async (req, res) => {
   return res.json(stories);
 });
 
-gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
+gamesRouter.post('/:id/stories', requireVerified as any, makeCreateStoryHandler({ prisma }));
 
 // Update cover image
 gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {

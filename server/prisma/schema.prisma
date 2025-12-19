@@ -48,6 +48,7 @@ model User {
   orgMemberships   OrganizationMembership[]
   orgJoinRequests  OrganizationJoinRequest[]
   rsvps            EventRsvp[]
+  eventPostAccess  EventPostAccess[]
   createdEvents    Event[]
   stories          Story[]
   ads              Ad[]
@@ -186,8 +187,11 @@ model Post {
   lat          Float?
   lng          Float?
 
-  game_id String?
-  game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  game_id  String?
+  game     Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  
+  event_id String?
+  event    Event?  @relation(fields: [event_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
 
@@ -200,6 +204,7 @@ model Post {
   @@index([created_at])
   @@index([author_id])
   @@index([game_id, created_at])
+  @@index([event_id, created_at])
 }
 
 model Event {
@@ -228,9 +233,11 @@ model Event {
   approved_at     DateTime?
   rejected_reason String?
 
-  game    Game?       @relation(fields: [game_id], references: [id], onDelete: SetNull)
-  creator User?       @relation(fields: [creator_id], references: [id], onDelete: SetNull)
-  rsvps   EventRsvp[]
+  game         Game?              @relation(fields: [game_id], references: [id], onDelete: SetNull)
+  creator      User?              @relation(fields: [creator_id], references: [id], onDelete: SetNull)
+  rsvps        EventRsvp[]
+  postAccess   EventPostAccess[]
+  posts        Post[]
 
   @@index([date])
   @@index([game_id])
@@ -377,6 +384,26 @@ model EventRsvp {
 
   @@unique([event_id, user_id])
   @@index([event_id, created_at])
+}
+
+model EventPostAccess {
+  id String @id @default(cuid())
+
+  event_id  String
+  user_id   String
+  
+  // When this record expires (event.date + 48 hours)
+  expires_at DateTime
+
+  // Track when access was granted (first successful post)
+  created_at DateTime @default(now())
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, user_id])
+  @@index([event_id, user_id, expires_at])
+  @@index([user_id, expires_at])
 }
 
 // ===========================

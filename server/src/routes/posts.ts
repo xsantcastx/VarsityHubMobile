@@ -215,7 +215,7 @@ const createPostSchema = z
 
 import { debugLog } from '../lib/debugLog.js';
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
-import { verifyEventPostingPermission } from '../lib/geofencing.js';
+import { grantEventPostAccess, verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -289,6 +289,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       type: data.type || 'post',
       media_url: data.media_url,
       game_id: data.game_id,
+        event_id: (data as any).event_id || undefined,
       author_id: req.user.id,
       country_code: country_code || undefined,
       admin1: admin1 || undefined,
@@ -296,6 +297,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       lng: typeof lng === 'number' ? lng : undefined,
     },
   });
+
+    // Grant 48-hour grace period for event posts that passed geofencing
+    if ((data as any).event_id) {
+      const event = await prisma.event.findUnique({
+        where: { id: (data as any).event_id },
+        select: { date: true },
+      });
+      if (event) {
+        await grantEventPostAccess((data as any).event_id, req.user.id, event.date);
+        debugLog(`✅ Granted 48-hour event post access to user ${req.user.id} for event ${(data as any).event_id}`);
+      }
+    }
 
   res.status(201).json({ ...post, location: { lat, lng, place_name, country_code } });
 });
