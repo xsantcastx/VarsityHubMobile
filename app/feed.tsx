@@ -688,9 +688,9 @@ export default function FeedScreen() {
                       >
                         <View style={[
                           styles.promoIcon,
-                          { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
+                          { justifyContent: 'center', alignItems: 'center' },
                         ]}>
-                          <Ionicons name="image-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                          <Ionicons name="megaphone-outline" size={32} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[
@@ -710,12 +710,7 @@ export default function FeedScreen() {
                           styles.promoteCtaBanner,
                           { backgroundColor: colorScheme === 'dark' ? '#2563EB' : '#2563EB' },
                         ]}>
-                          <View style={[
-                            styles.promoteCtaIcon,
-                            { borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-                          ]}>
-                            <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
-                          </View>
+                          <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                           <Text style={styles.promoteCtaText}>Click Here</Text>
                         </View>
                       </Pressable>
@@ -1234,7 +1229,6 @@ const styles = StyleSheet.create({
   promoIcon: {
     width: 40,
     height: 40,
-    borderWidth: 2,
     borderRadius: 10,
     flexShrink: 0,
   },
@@ -1258,12 +1252,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 100,
     flexShrink: 0,
-  },
-  promoteCtaIcon: {
-    width: 16,
-    height: 16,
-    borderWidth: 1.5,
-    borderRadius: 3,
   },
   adInfo: {
     padding: 16,

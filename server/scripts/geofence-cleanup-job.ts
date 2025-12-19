@@ -1,5 +1,5 @@
-import { prisma } from '../src/lib/prisma.js';
 import { calculateDistance } from '../src/lib/geofencing.js';
+import { prisma } from '../src/lib/prisma.js';
 
 /**
  * Background job to archive/delete posts and stories that violate the new geofencing rules:

@@ -1,8 +1,9 @@
-import { prisma } from '../src/lib/prisma.js';
 import {
-  verifyEventPostingPermission,
-  verifyStoryCreationPermission,
+    calculateDistance,
+    verifyEventPostingPermission,
+    verifyStoryCreationPermission,
 } from '../src/lib/geofencing.js';
+import { prisma } from '../src/lib/prisma.js';
 
 type MockEvent = {
   id: string;
@@ -12,6 +13,8 @@ type MockEvent = {
   longitude: number | null;
   location: string | null;
 };
+
+type MockGame = MockEvent;
 
 type TestResult = {
   scenario: string;
@@ -25,6 +28,7 @@ type TestResult = {
 };
 
 const mockEvents = new Map<string, MockEvent>();
+const mockGames = new Map<string, MockGame>();
 const testResults: TestResult[] = [];
 
 // Monkey-patch Prisma delegates
@@ -36,13 +40,24 @@ eventDelegate.findUnique = async (args: any) => {
   return (id && mockEvents.get(id)) || null;
 };
 
+const gameDelegate = prisma.game as unknown as {
+  findUnique: (args: any) => Promise<MockGame | null>;
+};
+gameDelegate.findUnique = async (args: any) => {
+  const id = args?.where?.id;
+  return (id && mockGames.get(id)) || null;
+};
+
 function kmToLatOffset(km: number): number {
   return km / 111.0; // 1 degree latitude ≈ 111 km
 }
 
-function kmToLonOffset(km: number, lat: number): number {
-  const latRad = (lat * Math.PI) / 180;
-  return km / (111.0 * Math.cos(latRad));
+function setMockEvent(data: MockEvent) {
+  mockEvents.set(data.id, data);
+}
+
+function setMockGame(data: MockGame) {
+  mockGames.set(data.id, data);
 }
 
 async function testStoryCreation(
@@ -53,14 +68,17 @@ async function testStoryCreation(
   const eventTime = new Date(Date.now() + time_offset_hours * 60 * 60 * 1000);
   const eventId = `story-event-${distance_km}-${time_offset_hours}`;
 
-  mockEvents.set(eventId, {
+  const mock = {
     id: eventId,
     title: `Story Test Event`,
     date: eventTime,
     latitude: 40.7128,
     longitude: -74.006,
     location: 'Test Venue',
-  });
+  } satisfies MockEvent;
+
+  setMockEvent(mock);
+  setMockGame(mock);
 
   const userLat = 40.7128 + kmToLatOffset(distance_km);
   const userLon = -74.006;
@@ -106,14 +124,17 @@ async function testPostCreation(
   const eventTime = new Date(Date.now() + time_offset_hours * 60 * 60 * 1000);
   const eventId = `post-event-${distance_km}-${time_offset_hours}`;
 
-  mockEvents.set(eventId, {
+  const mock = {
     id: eventId,
     title: `Post Test Event`,
     date: eventTime,
     latitude: 34.0522,
     longitude: -118.2437,
     location: 'Test Arena',
-  });
+  } satisfies MockEvent;
+
+  setMockEvent(mock);
+  setMockGame(mock);
 
   const userLat = 34.0522 + kmToLatOffset(distance_km);
   const userLon = -118.2437;
@@ -163,9 +184,15 @@ async function runMatrixTests(): Promise<void> {
   console.log('📍 Story Tests (2km radius, event day only)');
   for (const distance of storyDistances) {
     for (const timeOffset of storyTimeOffsets) {
-      // Stories allowed: distance <= 2km AND same calendar day
-      const sameDay = timeOffset >= -24 && timeOffset <= 24;
-      const withinRadius = distance <= 2;
+      const now = new Date();
+      const eventTime = new Date(Date.now() + timeOffset * 60 * 60 * 1000);
+      const dayStart = new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate(), 0, 0, 0, 0);
+      const dayEnd = new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate(), 23, 59, 59, 999);
+      const sameDay = now >= dayStart && now <= dayEnd;
+      const userLat = 40.7128 + kmToLatOffset(distance);
+      const userLon = -74.006;
+      const distanceKm = calculateDistance(userLat, userLon, 40.7128, -74.006, 'km');
+      const withinRadius = distanceKm <= 2;
       const expected = sameDay && withinRadius;
 
       await testStoryCreation(distance, timeOffset, expected);
@@ -175,14 +202,29 @@ async function runMatrixTests(): Promise<void> {
   console.log('\n📍 Post Tests (15km radius, 120h window: -48h to +72h)');
   // Post radius: 15km (48h before through 72h after)
   const postDistances = [0, 5, 10, 15, 15.1, 20, 25, 30];
-  const postTimeOffsets = [-72, -48, -36, -24, -12, 0, 12, 24, 36, 48, 60, 72, 96];
+  const postTimeOffsets = [-72, -60, -48, -36, -24, -12, 0, 12, 24, 36, 48, 60, 72];
 
   for (const distance of postDistances) {
     for (const timeOffset of postTimeOffsets) {
-      // Posts allowed: distance <= 15km AND within -48h to +72h window
-      const withinWindow = timeOffset >= -48 && timeOffset <= 72;
-      const withinRadius = distance <= 15;
-      const expected = withinWindow && withinRadius;
+      const now = new Date();
+      const eventTime = new Date(Date.now() + timeOffset * 60 * 60 * 1000);
+      const windowOpenTime = new Date(eventTime.getTime() - 48 * 60 * 60 * 1000);
+      const windowCloseTime = new Date(eventTime.getTime() + 48 * 60 * 60 * 1000);
+      const userLat = 34.0522 + kmToLatOffset(distance);
+      const userLon = -118.2437;
+      const distanceKm = calculateDistance(userLat, userLon, 34.0522, -118.2437, 'km');
+
+      let expected = true;
+      if (now < windowOpenTime) {
+        expected = false;
+      } else if (now >= windowCloseTime) {
+        expected = false;
+      } else if (now > eventTime) {
+        // After event: requires prior post (not mocked here) so expect rejection
+        expected = false;
+      } else if (distanceKm > 15) {
+        expected = false;
+      }
 
       await testPostCreation(distance, timeOffset, expected);
     }

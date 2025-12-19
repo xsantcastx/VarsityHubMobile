@@ -51,6 +51,7 @@ export default function GameMapScreen() {
           latitude: game.latitude,
           longitude: game.longitude,
           type: 'game' as const,
+          sport: game.sport || game.sport_type || game.sportType,
         }));
 
       setEvents(mappedEvents);

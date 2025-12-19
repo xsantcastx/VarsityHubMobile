@@ -1,12 +1,11 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
-import { JerseyBadge, Sport } from '@/components/JerseyBadge';
+import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -36,23 +35,6 @@ type ProfilePreferences = {
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-const HEADER_IMAGE_DRAG_LIMIT = 120;
-const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-/**
- * Get sport emoji based on sport type
- */
-const getSportEmoji = (sport: string): string => {
-  const emojiMap: Record<string, string> = {
-    basketball: '🏀',
-    football: '🏈',
-    baseball: '⚾',
-    soccer: '⚽',
-    volleyball: '🏐',
-    other: '🏆',
-  };
-  return emojiMap[sport.toLowerCase()] || '🏆';
-};
 
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
@@ -124,10 +106,8 @@ export default function ProfileScreen() {
   const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
   const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
-  const _rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [organizations, setOrganizations] = useState<any[]>([]);
-  const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
   const profileRequestInFlight = useRef(false);
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
@@ -199,7 +179,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
+      const { uri, fileName } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
       
@@ -216,7 +196,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleBackgroundImagePress = async () => {
+  const _handleBackgroundImagePress = async () => {
     setIsUploadingAvatar(true);
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -238,7 +218,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      const { uri, fileName, _mimeType } = pickerResult.assets[0] as any;
+      const { uri, fileName } = pickerResult.assets[0] as any;
       const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
       
@@ -265,10 +245,6 @@ export default function ProfileScreen() {
       const u: any = await User.me();
       if (u && !u._isNotModified) setMe(u ?? null);
       if (!u?.id) { setLoading(false); return; }
-
-      // Extract theme color from preferences
-      const themeColor = u?.preferences?.theme_color || '#3B82F6';
-      setUserThemeColor(themeColor);
 
       // Load first page for active tab
       if (activeTab === 'posts') {
@@ -426,20 +402,6 @@ export default function ProfileScreen() {
   const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
   const name = me?.display_name || me?.username || 'User';
   
-  // Athlete-specific data from preferences
-  const isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
-  const jerseyNumber = preferences?.jersey_number || me?.jersey_number;
-  const position = preferences?.position || me?.position;
-  const gradeLevel = preferences?.grade_level;
-  const graduationYear = preferences?.graduation_year;
-  const accolades = preferences?.accolades;
-  const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
-  const headerBackgroundImage = preferences?.header_image_url || null;
-  const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
-  const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
-    ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
-  
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
@@ -448,135 +410,80 @@ export default function ProfileScreen() {
 
   const renderHeader = () => (
     <>
-      {/* Minimal Header - LinkedIn Style */}
-      <View style={styles.headerContainer}>
-        {/* Compact Background Image / Gradient */}
+      {/* Back Button */}
+      <View style={styles.backButtonContainer}>
         <Pressable 
-          onPress={handleBackgroundImagePress} 
-          style={styles.headerBackgroundPressable}
-          disabled={isUploadingAvatar}
+          onPress={() => router.back()}
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {headerBackgroundImage ? (
-            <>
-          <Image
-            source={{ uri: headerBackgroundImage }}
-            style={[
-              styles.headerBackgroundImage,
-              { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
-            ]}
-            contentFit="cover"
-          />
-              {/* Edit Overlay on Background Image */}
-              <View style={styles.headerEditOverlay}>
-                <Ionicons name="pencil" size={14} color="#ffffff" />
-              </View>
-            </>
-          ) : (
-            <View style={styles.headerBackgroundImage} />
-          )}
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
-        <LinearGradient
-          colors={heroGradientColors}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        
-        {/* Top Right Controls */}
-        <View style={[styles.headerControls, { top: 12 + insets.top }]}>
-          {/* Settings Button */}
-          <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-            <Ionicons name="settings-outline" size={18} color="#ffffff" />
-          </Pressable>
-          
-          {/* Jersey Badge (Top Right for Athletes) */}
-          {isAthlete && jerseyNumber && (
-            <View style={styles.jerseyBadgeCompact}>
-              <JerseyBadge 
-                jerseyNumber={jerseyNumber} 
-                sport={primarySport}
-                teamColor={userThemeColor}
-                size="small"
-              />
-            </View>
-          )}
-        </View>
-        
-        {/* Minimal Profile Content - Compact Layout */}
-        <View style={styles.profileContent}>
-          {/* Avatar on Left (Smaller, Less Overlapping) */}
-          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.avatarSection}>
-            <View style={styles.avatarContainer}>
-              {me.avatar_url ? (
-                <Image source={{ uri: String(me.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={36} color="#ffffff" />
-                </View>
-              )}
-              {isUploadingAvatar && (
-                <View style={styles.avatarOverlay}>
-                  <ActivityIndicator color="white" size="small" />
-                </View>
-              )}
-            </View>
-          </Pressable>
+      </View>
+      
+      {/* Simple Profile Header - Similar to Organization Page */}
+      <View style={styles.profileOverviewCard}>
+        {/* Top Right Settings Button */}
+        <Pressable onPress={() => void router.push('/settings')} style={styles.settingsButton}>
+          <Ionicons name="settings-outline" size={24} color={theme.mutedText} />
+        </Pressable>
 
-          {/* User Info - Compact */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName}>{name}</Text>
-              {roleLabel && (
-                <View style={[styles.roleBadge, 
-                  roleRaw === 'coach' && styles.coachBadge,
-                  roleRaw === 'player' && styles.playerBadge,
-                  roleRaw === 'fan' && styles.fanBadge
-                ]}>
-                  <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
-                </View>
-              )}
-            </View>
-            {me?.username && <Text style={styles.userHandle}>@{me.username}</Text>}
-            {preferences?.location && (
-              <Text style={styles.userLocation}>{preferences.location}</Text>
+        {/* Profile Header */}
+        <View style={styles.profileHeaderSection}>
+          {/* Avatar */}
+          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.profileAvatarContainer}>
+            {me.avatar_url ? (
+              <Image source={{ uri: String(me.avatar_url) }} style={styles.profileAvatar} contentFit="cover" />
+            ) : (
+              <View style={styles.profileAvatarPlaceholder}>
+                <Text style={styles.profileInitials}>{name.charAt(0).toUpperCase()}</Text>
+              </View>
             )}
-          </View>
-        </View>
+            {isUploadingAvatar && (
+              <View style={styles.avatarLoadingOverlay}>
+                <ActivityIndicator color="white" size="small" />
+              </View>
+            )}
+          </Pressable>
 
-        {/* Athlete Credentials - Compact */}
-        {isAthlete && (position || gradeLevel || graduationYear || accolades) && (
-          <View style={styles.athleteCredentialsCompact}>
-            {position && <Text style={styles.positionBadgeText}>{position.toUpperCase()}</Text>}
-            {(gradeLevel || graduationYear) && (
-              <Text style={styles.credentialsTextCompact}>
-                {[gradeLevel, graduationYear ? `Class of ${graduationYear}` : null].filter(Boolean).join(' | ')} {primarySport ? getSportEmoji(primarySport) : ''}
+          {/* User Info */}
+          <View style={styles.profileInfoSection}>
+            <Text style={[styles.profileName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
+            {me?.username && (
+              <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{me.username}</Text>
+            )}
+            {roleLabel && (
+              <View style={[styles.roleTag, 
+                roleRaw === 'coach' && styles.coachBadge,
+                roleRaw === 'player' && styles.playerBadge,
+                roleRaw === 'fan' && styles.fanBadge
+              ]}>
+                <Text style={styles.roleTagText}>{roleLabel}</Text>
+              </View>
+            )}
+            {me?.bio && (
+              <Text style={[styles.profileBio, { color: theme.mutedText }]} numberOfLines={2}>
+                {me.bio}
               </Text>
             )}
           </View>
-        )}
-      </View>
-
-      {/* Bio Section - Outside Header, Below */}
-      {me?.bio && (
-        <View style={styles.bioSectionCompact}>
-          <Text style={styles.userBioCompact}>{me.bio}</Text>
         </View>
-      )}
 
-      {/* Action Buttons */}
-      <View style={styles.actionsContainerCompact}>
-        <Pressable style={styles.editButtonCompact} onPress={() => void router.push('/edit-profile')}>
-          <Text style={styles.editButtonTextCompact}>Edit Profile</Text>
+        {/* Edit Button */}
+        <Pressable style={styles.editProfileButton} onPress={() => void router.push('/edit-profile')}>
+          <Text style={styles.editProfileButtonText}>Edit Profile</Text>
         </Pressable>
       </View>
 
-      {/* Athletic Stats Card */}
+      {/* Stats Section - Simplified */}
       <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
         {stats.map((stat, index) => (
           <React.Fragment key={stat.label}>
             <Pressable 
               style={styles.statItem} 
-              onPress={() => { if (stat.label === 'followers') { void void router.push(`/followers?id=${me.id}&username=${name}`);
+              onPress={() => { 
+                if (stat.label === 'followers') { 
+                  void router.push(`/followers?id=${me.id}&username=${name}`);
                 } else if (stat.label === 'following') {
                   router.push(`/following?id=${me.id}&username=${name}`);
                 }
@@ -585,7 +492,7 @@ export default function ProfileScreen() {
               <Text style={[styles.statNumber, { color: theme.text }]}>{stat.value}</Text>
               <Text style={[styles.statLabel, { color: theme.mutedText }]}>{stat.label}</Text>
             </Pressable>
-            {index < stats.length - 1 && <View style={styles.statDivider} />}
+            {index < stats.length - 1 && <View style={[styles.statDivider, { backgroundColor: theme.border }]} />}
           </React.Fragment>
         ))}
       </View>
@@ -878,10 +785,134 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1
   },
-  center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#b91c1c', textAlign: 'center' },
-  
-  // Modern Sport Header Styles
+  backButtonContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  center: { 
+    flex: 1, 
+    padding: 24, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  error: { 
+    color: '#b91c1c', 
+    textAlign: 'center' 
+  },
+  profileOverviewCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  settingsButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  profileHeaderSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    marginBottom: 16,
+  },
+  profileAvatarContainer: {
+    position: 'relative',
+  },
+  profileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#e5e7eb',
+  },
+  profileAvatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInitials: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileInfoSection: {
+    flex: 1,
+    gap: 4,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  profileHandle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  roleTag: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  roleTagText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  profileBio: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  editProfileButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+  },
+  editProfileButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Legacy styles (keep for compatibility)
   headerContainer: {
     position: 'relative',
     paddingBottom: 0,
@@ -1081,20 +1112,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // Athletic Stats Card
+  // Stats Card
   statsCard: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
     marginHorizontal: 16,
-    marginTop: 0,
+    marginTop: 16,
+    marginBottom: 8,
     borderRadius: 16,
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 8,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
@@ -1104,16 +1136,13 @@ const styles = StyleSheet.create({
   },
   statNumber: {
     fontSize: 24,
-    fontWeight: '900',
-    color: '#1e293b',
-    marginBottom: 8,
+    fontWeight: '700',
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748b',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   statDivider: {
     width: 1,
@@ -1125,7 +1154,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
   name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
   bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
-  editProfileButton: { 
+  editProfileButtonOld: { 
     flex: 1,
     height: 44,
     justifyContent: 'center',

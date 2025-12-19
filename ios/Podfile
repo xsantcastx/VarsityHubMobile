@@ -59,5 +59,26 @@ target 'VarsityHub' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+    
+    # Fix duplicate C++ library linking issue
+    # Remove duplicate '-lc++' and other duplicate linker flags
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_LDFLAGS'] ||= "$(inherited)"
+        # Ensure OTHER_LDFLAGS is a string
+        ldflags = config.build_settings['OTHER_LDFLAGS']
+        ldflags = "$(inherited)" if ldflags.nil?
+        
+        # Convert to array, remove duplicates, and rejoin
+        if ldflags.is_a?(Array)
+          unique_flags = ldflags.uniq
+          config.build_settings['OTHER_LDFLAGS'] = unique_flags
+        elsif ldflags.is_a?(String)
+          flags = ldflags.split
+          unique_flags = flags.uniq
+          config.build_settings['OTHER_LDFLAGS'] = unique_flags.join(" ")
+        end
+      end
+    end
   end
 end

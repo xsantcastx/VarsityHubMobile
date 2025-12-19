@@ -72,6 +72,12 @@ export default function PostDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const actionButtonBg = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(37, 99, 235, 0.08)';
+  const actionButtonBorder = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.35)' : 'rgba(37, 99, 235, 0.18)';
+  const statPrimaryColor = colorScheme === 'dark' ? '#E2E8F0' : '#1F2937';
+  const statMutedColor = colorScheme === 'dark' ? '#CBD5F5' : '#6B7280';
+  const onTint = theme.onTint ?? '#ffffff';
   
   // Parse params for multi-post navigation
   const postIdsArray = params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
@@ -98,6 +104,19 @@ export default function PostDetailScreen() {
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
+  const upvotePalette = post?.has_upvoted
+    ? {
+        backgroundColor: theme.tint,
+        borderColor: theme.tint,
+        icon: onTint,
+        text: onTint,
+      }
+    : {
+        backgroundColor: actionButtonBg,
+        borderColor: actionButtonBorder,
+        icon: theme.tint,
+        text: theme.tint,
+      };
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -616,16 +635,16 @@ export default function PostDetailScreen() {
           <View style={styles.statsSection}>
             <View style={styles.stats}>
               <View style={styles.stat}>
-                <Ionicons name="arrow-up" size={18} color="#2563EB" />
-                <Text style={styles.statText}>{formatCount(post.upvotes_count || 0)}</Text>
+                <Ionicons name="arrow-up" size={18} color={theme.tint} />
+                <Text style={[styles.statText, { color: statPrimaryColor }]}>{formatCount(post.upvotes_count || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color="#6B7280" />
-                <Text style={styles.statText}>{formatCount(comments.length || 0)}</Text>
+                <Ionicons name="chatbubble-outline" size={18} color={statMutedColor} />
+                <Text style={[styles.statText, { color: statMutedColor }]}>{formatCount(comments.length || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="eye-outline" size={18} color="#6B7280" />
-                <Text style={styles.statText}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
+                <Ionicons name="eye-outline" size={18} color={statMutedColor} />
+                <Text style={[styles.statText, { color: statMutedColor }]}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
               </View>
             </View>
             
@@ -633,8 +652,8 @@ export default function PostDetailScreen() {
               <Pressable 
                 style={[
                   styles.actionButton, 
-                  styles.upvoteButton,
-                  post?.has_upvoted && styles.upvoteButtonActive
+                  { backgroundColor: upvotePalette.backgroundColor, borderColor: upvotePalette.borderColor },
+                  voting && styles.actionButtonDisabled,
                 ]} 
                 onPress={onUpvote}
                 disabled={voting}
@@ -642,18 +661,24 @@ export default function PostDetailScreen() {
                 <Ionicons 
                   name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"} 
                   size={20} 
-                  color={post?.has_upvoted ? "#fff" : "#fff"} 
+                  color={upvotePalette.icon} 
                 />
-                <Text style={[styles.actionText, post?.has_upvoted && styles.actionTextActive]}>
+                <Text style={[styles.actionText, { color: upvotePalette.text }]}>
                   {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
                 </Text>
               </Pressable>
               
-              <Pressable style={styles.actionButton} onPress={onSave}>
+              <Pressable 
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: actionButtonBg, borderColor: actionButtonBorder },
+                ]}
+                onPress={onSave}
+              >
                 <Ionicons 
                   name={saved ? "bookmark" : "bookmark-outline"} 
                   size={20} 
-                  color={saved ? "#FFB800" : "#6B7280"} 
+                  color={saved ? "#FBBF24" : statMutedColor} 
                 />
               </Pressable>
             </View>
@@ -1309,26 +1334,14 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: 'transparent',
   },
-  upvoteButton: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  upvoteButtonActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
+  actionButtonDisabled: { opacity: 0.6 },
   actionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
-  },
-  actionTextActive: {
-    color: '#fff',
-    fontWeight: '700',
   },
 
   // Quick Links

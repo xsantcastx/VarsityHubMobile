@@ -1,4 +1,4 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Post, Team, User } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import { GameCard } from '@/components/ui/GameCard';
 import { Colors } from '@/constants/Colors';
@@ -42,6 +42,7 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'teams' | 'schedule' | 'feed'>('teams');
   const [isFollowing, setIsFollowing] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   // Swipe gesture handler
   const translateX = useSharedValue(0);
@@ -78,6 +79,13 @@ export default function OrganizationScreen() {
       }
 
       setOrganizationId(orgId);
+
+      // Identify current user role for privilege-gated UI
+      try {
+        const me: any = await User.me();
+        const role = (me?.preferences?.role || me?.role || '').toLowerCase();
+        if (role) setCurrentRole(role);
+      } catch {}
 
       // Fetch all teams in this organization with fallback
       let allTeams: any[] = [];
@@ -340,7 +348,9 @@ export default function OrganizationScreen() {
                 </View>
                 <View style={styles.heroText}>
                   <Text style={styles.heroTitle}>Organization</Text>
-                  <Text style={styles.heroSubtitle}>ID: {organizationId?.substring(0, 8)}...</Text>
+                  {['coach', 'organizer', 'admin'].includes((currentRole || '').toLowerCase()) && (
+                    <Text style={styles.heroSubtitle}>ID: {organizationId?.substring(0, 8)}...</Text>
+                  )}
                 </View>
                 <Pressable
                   onPress={handleFollowPress}
@@ -441,7 +451,7 @@ const styles = StyleSheet.create({
   heroHeader: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 60,
+    paddingBottom: 28,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -449,7 +459,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   heroIcon: {
     width: 64,

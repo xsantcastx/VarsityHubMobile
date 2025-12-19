@@ -10,6 +10,7 @@
  */
 
 import { prisma } from './prisma.js';
+import { logRejection } from './geofence-telemetry.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
@@ -103,6 +104,15 @@ export async function verifyEventPostingPermission(
   });
 
   if (!event) {
+    logRejection({
+      timestamp: new Date().toISOString(),
+      userId,
+      eventId,
+      contentType: 'post',
+      reason: 'EVENT_NOT_FOUND',
+      max_distance_km: POST_RADIUS_KM,
+      message: 'Event not found',
+    });
     return { allowed: false, reason: 'Event not found' };
   }
 
@@ -113,6 +123,19 @@ export async function verifyEventPostingPermission(
   const windowCloseTime = new Date(eventTime.getTime() + POSTING_WINDOW_HOURS_AFTER * 60 * 60 * 1000);
 
   if (now < windowOpenTime) {
+    const hoursFromEvent = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000);
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId,
+      contentType: 'post',
+      reason: 'OUTSIDE_TIME_WINDOW',
+      max_distance_km: POST_RADIUS_KM,
+      hours_from_event: hoursFromEvent,
+      event_lat: event.latitude ?? undefined,
+      event_lon: event.longitude ?? undefined,
+      message: `Posting opens 48 hours before the game.`,
+    });
     return {
       allowed: false,
       reason: `Posting opens 48 hours before the game at ${windowOpenTime.toLocaleString()}`,
@@ -120,6 +143,19 @@ export async function verifyEventPostingPermission(
   }
   
   if (now >= windowCloseTime) {
+    const hoursFromEvent = (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000);
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId,
+      contentType: 'post',
+      reason: 'OUTSIDE_TIME_WINDOW',
+      max_distance_km: POST_RADIUS_KM,
+      hours_from_event: hoursFromEvent,
+      event_lat: event.latitude ?? undefined,
+      event_lon: event.longitude ?? undefined,
+      message: 'Posting attempted after 48h window.',
+    });
     return {
       allowed: false,
       reason: `Posting window closed. Posts are available up to 48 hours after the event (until ${windowCloseTime.toLocaleString()}).`,
@@ -141,6 +177,17 @@ export async function verifyEventPostingPermission(
     });
 
     if (!userPostedDuringEvent) {
+      const hoursFromEvent = (now.getTime() - eventTime.getTime()) / (60 * 60 * 1000);
+      logRejection({
+        timestamp: now.toISOString(),
+        userId,
+        eventId,
+        contentType: 'post',
+        reason: 'NOT_POSTED_DURING_EVENT',
+        max_distance_km: POST_RADIUS_KM,
+        hours_from_event: hoursFromEvent,
+        message: 'User did not post during event; post-event uploads blocked.',
+      });
       return {
         allowed: false,
         reason: `You must have posted during the event to continue posting after it ends.`,
@@ -157,6 +204,18 @@ export async function verifyEventPostingPermission(
 
   // Location is required for every post
   if (userLat === null || userLon === null) {
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId,
+      contentType: 'post',
+      reason: 'MISSING_LOCATION',
+      max_distance_km: POST_RADIUS_KM,
+      hours_from_event: (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000),
+      event_lat: event.latitude ?? undefined,
+      event_lon: event.longitude ?? undefined,
+      message: 'Location access required for event posts.',
+    });
     return {
       allowed: false,
       reason: 'Location access required. You must be within 15km of the venue to post.',
@@ -166,6 +225,21 @@ export async function verifyEventPostingPermission(
   // Check if user is within 15km of venue
   const distanceKm = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
   if (distanceKm > POST_RADIUS_KM) {
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId,
+      contentType: 'post',
+      reason: 'OUTSIDE_DISTANCE_RADIUS',
+      distance_km: distanceKm,
+      max_distance_km: POST_RADIUS_KM,
+      hours_from_event: (eventTime.getTime() - now.getTime()) / (60 * 60 * 1000),
+      user_lat: userLat,
+      user_lon: userLon,
+      event_lat: event.latitude ?? undefined,
+      event_lon: event.longitude ?? undefined,
+      message: `User is ${distanceKm.toFixed(2)}km away (limit ${POST_RADIUS_KM}km).`,
+    });
     return {
       allowed: false,
       reason: `You must be within ${POST_RADIUS_KM}km of ${event.location || 'the game venue'} to post. You are ${distanceKm.toFixed(2)}km away.`,
@@ -209,6 +283,15 @@ export async function verifyStoryCreationPermission(
   });
 
   if (!game) {
+    logRejection({
+      timestamp: new Date().toISOString(),
+      userId,
+      eventId: gameId,
+      contentType: 'story',
+      reason: 'EVENT_NOT_FOUND',
+      max_distance_km: STORY_RADIUS_KM,
+      message: 'Game not found',
+    });
     return { allowed: false, reason: 'Game not found' };
   }
 
@@ -219,6 +302,19 @@ export async function verifyStoryCreationPermission(
   const dayEnd = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 23, 59, 59, 999);
 
   if (now < dayStart || now > dayEnd) {
+    const hoursFromEvent = (eventDate.getTime() - now.getTime()) / (60 * 60 * 1000);
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId: gameId,
+      contentType: 'story',
+      reason: 'WRONG_CALENDAR_DAY',
+      max_distance_km: STORY_RADIUS_KM,
+      hours_from_event: hoursFromEvent,
+      event_lat: game.latitude ?? undefined,
+      event_lon: game.longitude ?? undefined,
+      message: `Stories limited to event day ${dayStart.toDateString()}.`,
+    });
     return {
       allowed: false,
       reason: `Stories are available only on the day of the event (${dayStart.toDateString()}).`,
@@ -231,6 +327,18 @@ export async function verifyStoryCreationPermission(
   }
 
   if (userLat === null || userLon === null) {
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId: gameId,
+      contentType: 'story',
+      reason: 'MISSING_LOCATION',
+      max_distance_km: STORY_RADIUS_KM,
+      hours_from_event: (eventDate.getTime() - now.getTime()) / (60 * 60 * 1000),
+      event_lat: game.latitude ?? undefined,
+      event_lon: game.longitude ?? undefined,
+      message: 'Location required for stories.',
+    });
     return {
       allowed: false,
       reason: 'Location required. Stories need your current location to confirm proximity to the venue.',
@@ -239,6 +347,21 @@ export async function verifyStoryCreationPermission(
 
   const distanceKm = calculateDistance(userLat, userLon, game.latitude, game.longitude, 'km');
   if (distanceKm > STORY_RADIUS_KM) {
+    logRejection({
+      timestamp: now.toISOString(),
+      userId,
+      eventId: gameId,
+      contentType: 'story',
+      reason: 'OUTSIDE_DISTANCE_RADIUS',
+      distance_km: distanceKm,
+      max_distance_km: STORY_RADIUS_KM,
+      hours_from_event: (eventDate.getTime() - now.getTime()) / (60 * 60 * 1000),
+      user_lat: userLat,
+      user_lon: userLon,
+      event_lat: game.latitude ?? undefined,
+      event_lon: game.longitude ?? undefined,
+      message: `User is ${distanceKm.toFixed(2)}km away (limit ${STORY_RADIUS_KM}km).`,
+    });
     return {
       allowed: false,
       reason: `You must be within ${STORY_RADIUS_KM}km of ${game.location || 'the venue'} to post stories. You are ${distanceKm.toFixed(2)}km away.`,

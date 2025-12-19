@@ -112,4 +112,32 @@ describe('Authentication', () => {
       expect(password.length).toBeGreaterThanOrEqual(8);
     });
   });
+
+  describe('JWT Helpers', () => {
+    const originalSecret = process.env.JWT_SECRET;
+
+    beforeAll(() => {
+      process.env.JWT_SECRET = 'test-secret-32-chars-minimum-string-value!!';
+    });
+
+    afterAll(() => {
+      process.env.JWT_SECRET = originalSecret;
+    });
+
+    it('should sign and verify tokens', async () => {
+      const { signJwt, verifyJwt, DEFAULT_ACCESS_TOKEN_EXPIRY } = await import('../lib/jwt.js');
+      const token = signJwt({ id: 'user_123' }, '2h');
+      const decoded = verifyJwt<{ id: string }>(token);
+
+      expect(DEFAULT_ACCESS_TOKEN_EXPIRY).toBe('1h');
+      expect(decoded?.id).toBe('user_123');
+    });
+
+    it('should return null for invalid tokens', async () => {
+      const { verifyJwt } = await import('../lib/jwt.js');
+      const decoded = verifyJwt('invalid.token.value');
+
+      expect(decoded).toBeNull();
+    });
+  });
 });

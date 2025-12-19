@@ -1,7 +1,7 @@
 import {
-  WEEKDAY_BLOCK_PRICE_CENTS,
-  WEEKEND_BLOCK_PRICE_CENTS,
-  calculateAdPriceCents,
+    WEEKDAY_BLOCK_PRICE_CENTS,
+    WEEKEND_BLOCK_PRICE_CENTS,
+    calculateAdPriceCents,
 } from '../utils/adPricing';
 
 describe('Payments', () => {
@@ -25,6 +25,29 @@ describe('Payments', () => {
       expect(totalCents).toBe(0);
       expect(weekdayBlocks).toBe(0);
       expect(weekendBlocks).toBe(0);
+    });
+
+    it('counts each week once even with duplicate dates', () => {
+      const dates = ['2024-12-16', '2024-12-16', '2024-12-21']; // Mon (duplicate) + Sat
+      const { totalCents, weekdayBlocks, weekendBlocks } = calculateAdPriceCents(dates);
+
+      expect(weekdayBlocks).toBe(1);
+      expect(weekendBlocks).toBe(1);
+      expect(totalCents).toBe(1300);
+    });
+
+    it('accumulates blocks across multiple weeks', () => {
+      const dates = [
+        '2024-12-16', // Week 1 weekday
+        '2024-12-22', // Week 1 weekend (Sunday)
+        '2024-12-23', // Week 2 weekday (Monday)
+        '2024-12-28', // Week 2 weekend (Saturday)
+      ];
+      const { totalCents, weekdayBlocks, weekendBlocks } = calculateAdPriceCents(dates);
+
+      expect(weekdayBlocks).toBe(2);
+      expect(weekendBlocks).toBe(2);
+      expect(totalCents).toBe((2 * WEEKDAY_BLOCK_PRICE_CENTS) + (2 * WEEKEND_BLOCK_PRICE_CENTS));
     });
   });
 

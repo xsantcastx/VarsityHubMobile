@@ -1,14 +1,14 @@
 import { Game, Post, Team } from '@/api/entities';
 import PostCard from '@/components/PostCard';
-import { GameCard } from '@/components/ui/GameCard';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type LeagueTeam = {
@@ -54,7 +54,7 @@ export default function TeamScreen() {
   const [games, setGames] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'feed' | 'schedule' | 'roster'>('roster');
+  const [activeTab, setActiveTab] = useState<'feed' | 'schedule' | 'roster'>('feed');
   const [isFollowing, setIsFollowing] = useState(false);
 
   const loadTeam = useCallback(async () => {
@@ -213,6 +213,7 @@ export default function TeamScreen() {
         })(),
       ]);
 
+      // Use real data only
       setGames(gamesResult);
       setPosts(postsResult);
       setMembers(membersResult);
@@ -249,11 +250,16 @@ export default function TeamScreen() {
     const jersey = item.jersey_number ? `#${item.jersey_number}` : '';
     
     return (
-      <View
+      <Pressable
         style={[styles.memberCard, { 
           backgroundColor: theme.card,
           borderColor: theme.border,
         }]}
+        onPress={() => {
+          if (item.user?.id || item.user_id) {
+            router.push(`/profile?id=${item.user?.id || item.user_id}` as any);
+          }
+        }}
       >
         <View style={styles.memberCardContent}>
           {item.user?.avatar_url ? (
@@ -277,69 +283,8 @@ export default function TeamScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </Pressable>
     );
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'feed':
-        // Feed handled separately in main render
-        return null;
-      
-      case 'schedule':
-        if (games.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No scheduled games
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-                Upcoming games from all teams will appear here
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.gamesList}>
-            {games.map((game, index) => (
-              <GameCard
-                key={`${game.id}-${index}`}
-                game={game}
-                onPress={(g) => router.push(`/game-detail?id=${g.id}` as any)}
-              />
-            ))}
-          </View>
-        );
-      
-      case 'roster':
-        if (members.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No roster members found
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-                Players from all teams will appear here
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.membersList}>
-            {members.map((member, index) => (
-              <View key={`${member.id}-${index}`}>
-                {renderMemberCard({ item: member as any })}
-              </View>
-            ))}
-          </View>
-        );
-      
-      default:
-        return null;
-    }
   };
 
   if (loading) {
@@ -368,14 +313,13 @@ export default function TeamScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={[]}>
       <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       
       {/* Custom Header */}
       <View style={[styles.header, { 
         backgroundColor: theme.card,
         borderBottomColor: theme.border,
-        paddingTop: insets.top,
       }]}>
         <Pressable 
           onPress={() => void router.back()} 
@@ -384,10 +328,6 @@ export default function TeamScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-          {team?.name || 'Team'}
-        </Text>
-        <View style={styles.headerRight} />
       </View>
       
       {/* Cover Photo - Reduced Height */}
@@ -498,60 +438,100 @@ export default function TeamScreen() {
         </Pressable>
       </View>
 
-      {/* Content - Use FlatList for Feed tab, ScrollView for others */}
-      {activeTab === 'feed' ? (
-        <FlatList
-          key="feed-grid"
-          data={posts}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, idx) => `${item.id}-${idx}`}
-          renderItem={({ item }) => (
-            <View style={styles.gridItem}>
-              <PostCard
-                post={item}
-                onPress={() => void router.push(`/post-detail?id=${item.id}` as any)}
-              />
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={[styles.emptyState, { width: '100%' }]}>
-              <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No posts yet
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-                Posts from team games and team mentions will appear here
-              </Text>
-            </View>
+      {/* Content - FlatList for all tabs */}
+      <FlatList
+        key={activeTab}
+        data={activeTab === 'feed' ? posts : activeTab === 'schedule' ? games : members}
+        numColumns={activeTab === 'feed' ? 2 : 1}
+        columnWrapperStyle={activeTab === 'feed' ? styles.gridRow : undefined}
+        keyExtractor={(item, idx) => `${item.id}-${idx}`}
+        renderItem={({ item, index }) => {
+          if (activeTab === 'feed') {
+            // Feed: 2-column grid with PostCard
+            return (
+              <View style={styles.gridItem}>
+                <PostCard
+                  post={item}
+                  showAuthorHeader={false}
+                  onPress={() => void router.push(`/post-detail?id=${item.id}` as any)}
+                />
+              </View>
+            );
+          } else if (activeTab === 'schedule') {
+            // Schedule: EXACT UI from feed.tsx - full-width game cards with cover images
+            const gameItem = item as any;
+            const banner = gameItem.cover_image_url || gameItem.banner_url || null;
+            const hasBanner = typeof banner === 'string' && banner.length > 0;
+            const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+            const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
+            const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
+            const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
+            
+            return (
+              <Pressable
+                key={String(gameItem.id)}
+                style={styles.singleEventCard}
+                onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.id) } })}
+                accessibilityRole="button"
+              >
+                {hasBanner ? (
+                  <Image source={{ uri: banner }} style={styles.singleEventImage} contentFit="cover" />
+                ) : (
+                  <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                )}
+                <LinearGradient
+                  colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                  style={styles.gridShade}
+                  pointerEvents="none"
+                />
+                <View style={styles.gridContent}>
+                  <View style={styles.gridDateChip}>
+                    <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                    <Text style={styles.gridDateText}>{eventDate}</Text>
+                  </View>
+                  <Text style={styles.gridTitle} numberOfLines={2}>
+                    {gameItem.title ? String(gameItem.title) : 'Game'}
+                  </Text>
+                  <Text style={styles.gridMeta} numberOfLines={1}>
+                    {eventTime ? `${eventTime} • ${locationText}` : locationText}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          } else {
+            // Roster: member cards
+            return renderMemberCard({ item: item as any });
           }
-          contentContainerStyle={{ paddingHorizontal: 6, paddingVertical: 12, paddingBottom: insets.bottom + 20 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.tint}
+        }}
+        ListEmptyComponent={
+          <View style={[styles.emptyState, { marginTop: 100, width: '100%' }]}>
+            <Ionicons 
+              name={activeTab === 'feed' ? 'newspaper-outline' : activeTab === 'schedule' ? 'calendar-outline' : 'people-outline'} 
+              size={48} 
+              color={theme.mutedText} 
             />
-          }
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.tint}
-            />
-          }
-        >
-          <View style={styles.tabContentContainer}>
-            {renderTabContent()}
+            <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+              {activeTab === 'feed' ? 'No posts yet' : activeTab === 'schedule' ? 'No scheduled games' : 'No roster members found'}
+            </Text>
+            <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
+              {activeTab === 'feed' ? 'Posts from team games and team mentions will appear here' : activeTab === 'schedule' ? 'Upcoming games from all teams will appear here' : 'Players from all teams will appear here'}
+            </Text>
           </View>
-        </ScrollView>
-      )}
+        }
+        contentContainerStyle={{ 
+          paddingHorizontal: activeTab === 'feed' ? 6 : activeTab === 'roster' ? 16 : 12, 
+          paddingVertical: 12, 
+          paddingBottom: insets.bottom + 20 
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.tint}
+          />
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -733,14 +713,6 @@ const styles = StyleSheet.create({
   postsList: {
     gap: 16,
   },
-  gridRow: {
-    gap: 6,
-    paddingHorizontal: 0,
-  },
-  gridItem: {
-    flex: 1,
-    aspectRatio: 1,
-  },
   gamesList: {
     gap: 12,
   },
@@ -787,6 +759,18 @@ const styles = StyleSheet.create({
   memberTeam: {
     fontSize: 13,
   },
+  gridRow: {
+    gap: 6,
+    paddingHorizontal: 0,
+  },
+  gridItem: {
+    flex: 1,
+    aspectRatio: 1,
+  },
+  scheduleCardWrapper: {
+    marginHorizontal: 0,
+    marginBottom: 12,
+  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 48,
@@ -820,24 +804,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderBottomWidth: 1,
   },
   backButton: {
     padding: 4,
-    marginRight: 12,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerRight: {
-    width: 40,
   },
   tabContentContainer: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 32,
+  },
+  // Game card styles from feed.tsx
+  singleEventCard: {
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    marginBottom: 12,
+    marginHorizontal: 0,
+  },
+  singleEventImage: {
+    width: '100%',
+    height: '100%',
+  },
+  gridShade: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
+  },
+  gridContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    zIndex: 2,
+  },
+  gridDateChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    gap: 4,
+  },
+  gridDateText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  gridTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  gridMeta: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    opacity: 0.9,
   },
 });

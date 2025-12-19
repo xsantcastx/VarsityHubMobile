@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -26,7 +26,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import { BackHeader } from '@/components/ui/BackHeader';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -104,7 +103,7 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
-const HighlightCard = ({ 
+const HighlightCard = React.memo(({ 
   item, 
   index = 0,
   currentTab = 'trending',
@@ -128,6 +127,12 @@ const HighlightCard = ({
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   const category = getSportCategory(item.title, item.content);
   const hasMedia = !!item.media_url;
+  const actionButtonBg = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(37, 99, 235, 0.08)';
+  const actionButtonBorder = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.35)' : 'rgba(37, 99, 235, 0.18)';
+  const statTextColor = colorScheme === 'dark' ? '#E2E8F0' : '#1F2937';
+  const mutedIconColor = colorScheme === 'dark' ? '#CBD5F5' : '#6B7280';
+  const upvoteColor = colorScheme === 'dark' ? '#93C5FD' : '#2563EB';
+  const shareColor = colorScheme === 'dark' ? '#34D399' : '#059669';
   
   // Calculate ranking for this item
   const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
@@ -240,30 +245,30 @@ const HighlightCard = ({
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <Pressable 
-              style={styles.actionButton}
+              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
               onPress={(e) => {
                 e.stopPropagation();
                 // Handle upvote action
                 Alert.alert('Upvote', 'Feature coming soon!');
               }}
             >
-              <Ionicons name="arrow-up" size={18} color="#2563EB" />
-              <Text style={[styles.statText, { color: '#2563EB', fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
+              <Ionicons name="arrow-up" size={18} color={upvoteColor} />
+              <Text style={[styles.statText, { color: upvoteColor, fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
             <Pressable 
-              style={styles.actionButton}
+              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
               onPress={(e) => {
                 e.stopPropagation();
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
-              <Ionicons name="chatbubble" size={16} color="#6B7280" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Ionicons name="chatbubble" size={16} color={mutedIconColor} />
+              <Text style={[styles.statText, { color: statTextColor, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
             <Pressable 
-              style={styles.actionButton}
+              style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
               onPress={async (e) => {
                 e.stopPropagation();
                 try {
@@ -284,14 +289,14 @@ const HighlightCard = ({
                 }
               }}
             >
-              <Ionicons name="share-outline" size={16} color="#10B981" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>Share</Text>
+              <Ionicons name="share-outline" size={16} color={shareColor} />
+              <Text style={[styles.statText, { color: shareColor, fontWeight: '600' }]}>Share</Text>
             </Pressable>
             
             {item._score && (
-              <View style={[styles.actionButton, { opacity: 0.7 }]}>
-                <Ionicons name="trending-up" size={16} color="#10B981" />
-                <Text style={styles.statText}>{Math.round(item._score)}</Text>
+              <View style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}>
+                <Ionicons name="trending-up" size={16} color={shareColor} />
+                <Text style={[styles.statText, { color: statTextColor }]}>{Math.round(item._score)}</Text>
               </View>
             )}
           </View>
@@ -299,7 +304,7 @@ const HighlightCard = ({
       </View>
     </Pressable>
   );
-};
+});
 
 const TabButton = ({ title, active, onPress, colorScheme }: { title: string; active: boolean; onPress: () => void; colorScheme: 'light' | 'dark' }) => (
   <Pressable 
@@ -519,7 +524,7 @@ export default function HighlightsScreen() {
     
   }, [highlights, activeTab]);
 
-  const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
+  const renderHighlight = useCallback(({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
       item={item} 
       index={index}
@@ -531,7 +536,7 @@ export default function HighlightsScreen() {
       onAuthorPress={handleAuthorPress}
       colorScheme={colorScheme} 
     />
-  );
+  ), [activeTab, nationalTop, ranked, userLocation, handleHighlightPress, handleAuthorPress, colorScheme]);
 
   if (loading) {
     return (
@@ -1094,7 +1099,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderWidth: 1,
+    borderColor: 'transparent',
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 1 },

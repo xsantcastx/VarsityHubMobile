@@ -1710,112 +1710,115 @@ const renderBanner = () => {
       contentFit="cover"
       cachePolicy="memory-disk"
     />
-    ) : leftLogo && rightLogo ? (
-      <MatchBanner
-        leftImage={leftLogo}
-        rightImage={rightLogo}
-        leftName={vm?.homeTeam ?? ''}
-        rightName={vm?.awayTeam ?? ''}
-        height={bannerHeight}
-        variant="full"
-        hero={true}
-        appearance={(vm as any)?.appearance || 'classic'}
-        headerFade={headerOpacity}
-        onVsPress={() => setVsModalOpen(true)}
-        onLeftPress={() => {
-          // Navigate to home team profile if team object exists
-          if (homeTeamObj?.id) {
-            void router.push(`/team-profile?id=${homeTeamObj.id}`);
-          }
-        }}
-        onRightPress={() => {
-          // Navigate to away team profile if team object exists
-          if (awayTeamObj?.id) {
-            void router.push(`/team-profile?id=${awayTeamObj.id}`);
-          }
-        }}
-        leftColor={(homeTeamObj as any)?.color}
-        rightColor={(awayTeamObj as any)?.color}
-        goingCount={goingCount}
-        onGoingPress={onToggleRsvp}
-      />
-    ) : (
-      <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-    );
+  ) : leftLogo && rightLogo ? (
+    <MatchBanner
+      leftImage={leftLogo}
+      rightImage={rightLogo}
+      leftName={vm?.homeTeam ?? ''}
+      rightName={vm?.awayTeam ?? ''}
+      height={bannerHeight}
+      variant="full"
+      hero
+      appearance={(vm as any)?.appearance || 'classic'}
+      headerFade={headerOpacity}
+      onVsPress={() => setVsModalOpen(true)}
+      onLeftPress={() => {
+        // Navigate to home team profile if team object exists
+        if (homeTeamObj?.id) {
+          void router.push(`/team-profile?id=${homeTeamObj.id}`);
+        }
+      }}
+      onRightPress={() => {
+        // Navigate to away team profile if team object exists
+        if (awayTeamObj?.id) {
+          void router.push(`/team-profile?id=${awayTeamObj.id}`);
+        }
+      }}
+      leftColor={(homeTeamObj as any)?.color}
+      rightColor={(awayTeamObj as any)?.color}
+      goingCount={goingCount}
+      onGoingPress={onToggleRsvp}
+    />
+  ) : (
+    <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+  );
 
-      return (
-        <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
-          {heroBanner}
-    {/* Shade the banner less when this is a hero image so logos are visible */}
-    <LinearGradient pointerEvents="none" colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']} style={styles.bannerShade} />
-        
-        <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={() => void router.back()} accessibilityRole="button" style={styles.circleButton}>
-            <Ionicons name="chevron-back" size={20} color={Colors[colorScheme].text} />
-          </Pressable>
-          <View style={styles.bannerTopRightRow}>
-            {hasEvent ? (
-              <Pressable
-                onPress={openRsvpSheet}
-                style={[
-                  styles.circleButton,
-                  gamePhase !== 'upcoming' ? styles.rsvpDisabled : null,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Event RSVP"
-                accessibilityHint={rsvpChipLabel}
-              >
-                <Ionicons
-                  name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}
-                  size={18}
-                  color={gamePhase === 'upcoming' ? (vm?.userRsvped ? Colors[colorScheme].text : Colors[colorScheme].tint) : Colors[colorScheme].mutedText}
-                />
-              </Pressable>
-            ) : null}
-            <Pressable onPress={onShare} accessibilityRole="button" style={styles.circleButton}>
-              <Ionicons name="share-outline" size={18} color={Colors[colorScheme].text} />
+  return (
+    <View style={[styles.bannerWrapper, { height: bannerHeight }]}>
+      {heroBanner}
+      {/* Shade the banner less when this is a hero image so logos are visible */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={isHero ? ['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.35)'] : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.75)']}
+        style={styles.bannerShade}
+      />
+
+      <View style={[styles.bannerTopRow, { paddingTop: insets.top + 8 }]}>
+        <View style={{ width: 40 }} />
+        <View style={styles.bannerTopRightRow}>
+          {hasEvent ? (
+            <Pressable
+              onPress={openRsvpSheet}
+              style={[
+                styles.circleButton,
+                gamePhase !== 'upcoming' ? styles.rsvpDisabled : null,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Event RSVP"
+              accessibilityHint={rsvpChipLabel}
+            >
+              <Ionicons
+                name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}
+                size={18}
+                color={gamePhase === 'upcoming' ? (vm?.userRsvped ? Colors[colorScheme].text : Colors[colorScheme].tint) : Colors[colorScheme].mutedText}
+              />
             </Pressable>
-          </View>
-        </View>
-        <View style={styles.bannerBottomRow}>
-          <View style={styles.bannerBottomLeft}>
-            <View style={styles.dateChip}>
-              <Ionicons name="calendar" size={14} color={Colors[colorScheme].tint} />
-              <Text style={styles.dateChipText}>{displayDate || 'Upcoming Game'}</Text>
-              {displayTime ? <Text style={styles.dateChipTime}>{displayTime}</Text> : null}
-            </View>
-            {gamePhase === 'upcoming' ? (
-              <View style={[styles.statusChip, styles.statusUpcoming]}>
-                <Text style={styles.statusText}>Starts in {formatCountdown(startsInMs)}</Text>
-              </View>
-            ) : gamePhase === 'live' ? (
-              <View style={[styles.statusChip, styles.statusLive]}>
-                <Animated.View
-                  style={[
-                    styles.liveDot,
-                    {
-                      transform: [
-                        {
-                          scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.25] }),
-                        },
-                      ],
-                      opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
-                    },
-                  ]}
-                />
-                <Text style={styles.statusText}>LIVE</Text>
-              </View>
-            ) : (
-              <View style={[styles.statusChip, styles.statusFinal]}>
-                <Text style={styles.statusText}>FINAL</Text>
-              </View>
-            )}
-          </View>
-          {/* RSVP moved to top bar */}
+          ) : null}
+          <Pressable onPress={onShare} accessibilityRole="button" style={styles.circleButton}>
+            <Ionicons name="share-outline" size={18} color={Colors[colorScheme].text} />
+          </Pressable>
         </View>
       </View>
-    );
-  };
+
+      <View style={styles.bannerBottomRow}>
+        <View style={styles.bannerBottomLeft}>
+          <View style={styles.dateChip}>
+            <Ionicons name="calendar" size={14} color={Colors[colorScheme].tint} />
+            <Text style={styles.dateChipText}>{displayDate || 'Upcoming Game'}</Text>
+            {displayTime ? <Text style={styles.dateChipTime}>{displayTime}</Text> : null}
+          </View>
+          {gamePhase === 'upcoming' ? (
+            <View style={[styles.statusChip, styles.statusUpcoming]}>
+              <Text style={styles.statusText}>Starts in {formatCountdown(startsInMs)}</Text>
+            </View>
+          ) : gamePhase === 'live' ? (
+            <View style={[styles.statusChip, styles.statusLive]}>
+              <Animated.View
+                style={[
+                  styles.liveDot,
+                  {
+                    transform: [
+                      {
+                        scale: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.25] }),
+                      },
+                    ],
+                    opacity: livePulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }),
+                  },
+                ]}
+              />
+              <Text style={styles.statusText}>LIVE</Text>
+            </View>
+          ) : (
+            <View style={[styles.statusChip, styles.statusFinal]}>
+              <Text style={styles.statusText}>FINAL</Text>
+            </View>
+          )}
+        </View>
+        {/* RSVP moved to top bar */}
+      </View>
+    </View>
+  );
+};
 
   const _renderStats = () => {
     const stats = [
@@ -1990,6 +1993,15 @@ const renderBanner = () => {
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Back Button */}
+      <Pressable 
+        onPress={() => router.back()}
+        style={[styles.gameDetailsBackButton, { top: insets.top + 8 }]}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      </Pressable>
       
       <Animated.View
         style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
@@ -3349,5 +3361,16 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '600',
     color: Colors[colorScheme].text,
     marginRight: 8,
+  },
+  gameDetailsBackButton: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 1000,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
 });

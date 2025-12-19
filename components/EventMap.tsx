@@ -75,6 +75,25 @@ export default function EventMap({
   const eventsWithCoordinates = events.filter(
     (event) => event.latitude && event.longitude
   );
+  
+  const getSportEmoji = (sportOrTitle?: string): string => {
+    if (!sportOrTitle) return '📍';
+    const s = sportOrTitle.toLowerCase();
+    if (s.includes('soccer') || s.includes('futbol') || s.includes('football (soccer)')) return '⚽';
+    if (s.includes('basketball') || s.includes('hoops')) return '🏀';
+    if (s.includes('football')) return '🏈';
+    if (s.includes('baseball')) return '⚾';
+    if (s.includes('softball')) return '🥎';
+    if (s.includes('hockey')) return '🏒';
+    if (s.includes('volleyball')) return '🏐';
+    if (s.includes('tennis')) return '🎾';
+    if (s.includes('golf')) return '⛳';
+    if (s.includes('rugby')) return '🏉';
+    if (s.includes('lacrosse')) return '🥍';
+    if (s.includes('cricket')) return '🏏';
+    if (s.includes('bowling')) return '🎳';
+    return '📍';
+  };
 
   // Center map on all events
   const fitToEvents = () => {
@@ -104,20 +123,6 @@ export default function EventMap({
       latitudeDelta: 0.1,
       longitudeDelta: 0.1,
     });
-  };
-
-  // Get marker color based on event type
-  const getMarkerColor = (type?: string) => {
-    switch (type) {
-      case 'game':
-        return '#FF6B6B'; // Red for games
-      case 'event':
-        return '#4ECDC4'; // Teal for events
-      case 'post':
-        return '#95E1D3'; // Light teal for posts
-      default:
-        return Colors[colorScheme].tint;
-    }
   };
 
   if (loading) {
@@ -152,9 +157,9 @@ export default function EventMap({
               latitude: event.latitude!,
               longitude: event.longitude!,
             }}
-            pinColor={getMarkerColor(event.type)}
             onPress={() => onEventPress?.(event.id)}
           >
+            <Text style={styles.sportMarker}>{getSportEmoji(event.sport || event.title)}</Text>
             <Callout>
               <View style={styles.callout}>
                 <Text style={styles.calloutTitle}>{event.title}</Text>
@@ -176,8 +181,9 @@ export default function EventMap({
               latitude: region.latitude,
               longitude: region.longitude,
             }}
-            pinColor={Colors[colorScheme].tint}
-          />
+          >
+            <Text style={styles.previewPinIcon}>📍</Text>
+          </Marker>
         )}
       </MapView>
 
@@ -319,9 +325,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  previewPinIcon: {
+    textAlign: 'center',
+    lineHeight: 32,
+    fontSize: 32,
+  },
+  sportMarker: {
+    fontSize: 28,
+    textAlign: 'center',
+    lineHeight: 30,
+  },
   callout: {
-    width: 200,
-    padding: 8,
+    padding: 12,
+    minWidth: 200,
   },
   calloutTitle: {
     fontSize: 16,

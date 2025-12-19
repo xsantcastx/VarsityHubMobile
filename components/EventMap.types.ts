@@ -8,6 +8,7 @@ export interface EventMapData {
   latitude?: number;
   longitude?: number;
   type?: 'game' | 'event' | 'post';
+  sport?: string;
 }
 
 export interface EventMapProps {

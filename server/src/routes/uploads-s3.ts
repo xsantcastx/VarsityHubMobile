@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const uploadsS3Router = Router();
 
-uploadsS3Router.get('/s3-sign', (_req, res) => {
+uploadsS3Router.get('/s3-sign', requireAuth as any, async (req: AuthedRequest, res) => {
   const { S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env as any;
   if (!S3_REGION || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) {
     return res.status(501).json({ error: 'S3 not configured' });

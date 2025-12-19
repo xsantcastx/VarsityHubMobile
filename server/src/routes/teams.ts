@@ -166,6 +166,21 @@ async function maybeQueueRosterThresholdAlert({
   });
 }
 
+const TEAM_STAFF_ROLES = ['owner', 'manager', 'coach', 'assistant_coach'];
+
+function isTeamStaff(role: string | null | undefined): boolean {
+  if (!role) return false;
+  return TEAM_STAFF_ROLES.includes(role);
+}
+
+async function userHasTeamStaffAccess(userId: string, teamId: string): Promise<boolean> {
+  const membership = await prisma.teamMembership.findFirst({
+    where: { user_id: userId, team_id: teamId, status: 'active' },
+    select: { role: true },
+  });
+  return isTeamStaff(membership?.role || null);
+}
+
 async function queueSeasonWrapUpEmails(team: {
   id: string;
   name: string;
@@ -932,7 +947,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
 
 // Invite user by email to a team
 const inviteSchema = z.object({ email: z.string().email(), role: z.string().optional() });
-teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
+teamsRouter.post('/:id/invite', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);
@@ -941,13 +956,11 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   
-  // Check if user is owner or admin (authorization)
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: id, user_id: req.user.id } }
-  });
+  // Check if user is staff/admin (authorization)
   const isAdmin = await getIsAdmin(req as any);
-  if (!isAdmin && (!membership || membership.role !== 'owner')) {
-    return res.status(403).json({ error: 'Only team owners can invite members' });
+  const hasStaffAccess = await userHasTeamStaffAccess(req.user.id, id);
+  if (!isAdmin && !hasStaffAccess) {
+    return res.status(403).json({ error: 'TEAM_STAFF_REQUIRED', message: 'Only team staff can invite members.' });
   }
   // PLAN LIMITS: Enforce authorized user caps
   try {
@@ -1270,7 +1283,7 @@ teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) =
   return res.json({ ok: true });
 });
 
-// ✅ Update team member role (owners/managers only)
+// ✅ Update team member role (team staff or admin)
 const memberUpdateSchema = z.object({
   role: z.string().min(1).max(64).optional(),
   custom_position: z
@@ -1314,10 +1327,10 @@ teamsRouter.patch('/:id/members/:userId', requireVerified as any, async (req: Au
     return res.status(404).json({ error: 'Team not found' });
   }
   
-  // Check if requester is owner or manager
+  // Check if requester is team staff/admin
   const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
-  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
-    return res.status(403).json({ error: 'Only team owners and managers can update member roles' });
+  if (!requesterMembership || !isTeamStaff(requesterMembership.role)) {
+    return res.status(403).json({ error: 'Only team staff can update member roles' });
   }
   
   // Find the member to update
@@ -1372,7 +1385,7 @@ teamsRouter.patch('/:id/members/:userId', requireVerified as any, async (req: Au
   return res.json({ ok: true, role: updated.role, custom_position: updated.custom_position || null });
 });
 
-// ✅ Remove team member (owners/managers only)
+// ✅ Remove team member (team staff or admin)
 teamsRouter.delete('/:id/members/:userId', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -1396,10 +1409,10 @@ teamsRouter.delete('/:id/members/:userId', requireVerified as any, async (req: A
     return res.status(404).json({ error: 'Team not found' });
   }
   
-  // Check if requester is owner or manager
+  // Check if requester is team staff/admin
   const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
-  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
-    return res.status(403).json({ error: 'Only team owners and managers can remove members' });
+  if (!requesterMembership || !isTeamStaff(requesterMembership.role)) {
+    return res.status(403).json({ error: 'Only team staff can remove members' });
   }
   
   // Find the member to remove
