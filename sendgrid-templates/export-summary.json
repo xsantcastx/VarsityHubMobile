@@ -1,266 +1,185 @@
 {
-  "generatedAt": "2025-12-17T16:48:42.876Z",
+  "generatedAt": "2025-12-18T04:53:32.113Z",
   "summary": [
     {
       "key": "VERIFICATION",
-      "name": "Verification Email",
-      "env": "SENDGRID_VERIFICATION_TEMPLATE_ID",
-      "templateId": "d-584a4a9fe16449078e2cbc6d9d7be0d0",
-      "subject": "Verify your VarsityHub account",
-      "file": "sendgrid-templates/verification-email.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_VERIFICATION_TEMPLATE_ID"
     },
     {
       "key": "PASSWORD_RESET",
-      "name": "Password Reset",
-      "env": "SENDGRID_PASSWORD_RESET_TEMPLATE_ID",
-      "templateId": "d-97a704ec6a35434195364e0ed9dfaf21",
-      "subject": "Reset your VarsityHub password",
-      "file": "sendgrid-templates/password-reset.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_PASSWORD_RESET_TEMPLATE_ID"
     },
     {
       "key": "PASSWORD_CHANGED",
-      "name": "Password Changed",
-      "env": "SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID",
-      "templateId": "d-6f11ea835053413296e159c91204b658",
-      "subject": "Your VarsityHub password was changed",
-      "file": "sendgrid-templates/password-changed.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID"
     },
     {
       "key": "ACCOUNT_RECOVERY",
-      "name": "Account Recovery",
-      "env": "SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID",
-      "templateId": "d-36ff36687ae8433ba49ae88e533904d6",
-      "subject": "Recover your VarsityHub account",
-      "file": "sendgrid-templates/account-recovery.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID"
     },
     {
       "key": "LOGIN_NEW_DEVICE",
-      "name": "Login From New Device",
-      "env": "SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID",
-      "templateId": "d-5fe2c46068b04b928c941df25e1eb947",
-      "subject": "VarsityHub login from new device",
-      "file": "sendgrid-templates/login-from-new-device.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID"
     },
     {
       "key": "REPORT_RESOLVED",
-      "name": "Report Resolved",
-      "env": "SENDGRID_REPORT_RESOLVED_TEMPLATE_ID",
-      "templateId": "d-7bee5cf412b14f18988596796d86083b",
-      "subject": "Your report has been resolved",
-      "file": "sendgrid-templates/report-resolved.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_REPORT_RESOLVED_TEMPLATE_ID"
     },
     {
       "key": "REPORT_DISMISSED",
-      "name": "Report Dismissed",
-      "env": "SENDGRID_REPORT_DISMISSED_TEMPLATE_ID",
-      "templateId": "d-9211e4a8ef2b465eae90dbb1dbe6ce2e",
-      "subject": "Your report has been dismissed",
-      "file": "sendgrid-templates/report-dismissed.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_REPORT_DISMISSED_TEMPLATE_ID"
     },
     {
       "key": "ACCOUNT_WARNING",
-      "name": "Account Warning",
-      "env": "SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID",
-      "templateId": "d-1548d11143ce47b28c9832cfbb0880d8",
-      "subject": "Account warning from VarsityHub",
-      "file": "sendgrid-templates/account-warning.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID"
     },
     {
       "key": "CONTENT_REMOVED",
-      "name": "Content Removed",
-      "env": "SENDGRID_CONTENT_REMOVED_TEMPLATE_ID",
-      "templateId": "d-b27c753cafcb425aa7a7c9f8b577f844",
-      "subject": "Your content was removed",
-      "file": "sendgrid-templates/content-removed.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_CONTENT_REMOVED_TEMPLATE_ID"
     },
     {
       "key": "ACCOUNT_SUSPENSION_7_DAYS",
-      "name": "Account Suspension 7 Days",
-      "env": "SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID",
-      "templateId": "d-d357a6414fa1437da02ccd7c6724711c",
-      "subject": "Your account has been suspended for 7 days",
-      "file": "sendgrid-templates/account-suspension-7-days.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID"
     },
     {
       "key": "ACCOUNT_SUSPENSION_45_DAYS",
       "status": "error",
-      "message": "HTTP 404 while fetching template d-0941019230d9459b81ff602d937f7aa04",
+      "message": "fetch failed",
       "env": "SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID"
     },
     {
       "key": "ACCOUNT_PERMANENT_BAN",
-      "name": "Permanent Ban",
-      "env": "SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID",
-      "templateId": "d-40f388da110d440ba32bf34c282fd2c0",
-      "subject": "Your VarsityHub account has been permanently banned",
-      "file": "sendgrid-templates/permanent-ban.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID"
     },
     {
       "key": "EVENT_SUBMISSION_RECEIVED",
-      "name": "Event Submission Received",
-      "env": "SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID",
-      "templateId": "d-5a9d8126df45488faccee9a194d60c30",
-      "subject": "We received your event: {{eventName}}",
-      "file": "sendgrid-templates/event-submission-received.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID"
     },
     {
       "key": "EVENT_APPROVED",
-      "name": "Event Approved",
-      "env": "SENDGRID_EVENT_APPROVED_TEMPLATE_ID",
-      "templateId": "d-e76de706704646938e05a28e4c1a20d3",
-      "subject": "Your event {{eventName}} was approved",
-      "file": "sendgrid-templates/event-approved.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_APPROVED_TEMPLATE_ID"
     },
     {
       "key": "EVENT_DENIED",
-      "name": "Event Denied",
-      "env": "SENDGRID_EVENT_DENIED_TEMPLATE_ID",
-      "templateId": "d-503431dd78274a628f43a1e6c1592b14",
-      "subject": "Your event {{eventName}} was denied",
-      "file": "sendgrid-templates/event-denied.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_DENIED_TEMPLATE_ID"
     },
     {
       "key": "EVENT_REMINDER",
-      "name": "Event Reminder",
-      "env": "SENDGRID_EVENT_REMINDER_TEMPLATE_ID",
-      "templateId": "d-2822ef2015da4036b477c958e7ab9d1b",
-      "subject": "Reminder: {{eventName}} is coming up",
-      "file": "sendgrid-templates/event-reminder.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_REMINDER_TEMPLATE_ID"
     },
     {
       "key": "EVENT_UPDATED",
-      "name": "Event Updated",
-      "env": "SENDGRID_EVENT_UPDATED_TEMPLATE_ID",
-      "templateId": "d-3c7d54711df4484e9ce1473478a7cf3e",
-      "subject": "{{eventName}} details have been updated",
-      "file": "sendgrid-templates/event-updated.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_UPDATED_TEMPLATE_ID"
     },
     {
       "key": "EVENT_CANCELED",
-      "name": "Event Canceled",
-      "env": "SENDGRID_EVENT_CANCELED_TEMPLATE_ID",
-      "templateId": "d-1df595aec25a438e8e63befc17e09f13",
-      "subject": "{{eventName}} has been canceled",
-      "file": "sendgrid-templates/event-canceled.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_EVENT_CANCELED_TEMPLATE_ID"
     },
     {
       "key": "EVENT_RSVP_CONFIRMED",
       "status": "error",
-      "message": "HTTP 404 while fetching template d-511e46f4646f974f18a8f33c12564de14b",
+      "message": "fetch failed",
       "env": "SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID"
     },
     {
       "key": "ORGANIZATION_INVITATION",
-      "name": "Organization Invitation",
-      "env": "SENDGRID_ORG_INVITE_TEMPLATE_ID",
-      "templateId": "d-bc3bd0a683c843bf932721dafce626a3",
-      "subject": "You're invited to join {{organizationName}}",
-      "file": "sendgrid-templates/organization-invitation.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ORG_INVITE_TEMPLATE_ID"
     },
     {
       "key": "TEAM_INVITATION",
       "status": "error",
-      "message": "HTTP 404 while fetching template d-14788def39174bb66bf186716cce166fa",
+      "message": "fetch failed",
       "env": "SENDGRID_TEAM_INVITE_TEMPLATE_ID"
     },
     {
       "key": "ATHLETE_INVITATION",
-      "name": "Athlete Invitation",
-      "env": "SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID",
-      "templateId": "d-363b04e9b250448b8521c1601f6dd77b",
-      "subject": "You've been invited to {{teamName}}",
-      "file": "sendgrid-templates/athlete-invitation.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID"
     },
     {
       "key": "ROLE_ASSIGNMENT",
-      "name": "Role Assignment",
-      "env": "SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID",
-      "templateId": "d-c0e6564e0c094a3394bc63fd716265e1",
-      "subject": "You've been assigned {{roleName}} at {{organizationName}}",
-      "file": "sendgrid-templates/role-assignment.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID"
     },
     {
       "key": "ROSTER_THRESHOLD",
-      "name": "Roster Threshold",
-      "env": "SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID",
-      "templateId": "d-bf680d9a1f704324970918978710d1a1",
-      "subject": "{{teamName}} roster is near the limit",
-      "file": "sendgrid-templates/roster-threshold.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID"
     },
     {
       "key": "INVITATION_DECLINED",
-      "name": "Invitation Declined",
-      "env": "SENDGRID_INVITATION_DECLINED_TEMPLATE_ID",
-      "templateId": "d-38eecf064c2b4d3685c9b98e1eb92c63",
-      "subject": "An invitation was declined for {{teamName}}",
-      "file": "sendgrid-templates/invitation-declined.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_INVITATION_DECLINED_TEMPLATE_ID"
     },
     {
       "key": "TEAM_ROSTER_UPDATE",
-      "name": "Team Roster Update",
-      "env": "SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID",
-      "templateId": "d-c3473a8aab1c41c7bf6b6214d8ccd447",
-      "subject": "{{teamName}} roster was updated",
-      "file": "sendgrid-templates/team-roster-update.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID"
     },
     {
       "key": "STAFF_MEMBER_JOINED",
-      "name": "Staff Member Joined",
-      "env": "SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID",
-      "templateId": "d-a04998552fdb4508be4c1e31778057f2",
-      "subject": "{{staffName}} joined {{teamName}}",
-      "file": "sendgrid-templates/staff-member-joined.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID"
     },
     {
       "key": "USER_CONFIRMATION",
-      "name": "User Confirmation",
-      "env": "SENDGRID_USER_CONFIRMATION_TEMPLATE_ID",
-      "templateId": "d-584a4a9fe16449078e2cbc6d9d7be0d0",
-      "subject": "Welcome to {{organizationName}}",
-      "file": "sendgrid-templates/user-confirmation.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_USER_CONFIRMATION_TEMPLATE_ID"
     },
     {
       "key": "PAYMENT_FAILED",
-      "name": "Payment Failed",
-      "env": "SENDGRID_PAYMENT_FAILED_TEMPLATE_ID",
-      "templateId": "d-4f9bb915b560468ea5c5899b09005b56",
-      "subject": "Payment failed for your VarsityHub subscription",
-      "file": "sendgrid-templates/payment-failed.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_PAYMENT_FAILED_TEMPLATE_ID"
     },
     {
       "key": "SUBSCRIPTION_EXPIRING",
-      "name": "Subscription Expiring",
-      "env": "SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID",
-      "templateId": "d-9e31f68b55464074b530b889eb3bdfd8",
-      "subject": "Your VarsityHub subscription renews on {{renewalDate}}",
-      "file": "sendgrid-templates/subscription-expiring.html",
-      "status": "ok"
+      "status": "error",
+      "message": "fetch failed",
+      "env": "SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID"
     }
   ]
 }

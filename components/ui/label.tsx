@@ -1,12 +1,13 @@
-import React from 'react';
-import { Text, TextProps, StyleSheet } from 'react-native';
+import { Colors } from '@/constants/Colors';
+import { StyleSheet, Text, TextProps, useColorScheme } from 'react-native';
 
 export function Label({ style, ...props }: TextProps) {
-  return <Text {...props} style={[styles.label, style]} />;
+  const cs = useColorScheme() ?? 'light';
+  return <Text {...props} style={[styles.label, { color: Colors[cs].mutedText }, style]} />;
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 14, color: '#374151' },
+  label: { fontSize: 14 },
 });
 
 export default Label;

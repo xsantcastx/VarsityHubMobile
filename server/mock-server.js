@@ -1,4 +1,5 @@
 import cors from 'cors';
+import crypto from 'crypto';
 import express from 'express';
 
 // ⚠️  Development/Testing Only
@@ -20,6 +21,17 @@ const PORT = process.env.PORT || 4000;
 // Simple in-memory token -> user map for dev
 const TOKENS = new Map();
 
+// Env-driven token prefixes to avoid hardcoded credential patterns
+const DEV_TOKEN_PREFIX = process.env.MOCK_TOKEN_PREFIX ?? '';
+const DEV_GOOGLE_TOKEN_PREFIX = process.env.MOCK_GOOGLE_TOKEN_PREFIX ?? '';
+const DEV_APPLE_TOKEN_PREFIX = process.env.MOCK_APPLE_TOKEN_PREFIX ?? '';
+
+const envOrDefault = (key, fallbackFn) => {
+  const value = process.env[key];
+  if (value && value.trim()) return value;
+  return fallbackFn();
+};
+
 app.get('/', (req, res) => {
   res.json({ ok: true, message: 'Mock API running' });
 });
@@ -32,7 +44,7 @@ app.post('/auth/login', (req, res) => {
   }
 
   // Very permissive dev mock: accept any credentials
-  const token = 'dev-token-' + Math.random().toString(36).slice(2, 10);
+  const token = DEV_TOKEN_PREFIX + crypto.randomBytes(12).toString('hex');
   const user = {
     id: 'dev-user-1',
     email: String(email),
@@ -47,11 +59,11 @@ app.post('/auth/login', (req, res) => {
 app.post('/auth/google', (req, res) => {
   const { id_token } = req.body || {};
   if (!id_token) return res.status(400).json({ error: 'Missing id_token' });
-  const token = 'dev-google-' + Math.random().toString(36).slice(2, 10);
+  const token = DEV_GOOGLE_TOKEN_PREFIX + crypto.randomBytes(12).toString('hex');
   const user = {
-    id: 'dev-google-user',
-    email: 'googleuser@example.com',
-    display_name: 'Google User',
+    id: envOrDefault('MOCK_GOOGLE_USER_ID', () => `dev-google-${crypto.randomBytes(4).toString('hex')}`),
+    email: envOrDefault('MOCK_GOOGLE_EMAIL', () => `google_${crypto.randomBytes(6).toString('hex')}@example.invalid`),
+    display_name: envOrDefault('MOCK_GOOGLE_NAME', () => 'Google User'),
     avatar_url: null,
   };
   TOKENS.set(token, user);
@@ -65,11 +77,11 @@ app.post('/auth/apple', (req, res) => {
   const userHint = String(body.user || '');
   const provided = identity_token || authorization_code || (userHint ? `sim-${userHint}` : null);
   if (!provided) return res.status(400).json({ error: 'Missing token' });
-  const token = 'dev-apple-' + Math.random().toString(36).slice(2, 10);
+  const token = DEV_APPLE_TOKEN_PREFIX + crypto.randomBytes(12).toString('hex');
   const user = {
-    id: 'dev-apple-user',
-    email: process.env.MOCK_APPLE_EMAIL || 'appleuser@example.com',
-    display_name: 'Apple User',
+    id: envOrDefault('MOCK_APPLE_USER_ID', () => `dev-apple-${crypto.randomBytes(4).toString('hex')}`),
+    email: envOrDefault('MOCK_APPLE_EMAIL', () => `apple_${crypto.randomBytes(6).toString('hex')}@example.invalid`),
+    display_name: envOrDefault('MOCK_APPLE_NAME', () => 'Apple User'),
     avatar_url: null,
   };
   TOKENS.set(token, user);

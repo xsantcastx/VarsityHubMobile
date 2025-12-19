@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform } from 'react-native';
 
 export interface DeviceLocation {
@@ -32,40 +32,18 @@ export function useDeviceLocation(): UseDeviceLocationResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
   const [accuracyMeters, setAccuracyMeters] = useState<number | null>(null);
+  const lastFetchTimeRef = useRef(0);
+  const locationRef = useRef<DeviceLocation | null>(null);
 
   const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutes
   const PRECISION_THRESHOLD = 200; // meters; >200 == approximate on Android
 
-  const requestPermission = async (): Promise<boolean> => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      const granted = status === 'granted';
-      setPermissionGranted(granted);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
 
-      if (!granted) {
-        setError('Location permission denied');
-        setLoading(false);
-        setAccuracyMeters(null);
-        return false;
-      }
-
-      setError(null);
-      setAccuracyMeters(null);
-      await fetchLocation();
-      return true;
-    } catch (e: any) {
-      const errMsg = e?.message || 'Failed to request location permission';
-      setError(errMsg);
-      setPermissionGranted(false);
-      setLoading(false);
-      setAccuracyMeters(null);
-      return false;
-    }
-  };
-
-  const assignLocation = (coords: Location.LocationObjectCoords, timestamp?: number) => {
+  const assignLocation = useCallback((coords: Location.LocationObjectCoords, timestamp?: number) => {
     const loc: DeviceLocation = {
       latitude: coords.latitude,
       longitude: coords.longitude,
@@ -74,16 +52,17 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     };
     setLocation(loc);
     setAccuracyMeters(typeof coords.accuracy === 'number' ? coords.accuracy : null);
-  };
+    locationRef.current = loc;
+  }, []);
 
-  const fetchLocation = async () => {
+  const fetchLocation = useCallback(async (options?: { force?: boolean }) => {
     try {
       setLoading(true);
       setError(null);
 
       // Check cache first
       const now = Date.now();
-      if (location && now - lastFetchTime < CACHE_DURATION_MS) {
+      if (!options?.force && locationRef.current && now - lastFetchTimeRef.current < CACHE_DURATION_MS) {
         setLoading(false);
         return;
       }
@@ -93,7 +72,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
       if (lastKnown?.coords && (now - (lastKnown.timestamp || 0)) < 30 * 60 * 1000) {
         // Last known is less than 30 minutes old
         assignLocation(lastKnown.coords, lastKnown.timestamp);
-        setLastFetchTime(now);
+        lastFetchTimeRef.current = now;
         setLoading(false);
         return;
       }
@@ -105,7 +84,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
 
       if (fresh?.coords) {
         assignLocation(fresh.coords, fresh.timestamp);
-        setLastFetchTime(now);
+        lastFetchTimeRef.current = now;
         setError(null);
       }
     } catch (e: any) {
@@ -115,7 +94,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     } finally {
       setLoading(false);
     }
-  };
+  }, [CACHE_DURATION_MS, assignLocation]);
 
   // Check permissions on mount
   useEffect(() => {
@@ -138,6 +117,34 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     })();
   }, [fetchLocation]);
 
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      const granted = status === 'granted';
+      setPermissionGranted(granted);
+
+      if (!granted) {
+        setError('Location permission denied');
+        setLoading(false);
+        setAccuracyMeters(null);
+        return false;
+      }
+
+      setError(null);
+      setAccuracyMeters(null);
+      lastFetchTimeRef.current = 0;
+      await fetchLocation({ force: true });
+      return true;
+    } catch (e: any) {
+      const errMsg = e?.message || 'Failed to request location permission';
+      setError(errMsg);
+      setPermissionGranted(false);
+      setLoading(false);
+      setAccuracyMeters(null);
+      return false;
+    }
+  }, [fetchLocation]);
+
   const openSettings = async () => {
     if (typeof Linking.openSettings !== 'function') return;
     try {
@@ -147,10 +154,10 @@ export function useDeviceLocation(): UseDeviceLocationResult {
     }
   };
 
-  const refresh = async () => {
-    setLastFetchTime(0); // Clear cache
-    await fetchLocation();
-  };
+  const refresh = useCallback(async () => {
+    lastFetchTimeRef.current = 0; // Clear cache
+    await fetchLocation({ force: true });
+  }, [fetchLocation]);
 
   const isPrecise = accuracyMeters == null ? true : accuracyMeters <= PRECISION_THRESHOLD;
   const needsPreciseAccuracy = Platform.OS === 'android' && permissionGranted === true && !isPrecise;

@@ -337,6 +337,7 @@ export default function CreatePostScreen() {
     try {
       // Ensure user is authenticated
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
+      
       let finalMediaUrl = '';
       if (picked?.uri) {
         const { getApiBaseUrl } = await import('../api/http');
@@ -357,7 +358,49 @@ export default function CreatePostScreen() {
       };
       if (selectedGameId) {
         payload.game_id = selectedGameId;
+        // Also send as event_id for server-side geofencing verification
+        payload.event_id = selectedGameId;
       }
+      
+      // CRITICAL: Verify user is physically at the event location
+      if (selectedGameId && suggestedGame) {
+        if (!locationPayload.lat || !locationPayload.lng) {
+          throw new Error('Location access is required to post to an event. Enable location permissions in Settings.');
+        }
+        
+        // Calculate distance from user to event
+        const userLat = locationPayload.lat;
+        const userLng = locationPayload.lng;
+        const eventLat = suggestedGame.latitude;
+        const eventLng = suggestedGame.longitude;
+        
+        if (typeof eventLat !== 'number' || typeof eventLng !== 'number') {
+          throw new Error('Event location data is unavailable. You can still post to your profile.');
+        }
+        
+        // Haversine distance formula (meters)
+        const toRad = (deg: number) => (deg * Math.PI) / 180;
+        const R = 6371000; // Earth radius in meters
+        const dLat = toRad(eventLat - userLat);
+        const dLng = toRad(eventLng - userLng);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(toRad(userLat)) * Math.cos(toRad(eventLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceMeters = R * c;
+        const distanceKm = distanceMeters / 1000;
+        
+        // Only allow uploads within 5km (3 miles) of event
+        const MAX_DISTANCE_KM = 5;
+        if (distanceKm > MAX_DISTANCE_KM) {
+          throw new Error(
+            `You are ${distanceKm.toFixed(1)}km away from the event.\n\n` +
+            `To maintain authentic, in-game content, you can only post to an event if you're within ${MAX_DISTANCE_KM}km of it.\n\n` +
+            `You can still post to your profile without this restriction.`
+          );
+        }
+      }
+      
       // Require event link for highlight posts to ensure they surface on the event page
       if (postType === 'highlight' && !payload.game_id) {
         throw new Error('Please attach an event to share a highlight.');
@@ -944,7 +987,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   swipeOptionActiveReview: {
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.light.danger,
     borderColor: '#DC2626',
     shadowColor: '#DC2626',
     shadowOpacity: 0.18,

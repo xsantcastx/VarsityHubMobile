@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
@@ -473,7 +474,7 @@ export default function AdminReportsScreen() {
                     <Text style={[styles.bulkActionBtnText, { color: 'white' }]}>Dismiss</Text>
                   </Pressable>
                   <Pressable 
-                    style={[styles.bulkActionBtn, { backgroundColor: '#EF4444' }]} 
+                    style={[styles.bulkActionBtn, { backgroundColor: Colors.dark.danger }]} 
                     onPress={bulkDelete}
                   >
                     <Text style={[styles.bulkActionBtnText, { color: 'white' }]}>Delete</Text>

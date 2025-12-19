@@ -545,7 +545,7 @@ export default function CreateTeamScreen() {
                 </Pressable>
                 {logoUri && (
                   <Pressable 
-                    style={[styles.logoActionButton, { backgroundColor: '#EF4444' }]}
+                    style={[styles.logoActionButton, { backgroundColor: Colors.dark.danger }]}
                     onPress={() => setLogoUri(null)}
                   >
                     <Ionicons name="trash-outline" size={20} color="#fff" />
@@ -705,7 +705,7 @@ export default function CreateTeamScreen() {
                 {description.length}/500
               </Text>
             </View>
-            <View style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border }]}>
+            <View style={[styles.textAreaContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? Colors[colorScheme].danger : Colors[colorScheme].border }]}>
               <TextInput
                 value={description}
                 onChangeText={(text) => {

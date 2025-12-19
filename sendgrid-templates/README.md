@@ -11,30 +11,7 @@ Upload each HTML file into its matching SendGrid Dynamic Template.
 5) Save & publish
 
 ## Export Summary
-- [ ] Verification Email (SENDGRID_VERIFICATION_TEMPLATE_ID) → sendgrid-templates/verification-email.html
-- [ ] Password Reset (SENDGRID_PASSWORD_RESET_TEMPLATE_ID) → sendgrid-templates/password-reset.html
-- [ ] Password Changed (SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID) → sendgrid-templates/password-changed.html
-- [ ] Account Recovery (SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID) → sendgrid-templates/account-recovery.html
-- [ ] Login From New Device (SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID) → sendgrid-templates/login-from-new-device.html
-- [ ] Report Resolved (SENDGRID_REPORT_RESOLVED_TEMPLATE_ID) → sendgrid-templates/report-resolved.html
-- [ ] Report Dismissed (SENDGRID_REPORT_DISMISSED_TEMPLATE_ID) → sendgrid-templates/report-dismissed.html
-- [ ] Account Warning (SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID) → sendgrid-templates/account-warning.html
-- [ ] Content Removed (SENDGRID_CONTENT_REMOVED_TEMPLATE_ID) → sendgrid-templates/content-removed.html
-- [ ] Account Suspension 7 Days (SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID) → sendgrid-templates/account-suspension-7-days.html
-- [ ] Permanent Ban (SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID) → sendgrid-templates/permanent-ban.html
-- [ ] Event Submission Received (SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID) → sendgrid-templates/event-submission-received.html
-- [ ] Event Approved (SENDGRID_EVENT_APPROVED_TEMPLATE_ID) → sendgrid-templates/event-approved.html
-- [ ] Event Denied (SENDGRID_EVENT_DENIED_TEMPLATE_ID) → sendgrid-templates/event-denied.html
-- [ ] Event Reminder (SENDGRID_EVENT_REMINDER_TEMPLATE_ID) → sendgrid-templates/event-reminder.html
-- [ ] Event Updated (SENDGRID_EVENT_UPDATED_TEMPLATE_ID) → sendgrid-templates/event-updated.html
-- [ ] Event Canceled (SENDGRID_EVENT_CANCELED_TEMPLATE_ID) → sendgrid-templates/event-canceled.html
-- [ ] Organization Invitation (SENDGRID_ORG_INVITE_TEMPLATE_ID) → sendgrid-templates/organization-invitation.html
-- [ ] Athlete Invitation (SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID) → sendgrid-templates/athlete-invitation.html
-- [ ] Role Assignment (SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID) → sendgrid-templates/role-assignment.html
-- [ ] Roster Threshold (SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID) → sendgrid-templates/roster-threshold.html
-- [ ] Invitation Declined (SENDGRID_INVITATION_DECLINED_TEMPLATE_ID) → sendgrid-templates/invitation-declined.html
-- [ ] Team Roster Update (SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID) → sendgrid-templates/team-roster-update.html
-- [ ] Staff Member Joined (SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID) → sendgrid-templates/staff-member-joined.html
-- [ ] User Confirmation (SENDGRID_USER_CONFIRMATION_TEMPLATE_ID) → sendgrid-templates/user-confirmation.html
-- [ ] Payment Failed (SENDGRID_PAYMENT_FAILED_TEMPLATE_ID) → sendgrid-templates/payment-failed.html
-- [ ] Subscription Expiring (SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID) → sendgrid-templates/subscription-expiring.html
+
+- Full HTML list → see `export-summary.json`
+- Sample payload catalog (for SendGrid/SES previews) → `test-data/all-templates.sample.json`
+- Detailed instructions + curated payloads → `../SENDGRID_JSON_TEST_DATA.md`

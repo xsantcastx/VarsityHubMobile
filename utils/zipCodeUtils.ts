@@ -30,12 +30,15 @@ interface ZipCodeSuggestion {
 }
 
 /**
- * Validates US zip code format
+ * Validates US or international postal code formats.
+ * Accepts 5-digit, ZIP+4, or alphanumeric codes (3-10 chars).
  */
 export function isValidZipCode(zip: string): boolean {
-  // 5-digit or 5+4 format
-  const zipRegex = /^\d{5}(-\d{4})?$/;
-  return zipRegex.test(zip);
+  if (!zip) return false;
+  const trimmed = zip.trim();
+  const usRegex = /^\d{5}(?:-\d{4})?$/;
+  const intlRegex = /^[A-Za-z0-9][A-Za-z0-9\s-]{2,9}$/;
+  return usRegex.test(trimmed) || intlRegex.test(trimmed);
 }
 
 /**
@@ -43,6 +46,24 @@ export function isValidZipCode(zip: string): boolean {
  */
 export function normalizeZipCode(zip: string): string {
   return zip.replace(/[^\d]/g, '').substring(0, 5);
+}
+
+/**
+ * Formats free-form postal code input while keeping useful characters.
+ * - Trims whitespace
+ * - Uppercases letters for alphanumeric codes
+ * - Limits length to 10 characters
+ */
+export function formatPostalCodeInput(value: string): string {
+  if (!value) return '';
+  const sanitized = value.trim().replace(/[^A-Za-z0-9\s-]/g, '');
+  if (!sanitized) return '';
+
+  if (/^\d/.test(sanitized)) {
+    return sanitized.replace(/[^0-9-]/g, '').slice(0, 10);
+  }
+
+  return sanitized.replace(/\s+/g, ' ').toUpperCase().slice(0, 10);
 }
 
 /**

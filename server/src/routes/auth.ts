@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import { verifyAppleToken } from '../lib/appleAuth.js';
 import { debugLog } from '../lib/debugLog.js';
 import {
     isSendGridConfigured,
@@ -13,19 +15,43 @@ import {
     sendUserConfirmationEmail,
     sendVerificationEmail
 } from '../lib/email.js';
-import { verifyAppleToken } from '../lib/appleAuth.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
-// Rate limiting DISABLED for development - allows unlimited login attempts
-const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
 
-function checkAuthRateLimit(identifier: string): boolean {
-  // Always allow - rate limiting disabled
-  return true;
-}
+// Rate limiting for sensitive auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per window
+  message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  keyGenerator: (req) => {
+    // Rate limit by IP + email combination for better accuracy
+    const email = req.body?.email || 'unknown';
+    return `${req.ip}-${email}`;
+  },
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 requests per hour
+  message: { error: 'Too many password reset attempts. Please try again in 1 hour.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.body?.email || req.ip,
+});
+
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // 3 registrations per hour per IP
+  message: { error: 'Too many registration attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
@@ -42,7 +68,7 @@ const registerSchema = z.object({
   role: z.enum(['fan', 'coach']).optional(),
 });
 
-authRouter.post('/register', async (req, res) => {
+authRouter.post('/register', registrationLimiter, async (req, res) => {
   const start = Date.now();
   debugLog('[register] Incoming request');
   const parsed = registerSchema.safeParse(req.body);
@@ -141,16 +167,11 @@ authRouter.post('/register', async (req, res) => {
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', authLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid credentials' });
   const { email, password } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
-  
-  // Rate limiting
-  if (!checkAuthRateLimit(sanitizedEmail)) {
-    return res.status(429).json({ error: 'Too many login attempts. Please try again later.' });
-  }
   
   const user = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
@@ -169,7 +190,8 @@ authRouter.post('/login', async (req, res) => {
                     req.socket.remoteAddress || 
                     'unknown';
   
-  const deviceFingerprint = crypto.createHash('md5')
+  // Use SHA-256 for device fingerprinting (non-cryptographic identity)
+  const deviceFingerprint = crypto.createHash('sha256')
     .update(`${userAgent}|${ipAddress}`)
     .digest('hex');
   
@@ -487,7 +509,7 @@ authRouter.post('/apple', async (req, res) => {
 
 const passwordResetRequestSchema = z.object({ email: z.string().email() });
 
-authRouter.post('/password/forgot', async (req, res) => {
+authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const email = parsed.data.email.trim();
@@ -545,7 +567,7 @@ const passwordResetSchema = z.object({
   password: z.string().min(5),
 });
 
-authRouter.post('/password/reset', async (req, res) => {
+authRouter.post('/password/reset', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;

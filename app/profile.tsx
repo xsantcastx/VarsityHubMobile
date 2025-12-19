@@ -7,6 +7,17 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 type ProfilePreferences = {
   role?: string | null;
@@ -22,17 +33,6 @@ type ProfilePreferences = {
   header_image_focus_y?: number | null;
   location?: string | null;
 };
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: '#f59e0b',
+    backgroundColor: Colors.light.warning,
     gap: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -1054,7 +1054,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   coachBadge: { backgroundColor: '#1d4ed8' },
-  playerBadge: { backgroundColor: '#dc2626' },
+  playerBadge: { backgroundColor: Colors.light.danger },
   fanBadge: { backgroundColor: '#7c3aed' },
   roleText: {
     color: '#ffffff',

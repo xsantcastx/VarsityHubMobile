@@ -247,11 +247,9 @@ export default function EventMap({
             </Text>
             <View style={styles.emptyStateHints}>
               <View style={styles.hint}>
-                <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
                 <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Create games with locations</Text>
               </View>
               <View style={styles.hint}>
-                <Ionicons name="information-circle" size={16} color={Colors[colorScheme].tint} />
                 <Text style={[styles.hintText, { color: Colors[colorScheme].mutedText }]}>Follow teams near you</Text>
               </View>
             </View>

@@ -17,7 +17,7 @@ The email sending logic in your VarsityHub app is **NOT working** due to an **in
 **Location:** `server/.env:21`
 
 ```env
-SENDGRID_API_KEY=SG.REDACTED
+SENDGRID_API_KEY=SG.xxxx-redacted-for-security-xxxx
 ```
 
 **Test Result:**
@@ -275,10 +275,7 @@ Response: {"errors":[{"field":null,"message":"unauthorized"}]}
 **File:** `server/.env`
 
 ```bash
-# Replace this line:
-SENDGRID_API_KEY=SG.REDACTED
-
-# With your new key:
+# Replace with your new SendGrid API key from https://app.sendgrid.com/settings/api_keys
 SENDGRID_API_KEY=SG.your-new-api-key-here
 ```
 

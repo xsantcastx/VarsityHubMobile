@@ -8,6 +8,9 @@ on:
 jobs:
   migrate-and-seed:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
     services:
       postgres:
         image: postgres:15
@@ -32,7 +35,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install Postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install server dependencies
         run: npm ci
 
       - name: Setup Prisma
@@ -54,7 +60,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/varsityhub
           SEED_PASSWORD: ci
-        run: node prisma/seed.ts
+        run: npx tsx prisma/seed.ts
 
       - name: Verify Schema
         env:

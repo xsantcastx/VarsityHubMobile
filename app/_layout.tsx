@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
@@ -139,7 +140,7 @@ export default function RootLayout() {
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
         <ActivityIndicator />
       </View>
     );

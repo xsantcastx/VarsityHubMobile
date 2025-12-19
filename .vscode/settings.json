@@ -21,5 +21,14 @@
   "react-native-tools.projectRoot": ".",
   // General TypeScript/ESLint
   "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "python.testing.unittestArgs": [
+    "-v",
+    "-s",
+    "./test-results",
+    "-p",
+    "*test.py"
+  ],
+  "python.testing.pytestEnabled": false,
+  "python.testing.unittestEnabled": true
 }

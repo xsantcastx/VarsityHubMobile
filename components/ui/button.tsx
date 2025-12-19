@@ -1,5 +1,6 @@
+import { Colors } from '@/constants/Colors';
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextStyle, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, TextStyle, ViewStyle, useColorScheme } from 'react-native';
 
 type Variant = 'default' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg' | 'icon';
@@ -23,12 +24,13 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
+  const colorScheme = useColorScheme() ?? 'light';
   const vs = getVariantStyles(variant);
   const ss = getSizeStyles(size);
   const content = React.Children.map(children, (child) => {
     if (typeof child === 'string' || typeof child === 'number') {
       return (
-        <Text style={[styles.text, vs.text, ss.text, textStyle]}>{String(child)}</Text>
+        <Text style={[styles.text, vs.text(colorScheme), ss.text, textStyle]}>{String(child)}</Text>
       );
     }
     return child;
@@ -38,7 +40,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.base, vs.container, ss.container, disabled && styles.disabled, style]}
+      style={[styles.base, vs.container(colorScheme), ss.container, disabled && styles.disabled, style]}
     >
       {content}
     </Pressable>
@@ -61,11 +63,20 @@ const styles = StyleSheet.create({
 function getVariantStyles(variant: Variant) {
   switch (variant) {
     case 'outline':
-      return { container: { backgroundColor: 'transparent', borderColor: '#D1D5DB' }, text: { color: '#111827' } };
+      return { 
+        container: (cs: 'light'|'dark') => ({ backgroundColor: 'transparent', borderColor: Colors[cs].border }), 
+        text: (cs: 'light'|'dark') => ({ color: Colors[cs].text }) 
+      };
     case 'ghost':
-      return { container: { backgroundColor: 'transparent', borderColor: 'transparent' }, text: { color: '#111827' } };
+      return { 
+        container: () => ({ backgroundColor: 'transparent', borderColor: 'transparent' }), 
+        text: (cs: 'light'|'dark') => ({ color: Colors[cs].tint }) 
+      };
     default:
-      return { container: { backgroundColor: '#111827', borderColor: '#111827' }, text: { color: 'white' } };
+      return { 
+        container: (cs: 'light'|'dark') => ({ backgroundColor: Colors[cs].tint, borderColor: Colors[cs].tint }), 
+        text: () => ({ color: 'white' }) 
+      };
   }
 }
 

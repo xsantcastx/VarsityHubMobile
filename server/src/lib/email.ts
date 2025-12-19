@@ -1,4 +1,6 @@
-import sgMail from '@sendgrid/mail';
+import sgMail, { MailDataRequired } from '@sendgrid/mail';
+import fs from 'node:fs';
+import path from 'node:path';
 import { debugLog } from './debugLog.js';
 
 // RFC-ish email validation used by tests and runtime guards
@@ -22,11 +24,47 @@ export function sanitizeInput(input: unknown): string {
     .replace(/\s+/g, ' ');
 }
 
-// Initialize SendGrid
+// Initialize SendGrid / Provider selection
 
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
+const SENDGRID_API_KEY: string | undefined = process.env.SENDGRID_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const EMAIL_PROVIDER = (process.env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+
+function isMockProvider(): boolean {
+  return EMAIL_PROVIDER === 'mock';
+}
+
+function ensureOutboxDir(): string {
+  const outbox = path.resolve(process.cwd(), '.outbox');
+  if (!fs.existsSync(outbox)) fs.mkdirSync(outbox, { recursive: true });
+  return outbox;
+}
+
+async function writeMockEmail(entry: {
+  label: string;
+  to: string;
+  templateId?: string;
+  dynamicTemplateData?: Record<string, any>;
+  raw?: any;
+}) {
+  const outbox = ensureOutboxDir();
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeLabel = entry.label.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
+  const file = path.join(outbox, `${ts}__${safeLabel}.json`);
+  const payload = {
+    provider: 'mock',
+    from: EMAIL_FROM,
+    to: entry.to,
+    label: entry.label,
+    templateId: entry.templateId || null,
+    dynamicTemplateData: entry.dynamicTemplateData || null,
+    raw: entry.raw || null,
+  };
+  fs.writeFileSync(file, JSON.stringify(payload, null, 2), 'utf8');
+  console.warn(`📥 [email:mock] wrote ${entry.label} for ${entry.to} -> ${file}`);
+  return true;
+}
 
 const TEMPLATE_IDS = {
   // Auth & Security
@@ -103,12 +141,43 @@ const TEMPLATE_IDS = {
 type TemplateKey = keyof typeof TEMPLATE_IDS;
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = ['VERIFICATION', 'PASSWORD_RESET', 'PASSWORD_CHANGED', 'ACCOUNT_RECOVERY'];
 
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-}
+// Note: API key is set during initEmailService() to avoid duplicate initialization.
 
 export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
+}
+
+type TemplateData = Record<string, any>;
+
+function normalizeTemplateData(data: TemplateData): TemplateData {
+  const enriched: TemplateData = { ...data };
+  for (const [key, value] of Object.entries(data)) {
+    if (!key.includes('_')) continue;
+    const camelKey = key.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
+    if (!(camelKey in enriched)) {
+      enriched[camelKey] = value;
+    }
+  }
+  return enriched;
+}
+
+async function sendMail(mail: MailDataRequired | MailDataRequired[]) {
+  const normalizeEntry = (entry: MailDataRequired): MailDataRequired => {
+    if (entry.dynamicTemplateData && typeof entry.dynamicTemplateData === 'object') {
+      return {
+        ...entry,
+        dynamicTemplateData: normalizeTemplateData(entry.dynamicTemplateData as TemplateData),
+      };
+    }
+    return entry;
+  };
+
+  if (Array.isArray(mail)) {
+    const normalized = mail.map(normalizeEntry);
+    return sgMail.send(normalized);
+  }
+
+  return sgMail.send(normalizeEntry(mail));
 }
 
 async function sendTemplateEmail(
@@ -117,6 +186,10 @@ async function sendTemplateEmail(
   to: string,
   dynamicTemplateData: Record<string, any>
 ): Promise<boolean> {
+  if (isMockProvider()) {
+    return writeMockEmail({ label, to, templateId: TEMPLATE_IDS[templateKey], dynamicTemplateData });
+  }
+
   if (!SENDGRID_API_KEY) {
     console.warn(`[email] SendGrid API key not configured; cannot send ${label}`);
     return false;
@@ -127,7 +200,7 @@ async function sendTemplateEmail(
     return false;
   }
   try {
-    await sgMail.send({
+    await sendMail({
       to,
       from: EMAIL_FROM,
       templateId,
@@ -146,12 +219,19 @@ export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMP
 }
 
 export function initEmailService() {
-  if (!SENDGRID_API_KEY) {
+  if (isMockProvider()) {
+    const outbox = ensureOutboxDir();
+    console.warn(`📬 EMAIL_PROVIDER=mock active. Emails will be written to ${outbox}`);
+    return;
+  }
+
+  if (!process.env.SENDGRID_API_KEY) {
     console.warn('⚠️ SENDGRID_API_KEY not set - emails will not be sent');
     return;
   }
 
-  sgMail.setApiKey(SENDGRID_API_KEY);
+  // Read API key directly from env at init to avoid module-level constant issues
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
   const missing = getMissingEmailTemplates();
   if (missing.length) {
     console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
@@ -169,6 +249,16 @@ export async function sendPasswordResetEmail(
   resetLink?: string,
   expiresInLabel: string = '1 hour'
 ): Promise<boolean> {
+  if (isMockProvider()) {
+    const link = resetLink || `varsityhubmobile://reset/${encodeURIComponent(code)}`;
+    return writeMockEmail({
+      label: 'password reset',
+      to: email,
+      templateId: TEMPLATE_IDS.PASSWORD_RESET,
+      dynamicTemplateData: { name: userName || 'VarsityHub member', resetLink: link, expiresIn: expiresInLabel, code },
+    });
+  }
+
   if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PASSWORD_RESET) {
     console.warn('[email] SendGrid password reset template not configured');
     return false;
@@ -178,7 +268,7 @@ export async function sendPasswordResetEmail(
   const link = resetLink || `varsityhubmobile://reset/${encodeURIComponent(code)}`;
 
   try {
-    await sgMail.send({
+    await sendMail({
       to: email,
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.PASSWORD_RESET,
@@ -202,13 +292,26 @@ export async function sendPasswordChangedEmail(
   userName?: string,
   changeDate?: string
 ): Promise<boolean> {
+  if (isMockProvider()) {
+    return writeMockEmail({
+      label: 'password changed',
+      to: email,
+      templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
+      dynamicTemplateData: {
+        name: userName || 'VarsityHub member',
+        date: changeDate || new Date().toLocaleString('en-US', chicagoTimeFormat),
+        email,
+      },
+    });
+  }
+
   if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PASSWORD_CHANGED) {
     console.warn('[email] SendGrid password changed template not configured');
     return false;
   }
 
   try {
-    await sgMail.send({
+    await sendMail({
       to: email,
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
@@ -231,13 +334,28 @@ export async function sendAccountRecoveryEmail(
   userName?: string,
   recoveryDate?: string
 ): Promise<boolean> {
+  if (isMockProvider()) {
+    return writeMockEmail({
+      label: 'account recovery',
+      to: email,
+      templateId: TEMPLATE_IDS.ACCOUNT_RECOVERY,
+      dynamicTemplateData: {
+        USERNAME: userName || 'VarsityHub member',
+        ACCOUNT_EMAIL: email,
+        RECOVERY_DATE: recoveryDate || new Date().toLocaleString('en-US', chicagoTimeFormat),
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+      },
+    });
+  }
+
   if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ACCOUNT_RECOVERY) {
     console.warn('[email] SendGrid account recovery template not configured');
     return false;
   }
 
   try {
-    await sgMail.send({
+    await sendMail({
       to: email,
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.ACCOUNT_RECOVERY,
@@ -508,7 +626,7 @@ export async function sendOrganizationInvitationEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -553,7 +671,7 @@ export async function sendTeamInvitationEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -604,7 +722,7 @@ export async function sendAthleteInvitationEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -649,7 +767,7 @@ export async function sendRoleAssignmentEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -693,7 +811,7 @@ export async function sendRosterThresholdEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -739,7 +857,7 @@ export async function sendInvitationDeclinedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -786,7 +904,7 @@ export async function sendTeamRosterUpdateEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -828,7 +946,7 @@ export async function sendUserConfirmationEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -871,7 +989,7 @@ export async function sendMemberRemovedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -919,7 +1037,7 @@ export async function sendPaymentFailedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -970,7 +1088,7 @@ export async function sendReportResolutionEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1020,7 +1138,7 @@ export async function sendEventSubmissionReceivedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1070,7 +1188,7 @@ export async function sendEventApprovedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1119,7 +1237,7 @@ export async function sendEventDeniedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1169,7 +1287,7 @@ export async function sendEventReminderEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1222,7 +1340,7 @@ export async function sendEventUpdatedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1275,7 +1393,7 @@ export async function sendEventCanceledEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1343,7 +1461,7 @@ export async function sendAccountWarningEmail(params: {
     const communityGuidelinesUrl = params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy';
     const privacyPolicyUrl = params.privacyPolicyUrl || 'https://limeprod.com/VarsityHubPrivacy';
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1394,7 +1512,7 @@ export async function sendContentRemovedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1448,31 +1566,21 @@ export async function sendAccountSuspensionEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
       dynamicTemplateData: {
         user_name: params.userName,
-        userName: params.userName,
         report_id: params.reportId,
-        reportId: params.reportId,
         violation_type: params.violationType,
-        violationType: params.violationType,
         suspension_days: params.suspensionDays,
-        suspensionDays: params.suspensionDays,
         suspension_duration: `${params.suspensionDays} days`,
-        suspensionDuration: `${params.suspensionDays} days`,
         suspension_date: params.suspensionDate,
-        suspensionDate: params.suspensionDate,
         reinstatement_date: params.reinstatementDate,
-        reinstatementDate: params.reinstatementDate,
         suspension_reason: params.suspensionReason,
-        suspensionReason: params.suspensionReason,
         report_type: params.violationType,
-        reportType: params.violationType,
         appeal_url: params.appealUrl,
-        appealUrl: params.appealUrl,
         community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
         privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
         logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
@@ -1507,7 +1615,7 @@ export async function sendAccountPermanentBanEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1569,31 +1677,21 @@ export async function sendEventRsvpConfirmedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
       dynamicTemplateData: {
         user_name: params.userName,
-        userName: params.userName,
         event_name: params.eventName,
-        eventName: params.eventName,
         event_date: params.eventDate,
-        eventDate: params.eventDate,
         event_time: params.eventTime,
-        eventTime: params.eventTime,
         event_location: params.eventLocation,
-        eventLocation: params.eventLocation,
         rsvp_confirmed_at: params.rsvpConfirmedAt,
-        rsvpConfirmedAt: params.rsvpConfirmedAt,
         organization_name: params.organizationName,
-        organizationName: params.organizationName,
         event_detail_link: params.eventDetailLink,
-        eventDetailLink: params.eventDetailLink,
         calendar_link: params.calendarLink,
-        calendarLink: params.calendarLink,
         cancel_rsvp_link: params.cancelRsvpLink,
-        cancelRsvpLink: params.cancelRsvpLink,
         privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
         community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
         logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
@@ -1904,7 +2002,7 @@ export async function sendLoginFromNewDeviceEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -1957,7 +2055,7 @@ export async function sendStaffMemberJoinedEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,
@@ -2009,7 +2107,7 @@ export async function sendSubscriptionExpiringEmail(params: {
       return false;
     }
 
-    await sgMail.send({
+    await sendMail({
       to: params.to,
       from: EMAIL_FROM,
       templateId,

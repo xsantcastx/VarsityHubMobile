@@ -231,7 +231,7 @@ async function main() {
   // --- Organization: Westhill High School ---
   // Creates a preset organization page for Westhill High School
   const westhill = await prisma.organization.upsert({
-    where: { name: 'Westhill High School' },
+    where: { name_zip_code: { name: 'Westhill High School', zip_code: '06902' } },
     update: {
       description: 'Westhill High School Athletics',
       sport: 'multi-sport',
@@ -239,6 +239,7 @@ async function main() {
       location: 'Stamford, CT',
       formatted_address: 'Westhill High School, Stamford, CT 06902, USA',
       zip_code: '06902',
+      place_id: 'place-westhill-high',
     },
     create: {
       name: 'Westhill High School',
@@ -248,6 +249,7 @@ async function main() {
       location: 'Stamford, CT',
       formatted_address: 'Westhill High School, Stamford, CT 06902, USA',
       zip_code: '06902',
+      place_id: 'place-westhill-high',
       status: 'active' as any,
     }
   });
@@ -263,7 +265,7 @@ async function main() {
 
   // --- Organization: Greenwich High School ---
   const greenwich = await prisma.organization.upsert({
-    where: { name: 'Greenwich High School' },
+    where: { name_zip_code: { name: 'Greenwich High School', zip_code: '06830' } },
     update: {
       description: 'Greenwich High School Cardinals Athletics',
       sport: 'multi-sport',
@@ -271,6 +273,7 @@ async function main() {
       location: 'Greenwich, CT',
       formatted_address: 'Greenwich High School, Greenwich, CT 06830, USA',
       zip_code: '06830',
+      place_id: 'place-greenwich-high',
     },
     create: {
       name: 'Greenwich High School',
@@ -280,6 +283,7 @@ async function main() {
       location: 'Greenwich, CT',
       formatted_address: 'Greenwich High School, Greenwich, CT 06830, USA',
       zip_code: '06830',
+      place_id: 'place-greenwich-high',
       status: 'active' as any,
     }
   });
@@ -294,7 +298,7 @@ async function main() {
 
   // --- Organization: Stamford Youth Soccer Club ---
   const stamfordSoccer = await prisma.organization.upsert({
-    where: { name: 'Stamford Youth Soccer Club' },
+    where: { name_zip_code: { name: 'Stamford Youth Soccer Club', zip_code: '06901' } },
     update: {
       description: 'Competitive youth soccer for ages 6-18 in Stamford area',
       sport: 'soccer',
@@ -302,6 +306,7 @@ async function main() {
       location: 'Stamford, CT',
       formatted_address: 'Stamford, CT 06901, USA',
       zip_code: '06901',
+      place_id: 'place-stamford-youth-soccer',
     },
     create: {
       name: 'Stamford Youth Soccer Club',
@@ -311,6 +316,7 @@ async function main() {
       location: 'Stamford, CT',
       formatted_address: 'Stamford, CT 06901, USA',
       zip_code: '06901',
+      place_id: 'place-stamford-youth-soccer',
       status: 'active' as any,
     }
   });
@@ -325,7 +331,7 @@ async function main() {
 
   // --- Organization: Darien High School ---
   const darien = await prisma.organization.upsert({
-    where: { name: 'Darien High School' },
+    where: { name_zip_code: { name: 'Darien High School', zip_code: '06820' } },
     update: {
       description: 'Darien High School Blue Wave Athletics',
       sport: 'multi-sport',
@@ -333,6 +339,7 @@ async function main() {
       location: 'Darien, CT',
       formatted_address: 'Darien High School, Darien, CT 06820, USA',
       zip_code: '06820',
+      place_id: 'place-darien-high',
     },
     create: {
       name: 'Darien High School',
@@ -342,6 +349,7 @@ async function main() {
       location: 'Darien, CT',
       formatted_address: 'Darien High School, Darien, CT 06820, USA',
       zip_code: '06820',
+      place_id: 'place-darien-high',
       status: 'active' as any,
     }
   });
@@ -356,7 +364,7 @@ async function main() {
 
   // --- Organization: New Canaan Baseball League ---
   const newCanaanBaseball = await prisma.organization.upsert({
-    where: { name: 'New Canaan Baseball League' },
+    where: { name_zip_code: { name: 'New Canaan Baseball League', zip_code: '06840' } },
     update: {
       description: 'Community baseball league for youth ages 5-14',
       sport: 'baseball',
@@ -364,6 +372,7 @@ async function main() {
       location: 'New Canaan, CT',
       formatted_address: 'New Canaan, CT 06840, USA',
       zip_code: '06840',
+      place_id: 'place-newcanaan-baseball',
     },
     create: {
       name: 'New Canaan Baseball League',
@@ -373,6 +382,7 @@ async function main() {
       location: 'New Canaan, CT',
       formatted_address: 'New Canaan, CT 06840, USA',
       zip_code: '06840',
+      place_id: 'place-newcanaan-baseball',
       status: 'active' as any,
     }
   });
@@ -387,7 +397,7 @@ async function main() {
 
   // --- Organization: Fairfield Prep ---
   const fairfieldPrep = await prisma.organization.upsert({
-    where: { name: 'Fairfield College Preparatory School' },
+    where: { name_zip_code: { name: 'Fairfield College Preparatory School', zip_code: '06824' } },
     update: {
       description: 'Fairfield Prep Jesuits Athletics',
       sport: 'multi-sport',
@@ -395,6 +405,7 @@ async function main() {
       location: 'Fairfield, CT',
       formatted_address: 'Fairfield College Preparatory School, Fairfield, CT 06824, USA',
       zip_code: '06824',
+      place_id: 'place-fairfield-prep',
     },
     create: {
       name: 'Fairfield College Preparatory School',
@@ -404,6 +415,7 @@ async function main() {
       location: 'Fairfield, CT',
       formatted_address: 'Fairfield College Preparatory School, Fairfield, CT 06824, USA',
       zip_code: '06824',
+      place_id: 'place-fairfield-prep',
       status: 'active' as any,
     }
   });
@@ -418,7 +430,7 @@ async function main() {
 
   // --- Organization: Norwalk Youth Hockey ---
   const norwalkHockey = await prisma.organization.upsert({
-    where: { name: 'Norwalk Youth Hockey Association' },
+    where: { name_zip_code: { name: 'Norwalk Youth Hockey Association', zip_code: '06850' } },
     update: {
       description: 'Youth hockey programs serving Norwalk and surrounding communities',
       sport: 'hockey',
@@ -426,6 +438,7 @@ async function main() {
       location: 'Norwalk, CT',
       formatted_address: 'Norwalk, CT 06850, USA',
       zip_code: '06850',
+      place_id: 'place-norwalk-hockey',
     },
     create: {
       name: 'Norwalk Youth Hockey Association',
@@ -435,6 +448,7 @@ async function main() {
       location: 'Norwalk, CT',
       formatted_address: 'Norwalk, CT 06850, USA',
       zip_code: '06850',
+      place_id: 'place-norwalk-hockey',
       status: 'active' as any,
     }
   });

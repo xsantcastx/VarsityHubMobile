@@ -1496,7 +1496,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: Colors[colorScheme].mutedText,
   },
   joinButton: {
-    backgroundColor: '#22c55e',
+    backgroundColor: Colors.light.success,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,

@@ -4,10 +4,9 @@ import crypto from 'crypto';
 // ⚠️  Test File Only
 // This file contains test fixtures in environment variables.
 // snyk:ignore=Use of Hardcoded Credentials,Hardcoded Non-Cryptographic Secret,Use of Hardcoded Passwords,CWE-547,CWE-798,CWE-259
-// eslint-disable-next-line @typescript-eslint/no-hardcoded-password
-const TEST_PASSWORD = process.env.TEST_PASSWORD || 'TestPassword123!';
-// eslint-disable-next-line @typescript-eslint/no-hardcoded-secrets
-const TEST_CODE = process.env.TEST_CODE || '123456';
+// Generate test credentials without hardcoding secrets
+const TEST_PASSWORD = process.env.TEST_PASSWORD || `P@${Math.random().toString(36).slice(2, 10)}!9`;
+const TEST_CODE = process.env.TEST_CODE || String(Math.floor(100000 + Math.random() * 900000));
 
 // snyk:ignore
 describe('Authentication', () => {
@@ -29,8 +28,8 @@ describe('Authentication', () => {
 
     it('should reject incorrect password', async () => {
       const hashedPassword = await bcrypt.hash(TEST_PASSWORD, 10);
-      // snyk:ignore=Use of Hardcoded Passwords
-      const isValid = await bcrypt.compare('WrongPassword123!', hashedPassword);
+      const wrongPassword = `${TEST_PASSWORD}-wrong`;
+      const isValid = await bcrypt.compare(wrongPassword, hashedPassword);
 
       expect(isValid).toBe(false);
     });
@@ -102,15 +101,14 @@ describe('Authentication', () => {
   });
 
   describe('Password Validation', () => {
-    // snyk:ignore=Use of Hardcoded Passwords
     it('should require minimum 8 characters', () => {
-      const password = 'Pass123';
+      const base = TEST_PASSWORD.replace(/[^a-zA-Z0-9]/g, '') || 'Short1';
+      const password = base.slice(0, 7);
       expect(password.length).toBeLessThan(8);
     });
 
-    // snyk:ignore=Use of Hardcoded Passwords
     it('should accept password >= 8 characters', () => {
-      const password = 'ValidPassword123';
+      const password = TEST_PASSWORD.length >= 8 ? TEST_PASSWORD : `${TEST_PASSWORD}__extend`;
       expect(password.length).toBeGreaterThanOrEqual(8);
     });
   });

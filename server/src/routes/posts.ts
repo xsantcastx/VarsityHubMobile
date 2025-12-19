@@ -213,10 +213,10 @@ const createPostSchema = z
     path: ['content'],
   });
 
+import { debugLog } from '../lib/debugLog.js';
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
-import { debugLog } from '../lib/debugLog.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -246,13 +246,17 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       country_code = rev.country_code || preferCountry;
       admin1 = rev.admin_area || null;
       place_name = rev.place_name || null;
-    } catch {}
+    } catch (e) {
+      console.warn('[posts] Reverse geocoding failed, using fallback:', e);
+    }
   } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
     try {
       const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
       const gg = await geocodeZip(zip, preferCountry);
       lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
-    } catch {}
+    } catch (e) {
+      console.warn('[posts] Zip code geocoding failed, using fallback:', e);
+    }
   } else {
     country_code = preferCountry || null;
   }

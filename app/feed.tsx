@@ -516,18 +516,18 @@ export default function FeedScreen() {
         style={{
           padding: 10,
           borderRadius: 10,
-          backgroundColor: '#FEF9C3',
+          backgroundColor: Colors[colorScheme].surface,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: '#FDE68A',
+          borderColor: Colors[colorScheme].border,
           marginBottom: 12,
         }}
       >
-        <Text style={{ color: '#92400E', fontWeight: '700' }}>
+        <Text style={{ color: Colors[colorScheme].text, fontWeight: '700' }}>
           Verify your email to unlock posting and ads. Tap to verify.
         </Text>
       </Pressable>
     );
-  }, [emailVerified, me, router]);
+  }, [emailVerified, me, router, colorScheme]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
@@ -536,7 +536,7 @@ export default function FeedScreen() {
       
       {/* Enhanced header with gradient background and safe area */}
       <LinearGradient
-        colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
+        colors={[Colors[colorScheme].card, Colors[colorScheme].background]}
         style={[styles.headerGradient, { paddingTop: insets.top + 12 }]}
       >
         <View style={styles.headerRow}>
@@ -587,7 +587,7 @@ export default function FeedScreen() {
         <View style={{ marginBottom: 8 }}>
           <Text style={styles.error}>{error}</Text>
           <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
-            <Text style={{ color: '#0a7ea4', fontWeight: '600' }}>Sign in to load personalized feed</Text>
+            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
       )}
@@ -621,9 +621,9 @@ export default function FeedScreen() {
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
       >
-        <Ionicons name="map" size={24} color="#FFFFFF" />
+        <Ionicons name="map" size={24} color={'white'} />
         <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
-        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+        <Ionicons name="chevron-forward" size={20} color={'white'} />
       </Pressable>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>
@@ -1380,7 +1380,7 @@ const styles = StyleSheet.create({
   verticalFeedCaption: { color: '#bfdbfe', fontWeight: '600', fontSize: 12 },
   verticalFeedSubtitle: { color: '#cbd5f5', fontWeight: '600', fontSize: 13 },
   verticalFeedModal: { flex: 1, backgroundColor: '#020617' },
-  alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  alertDot: { position: 'absolute', right: -1, top: -1, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.dark.danger },
   // Menu Modal Styles
   menuModal: { 
     flex: 1,
@@ -1431,7 +1431,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: Colors.dark.danger,
     marginLeft: 4,
   },
   menuContent: {

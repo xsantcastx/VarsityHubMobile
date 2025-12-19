@@ -12,8 +12,13 @@ import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
 import request from 'supertest';
-import { createTestApp } from '../src/__tests__/testApp.js';
+import { createTestApp } from '../src/__tests__/testApp';
 import { prisma as sharedPrisma } from '../src/lib/prisma.js';
+
+const TEST_AUTH_PASSWORD =
+  process.env.TEST_PASSWORD ||
+  `P@${Math.random().toString(36).slice(2, 10)}!9`;
+const makeTestHash = (label: string) => `hash-${label}-${process.pid}`;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipIntegration =
@@ -129,6 +134,10 @@ if (!shouldSkipIntegration) {
 }
 
 describeIntegration('OAuth Sign-In Integration Tests', () => {
+  // Shared test fixtures for OAuth flows
+  const googleToken = process.env.TEST_GOOGLE_VALID_TOKEN || 'valid-google-token';
+  const appleToken = process.env.TEST_APPLE_VALID_TOKEN || 'valid-apple-token';
+
   describe('POST /auth/google', () => {
     it('should create new user with valid Google token', async () => {
       const response = await request(app)
@@ -187,7 +196,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       await prisma.user.create({
         data: {
           email: 'user@gmail.com',
-          password_hash: 'dummy',
+          password_hash: makeTestHash('google-existing'),
           display_name: 'Existing User',
           preferences: { role: 'fan' },
         },
@@ -270,7 +279,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       await prisma.user.create({
         data: {
           email,
-          password_hash: 'dummy',
+          password_hash: makeTestHash('apple-existing'),
           display_name: 'Apple User',
           preferences: { role: 'fan' },
         },
@@ -320,7 +329,6 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
   describe('Account Linking & Email Verification', () => {
     it('should link Google and Apple to same email account', async () => {
       const email = `cross-auth-${Date.now()}@test.com`;
-      const googleToken = 'valid-google-token'; // Uses user@gmail.com
       const appleId = `sim-cross-${Date.now()}`;
 
       // Sign up with email first
@@ -328,7 +336,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
         .post('/auth/register')
         .send({
           email,
-          password: 'password123',
+          password: process.env.TEST_PASSWORD || `P@${Math.random().toString(36).slice(2, 10)}!9`,
           display_name: 'Test User',
         })
         .expect(200);
@@ -349,7 +357,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should set email_verified when signing in with OAuth', async () => {
       const response = await request(app)
         .post('/auth/google')
-        .send({ id_token: 'valid-google-token' })
+        .send({ id_token: googleToken })
         .expect(200);
 
       expect(response.body.user.email_verified).toBe(true);
@@ -365,9 +373,9 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
       const user = await prisma.user.create({
         data: {
           email: `verify-clear-${Date.now()}@test.com`,
-          password_hash: 'dummy',
+          password_hash: makeTestHash('onboarding-user'),
           display_name: 'User',
-          email_verification_code: '123456',
+          email_verification_code: String(Math.floor(100000 + Math.random() * 900000)),
           email_verification_expires: new Date(Date.now() + 3600000),
           preferences: { role: 'fan' },
         },
@@ -392,7 +400,7 @@ describeIntegration('OAuth Sign-In Integration Tests', () => {
     it('should set needs_onboarding to false for new Google user', async () => {
       const response = await request(app)
         .post('/auth/google')
-        .send({ id_token: 'valid-google-token' })
+        .send({ id_token: (process.env.TEST_GOOGLE_VALID_TOKEN || 'valid-google-token') })
         .expect(200);
 
       expect(response.body.needs_onboarding).toBe(false);

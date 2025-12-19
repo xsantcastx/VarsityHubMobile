@@ -336,7 +336,9 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
         prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
-    } catch (e) {}
+    } catch (e) {
+      console.error('[payments] Failed to process free ad reservation:', e);
+    }
     return res.json({ free: true });
   }
   const appScheme = 'varsityhubmobile';
@@ -719,7 +721,9 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
           status = sub.status;
           if (sub.current_period_end) current_period_end = new Date(sub.current_period_end * 1000).toISOString();
-        } catch {}
+        } catch (e) {
+          console.warn('[payments] Failed to retrieve subscription status:', subscriptionId, e);
+        }
       }
     }
 
@@ -911,7 +915,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
     : Number(meta.total_cents || transactionLog?.total_cents || 0) || 0;
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
-  try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
+  try { dates = JSON.parse(String(meta.dates || '[]')); } catch (e) {
+    console.warn('[payments] Failed to parse dates from metadata:', meta.dates, e);
+  }
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,

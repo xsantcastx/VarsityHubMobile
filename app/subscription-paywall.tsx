@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   popularBadge: {
     position: 'absolute',
     top: -8,
-    backgroundColor: '#DC2626',
+    backgroundColor: Colors.light.danger,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,

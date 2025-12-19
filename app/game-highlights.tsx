@@ -1,13 +1,16 @@
+import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
 import { Post as PostApi } from '@/api/entities';
 
 export default function GameHighlightsScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
   const router = useRouter();
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const palette = useMemo(() => Colors[scheme], [scheme]);
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -32,12 +35,12 @@ export default function GameHighlightsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: palette.background }]}>
       <Stack.Screen options={{ 
         title: 'Highlights',
         headerLeft: () => (
           <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <Ionicons name="chevron-back" size={24} color={palette.tint} />
           </Pressable>
         ),
       }} />
@@ -48,21 +51,21 @@ export default function GameHighlightsScreen() {
         numColumns={3}
         renderItem={({ item: _item }) => (
           <Pressable>
-            <View style={styles.cellVideo}>
-              <Ionicons name="play" size={22} color="#fff" />
+            <View style={[styles.cellVideo, { backgroundColor: palette.card, borderColor: palette.border }]}>
+              <Ionicons name="play" size={22} color={palette.text} />
             </View>
           </Pressable>
         )}
         onEndReached={_loadMore}
         onEndReachedThreshold={0.5}
-        ListEmptyComponent={!loading ? <Text style={styles.muted}>No highlights yet.</Text> : null}
+        ListEmptyComponent={!loading ? <Text style={[styles.muted, { color: palette.mutedText }]}>No highlights yet.</Text> : null}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  cellVideo: { width: 110, height: 110, margin: 2, borderRadius: 8, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  muted: { color: '#6b7280', textAlign: 'center', marginTop: 16 },
+  container: { flex: 1 },
+  cellVideo: { width: 110, height: 110, margin: 2, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
+  muted: { textAlign: 'center', marginTop: 16 },
 });

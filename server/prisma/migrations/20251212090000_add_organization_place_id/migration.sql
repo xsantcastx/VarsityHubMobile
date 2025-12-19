@@ -1,6 +1,7 @@
--- AlterTable
-ALTER TABLE "Organization" ADD COLUMN     "formatted_address" TEXT,
-ADD COLUMN     "place_id" TEXT;
+-- AlterTable (idempotent)
+ALTER TABLE "Organization"
+	ADD COLUMN IF NOT EXISTS "formatted_address" TEXT,
+	ADD COLUMN IF NOT EXISTS "place_id" TEXT;
 
--- CreateIndex
-CREATE UNIQUE INDEX "Organization_place_id_key" ON "Organization"("place_id");
+-- CreateIndex (idempotent)
+CREATE UNIQUE INDEX IF NOT EXISTS "Organization_place_id_key" ON "Organization"("place_id");

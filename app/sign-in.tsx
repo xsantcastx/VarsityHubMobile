@@ -192,7 +192,7 @@ export default function SignInScreen() {
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
             {error ? (
-              <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
+              <Text style={[styles.error, { color: palette.tint }]}>{error}</Text>
             ) : null}
 
             {Platform.OS === 'ios' ? (
@@ -207,25 +207,33 @@ export default function SignInScreen() {
 
             {googleReady ? (
               <Pressable
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                style={[
+                  styles.googleButton,
+                  { backgroundColor: palette.card, borderColor: palette.border },
+                  googleLoading && styles.buttonDisabled,
+                ]}
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
               >
-                <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
+                <Ionicons name="logo-google" size={20} color={palette.text} style={styles.googleIcon} />
                 {googleLoading ? (
-                  <ActivityIndicator size="small" color="#4285F4" />
+                  <ActivityIndicator size="small" color={palette.text} />
                 ) : (
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
                 )}
               </Pressable>
             ) : (
               <View
-                style={[styles.googleButton, styles.disabledGoogleButton]}
+                style={[
+                  styles.googleButton,
+                  { backgroundColor: palette.surface, borderColor: palette.border },
+                  styles.buttonDisabled,
+                ]}
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
@@ -352,17 +360,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 8,
-  },
-  disabledGoogleButton: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -373,7 +375,6 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
   },
   appleFallbackButton: {
     height: 44,

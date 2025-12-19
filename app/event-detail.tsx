@@ -1,4 +1,5 @@
 import { BackHeader } from '@/components/ui/BackHeader';
+import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -16,10 +17,11 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const headerBackground = isDark ? '#030712' : '#FFFFFF';
-  const headerText = isDark ? '#F8FAFC' : '#0F172A';
-  const headerBorder = isDark ? '#1F2937' : '#E5E7EB';
+  const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+  const palette = Colors[scheme];
+  const headerBackground = palette.card;
+  const headerText = palette.text;
+  const headerBorder = palette.border;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<EventItem | null>(null);
@@ -178,7 +180,7 @@ export default function EventDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Event Detail', headerShown: false }} />
       <BackHeader 
         title={event?.title || 'Event Detail'}
@@ -195,13 +197,13 @@ export default function EventDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {!id && <Text style={styles.error}>Missing event id.</Text>}
+        {!id && <Text style={[styles.error, { color: palette.tint }]}>Missing event id.</Text>}
         {loading && (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
             <ActivityIndicator />
           </View>
         )}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {error && !loading && <Text style={[styles.error, { color: palette.tint }]}>{error}</Text>}
         {event && !loading && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
@@ -217,36 +219,36 @@ export default function EventDetailScreen() {
               onGoingPress={() => setRsvpSheetVisible(true)}
             />
 
-            <Text style={styles.title}>{event.title || 'Event'}</Text>
+            <Text style={[styles.title, { color: palette.text }]}>{event.title || 'Event'}</Text>
             
             {/* Location with Map Pin */}
             {event.location && (
               <Pressable 
-                style={styles.locationCard}
+                style={[styles.locationCard, { backgroundColor: palette.card, borderColor: palette.border }]}
                 onPress={openInMaps}
               >
-                <View style={styles.locationIconContainer}>
-                  <Ionicons name="location" size={24} color="#EF4444" />
+                <View style={[styles.locationIconContainer, { backgroundColor: palette.surface }]}>
+                  <Ionicons name="location" size={24} color={palette.tint} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.locationLabel}>Location</Text>
-                  <Text style={styles.locationText}>{event.location}</Text>
-                  <Text style={styles.locationHint}>Tap to open in Maps</Text>
+                  <Text style={[styles.locationLabel, { color: palette.mutedText }]}>Location</Text>
+                  <Text style={[styles.locationText, { color: palette.text }]}>{event.location}</Text>
+                  <Text style={[styles.locationHint, { color: palette.mutedText }]}>Tap to open in Maps</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <Ionicons name="chevron-forward" size={20} color={palette.mutedText} />
               </Pressable>
             )}
             
-            <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
-            <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
-            {event.description ? <Text>{event.description}</Text> : null}
+            <Text style={[styles.meta, { color: palette.mutedText }]}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
+            <Text style={[styles.meta, { color: palette.mutedText }]}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
+            {event.description ? <Text style={{ color: palette.text }}>{event.description}</Text> : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
-                <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
+              <Pressable style={[styles.primaryBtn, { backgroundColor: palette.tint }]} onPress={me ? toggleRsvp : handleRsvpPress}>
+                <Text style={[styles.primaryBtnText, { color: palette.background }]}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
               </Pressable>
-              <Pressable style={styles.outlineBtn} onPress={shareEvent}>
-                <Text style={styles.outlineBtnText}>Share</Text>
+              <Pressable style={[styles.outlineBtn, { borderColor: palette.border }]} onPress={shareEvent}>
+                <Text style={[styles.outlineBtnText, { color: palette.text }]}>Share</Text>
               </Pressable>
             </View>
           </View>
@@ -268,18 +270,16 @@ export default function EventDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1 },
   title: { fontSize: 22, fontWeight: '800' },
-  meta: { color: '#6b7280' },
-  error: { color: '#b91c1c' },
+  meta: {},
+  error: {},
   locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     gap: 12,
     marginVertical: 8,
   },
@@ -287,29 +287,25 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
   },
   locationLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   locationText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 2,
   },
   locationHint: {
     fontSize: 12,
-    color: '#9CA3AF',
   },
-  primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
-  primaryBtnText: { color: 'white', fontWeight: '700' },
-  outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: '#111827', fontWeight: '700' },
+  primaryBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  primaryBtnText: { fontWeight: '700' },
+  outlineBtn: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  outlineBtnText: { fontWeight: '700' },
 });

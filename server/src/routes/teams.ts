@@ -1015,7 +1015,9 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
         declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
       });
     }
-  } catch {}
+  } catch (e) {
+    console.warn('[teams] Failed to send staff invitation email:', email, e);
+  }
   await queueStaffInviteEmails({
     teamId: id,
     teamName: team.name,

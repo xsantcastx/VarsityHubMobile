@@ -303,7 +303,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     backgroundColor: '#3b82f6',
   },
   redIconContainer: {
-    backgroundColor: '#ef4444',
+    backgroundColor: Colors.dark.danger,
   },
   featureContent: {
     flex: 1,

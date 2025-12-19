@@ -1,0 +1,13 @@
+{
+  "coach_name": "Coach Ellis",
+  "plan_name": "Veteran",
+  "team_name": "North Shore Tigers",
+  "organization_name": "North Shore Athletics",
+  "plan_features": [
+    "Unlimited staff invites",
+    "Advanced analytics dashboard",
+    "$1.50 per extra team"
+  ],
+  "dashboard_url": "https://varsityhub.app/manage-teams",
+  "support_url": "https://varsityhub.app/support"
+}

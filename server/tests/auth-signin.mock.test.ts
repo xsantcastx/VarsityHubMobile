@@ -7,6 +7,21 @@
 
 import { beforeEach, describe, expect, it } from '@jest/globals';
 
+const TEST_AUTH_PASSWORD =
+  process.env.TEST_PASSWORD ||
+  `P@${Math.random().toString(36).slice(2, 10)}!9`;
+const makeTestHash = (label: string) => `hash-${label}-${process.pid}`;
+
+// Deterministic fixtures with env overrides to keep assertions stable
+const GOOGLE_VALID_TOKEN = process.env.TEST_GOOGLE_VALID_TOKEN ?? 'valid-google-token';
+const GOOGLE_INVALID_EMAIL_TOKEN = process.env.TEST_GOOGLE_INVALID_EMAIL_TOKEN ?? 'invalid-email-google-token';
+const GOOGLE_UNVERIFIED_TOKEN = process.env.TEST_GOOGLE_UNVERIFIED_TOKEN ?? 'unverified-email-google-token';
+const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL ?? 'user@gmail.com';
+const MULTIAUTH_EMAIL = process.env.MULTIAUTH_EMAIL ?? 'multiauth@example.com';
+const APPLE_SIM_USER = process.env.TEST_APPLE_SIM_USER ?? 'sim-test-user-123';
+const APPLE_REPEAT_TOKEN = process.env.TEST_APPLE_REPEAT ?? 'sim-apple-repeat-123';
+const APPLE_LINK_ID = process.env.TEST_APPLE_LINK ?? 'apple-link-123';
+
 // Mock user structure
 interface MockUser {
   id: string;
@@ -91,21 +106,21 @@ interface GoogleTokenPayload {
 async function mockValidateGoogleToken(idToken: string): Promise<GoogleTokenPayload | null> {
   // Simulate Google tokeninfo endpoint
   const tokenMap: Record<string, GoogleTokenPayload> = {
-    'valid-google-token': {
+    [GOOGLE_VALID_TOKEN]: {
       sub: 'google-user-123',
-      email: 'user@gmail.com',
+      email: TEST_USER_EMAIL,
       email_verified: true,
       name: 'Test User',
       picture: 'https://example.com/avatar.jpg',
       aud: 'test-client-id',
     },
-    'invalid-email-token': {
+    [GOOGLE_INVALID_EMAIL_TOKEN]: {
       sub: 'google-user-456',
       email: '',
       email_verified: false,
       aud: 'test-client-id',
     },
-    'unverified-email-token': {
+    [GOOGLE_UNVERIFIED_TOKEN]: {
       sub: 'google-user-789',
       email: 'unverified@gmail.com',
       email_verified: false,
@@ -164,7 +179,7 @@ async function handleGoogleSignIn(
         avatar_url: picture,
         email_verified: true,
         preferences: { role: 'fan', onboarding_completed: false },
-        password_hash: `hash-${googleId}`, // Placeholder
+        password_hash: makeTestHash(googleId),
       });
       created = true;
     }
@@ -236,7 +251,7 @@ async function handleAppleSignIn(
         display_name: 'Apple User',
         email_verified: true,
         preferences: { role: 'fan', onboarding_completed: false },
-        password_hash: `hash-${appleId}`, // Placeholder
+        password_hash: makeTestHash(appleId),
       });
       created = true;
     }
@@ -269,31 +284,31 @@ describe('Google Sign-In Logic', () => {
   
   describe('New User', () => {
     it('should create user with valid token', async () => {
-      const result = await handleGoogleSignIn('valid-google-token', db);
+      const result = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
-      expect(result.user.email).toBe('user@gmail.com');
+      expect(result.user.email).toBe(TEST_USER_EMAIL);
       expect(result.user.google_id).toBe('google-user-123');
       expect(result.user.display_name).toBe('Test User');
     });
     
     it('should reject empty email', async () => {
-      const result = await handleGoogleSignIn('invalid-email-token', db);
+      const result = await handleGoogleSignIn(GOOGLE_INVALID_EMAIL_TOKEN, db);
       
       expect(result.error).toContain('Invalid Google credential');
       expect(result.status).toBe(400);
     });
     
     it('should reject unverified email', async () => {
-      const result = await handleGoogleSignIn('unverified-email-token', db);
+      const result = await handleGoogleSignIn(GOOGLE_UNVERIFIED_TOKEN, db);
       
       expect(result.error).toContain('not verified');
       expect(result.status).toBe(400);
     });
     
     it('should reject invalid token', async () => {
-      const result = await handleGoogleSignIn('nonexistent-token', db);
+      const result = await handleGoogleSignIn(`nonexistent-token-${Date.now()}`, db);
       
       expect(result.error).toContain('authentication failed');
       expect(result.status).toBe(401);
@@ -302,11 +317,11 @@ describe('Google Sign-In Logic', () => {
   
   describe('Existing User', () => {
     it('should reuse existing user on second sign-in', async () => {
-      const result1 = await handleGoogleSignIn('valid-google-token', db);
+      const result1 = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       expect(result1.created).toBe(true);
       const userId1 = result1.user.id;
       
-      const result2 = await handleGoogleSignIn('valid-google-token', db);
+      const result2 = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       expect(result2.created).toBe(false);
       expect(result2.user.id).toBe(userId1);
     });
@@ -316,13 +331,13 @@ describe('Google Sign-In Logic', () => {
     it('should link to existing user by email', async () => {
       // Create user with email first
       await db.createUser({
-        email: 'user@gmail.com',
-        password_hash: 'dummy',
+        email: TEST_USER_EMAIL,
+        password_hash: makeTestHash('google-loose'),
         display_name: 'Existing User',
       });
       
       // Sign in with Google (same email)
-      const result = await handleGoogleSignIn('valid-google-token', db);
+      const result = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       
       expect(result.created).toBe(false);
       expect(result.user.google_id).toBe('google-user-123');
@@ -331,7 +346,7 @@ describe('Google Sign-In Logic', () => {
   
   describe('Token Validation', () => {
     it('should enforce audience validation', async () => {
-      const result = await handleGoogleSignIn('valid-google-token', db, ['wrong-audience']);
+      const result = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db, ['wrong-audience']);
       
       expect(result.error).toContain('not issued for this application');
       expect(result.status).toBe(400);
@@ -348,7 +363,7 @@ describe('Apple Sign-In Logic', () => {
   
   describe('New User', () => {
     it('should create user with valid simulator token', async () => {
-      const result = await handleAppleSignIn('sim-test-user-123', db);
+      const result = await handleAppleSignIn(APPLE_SIM_USER, db);
       
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
@@ -366,7 +381,7 @@ describe('Apple Sign-In Logic', () => {
   
   describe('Existing User', () => {
     it('should reuse existing user on second sign-in', async () => {
-      const token = 'sim-repeat-user';
+      const token = APPLE_REPEAT_TOKEN;
       
       const result1 = await handleAppleSignIn(token, db);
       expect(result1.created).toBe(true);
@@ -381,12 +396,12 @@ describe('Apple Sign-In Logic', () => {
   describe('Account Linking', () => {
     it('should link to existing user by email', async () => {
       // Create user with email that matches Apple relay email format
-      const appleId = 'test-link-user';
+      const appleId = APPLE_LINK_ID;
       const email = `${appleId}@privaterelay.appleid.com`;
       
       await db.createUser({
         email,
-        password_hash: 'dummy',
+        password_hash: makeTestHash('apple-loose'),
         display_name: 'Existing User',
       });
       
@@ -408,9 +423,9 @@ describe('Account Linking - Cross OAuth', () => {
   
   it('should allow both Google and Apple on same user', async () => {
     // Create user with email
-    const user = await db.createUser({
-      email: 'multiauth@example.com',
-      password_hash: 'dummy',
+      const user = await db.createUser({
+      email: MULTIAUTH_EMAIL,
+      password_hash: makeTestHash('existing-user'),
       display_name: 'Multi Auth User',
     });
     

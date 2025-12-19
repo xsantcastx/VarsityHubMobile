@@ -332,7 +332,7 @@ export default function EditTeamScreen() {
               </Text>
             </View>
             <TextInput
-              style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? '#DC2626' : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
+              style={[styles.textArea, { backgroundColor: Colors[colorScheme].surface, borderColor: description.length > 500 ? Colors[colorScheme].danger : Colors[colorScheme].border, color: Colors[colorScheme].text }]}
               value={description}
               onChangeText={(text) => {
                 if (text.length <= 500) {

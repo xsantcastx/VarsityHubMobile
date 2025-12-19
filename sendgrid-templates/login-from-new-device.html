@@ -1,138 +1,181 @@
-<subject>VarsityHub login from new device</subject>
-
 <!-- Template: Login From New Device (LOGIN_NEW_DEVICE) -->
 <!-- Template ID: d-5fe2c46068b04b928c941df25e1eb947 -->
-
+<!-- Source Name: Log in from new device - VH -->
+<!-- Subject: VarsityHub login from new device -->
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Security alert: New device login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Device Login - VarsityHub</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-    <table role="presentation" width="100%" style="background-color:#f3f4f6;">
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
         <tr>
-            <td align="center" style="padding:32px 16px;">
-                <table role="presentation" width="600" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;">
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+                    
+                    <!-- Logo -->
                     <tr>
-                        <td style="background-color:#111827;color:#f9fafb;text-align:center;padding:14px 24px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;">
-                            VarsityHub Security Alert
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
                         </td>
                     </tr>
+
+                    <!-- Header -->
                     <tr>
-                        <td style="padding:32px 32px 16px;text-align:center;">
-                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" width="72" height="72" style="display:block;margin:0 auto 12px;border:0;" />
-                            <div style="display:inline-block;padding:6px 18px;border-radius:999px;background-color:#fee2e2;color:#b91c1c;font-size:13px;font-weight:700;margin-bottom:8px;">
-                                🔐 New Device Detected
-                            </div>
-                            <h1 style="margin:8px 0 0;font-size:26px;color:#111827;">We noticed a login from a new device</h1>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
+                                🔐 New Device Login Detected
+                            </h1>
                         </td>
                     </tr>
+
+                    <!-- Body Content -->
                     <tr>
-                        <td style="padding:0 32px 16px;color:#4b5563;font-size:15px;line-height:1.6;">
-                            Hi {{user_name}},<br /><br />
-                            We saw a sign-in to your VarsityHub account from a device or location we haven’t seen before. If this was you, you’re all set. If not, secure your account immediately using the actions below.
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0 32px 24px;">
-                            <table role="presentation" width="100%" style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:14px;">
+                        <td style="padding: 0 20px 32px;">
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Hi {{userName}},
+                            </p>
+                            
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                We detected a login to your VarsityHub account from a device we don't recognize. If this was you, no action is needed. If not, please secure your account immediately.
+                            </p>
+
+                            <!-- Status Badge -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
                                 <tr>
-                                    <td style="padding:20px;">
-                                        <p style="margin:0 0 12px;font-size:14px;color:#92400e;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Login Details</p>
-                                        <table role="presentation" width="100%" style="font-size:14px;color:#92400e;">
+                                    <td align="center">
+                                        <div style="display: inline-block; padding: 8px 16px; background-color: #f59e0b; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700;">
+                                            ⚠ SECURITY ALERT
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Login Details Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 16px; font-size: 16px; color: #92400e; font-weight: 700;">
+                                            📱 Device Information
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
                                             <tr>
-                                                <td style="padding:4px 0;">Device</td>
-                                                <td style="padding:4px 0;text-align:right;font-weight:600;">{{device_type}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #b45309;">Device:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #92400e; font-weight: 600; text-align: right;">{{deviceType}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding:4px 0;">Location</td>
-                                                <td style="padding:4px 0;text-align:right;font-weight:600;">{{device_location}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #b45309;">Location:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #92400e; font-weight: 600; text-align: right;">{{deviceLocation}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding:4px 0;">IP Address</td>
-                                                <td style="padding:4px 0;text-align:right;font-weight:600;">{{ip_address}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #b45309;">IP Address:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #92400e; font-weight: 600; text-align: right;">{{ipAddress}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding:4px 0;">Date</td>
-                                                <td style="padding:4px 0;text-align:right;font-weight:600;">{{login_date}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #b45309;">Login Date:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #92400e; font-weight: 600; text-align: right;">{{loginDate}}</td>
                                             </tr>
                                             <tr>
-                                                <td style="padding:4px 0;">Time</td>
-                                                <td style="padding:4px 0;text-align:right;font-weight:600;">{{login_time}}</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #b45309;">Login Time:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #92400e; font-weight: 600; text-align: right;">{{loginTime}}</td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0 32px 16px;">
-                            <table role="presentation" width="100%" style="border-spacing:0;">
+
+                            <!-- Action Required Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; margin-bottom: 24px;">
                                 <tr>
-                                    <td style="padding-bottom:12px;text-align:center;">
-                                        <a href="{{secure_account_link}}" style="display:inline-block;background-color:#ef4444;color:#ffffff;text-decoration:none;padding:14px 40px;border-radius:999px;font-size:15px;font-weight:600;">
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #991b1b; font-weight: 700;">
+                                            🚨 Wasn't You? Act Now
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #991b1b;">
+                                            If you didn't log in from this device, your account may be compromised. Change your password immediately and review your security settings.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                                <strong>What you should do:</strong><br>
+                                • Verify this login was authorized<br>
+                                • Check your recent account activity<br>
+                                • Update your password if needed<br>
+                                • Enable two-factor authentication
+                            </p>
+
+                            <!-- CTA Buttons -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                                <tr>
+                                    <td align="center" style="padding: 0 0 12px 0;">
+                                        <a href="{{secureAccountLink}}" style="display: inline-block; padding: 14px 28px; background-color: #ef4444; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
                                             Secure My Account
                                         </a>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding-bottom:12px;text-align:center;">
-                                        <a href="{{change_password_link}}" style="display:inline-block;background-color:#f59e0b;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:999px;font-size:15px;font-weight:600;">
+                                    <td align="center" style="padding: 0 0 12px 0;">
+                                        <a href="{{changePasswordLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f59e0b; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
                                             Change Password
                                         </a>
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="text-align:center;">
-                                        <a href="{{contact_support_link}}" style="display:inline-block;background-color:#f3f4f6;color:#111827;text-decoration:none;padding:12px 28px;border-radius:999px;font-size:15px;font-weight:600;border:1px solid #d1d5db;">
+                                    <td align="center" style="padding: 0;">
+                                        <a href="{{contactSupportLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
                                             Contact Support
                                         </a>
                                     </td>
                                 </tr>
                             </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0 32px 24px;">
-                            <div style="background-color:#fef2f2;border-radius:12px;padding:18px;border-left:4px solid #ef4444;">
-                                <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.6;">
-                                    • Only trust password reset links that point to varsityhub.app.<br />
-                                    • Enable two-factor authentication from your security settings.<br />
-                                    • If you see additional suspicious activity, reach out to support immediately.
-                                </p>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:0 32px 32px;color:#9ca3af;font-size:12px;text-align:center;">
-                            This notice is automatically generated any time we detect a first-time device or IP.
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
-                            <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
-                            <table role="presentation" align="center" style="border-spacing:12px;">
-                                <tr>
-                                    <td><a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" target="_blank" rel="noopener noreferrer"><img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                    <td><a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" target="_blank" rel="noopener noreferrer"><img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                    <td><a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" target="_blank" rel="noopener noreferrer"><img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                    <td><a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer"><img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                    <td><a href="https://x.com/varsityhub00" target="_blank" rel="noopener noreferrer"><img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                    <td><a href="https://limeprod.com" target="_blank" rel="noopener noreferrer"><img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;" /></a></td>
-                                </tr>
-                            </table>
-                            <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
-                                <a href="{{privacy_policy_url}}" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;margin-right:12px;">Privacy Policy</a>
-                                <a href="{{community_guidelines_url}}" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+
+                            <p style="margin: 24px 0 0; font-size: 13px; line-height: 1.6; color: #9ca3af; text-align: center;">
+                                This email was sent to protect your account security.
                             </p>
-                            <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
                         </td>
                     </tr>
-                </table>
+
+                    <!-- Footer -->
+                    <!-- Footer -->
+<!-- Canonical VarsityHub Footer Snippet (light theme) -->
+<tr>
+  <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+    <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
+    <div style="text-align:center;">
+      <a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://x.com/varsityhub00" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://limeprod.com" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+    </div>
+    <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
+      <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Privacy Policy</a>
+      &nbsp;•&nbsp;
+      <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+    </p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
+  </td>
+</tr>
+</table>
             </td>
         </tr>
     </table>

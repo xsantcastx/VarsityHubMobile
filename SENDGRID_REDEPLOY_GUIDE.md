@@ -69,7 +69,7 @@ railway variables --service api | grep SENDGRID_API_KEY
 If missing:
 
 ```bash
-railway variables --service api --set SENDGRID_API_KEY=SG.REDACTED
+railway variables --service api --set SENDGRID_API_KEY=SG.your-new-api-key-here
 ```
 
 Then **redeploy** again.

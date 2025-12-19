@@ -1574,7 +1574,7 @@ export default function TeamChatScreen() {
           
           {/* Recording Indicator */}
           {isRecording && (
-            <View style={[styles.recordingIndicator, { backgroundColor: '#EF4444' }]}>
+            <View style={[styles.recordingIndicator, { backgroundColor: Colors.dark.danger }]}>
               <View style={styles.recordingDot} />
               <Text style={styles.recordingText}>Recording voice message...</Text>
               <Text style={styles.recordingTime}>
@@ -1654,7 +1654,7 @@ export default function TeamChatScreen() {
               ) : (
                 <Pressable 
                   style={[styles.micButton, { 
-                    backgroundColor: isRecording ? '#EF4444' : Colors[colorScheme].tint 
+                    backgroundColor: isRecording ? Colors[colorScheme].danger : Colors[colorScheme].tint 
                   }]}
                   onPress={isRecording ? stopRecording : startRecording}
                   onLongPress={!isRecording ? startRecording : undefined}

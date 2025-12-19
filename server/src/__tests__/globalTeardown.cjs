@@ -6,9 +6,10 @@
 module.exports = async function globalTeardown() {
   console.log('\n[Global Teardown] Cleaning up test resources...');
   
-  // Import prisma dynamically to avoid module issues
+  // Import PrismaClient directly to avoid module resolution issues
   try {
-    const { prisma } = await import('./prisma.js');
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
     await prisma.$disconnect();
     console.log('[Global Teardown] ✅ Prisma disconnected');
   } catch (error) {
@@ -16,7 +17,7 @@ module.exports = async function globalTeardown() {
   }
   
   // Small delay to allow cleanup
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 300));
   
   console.log('[Global Teardown] ✅ Complete\n');
 };

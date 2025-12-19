@@ -12,9 +12,9 @@ import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { captureException } from '@/utils/sentry';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
@@ -199,7 +199,7 @@ export default function SignUpScreen() {
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
         
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: Colors[colorScheme].tint }]}>{error}</Text> : null}
 
         {!showEmailForm ? (
           <>
@@ -217,28 +217,36 @@ export default function SignUpScreen() {
           {/* Google Sign Up Option */}
           {googleReady ? (
             <Pressable
-              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+              style={[
+                styles.googleButton,
+                { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                googleLoading && styles.buttonDisabled,
+              ]}
               onPress={handleGoogleSignUp}
               disabled={googleLoading}
               accessibilityRole="button"
             >
-              <Ionicons name="logo-google" size={20} color="#4285F4" style={styles.googleIcon} />
+              <Ionicons name="logo-google" size={20} color={Colors[colorScheme].text} style={styles.googleIcon} />
               {googleLoading ? (
-                <ActivityIndicator size="small" color="#4285F4" />
+                <ActivityIndicator size="small" color={Colors[colorScheme].text} />
               ) : (
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Continue with Google</Text>
               )}
             </Pressable>
           ) : (
             <View
-              style={[styles.googleButton, styles.disabledGoogleButton]}
+              style={[
+                styles.googleButton,
+                { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border },
+                styles.buttonDisabled,
+              ]}
               accessibilityRole="text"
               accessibilityLabel="Google sign up not available"
             >
-              <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+              <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.googleButtonText}>Google sign up unavailable</Text>
-                <Text style={styles.googleButtonSubtext}>Add Google OAuth client IDs to enable this option.</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].mutedText }]}>Google sign up unavailable</Text>
+                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Add Google OAuth client IDs to enable this option.</Text>
               </View>
             </View>
           )}
@@ -251,16 +259,16 @@ export default function SignUpScreen() {
 
           {/* Email Sign Up Option */}
           <Button onPress={() => setShowEmailForm(true)} variant="outline">
-            <Ionicons name="mail" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
+            <Ionicons name="mail" size={16} color={Colors[colorScheme].text} style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
         ) : (
           <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
-            <Ionicons name="arrow-back" size={20} color="#6b7280" />
-            <Text style={styles.backText}>Back to options</Text>
+            <Ionicons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
           </Pressable>
 
           {/* Email Form */}
@@ -281,7 +289,7 @@ export default function SignUpScreen() {
           </>
         )}
 
-        <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')}>
+          <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')}>
           <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
         </Pressable>
       </KeyboardAwareScreen>
@@ -296,14 +304,12 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
-  error: { color: '#b91c1c', marginBottom: 8, textAlign: 'center' },
+  error: { marginBottom: 8, textAlign: 'center' },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'white',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -323,11 +329,9 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
   },
   googleButtonSubtext: {
     fontSize: 12,
-    color: '#6b7280',
     marginTop: 2,
   },
   divider: {
@@ -338,11 +342,9 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E5E7EB',
   },
   dividerText: {
     marginHorizontal: 16,
-    color: '#6b7280',
     fontSize: 14,
   },
   backButton: {
@@ -352,11 +354,9 @@ const styles = StyleSheet.create({
   },
   backText: {
     marginLeft: 8,
-    color: '#6b7280',
     fontSize: 14,
   },
   signInLink: {
-    color: '#2563EB',
     fontWeight: '700',
     fontSize: 16,
   },

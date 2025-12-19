@@ -111,11 +111,8 @@ SENDGRID_API_KEY=SG.your-new-key-here
 **File:** `/Users/varsityhub/Desktop/CODE/VarsityHubMobile/server/.env`
 
 ```bash
-# Replace line 21:
-SENDGRID_API_KEY=SG.REDACTED
-
-# With your new key:
-SENDGRID_API_KEY=SG.your-new-key-here
+# Get your new SendGrid API key from https://app.sendgrid.com/settings/api_keys
+SENDGRID_API_KEY=SG.your-new-api-key-here
 ```
 
 ### 3. Railway (Production)
