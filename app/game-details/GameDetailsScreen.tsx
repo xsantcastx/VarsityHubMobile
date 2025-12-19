@@ -503,6 +503,11 @@ const GameDetailsScreen = () => {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [displayPctA, setDisplayPctA] = useState(0);
   const [displayPctB, setDisplayPctB] = useState(0);
+  // Posting availability states
+  const [storyAvailable, setStoryAvailable] = useState(true);
+  const [storyUnavailableReason, setStoryUnavailableReason] = useState<string | null>(null);
+  const [postAvailable, setPostAvailable] = useState(true);
+  const [postUnavailableReason, setPostUnavailableReason] = useState<string | null>(null);
   // theme colors for VS modal
   const themeBgA = useThemeColor({ light: '#f8fafc', dark: '#0b1220' }, 'background');
   const themeBgOn = useThemeColor({ light: '#2563EB', dark: '#1f6feb' }, 'tint');
@@ -569,6 +574,47 @@ const GameDetailsScreen = () => {
     }, 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Check posting availability (stories and event posts)
+  useEffect(() => {
+    if (!vm?.date) {
+      setStoryAvailable(true);
+      setStoryUnavailableReason(null);
+      setPostAvailable(true);
+      setPostUnavailableReason(null);
+      return;
+    }
+
+    const eventTime = new Date(vm.date);
+    const now = new Date(nowTs);
+
+    // Check Stories Availability (calendar day only, 2km)
+    const eventDate = new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate(), 0, 0, 0, 0);
+    const eventDateEnd = new Date(eventTime.getFullYear(), eventTime.getMonth(), eventTime.getDate(), 23, 59, 59, 999);
+
+    if (now < eventDate || now > eventDateEnd) {
+      setStoryAvailable(false);
+      setStoryUnavailableReason(`Stories available only on ${eventDate.toDateString()}`);
+    } else {
+      setStoryAvailable(true);
+      setStoryUnavailableReason(null);
+    }
+
+    // Check Event Posts Availability (48h before to 48h after)
+    const postWindowOpen = new Date(eventTime.getTime() - 48 * 60 * 60 * 1000);
+    const postWindowClose = new Date(eventTime.getTime() + 48 * 60 * 60 * 1000);
+
+    if (now < postWindowOpen) {
+      setPostAvailable(false);
+      setPostUnavailableReason(`Posts available in ${Math.ceil((postWindowOpen.getTime() - now.getTime()) / 60000)} minutes`);
+    } else if (now >= postWindowClose) {
+      setPostAvailable(false);
+      setPostUnavailableReason('Posting window closed');
+    } else {
+      setPostAvailable(true);
+      setPostUnavailableReason(null);
+    }
+  }, [vm?.date, nowTs]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
@@ -2110,8 +2156,12 @@ const renderBanner = () => {
                     <Text style={styles.sectionSubtitle}>{postsSubtitle}</Text>
                   </View>
                   <Pressable 
-                    style={styles.addPostButton}
+                    style={[styles.addPostButton, !postAvailable && styles.addPostButtonDisabled]}
                     onPress={() => {
+                      if (!postAvailable) {
+                        Alert.alert('Posts Not Available', postUnavailableReason || 'Posts are not available at this time.');
+                        return;
+                      }
                       const targetGameId = vm?.gameId || vm?.eventId;
                       if (!targetGameId) {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
@@ -2122,8 +2172,9 @@ const renderBanner = () => {
                         params: { gameId: String(targetGameId), type: 'highlight' },
                       } as any);
                     }}
+                    disabled={!postAvailable}
                   >
-                    <Ionicons name="add-circle" size={28} color={Colors[colorScheme].tint} />
+                    <Ionicons name="add-circle" size={28} color={postAvailable ? Colors[colorScheme].tint : '#999'} />
                   </Pressable>
                 </View>
                 {postsCount > 0 ? (
@@ -2987,6 +3038,9 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  addPostButtonDisabled: {
+    opacity: 0.5,
   },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: Colors[colorScheme].text, marginBottom: 8 },
   sectionSubtitle: { color: Colors[colorScheme].mutedText, fontWeight: '600' },
