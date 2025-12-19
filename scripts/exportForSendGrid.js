@@ -143,7 +143,7 @@ async function run() {
         `<!-- Template: ${def.name} (${def.key}) -->`,
         `<!-- Template ID: ${templateId} -->`,
         `<!-- Source Name: ${remoteName || 'n/a'} -->`,
-        `<!-- Subject: ${normalizedSubject} -->`,
+        `<subject>${normalizedSubject}</subject>`,
         '',
       ].join('\n');
 

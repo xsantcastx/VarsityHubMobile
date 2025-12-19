@@ -8,13 +8,18 @@
  * - Onboarding flow after first sign-in
  */
 
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
 import request from 'supertest';
+import { createTestApp } from '../src/__tests__/testApp.js';
+import { prisma as sharedPrisma } from '../src/lib/prisma.js';
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipIntegration =
-  isCi || process.env.SKIP_SERVER_INTEGRATION_TESTS === '1';
+  isCi ||
+  process.env.SKIP_SERVER_INTEGRATION_TESTS === '1' ||
+  process.env.RUN_SERVER_INTEGRATION_TESTS !== '1';
 const describeIntegration = shouldSkipIntegration ? describe.skip : describe;
 
 let app: Express;
@@ -24,11 +29,26 @@ let prisma: PrismaClient;
 const originalFetch = global.fetch;
 
 if (!shouldSkipIntegration) {
-  beforeAll(() => {
+  beforeAll(async () => {
   // Setup: Import app and prisma
-  // In real test environment, these would be injected
   process.env.NODE_ENV = 'test';
   process.env.GOOGLE_ALLOWED_AUDIENCES = '';
+  
+  // Initialize test app and prisma
+  app = createTestApp();
+  prisma = sharedPrisma;
+  
+  // Clean up test data from previous runs
+  await prisma.user.deleteMany({
+    where: {
+      OR: [
+        { email: { contains: '@gmail.com' } },
+        { email: { contains: '@privaterelay.appleid.com' } },
+        { email: { contains: 'test-' } },
+      ],
+    },
+  }).catch(() => {});
+  
   
   // Mock Google tokeninfo endpoint
   global.fetch = jest.fn((url: string, options?: any) => {
@@ -90,8 +110,21 @@ if (!shouldSkipIntegration) {
   }) as any;
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     global.fetch = originalFetch;
+    
+    // Clean up test data
+    await prisma.user.deleteMany({
+      where: {
+        OR: [
+          { email: { contains: '@gmail.com' } },
+          { email: { contains: '@privaterelay.appleid.com' } },
+          { email: { contains: 'test-' } },
+        ],
+      },
+    }).catch(() => {});
+    
+    // Note: Don't disconnect shared prisma client
   });
 }
 

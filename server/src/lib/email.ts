@@ -1,6 +1,27 @@
 import sgMail from '@sendgrid/mail';
 import { debugLog } from './debugLog.js';
 
+// RFC-ish email validation used by tests and runtime guards
+export function isValidEmail(email: unknown): boolean {
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (!trimmed || trimmed.length > 254) return false;
+  // Basic, permissive pattern that matches standard mailbox@domain shapes
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(trimmed);
+}
+
+// Lightweight sanitization used by tests to strip HTML-ish characters and whitespace
+export function sanitizeInput(input: unknown): string {
+  if (typeof input !== 'string') return '';
+  return input
+    .trim()
+    // Strip common HTML tag delimiters to reduce injection vectors
+    .replace(/[<>`]/g, '')
+    // Collapse repeated whitespace
+    .replace(/\s+/g, ' ');
+}
+
 // Initialize SendGrid
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
@@ -1290,7 +1311,11 @@ export async function sendAccountWarningEmail(params: {
   violationType: string;
   appealUrl: string;
   warningReason?: string;
+  reportType?: string;
+  warningDate?: string;
+  supportEmail?: string;
   communityGuidelinesUrl?: string;
+  privacyPolicyUrl?: string;
 }): Promise<boolean> {
   if (!SENDGRID_API_KEY) {
     console.warn('[email] SendGrid API key not configured');
@@ -1304,6 +1329,20 @@ export async function sendAccountWarningEmail(params: {
       return false;
     }
 
+    const warningDate =
+      params.warningDate ||
+      new Date().toLocaleString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    const supportEmail = params.supportEmail || 'support@varsityhub.app';
+    const communityGuidelinesUrl = params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy';
+    const privacyPolicyUrl = params.privacyPolicyUrl || 'https://limeprod.com/VarsityHubPrivacy';
+
     await sgMail.send({
       to: params.to,
       from: EMAIL_FROM,
@@ -1311,11 +1350,15 @@ export async function sendAccountWarningEmail(params: {
       dynamicTemplateData: {
         user_name: params.userName,
         report_id: params.reportId,
+        report_type: params.reportType || params.violationType,
         violation_type: params.violationType,
-        warning_reason: params.warningReason || 'Your account received a warning for violating our Community Guidelines.',
+        warning_reason:
+          params.warningReason || 'Your account received a warning for violating our Community Guidelines.',
+        warning_date: warningDate,
         appeal_url: params.appealUrl,
-        community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
-        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        support_email: supportEmail,
+        community_guidelines_url: communityGuidelinesUrl,
+        privacy_policy_url: privacyPolicyUrl,
       },
     });
     debugLog(`✅ Account warning email sent to ${params.to}`);

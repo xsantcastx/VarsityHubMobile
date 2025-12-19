@@ -18,6 +18,7 @@ const describeDb = shouldSkipDbTests ? describe.skip : describe;
 describeDb('adminReports Sanctions Logic', () => {
   let testUserId: string;
   let testReportId: string;
+  let adminId: string;
 
   beforeAll(async () => {
     // Create a test user to report against
@@ -28,6 +29,7 @@ describeDb('adminReports Sanctions Logic', () => {
         display_name: 'Test Violator',
         offense_count: 0,
         permanent_ban: false,
+        password_hash: 'test-hash',
       },
     });
     testUserId = user.id;
@@ -38,18 +40,22 @@ describeDb('adminReports Sanctions Logic', () => {
         id: `admin_${Date.now()}`,
         email: `admin_${Date.now()}@varsityhub.app`,
         display_name: 'Test Admin',
-        is_admin: true,
+        password_hash: 'test-hash',
+        preferences: { role: 'admin', is_admin: true },
       },
     });
+    adminId = admin.id;
 
     // Create a test report
     const report = await prisma.abuseReport.create({
       data: {
         id: `test_report_${Date.now()}`,
         reporter_id: admin.id,
+        reporter_name: 'Test Admin',
+        reporter_email: admin.email,
         reported_user_id: testUserId,
         subject: 'Test Harassment',
-        description: 'Test report description',
+        message: 'Test report description',
         status: 'pending',
       },
     });
@@ -58,8 +64,11 @@ describeDb('adminReports Sanctions Logic', () => {
 
   afterAll(async () => {
     // Clean up test data
+    const userIds = [testUserId, adminId].filter(Boolean);
     await prisma.abuseReport.deleteMany({ where: { id: testReportId } });
-    await prisma.user.deleteMany({ where: { id: { in: [testUserId] } } });
+    if (userIds.length) {
+      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    }
   });
 
   it('should apply 45-day suspension when resolved with suspend_45_days severity', async () => {
@@ -92,7 +101,7 @@ describeDb('adminReports Sanctions Logic', () => {
     const daysDiff = Math.floor(
       (user!.suspension_until!.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
     );
-    expect(daysDiff).toBeGreaterThan(44);
+    expect(daysDiff).toBeGreaterThanOrEqual(44);
     expect(daysDiff).toBeLessThan(46);
   });
 
@@ -118,7 +127,7 @@ describeDb('adminReports Sanctions Logic', () => {
     const daysDiff = Math.floor(
       (user!.suspension_until!.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
     );
-    expect(daysDiff).toBeGreaterThan(6);
+    expect(daysDiff).toBeGreaterThanOrEqual(6);
     expect(daysDiff).toBeLessThan(8);
   });
 

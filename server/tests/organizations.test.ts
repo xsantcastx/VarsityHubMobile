@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
 import { geocodeLocation } from '../src/lib/geocoding';
 import { normalizeOrganizationName } from '../src/lib/normalizeNames';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/lib/prisma.js';
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
 const describeDb = shouldSkipDbTests ? describe.skip : describe;
@@ -11,10 +9,6 @@ describeDb('Organization Duplicate Guard', () => {
   beforeAll(async () => {
     // Clear test organizations
     await prisma.organization.deleteMany({ where: { name: { contains: 'Test' } } });
-  });
-
-  afterAll(async () => {
-    await prisma.$disconnect();
   });
 
   test('normalizeOrganizationName removes special chars and lowercases', () => {
@@ -116,7 +110,6 @@ describeDb('POST /organizations/check-duplicate', () => {
     if (testOrg) {
       await prisma.organization.delete({ where: { id: testOrg.id } }).catch(() => {});
     }
-    await prisma.$disconnect();
   });
 
   test('returns exists: true for duplicate place_id', async () => {

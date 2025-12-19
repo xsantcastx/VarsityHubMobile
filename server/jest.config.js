@@ -27,6 +27,7 @@ const config = {
     },
   },
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
+  globalTeardown: '<rootDir>/src/__tests__/globalTeardown.cjs',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '../lib/prisma\\.js$': '<rootDir>/src/lib/prisma.ts',
@@ -47,6 +48,11 @@ const config = {
 };
 
 config.testPathIgnorePatterns = config.testPathIgnorePatterns ?? [];
+config.testPathIgnorePatterns.push(
+  '<rootDir>/src/__tests__/testApp.ts',
+  '<rootDir>/src/__tests__/globalTeardown.cjs',
+  '<rootDir>/src/__tests__/setup.cjs'
+);
 if (skipDbTests) {
   config.testPathIgnorePatterns.push(
     '<rootDir>/tests/organizations.test.ts',

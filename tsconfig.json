@@ -29,7 +29,7 @@
         "config/*"
       ],
       "@/data/*": [
-        "app/data/*"
+        "data/*"
       ],
       "@/ui/*": [
         "components/ui/*"
@@ -48,6 +48,7 @@
   "include": [
     "app/**/*.ts",
     "app/**/*.tsx",
+    "data/**/*.ts",
     "api/**/*.ts",
     "api/**/*.tsx",
     "components/**/*.ts",

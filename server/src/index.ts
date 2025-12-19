@@ -240,6 +240,124 @@ app.get('/me', noStore, (req: Request, res: Response, next: NextFunction) => (au
 app.patch('/me/preferences', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me/preferences' }, res, next));
 app.patch('/me', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me' }, res, next));
 app.post('/me/complete-onboarding', noStore, (req: Request, res: Response, next: NextFunction) => (authRouter as any).handle({ ...req, url: '/me/complete-onboarding' }, res, next));
+
+// Minimal password reset page (SSR) – serves a secure HTML form at /reset/:code
+app.get('/reset/:code', (req: Request, res: Response) => {
+  const rawCode = String(req.params.code || '').trim();
+  // Only allow short token-style codes (digits/alnum/-,_,.) to avoid script injection
+  const isValid = /^[A-Za-z0-9_.-]{4,64}$/.test(rawCode);
+  if (!isValid) {
+    return res.status(400).send('Invalid reset code');
+  }
+  // Safely serialize the code into JS without risking HTML injection
+  const codeJson = JSON.stringify(rawCode);
+  const appBase = (process.env.APP_BASE_URL || '').replace(/\/$/, '');
+  const selfOrigin = appBase && appBase.startsWith('http') ? appBase : '';
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset Password • VarsityHub</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji'; margin: 0; background: #0b1320; color: #e6e8ee; }
+      .wrap { max-width: 520px; margin: 6vh auto; padding: 24px; background: #11182a; border: 1px solid #1f2a44; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 0 0 16px; color: #b9c2d2; }
+      label { display:block; font-size: 14px; margin: 14px 0 6px; color: #c9d3e3; }
+      input { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #2a3554; background: #0c1426; color: #e6e8ee; outline: none; }
+      input:focus { border-color: #4d6bfe; box-shadow: 0 0 0 3px rgba(77,107,254,0.2); }
+      .row { display:flex; gap: 12px; }
+      button { margin-top: 18px; width: 100%; padding: 12px 16px; border: 0; border-radius: 8px; background: #4d6bfe; color: white; font-weight: 600; cursor: pointer; }
+      button[disabled] { opacity: .6; cursor: not-allowed; }
+      .msg { margin-top: 14px; font-size: 14px; }
+      .ok { color: #7af0b3; }
+      .err { color: #ff8ba0; }
+      .foot { margin-top: 16px; font-size: 12px; color: #97a4bf; text-align: center; }
+      .brand { text-align:center; margin-bottom: 10px; font-weight: 700; letter-spacing: .2px; }
+      a { color: #9db3ff; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="brand">VarsityHub</div>
+      <h1>Reset your password</h1>
+      <p>Enter the email for your account and choose a new password.</p>
+      <form id="resetForm" novalidate>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+
+        <div class="row">
+          <div style="flex:1">
+            <label for="password">New password</label>
+            <input id="password" name="password" type="password" autocomplete="new-password" minlength="5" required />
+          </div>
+          <div style="flex:1">
+            <label for="confirm">Confirm password</label>
+            <input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="5" required />
+          </div>
+        </div>
+
+        <label for="code">Reset code</label>
+        <input id="code" name="code" inputmode="numeric" pattern="[0-9]{4,8}" required />
+
+        <button id="submitBtn" type="submit">Reset password</button>
+        <div id="msg" class="msg"></div>
+      </form>
+      <div class="foot">If the app is installed, you can also open <a id="deeplink" href="#">in the app</a>.</div>
+    </main>
+    <script>
+      const initialCode = ${codeJson};
+      const codeEl = document.getElementById('code');
+      const link = document.getElementById('deeplink');
+      const form = document.getElementById('resetForm');
+      const btn = document.getElementById('submitBtn');
+      const msg = document.getElementById('msg');
+      codeEl.value = initialCode || '';
+      link.href = 'varsityhubmobile://reset/' + encodeURIComponent(initialCode || '');
+
+      const apiBase = ${JSON.stringify(selfOrigin || '')};
+      function api(path) { return (apiBase || '') + path; }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        msg.textContent = '';
+        msg.className = 'msg';
+        const email = (document.getElementById('email') as HTMLInputElement).value.trim();
+        const password = (document.getElementById('password') as HTMLInputElement).value;
+        const confirm = (document.getElementById('confirm') as HTMLInputElement).value;
+        const code = (document.getElementById('code') as HTMLInputElement).value.trim();
+        if (!email || !password || !confirm || !code) { msg.textContent = 'Please fill out all fields.'; msg.classList.add('err'); return; }
+        if (password !== confirm) { msg.textContent = 'Passwords do not match.'; msg.classList.add('err'); return; }
+        if (password.length < 5) { msg.textContent = 'Password must be at least 5 characters.'; msg.classList.add('err'); return; }
+        btn.disabled = true;
+        try {
+          const res = await fetch(api('/auth/password/reset'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, code })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            throw new Error((data && (data.error || data.message)) || 'Reset failed');
+          }
+          msg.textContent = 'Password updated successfully. You can now log in.';
+          msg.classList.add('ok');
+        } catch (err) {
+          msg.textContent = (err && (err.message || String(err))) || 'Reset failed';
+          msg.classList.add('err');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>`;
+  res.setHeader('Content-Security-Policy', "default-src 'self'; base-uri 'none'; form-action 'self'; style-src 'unsafe-inline' 'self'; script-src 'unsafe-inline' 'self'; connect-src 'self'" );
+  res.type('html').send(html);
+});
 app.use('/games', apiLimiter, gamesRouter);
 app.use('/posts', apiLimiter, postsRouter);
 app.use('/notifications', noStore, apiLimiter, notificationsRouter);
