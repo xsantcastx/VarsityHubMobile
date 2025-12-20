@@ -313,7 +313,7 @@ export default function TeamScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={[]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       
       {/* Custom Header */}
@@ -810,7 +810,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 4,
-    marginTop: 8,
   },
   tabContentContainer: {
     paddingHorizontal: 16,
