@@ -2,19 +2,13 @@ name: Snyk Security Scanning
 
 on:
   push:
-    branches: [main, develop]
+    branches: ["**"]
     paths:
-      - 'server/**'
-      - '**/package.json'
-      - '**/package-lock.json'
-      - '.github/workflows/snyk-security.yml'
+      - '**/*'
   pull_request:
-    branches: [main, develop]
+    branches: ["**"]
     paths:
-      - 'server/**'
-      - '**/package.json'
-      - '**/package-lock.json'
-      - '.github/workflows/snyk-security.yml'
+      - '**/*'
   workflow_dispatch:
     inputs:
       force:
