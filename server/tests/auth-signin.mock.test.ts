@@ -288,9 +288,9 @@ describe('Google Sign-In Logic', () => {
       
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
-      expect(result.user.email).toBe(TEST_USER_EMAIL);
-      expect(result.user.google_id).toBe('google-user-123');
-      expect(result.user.display_name).toBe('Test User');
+      expect(result.user!.email).toBe(TEST_USER_EMAIL);
+      expect(result.user!.google_id).toBe('google-user-123');
+      expect(result.user!.display_name).toBe('Test User');
     });
     
     it('should reject empty email', async () => {
@@ -319,11 +319,11 @@ describe('Google Sign-In Logic', () => {
     it('should reuse existing user on second sign-in', async () => {
       const result1 = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       expect(result1.created).toBe(true);
-      const userId1 = result1.user.id;
+      const userId1 = result1.user!.id;
       
       const result2 = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       expect(result2.created).toBe(false);
-      expect(result2.user.id).toBe(userId1);
+      expect(result2.user!.id).toBe(userId1);
     });
   });
   
@@ -340,7 +340,7 @@ describe('Google Sign-In Logic', () => {
       const result = await handleGoogleSignIn(GOOGLE_VALID_TOKEN, db);
       
       expect(result.created).toBe(false);
-      expect(result.user.google_id).toBe('google-user-123');
+      expect(result.user!.google_id).toBe('google-user-123');
     });
   });
   
@@ -367,8 +367,8 @@ describe('Apple Sign-In Logic', () => {
       
       expect(result.success).toBe(true);
       expect(result.created).toBe(true);
-      expect(result.user.apple_id).toBe('test-user-123');
-      expect(result.user.email_verified).toBe(true);
+      expect(result.user!.apple_id).toBe('test-user-123');
+      expect(result.user!.email_verified).toBe(true);
     });
     
     it('should reject empty token', async () => {
@@ -385,11 +385,11 @@ describe('Apple Sign-In Logic', () => {
       
       const result1 = await handleAppleSignIn(token, db);
       expect(result1.created).toBe(true);
-      const userId1 = result1.user.id;
+      const userId1 = result1.user!.id;
       
       const result2 = await handleAppleSignIn(token, db);
       expect(result2.created).toBe(false);
-      expect(result2.user.id).toBe(userId1);
+      expect(result2.user!.id).toBe(userId1);
     });
   });
   
@@ -409,7 +409,7 @@ describe('Apple Sign-In Logic', () => {
       const result = await handleAppleSignIn(`sim-${appleId}`, db);
       
       expect(result.created).toBe(false);
-      expect(result.user.apple_id).toBe(appleId);
+      expect(result.user!.apple_id).toBe(appleId);
     });
   });
 });
@@ -456,16 +456,16 @@ describe('Data Consistency', () => {
   it('should set email_verified after OAuth', async () => {
     const result = await handleGoogleSignIn('valid-google-token', db);
     
-    expect(result.user.email_verified).toBe(true);
+    expect(result.user!.email_verified).toBe(true);
     
-    const dbUser = db.users.get(result.user.id);
+    const dbUser = db.users.get(result.user!.id);
     expect(dbUser?.email_verified).toBe(true);
   });
   
   it('should initialize preferences correctly', async () => {
     const result = await handleGoogleSignIn('valid-google-token', db);
     
-    const dbUser = db.users.get(result.user.id);
+    const dbUser = db.users.get(result.user!.id);
     expect(dbUser?.preferences?.role).toBe('fan');
     expect(dbUser?.preferences?.onboarding_completed).toBe(false);
   });

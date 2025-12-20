@@ -1,0 +1,134 @@
+<!-- Template: Account Suspension (7 Days) -->
+<!-- Template Key: ACCOUNT_SUSPENSION_7_DAYS -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Suspended – 7 Days</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%" style="background-color:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="640" style="max-width:640px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e5e7eb;">
+          <tr>
+            <td style="background-color:#b45309;color:#fffbeb;text-align:center;padding:12px 24px;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;">
+              VarsityHub Safety Update
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 12px;text-align:center;">
+              <img src="{{logo_url}}" alt="VarsityHub" width="68" height="68" style="display:block;margin:0 auto 12px;border-radius:16px;" />
+              <p style="margin:0;color:#f59e0b;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;">7-Day Suspension</p>
+              <h1 style="margin:8px 0 10px;font-size:26px;color:#111827;">Your account is paused, {{user_name}}</h1>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#4b5563;">Report <strong>{{report_id}}</strong> confirmed a violation ({{violation_type}}). You cannot log in for the next <strong>{{suspension_duration}}</strong>.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 24px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;border-radius:12px;border:1px solid #e2e8f0;background-color:#f8fafc;">
+                <tr>
+                  <td style="padding:18px;">
+                    <p style="margin:0 0 12px;font-size:13px;color:#0f172a;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">What to know</p>
+                    <table role="presentation" width="100%" style="border-collapse:collapse;">
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#475569;width:45%;">Suspension start</td>
+                        <td style="padding:4px 0;font-size:14px;color:#111827;font-weight:600;">{{suspension_date}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#475569;">Access returns</td>
+                        <td style="padding:4px 0;font-size:14px;color:#111827;font-weight:600;">{{reinstatement_date}}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#475569;">Length</td>
+                        <td style="padding:4px 0;font-size:14px;color:#111827;font-weight:600;">{{suspension_days}} days</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:4px 0;font-size:14px;color:#475569;">Report type</td>
+                        <td style="padding:4px 0;font-size:14px;color:#111827;font-weight:600;">{{violation_type}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 24px;">
+              <div style="border-radius:12px;border:1px solid #fed7aa;background-color:#fff7ed;padding:20px;">
+                <p style="margin:0 0 8px;font-size:15px;color:#9a3412;font-weight:600;">Why this happened</p>
+                <p style="margin:0;font-size:14px;line-height:1.6;color:#7c2d12;">{{suspension_reason}}</p>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 24px;text-align:center;">
+              <a href="{{appeal_url}}" style="display:inline-block;padding:14px 36px;border-radius:999px;background-color:#0f172a;color:#ffffff;font-weight:600;text-decoration:none;">Submit an appeal</a>
+              <p style="margin:12px 0 0;font-size:13px;color:#6b7280;">Appeals are optional but must include context for report {{report_id}}.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 28px;">
+              <ul style="margin:0;padding-left:18px;color:#4b5563;font-size:14px;line-height:1.6;">
+                <li>Push notifications, posting, and DMs are disabled.</li>
+                <li>Coaches and team admins keep access to existing records.</li>
+                <li>Further issues can result in a 45-day suspension or permanent ban.</li>
+              </ul>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 32px;">
+              <table role="presentation" width="100%" style="border-collapse:collapse;">
+                <tr>
+                  <td style="border-top:1px solid #e5e7eb;font-size:1px;line-height:1px;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <!-- Canonical VarsityHub Footer Snippet (light theme) -->
+          <tr>
+            <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+              <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
+              <div style="text-align:center;">
+                <a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://x.com/varsityhub00" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+                <a href="https://limeprod.com" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+                  <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+                </a>
+              </div>
+              <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Privacy Policy</a>
+                &nbsp;•&nbsp;
+                <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+              </p>
+              <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

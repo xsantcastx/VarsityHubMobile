@@ -1,0 +1,182 @@
+[
+  {
+    "template": "password-reset",
+    "description": "Password reset with {{resetLink}} CTA",
+    "testData": {
+      "name": "Jordan Wright",
+      "resetLink": "https://varsityhub.app/reset?code=ABCD1234&email=jordan%40varsityhub.app",
+      "webResetLink": "https://varsityhub.app/reset?code=ABCD1234&email=jordan%40varsityhub.app",
+      "mobileResetLink": "varsityhubmobile://reset/ABCD1234",
+      "expiresIn": "60 minutes",
+      "code": "ABCD1234"
+    },
+    "validation": {
+      "cta": {
+        "resetLink": {
+          "status": "✅",
+          "link": "https://varsityhub.app/reset?code=ABCD1234&email=jordan%40varsityhub.app"
+        },
+        "mobileResetLink": {
+          "status": "✅",
+          "link": "varsityhubmobile://reset/ABCD1234"
+        }
+      },
+      "security": {
+        "privacy": {
+          "status": "✅",
+          "link": "https://limeprod.com/VarsityHubPrivacy"
+        },
+        "security": {
+          "status": "⚠️",
+          "link": "NOT FOUND"
+        },
+        "support": {
+          "status": "✅",
+          "link": "mailto:support@varsityhub.app"
+        }
+      },
+      "social": {
+        "instagram": {
+          "status": "✅",
+          "link": "https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13"
+        },
+        "tiktok": {
+          "status": "✅",
+          "link": "https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi"
+        },
+        "youtube": {
+          "status": "✅",
+          "link": "https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-"
+        },
+        "facebook": {
+          "status": "✅",
+          "link": "https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr"
+        },
+        "limeprod": {
+          "status": "✅",
+          "link": "https://limeprod.com"
+        }
+      },
+      "errors": [],
+      "limeprodGlobe": {
+        "status": "⚠️",
+        "found": false
+      }
+    },
+    "timestamp": "2025-12-17T19:31:27.077Z"
+  },
+  {
+    "template": "password-changed",
+    "description": "Password changed confirmation",
+    "testData": {
+      "name": "Jordan Wright",
+      "date": "December 17, 2025 at 6:45 PM CT",
+      "email": "jordan@varsityhub.app"
+    },
+    "validation": {
+      "cta": {
+        "note": "CTAs not expected for this template"
+      },
+      "security": {
+        "privacy": {
+          "status": "✅",
+          "link": "https://limeprod.com/VarsityHubPrivacy"
+        },
+        "security": {
+          "status": "✅",
+          "link": "https://varsityhub.app/security"
+        },
+        "support": {
+          "status": "✅",
+          "link": "mailto:support@varsityhub.app"
+        }
+      },
+      "social": {
+        "instagram": {
+          "status": "✅",
+          "link": "https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13"
+        },
+        "tiktok": {
+          "status": "✅",
+          "link": "https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi"
+        },
+        "youtube": {
+          "status": "✅",
+          "link": "https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-"
+        },
+        "facebook": {
+          "status": "✅",
+          "link": "https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr"
+        },
+        "limeprod": {
+          "status": "✅",
+          "link": "https://limeprod.com"
+        }
+      },
+      "errors": [],
+      "limeprodGlobe": {
+        "status": "⚠️",
+        "found": false
+      }
+    },
+    "timestamp": "2025-12-17T19:31:27.079Z"
+  },
+  {
+    "template": "account-recovery",
+    "description": "Account recovery notice with support footer",
+    "testData": {
+      "USERNAME": "Jordan Wright",
+      "ACCOUNT_EMAIL": "jordan@varsityhub.app",
+      "RECOVERY_DATE": "December 17, 2025 at 10:15 AM CT",
+      "privacy_policy_url": "https://limeprod.com/VarsityHubPrivacy",
+      "community_guidelines_url": "https://limeprod.com/VarsityHubPrivacy"
+    },
+    "validation": {
+      "cta": {
+        "note": "CTAs not expected for this template"
+      },
+      "security": {
+        "privacy": {
+          "status": "✅",
+          "link": "https://limeprod.com/VarsityHubPrivacy"
+        },
+        "security": {
+          "status": "⚠️",
+          "link": "NOT FOUND"
+        },
+        "support": {
+          "status": "✅",
+          "link": "mailto:support@varsityhub.app"
+        }
+      },
+      "social": {
+        "instagram": {
+          "status": "✅",
+          "link": "https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13"
+        },
+        "tiktok": {
+          "status": "✅",
+          "link": "https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi"
+        },
+        "youtube": {
+          "status": "✅",
+          "link": "https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-"
+        },
+        "facebook": {
+          "status": "✅",
+          "link": "https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr"
+        },
+        "limeprod": {
+          "status": "✅",
+          "link": "https://limeprod.com"
+        }
+      },
+      "errors": [],
+      "limeprodGlobe": {
+        "status": "⚠️",
+        "found": false
+      }
+    },
+    "timestamp": "2025-12-17T19:31:27.079Z"
+  }
+]

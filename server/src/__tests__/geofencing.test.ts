@@ -59,14 +59,14 @@ describe('geofencing utilities', () => {
     } as const;
 
     it('rejects when event is missing', async () => {
-      prisma.event.findUnique.mockResolvedValue(null);
+      (prisma.event.findUnique as any).mockResolvedValue(null);
       const result = await verifyEventPostingPermission('evt_missing', 'user1', 34.05, -118.25);
       expect(result.allowed).toBe(false);
       expect(result.reason).toMatch(/Event not found/i);
     });
 
     it('rejects before posting window opens', async () => {
-      prisma.event.findUnique.mockResolvedValue(baseEvent);
+      (prisma.event.findUnique as any).mockResolvedValue(baseEvent);
       jest.setSystemTime(new Date('2025-01-09T10:00:00Z'));
       const result = await verifyEventPostingPermission('evt_1', 'user1', 34.05, -118.25);
       expect(result.allowed).toBe(false);
@@ -74,7 +74,7 @@ describe('geofencing utilities', () => {
     });
 
     it('rejects when location is missing', async () => {
-      prisma.event.findUnique.mockResolvedValue(baseEvent);
+      (prisma.event.findUnique as any).mockResolvedValue(baseEvent);
       jest.setSystemTime(new Date('2025-01-11T12:00:00Z'));
       const result = await verifyEventPostingPermission('evt_1', 'user1', null, null);
       expect(result.allowed).toBe(false);
@@ -82,7 +82,7 @@ describe('geofencing utilities', () => {
     });
 
     it('rejects when user is outside 15km radius', async () => {
-      prisma.event.findUnique.mockResolvedValue(baseEvent);
+      (prisma.event.findUnique as any).mockResolvedValue(baseEvent);
       jest.setSystemTime(new Date('2025-01-11T12:00:00Z'));
       const result = await verifyEventPostingPermission('evt_1', 'user1', 34.40, -118.25);
       expect(result.allowed).toBe(false);
@@ -91,7 +91,7 @@ describe('geofencing utilities', () => {
     });
 
     it('allows posting inside window and radius', async () => {
-      prisma.event.findUnique.mockResolvedValue(baseEvent);
+      (prisma.event.findUnique as any).mockResolvedValue(baseEvent);
       jest.setSystemTime(new Date('2025-01-11T12:00:00Z'));
       const result = await verifyEventPostingPermission('evt_1', 'user1', 34.049, -118.251);
       expect(result.allowed).toBe(true);
@@ -111,7 +111,7 @@ describe('geofencing utilities', () => {
     } as const;
 
     it('rejects when not on event day', async () => {
-      prisma.game.findUnique.mockResolvedValue(baseGame);
+      (prisma.game.findUnique as any).mockResolvedValue(baseGame);
       jest.setSystemTime(new Date('2025-01-11T12:00:00Z'));
       const result = await verifyStoryCreationPermission('game_1', 'user1', 34.05, -118.25);
       expect(result.allowed).toBe(false);
@@ -119,7 +119,7 @@ describe('geofencing utilities', () => {
     });
 
     it('rejects when location missing', async () => {
-      prisma.game.findUnique.mockResolvedValue(baseGame);
+      (prisma.game.findUnique as any).mockResolvedValue(baseGame);
       jest.setSystemTime(new Date('2025-01-10T10:00:00Z'));
       const result = await verifyStoryCreationPermission('game_1', 'user1', null, null);
       expect(result.allowed).toBe(false);
@@ -127,7 +127,7 @@ describe('geofencing utilities', () => {
     });
 
     it('rejects when outside 2km radius', async () => {
-      prisma.game.findUnique.mockResolvedValue(baseGame);
+      (prisma.game.findUnique as any).mockResolvedValue(baseGame);
       jest.setSystemTime(new Date('2025-01-10T10:00:00Z'));
       const result = await verifyStoryCreationPermission('game_1', 'user1', 34.08, -118.25);
       expect(result.allowed).toBe(false);
@@ -135,7 +135,7 @@ describe('geofencing utilities', () => {
     });
 
     it('allows story when on event day within radius', async () => {
-      prisma.game.findUnique.mockResolvedValue(baseGame);
+      (prisma.game.findUnique as any).mockResolvedValue(baseGame);
       jest.setSystemTime(new Date('2025-01-10T12:00:00Z'));
       const result = await verifyStoryCreationPermission('game_1', 'user1', 34.049, -118.251);
       expect(result.allowed).toBe(true);

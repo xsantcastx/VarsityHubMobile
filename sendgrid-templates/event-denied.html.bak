@@ -1,0 +1,181 @@
+<!-- Template: Event Denied (EVENT_DENIED) -->
+<!-- Template ID: d-503431dd78274a628f43a1e6c1592b14 -->
+<!-- Source Name: Event Denied - VH -->
+<!-- Subject: Your event {{eventName}} was denied -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Not Approved - VarsityHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #ffffff;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
+                    
+                    <!-- Logo -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 32px;">
+                            <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png" alt="VarsityHub" style="width: 100px; height: 100px; display: block;" />
+                        </td>
+                    </tr>
+
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding-bottom: 24px;">
+                            <h1 style="margin: 0; font-size: 24px; color: #111827; font-weight: 700;">
+                                📋 Event Requires Changes
+                            </h1>
+                        </td>
+                    </tr>
+
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 0 20px 32px;">
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                Hi {{coachName}},
+                            </p>
+                            
+                            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #374151;">
+                                We reviewed your event submission for <strong>{{eventName}}</strong> ({{eventDate}}). Unfortunately, it doesn't meet our current guidelines and cannot be approved at this time.
+                            </p>
+
+                            <!-- Status Badge -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+                                <tr>
+                                    <td align="center">
+                                        <div style="display: inline-block; padding: 8px 16px; background-color: #ef4444; color: #ffffff; border-radius: 6px; font-size: 14px; font-weight: 700;">
+                                            NOT APPROVED
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Denial Reason Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #991b1b; font-weight: 700;">
+                                            ⚠️ Reason for Denial
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #991b1b;">
+                                            {{denialReason}}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Event Details Box -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 16px; font-size: 16px; color: #111827; font-weight: 700;">
+                                            📅 Submitted Event Details
+                                        </p>
+                                        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Event Name:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventName}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Date:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{eventDate}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Organization:</td>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; text-align: right;">{{organizationName}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- What to Do Next -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; margin-bottom: 24px;">
+                                <tr>
+                                    <td style="padding: 16px;">
+                                        <p style="margin: 0 0 8px; font-size: 14px; color: #1e40af; font-weight: 700;">
+                                            💡 What You Can Do
+                                        </p>
+                                        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #1e40af;">
+                                            <li style="margin-bottom: 8px;">Review the denial reason above</li>
+                                            <li style="margin-bottom: 8px;">Make the necessary corrections</li>
+                                            <li style="margin-bottom: 8px;">Submit a new event with updated information</li>
+                                            <li style="margin-bottom: 0;">Contact support if you have questions</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 24px; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                                We appreciate your patience and look forward to helping you host a successful event on VarsityHub.
+                            </p>
+
+                            <!-- CTA Buttons -->
+                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+                                <tr>
+                                    <td align="center" style="padding: 0 0 12px 0;">
+                                        <a href="{{resubmitLink}}" style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                                            Submit New Event
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding: 0;">
+                                        <a href="{{supportLink}}" style="display: inline-block; padding: 14px 28px; background-color: #f3f4f6; color: #374151; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid #d1d5db;">
+                                            Contact Support
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 0; font-size: 13px; line-height: 1.6; color: #9ca3af; text-align: center;">
+                                Questions? Reply to this email and our team will help you.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <!-- Footer -->
+<!-- Canonical VarsityHub Footer Snippet (light theme) -->
+<tr>
+  <td style="padding:32px 24px;text-align:center;background-color:#f9fafb;border-top:1px solid #e5e7eb;">
+    <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Follow us on social media</p>
+    <div style="text-align:center;">
+      <a href="https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" alt="TikTok" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/1384/1384060.png" alt="YouTube" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://x.com/varsityhub00" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/X_logo_2023_original.svg" alt="X" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+      <a href="https://limeprod.com" style="display:inline-block;margin:0 8px;" target="_blank" rel="noopener noreferrer">
+        <img src="https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765997882/365220-200_mvbdz7.png" alt="LimeProd.com" width="36" height="36" style="display:block;border:0;width:36px;height:36px;" />
+      </a>
+    </div>
+    <p style="margin:20px 0 8px;font-size:13px;color:#6b7280;">
+      <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Privacy Policy</a>
+      &nbsp;•&nbsp;
+      <a href="https://limeprod.com/VarsityHubPrivacy" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;">Community Guidelines</a>
+    </p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">© 2025 LIME PRODUCTIONS. All rights reserved.</p>
+  </td>
+</tr>
+</table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

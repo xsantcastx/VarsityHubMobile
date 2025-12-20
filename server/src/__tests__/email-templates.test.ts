@@ -76,10 +76,14 @@ describe('Email Template Validation', () => {
       const result = await sendLoginFromNewDeviceEmail({
         to: 'test@example.com',
         userName: 'Test User',
+        deviceType: 'Chrome',
+        deviceLocation: 'San Francisco, CA',
         loginDate: 'December 17, 2025',
-        deviceInfo: 'Chrome on macOS',
+        loginTime: '2:30 PM',
         ipAddress: '192.168.1.1',
-        location: 'San Francisco, CA',
+        secureAccountLink: 'https://varsityhub.app/security',
+        changePasswordLink: 'https://varsityhub.app/change-password',
+        contactSupportLink: 'https://varsityhub.app/support',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -87,10 +91,11 @@ describe('Email Template Validation', () => {
     it('sendSecurityAlertEmail should accept valid parameters', async () => {
       const result = await sendSecurityAlertEmail({
         to: 'test@example.com',
-        userName: 'Test User',
-        alertType: 'Suspicious Activity',
-        alertMessage: 'Multiple failed login attempts',
-        actionRequired: 'Please verify your account',
+        alertType: 'new_device',
+        ipAddress: '192.168.1.1',
+        location: 'San Francisco, CA',
+        secureAccountLink: 'https://varsityhub.app/security',
+        changePasswordLink: 'https://varsityhub.app/change-password',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -100,11 +105,12 @@ describe('Email Template Validation', () => {
     it('sendOrganizationInvitationEmail should accept valid parameters', async () => {
       const result = await sendOrganizationInvitationEmail({
         to: 'test@example.com',
-        inviteeName: 'Test User',
+        recipientName: 'Test User',
         organizationName: 'Test Org',
         inviterName: 'Admin User',
         role: 'coach',
         acceptLink: 'https://varsityhub.app/invites/accept/123',
+        declineLink: 'https://varsityhub.app/invites/decline/123',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -112,12 +118,12 @@ describe('Email Template Validation', () => {
     it('sendTeamInvitationEmail should accept valid parameters', async () => {
       const result = await sendTeamInvitationEmail({
         to: 'test@example.com',
-        inviteeName: 'Test User',
+        recipientName: 'Test User',
         teamName: 'Test Team',
-        sport: 'Basketball',
         inviterName: 'Coach Smith',
         role: 'player',
         acceptLink: 'https://varsityhub.app/team-invites/accept/123',
+        declineLink: 'https://varsityhub.app/team-invites/decline/123',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -129,8 +135,8 @@ describe('Email Template Validation', () => {
         teamName: 'Test Team',
         coachName: 'Coach Smith',
         sport: 'Basketball',
-        season: 'Fall 2025',
         acceptLink: 'https://varsityhub.app/athlete-invites/accept/123',
+        declineLink: 'https://varsityhub.app/athlete-invites/decline/123',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -139,10 +145,11 @@ describe('Email Template Validation', () => {
       const result = await sendRoleAssignmentEmail({
         to: 'test@example.com',
         userName: 'Test User',
-        teamName: 'Test Team',
-        oldRole: 'player',
         newRole: 'captain',
+        teamName: 'Test Team',
         assignedBy: 'Coach Smith',
+        assignedDate: 'December 17, 2025',
+        dashboardLink: 'https://varsityhub.app/dashboard',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -152,9 +159,9 @@ describe('Email Template Validation', () => {
         to: 'test@example.com',
         coachName: 'Coach Smith',
         teamName: 'Test Team',
-        currentCount: 8,
-        maxAllowed: 10,
-        planName: 'Free Plan',
+        currentRosterCount: 8,
+        maxRosterCount: 10,
+        upgradeLink: 'https://varsityhub.app/upgrade',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -162,10 +169,13 @@ describe('Email Template Validation', () => {
     it('sendInvitationDeclinedEmail should accept valid parameters', async () => {
       const result = await sendInvitationDeclinedEmail({
         to: 'test@example.com',
-        inviterName: 'Coach Smith',
-        inviteeName: 'Test User',
+        senderName: 'Coach Smith',
+        declinedByName: 'Test User',
         teamName: 'Test Team',
-        sport: 'Basketball',
+        role: 'player',
+        declinedDate: 'December 17, 2025',
+        viewTeamUrl: 'https://varsityhub.app/team/123',
+        resendInvitationUrl: 'https://varsityhub.app/invites/resend/123',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -177,7 +187,8 @@ describe('Email Template Validation', () => {
         teamName: 'Test Team',
         updateType: 'player_added',
         playerName: 'New Player',
-        updatedBy: 'Admin User',
+        updateDate: 'December 17, 2025',
+        viewRosterLink: 'https://varsityhub.app/roster',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -187,8 +198,11 @@ describe('Email Template Validation', () => {
         to: 'test@example.com',
         userName: 'Test User',
         teamName: 'Test Team',
+        organizationName: 'Test Org',
         removedBy: 'Coach Smith',
-        reason: 'Graduated',
+        removalDate: 'December 17, 2025',
+        removalReason: 'Graduated',
+        contactEmail: 'coach@example.com',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -197,10 +211,11 @@ describe('Email Template Validation', () => {
       const result = await sendStaffInvitationEmail({
         to: 'test@example.com',
         inviteeName: 'Test Staff',
-        organizationName: 'Test Org',
-        role: 'Assistant Coach',
         inviterName: 'Head Coach',
-        acceptLink: 'https://varsityhub.app/staff-invites/accept/123',
+        teamName: 'Test Team',
+        inviteLink: 'https://varsityhub.app/staff-invites/accept/123',
+        expiryDays: 30,
+        onboardingUrl: 'https://varsityhub.app/onboarding',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -209,9 +224,10 @@ describe('Email Template Validation', () => {
       const result = await sendStaffInvitationConfirmationEmail({
         to: 'test@example.com',
         coachName: 'Head Coach',
-        staffName: 'Test Staff',
-        role: 'Assistant Coach',
-        organizationName: 'Test Org',
+        inviteeName: 'Test Staff',
+        inviteeEmail: 'test@example.com',
+        teamName: 'Test Team',
+        manageStaffUrl: 'https://varsityhub.app/manage-staff',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -259,11 +275,11 @@ describe('Email Template Validation', () => {
     it('sendPlanLimitWarningEmail should accept valid parameters', async () => {
       const result = await sendPlanLimitWarningEmail({
         to: 'test@example.com',
-        userName: 'Test User',
-        limitType: 'teams',
-        currentUsage: 2,
-        maxAllowed: 2,
-        upgradeLink: 'https://varsityhub.app/upgrade',
+        planName: 'Free Plan',
+        resourceType: 'team',
+        used: 2,
+        limit: 2,
+        upgradeUrl: 'https://varsityhub.app/upgrade',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -271,11 +287,11 @@ describe('Email Template Validation', () => {
     it('sendBillingNoticeEmail should accept valid parameters', async () => {
       const result = await sendBillingNoticeEmail({
         to: 'test@example.com',
-        userName: 'Test User',
-        noticeType: 'payment_due',
+        type: 'payment_succeeded',
+        planName: 'Pro Plan',
         amount: '$9.99',
-        dueDate: 'January 1, 2026',
-        paymentLink: 'https://varsityhub.app/billing',
+        manageUrl: 'https://varsityhub.app/billing',
+        teamName: 'Test Team',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -296,7 +312,7 @@ describe('Email Template Validation', () => {
       const result = await sendOrganizationApprovalEmail({
         to: 'test@example.com',
         organizationName: 'Test Org',
-        adminName: 'Admin User',
+        dashboardLink: 'https://varsityhub.app/dashboard',
       });
       expect(typeof result).toBe('boolean');
     });
@@ -313,10 +329,9 @@ describe('Email Template Validation', () => {
     it('sendContentModerationEmail should accept valid parameters', async () => {
       const result = await sendContentModerationEmail({
         to: 'test@example.com',
-        userName: 'Test User',
-        contentType: 'post',
+        action: 'flagged',
+        postId: 'post-123',
         reason: 'Inappropriate content',
-        appealLink: 'https://varsityhub.app/appeals',
       });
       expect(typeof result).toBe('boolean');
     });

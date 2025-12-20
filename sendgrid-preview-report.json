@@ -12,55 +12,18 @@
     },
     "validation": {
       "cta": {},
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "support": {
-          "status": "✅",
-          "link": "mailto:support@varsityhub.app"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
+      "security": {},
+      "social": {},
       "errors": [
-        "No CTA links detected in password-reset",
-        "Social link \"instagram\" not found in password-reset",
-        "Social link \"tiktok\" not found in password-reset",
-        "Social link \"youtube\" not found in password-reset",
-        "Social link \"facebook\" not found in password-reset"
+        "No CTA links detected in password-reset"
       ],
-      "limeprodGlobe": {
+      "limeprodBranding": {
         "status": "⚠️",
-        "found": false
+        "found": true,
+        "note": "LimeProd link present but no SVG detected"
       }
     },
-    "timestamp": "2025-12-20T03:37:43.670Z"
+    "timestamp": "2025-12-20T03:44:17.485Z"
   },
   {
     "template": "password-changed",
@@ -74,54 +37,16 @@
       "cta": {
         "note": "CTAs not expected for this template"
       },
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "✅",
-          "link": "https://varsityhub.app/security"
-        },
-        "support": {
-          "status": "✅",
-          "link": "mailto:support@varsityhub.app"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
-      "errors": [
-        "Social link \"instagram\" not found in password-changed",
-        "Social link \"tiktok\" not found in password-changed",
-        "Social link \"youtube\" not found in password-changed",
-        "Social link \"facebook\" not found in password-changed"
-      ],
-      "limeprodGlobe": {
+      "security": {},
+      "social": {},
+      "errors": [],
+      "limeprodBranding": {
         "status": "⚠️",
-        "found": false
+        "found": true,
+        "note": "LimeProd link present but no SVG detected"
       }
     },
-    "timestamp": "2025-12-20T03:37:43.675Z"
+    "timestamp": "2025-12-20T03:44:17.496Z"
   },
   {
     "template": "account-recovery",
@@ -137,54 +62,15 @@
       "cta": {
         "note": "CTAs not expected for this template"
       },
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "support": {
-          "status": "✅",
-          "link": "mailto:support@varsityhub.app"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
-      "errors": [
-        "Social link \"instagram\" not found in account-recovery",
-        "Social link \"tiktok\" not found in account-recovery",
-        "Social link \"youtube\" not found in account-recovery",
-        "Social link \"facebook\" not found in account-recovery"
-      ],
-      "limeprodGlobe": {
+      "security": {},
+      "social": {},
+      "errors": [],
+      "limeprodBranding": {
         "status": "✅",
         "found": true
       }
     },
-    "timestamp": "2025-12-20T03:37:43.676Z"
+    "timestamp": "2025-12-20T03:44:17.498Z"
   },
   {
     "template": "ad-reservation-confirmation",
@@ -205,54 +91,15 @@
           "link": "https://varsityhub.app/ads/checkout?token=abc123"
         }
       },
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "support": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
-      "errors": [
-        "Social link \"instagram\" not found in ad-reservation-confirmation",
-        "Social link \"tiktok\" not found in ad-reservation-confirmation",
-        "Social link \"youtube\" not found in ad-reservation-confirmation",
-        "Social link \"facebook\" not found in ad-reservation-confirmation"
-      ],
-      "limeprodGlobe": {
+      "security": {},
+      "social": {},
+      "errors": [],
+      "limeprodBranding": {
         "status": "✅",
         "found": true
       }
     },
-    "timestamp": "2025-12-20T03:37:43.677Z"
+    "timestamp": "2025-12-20T03:44:17.499Z"
   },
   {
     "template": "ad-payment-required",
@@ -271,54 +118,15 @@
           "link": "https://varsityhub.app/ads/checkout?token=abc123"
         }
       },
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "support": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
-      "errors": [
-        "Social link \"instagram\" not found in ad-payment-required",
-        "Social link \"tiktok\" not found in ad-payment-required",
-        "Social link \"youtube\" not found in ad-payment-required",
-        "Social link \"facebook\" not found in ad-payment-required"
-      ],
-      "limeprodGlobe": {
+      "security": {},
+      "social": {},
+      "errors": [],
+      "limeprodBranding": {
         "status": "✅",
         "found": true
       }
     },
-    "timestamp": "2025-12-20T03:37:43.678Z"
+    "timestamp": "2025-12-20T03:44:17.504Z"
   },
   {
     "template": "ad-goes-live",
@@ -339,53 +147,14 @@
           "link": "https://varsityhub.app/ads/analytics?ad=123"
         }
       },
-      "security": {
-        "privacy": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "security": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        },
-        "support": {
-          "status": "⚠️",
-          "link": "NOT FOUND"
-        }
-      },
-      "social": {
-        "instagram": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "tiktok": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "youtube": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "facebook": {
-          "status": "❌",
-          "link": "NOT FOUND"
-        },
-        "limeprod": {
-          "status": "✅",
-          "link": "https://limeprod.com"
-        }
-      },
-      "errors": [
-        "Social link \"instagram\" not found in ad-goes-live",
-        "Social link \"tiktok\" not found in ad-goes-live",
-        "Social link \"youtube\" not found in ad-goes-live",
-        "Social link \"facebook\" not found in ad-goes-live"
-      ],
-      "limeprodGlobe": {
+      "security": {},
+      "social": {},
+      "errors": [],
+      "limeprodBranding": {
         "status": "✅",
         "found": true
       }
     },
-    "timestamp": "2025-12-20T03:37:43.678Z"
+    "timestamp": "2025-12-20T03:44:17.504Z"
   }
 ]
