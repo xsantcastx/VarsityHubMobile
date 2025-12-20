@@ -333,7 +333,7 @@ export default function TeamScreen() {
       {/* Cover Photo - Reduced Height */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#e2e8f0', '#cbd5e1']}
-        style={[styles.coverContainer, { height: 80 }]}
+        style={[styles.coverContainer, { height: 50 }]}
       >
         {team?.logo_url ? (
           <Image source={{ uri: team.logo_url }} style={styles.coverImage} contentFit="cover" />
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   coverContainer: {
-    height: 120,
+    height: 50,
     width: '100%',
   },
   coverImage: {
