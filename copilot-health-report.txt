@@ -1,0 +1,38 @@
+DATE: Sat Dec 20 03:31:54 UTC 2025
+SHELL: /bin/zsh
+OS: ProductName:		macOS;ProductVersion:		15.7.2;BuildVersion:		24G325;
+HTTP_PROXY: 
+HTTPS_PROXY: 
+NO_PROXY: 
+SERVICE: USB
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: 10/100/1000
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: LAN
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: Wi-Fi
+HTTP Proxy: Enabled: No;Server: ;Port: 0;Authenticated Proxy Enabled: 0;
+HTTPS Proxy: Enabled: No;Server: ;Port: 0;Authenticated Proxy Enabled: 0;
+SERVICE: Thunderbolt
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: Bridge
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: iPhone
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+SERVICE: USB
+HTTP Proxy: ** Error: Unable to find item in network database.;
+HTTPS Proxy: ** Error: Unable to find item in network database.;
+URL copilot-proxy OK: http_code=200 remote_ip=4.249.131.160 time_total=0.165820s
+URL api.github.com OK: http_code=200 remote_ip=140.82.112.6 time_total=0.058717s
+URL github.com OK: http_code=200 remote_ip=140.82.113.3 time_total=0.149641s
+URL api.githubcopilot.com OK: http_code=200 remote_ip=140.82.113.21 time_total=0.062373s
+Copilot extensions installed: 2
+github.copilot-1.388.0
+github.copilot-chat-0.33.5
+Finished. Full report: copilot-health-report.txt
