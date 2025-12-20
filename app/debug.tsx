@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import * as Sentry from 'sentry-expo';
 
 export default function DebugScreen() {
   const router = useRouter();
@@ -38,6 +39,19 @@ export default function DebugScreen() {
         <Text style={styles.label}>Ad Calendar adId</Text>
         <Input placeholder="e.g. my-ad" value={adId} onChangeText={setAdId} style={{ marginBottom: 8 }} />
   <Button onPress={() => void router.push(`/ad-calendar?adId=${encodeURIComponent(adId)}`)}><Text>Open Ad Calendar</Text></Button>
+      </View>
+
+      <Text style={styles.title}>Sentry</Text>
+      <View style={styles.block}>
+        <Button onPress={() => {
+          try {
+            throw new Error('Sentry test error from Debug screen');
+          } catch (e) {
+            Sentry.Native.captureException(e);
+          }
+        }}>
+          <Text>Trigger Sentry Error</Text>
+        </Button>
       </View>
     </View>
   );
