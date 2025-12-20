@@ -38,7 +38,8 @@ expoAutolinking.useExpoModules()
 expoAutolinking.useExpoVersionCatalog()
 
 dependencyResolutionManagement {
-  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+  // EAS/Expo init script injects its own Maven repo; prefer settings instead of failing on project repos.
+  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
   repositories {
     google()
     mavenCentral()
