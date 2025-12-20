@@ -40,7 +40,13 @@ def releaseKeyAlias = signingValueFor(["ANDROID_KEY_ALIAS", "MYAPP_UPLOAD_KEY_AL
 def releaseKeyPassword = signingValueFor(["ANDROID_KEY_PASSWORD", "MYAPP_UPLOAD_KEY_PASSWORD", "keyPassword"])
 def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
-def resolvedVersionCode = (findProperty('android.versionCode') ?: System.getenv('ANDROID_VERSION_CODE') ?: '10') as String
+def resolvedVersionCodeStr = (findProperty('android.versionCode') ?: System.getenv('ANDROID_VERSION_CODE') ?: '10') as String
+def resolvedVersionCodeInt = 10
+try {
+    resolvedVersionCodeInt = Integer.parseInt(resolvedVersionCodeStr)
+} catch (Exception ignored) {
+    println("Invalid android.versionCode '${resolvedVersionCodeStr}', defaulting to 10")
+}
 def resolvedVersionName = (findProperty('android.versionName') ?: System.getenv('ANDROID_VERSION_NAME') ?: "1.0.1") as String
 
 /**
@@ -132,7 +138,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Keep native versioning aligned with EAS app build version
-        versionCode Integer.parseInt(resolvedVersionCode)
+        versionCode resolvedVersionCodeInt
         versionName resolvedVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
