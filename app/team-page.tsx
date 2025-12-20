@@ -810,6 +810,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 4,
+    marginTop: 8,
   },
   tabContentContainer: {
     paddingHorizontal: 16,
