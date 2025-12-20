@@ -70,7 +70,7 @@ jobs:
           echo "snyk-test-complete=true" >> $GITHUB_OUTPUT
 
       - name: Send Snyk results to Sentry
-        if: always() && steps.snyk-test.outputs.snyk-test-complete
+        if: always() && steps.snyk-test.outputs.snyk-test-complete && secrets.SENTRY_AUTH_TOKEN != '' && secrets.SENTRY_ORG != '' && secrets.SENTRY_PROJECT != ''
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
