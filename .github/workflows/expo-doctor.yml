@@ -3,12 +3,9 @@ name: Expo Doctor
 on:
   workflow_dispatch:
   push:
-    paths:
-      - app.json
-      - package.json
-      - package-lock.json
-      - metro.config.js
-      - .github/workflows/expo-doctor.yml
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
 
 jobs:
   doctor:

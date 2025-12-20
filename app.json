@@ -4,12 +4,7 @@
     "slug": "varsityhub",
     "owner": "lime_prod",
     "version": "1.0.1",
-    "android": {
-      "package": "com.xsantcastx.varsityhub"
-    },
-    "ios": {
-      "bundleIdentifier": "com.xsantcastx.varsityhub"
-    },
+    
     "runtimeVersion": "1.0.1",
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
