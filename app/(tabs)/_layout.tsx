@@ -92,6 +92,7 @@ export default function TabLayout() {
   <Tabs.Screen name="game-reviews" options={hiddenTab} />
   <Tabs.Screen name="my-ads" options={hiddenTab} />
   <Tabs.Screen name="submit-ad" options={hiddenTab} />
+  <Tabs.Screen name="team-page" options={hiddenTab} />
       <Tabs.Screen
         name="profile/index"
         options={{

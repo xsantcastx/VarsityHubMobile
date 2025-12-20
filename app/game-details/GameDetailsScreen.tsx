@@ -1868,7 +1868,7 @@ const renderBanner = () => {
                   borderColor: Colors[colorScheme].border,
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { id: team.id, name: team.name } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { id: team.id, name: team.name } } as any)}
             >
               {team.avatarUrl ? (
                 <Image source={{ uri: team.avatarUrl }} style={styles.teamLinkAvatar} contentFit="cover" />
@@ -1922,7 +1922,7 @@ const renderBanner = () => {
                   transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                 }
               ]}
-              onPress={() => void router.push({ pathname: '/team-page', params: { name: teamName } } as any)}
+              onPress={() => void router.push({ pathname: '/(tabs)/team-page', params: { name: teamName } } as any)}
               accessibilityRole="button"
               accessibilityLabel={`View ${teamName} team`}
             >

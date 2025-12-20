@@ -206,12 +206,14 @@
     "code": "VHCODE-7788",
     "expiresIn": "Sample expiresIn",
     "name": "VarsityHub",
-    "resetLink": "https://varsityhub.app/link/resetlink"
+    "resetLink": "https://varsityhub.app/reset/VHCODE-7788",
+    "mobileResetLink": "varsityhubmobile://reset?code=VHCODE-7788"
   },
   "password-reset.html": {
     "code": "VHCODE-7788",
     "expiresIn": "Sample expiresIn",
-    "resetLink": "https://varsityhub.app/link/resetlink"
+    "resetLink": "https://varsityhub.app/reset/VHCODE-7788",
+    "mobileResetLink": "varsityhubmobile://reset?code=VHCODE-7788"
   },
   "payment-failed.html": {
     "contactSupportLink": "https://varsityhub.app/support",

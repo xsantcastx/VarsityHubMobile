@@ -163,7 +163,7 @@ export default function OrganizationScreen() {
   }, [loadOrganization]);
 
   const handleTeamPress = (teamId: string) => {
-    router.push(`/team-page?id=${teamId}` as any);
+    router.push(`/(tabs)/team-page?id=${teamId}` as any);
   };
 
   const handleFollowPress = () => {
