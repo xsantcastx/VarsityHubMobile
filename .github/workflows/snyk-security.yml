@@ -28,10 +28,9 @@ jobs:
     # NOTE: Requires SNYK_TOKEN secret to be configured in GitHub repo settings
     # Add at: Settings → Secrets and variables → Actions → New repository secret
     if: >-
-      ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') &&
-          secrets.SNYK_TOKEN != '' }}
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
+      vars.SKIP_SNYK != 'true'
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -66,7 +65,7 @@ jobs:
           echo "snyk-test-complete=true" >> $GITHUB_OUTPUT
 
       - name: Send Snyk results to Sentry
-        if: always() && steps.snyk-test.outputs.snyk-test-complete && secrets.SENTRY_AUTH_TOKEN != '' && secrets.SENTRY_ORG != '' && secrets.SENTRY_PROJECT != ''
+        if: always() && steps.snyk-test.outputs.snyk-test-complete
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
@@ -117,9 +116,9 @@ jobs:
     runs-on: ubuntu-latest
     name: npm audit
     if: >-
-      ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') }}
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
+      vars.SKIP_SNYK != 'true'
 
     steps:
       - name: Checkout code
@@ -151,9 +150,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Container Security Scan
     if: >-
-      ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (vars.SKIP_SNYK != 'true') }}
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      vars.SKIP_SNYK != 'true'
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -182,9 +181,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Infrastructure as Code Scan
     if: >-
-      ${{ !contains(github.event.head_commit.message, '[skip snyk]') &&
-          (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
-          (vars.SKIP_SNYK != 'true') }}
+      !contains(github.event.head_commit.message, '[skip snyk]') &&
+      (github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[skip snyk]')) &&
+      vars.SKIP_SNYK != 'true'
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
