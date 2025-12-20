@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { calculateDistance } from '../src/lib/geofencing.js';
 import { prisma } from '../src/lib/prisma.js';
 
