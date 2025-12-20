@@ -1,2 +1,2 @@
-// Use Expo Router as the app entry
+import './sentry';
 export { default } from 'expo-router/entry';

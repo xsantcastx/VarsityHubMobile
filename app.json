@@ -11,6 +11,17 @@
     "experiments": {
       "typedRoutes": true
     },
+      "plugins": [
+        [
+          "sentry-expo",
+          {
+            "organization": "varsity-hub",
+            "project": "varsityhub",
+            "enableInExpoDevelopment": true,
+            "debug": false
+          }
+        ]
+      ],
     "extra": {
       "router": {},
       "eas": {
