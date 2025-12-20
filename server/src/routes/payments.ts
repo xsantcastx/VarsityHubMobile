@@ -391,8 +391,8 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     userAgent: req.get('user-agent'),
   });
 
-  // Schedule payment reminder email 6 hours later if checkout not completed
-  const delayMs = 6 * 60 * 60 * 1000; // 6 hours
+  // Schedule payment reminder email 15 minutes later if checkout not completed (1-hour hold total)
+  const delayMs = 15 * 60 * 1000; // 15 minutes
   const checkoutLink = session.url || `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
   
   await emailQueue.add(
@@ -403,7 +403,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       business_name: ad.business_name,
       total_cost: total / 100, // Convert cents to dollars
       checkout_link: checkoutLink,
-      hours_remaining: 18, // 24 hour expiry - 6 hours already passed
+      hours_remaining: 1, // 1 hour hold total
       session_id: session.id, // Track to cancel if paid
     },
     { 

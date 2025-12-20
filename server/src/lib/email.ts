@@ -1583,7 +1583,7 @@ export async function sendAccountSuspensionEmail(params: {
         appeal_url: params.appealUrl,
         community_guidelines_url: params.communityGuidelinesUrl || 'https://limeprod.com/VarsityHubPrivacy',
         privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
-        logo_url: 'https://res.cloudinary.com/dws2t/image/upload/v1/varsityhub-logo',
+        logo_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1765655742/6C37232F-74BC-4486-95A1-7EE208A63D06_aj2j8k.png',
       },
     });
     debugLog(`✅ Account suspension email (${params.suspensionDays} days) sent to ${params.to}`);

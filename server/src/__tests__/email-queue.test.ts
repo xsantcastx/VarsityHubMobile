@@ -75,7 +75,7 @@ describe('Email Queue System', () => {
           business_name: 'Test Corp',
           total_cost: 18.0,
           checkout_link: 'https://checkout.stripe.com/test',
-          hours_remaining: 18,
+          hours_remaining: 1,
           session_id: sessionId,
         },
         {
@@ -103,7 +103,7 @@ describe('Email Queue System', () => {
           business_name: 'Test Business',
           total_cost: 13.0,
           checkout_link: 'https://test.com',
-          hours_remaining: 18,
+          hours_remaining: 1,
           session_id: sessionId,
         },
         { delay: 6 * 60 * 60 * 1000, jobId }
