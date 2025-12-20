@@ -959,17 +959,6 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     return () => { cancelled = true; };
   }, []);
 
-  if (!gameId && !usingInitial) {
-    return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyStateTitle}>Missing game id</Text>
-        <Pressable onPress={handleBack} style={styles.emptyStateBtn}>
-          <Text style={styles.emptyStateBtnText}>Go back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none">
       <LinearGradient

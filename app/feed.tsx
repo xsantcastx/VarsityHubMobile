@@ -15,7 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 
-import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
+import GameVerticalFeedScreen, { mapHighlightToFeedPost, type FeedPost } from './game-details/GameVerticalFeedScreen';
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
 
@@ -169,6 +169,7 @@ export default function FeedScreen() {
 
   const [verticalFeedModalVisible, setVerticalFeedModalVisible] = useState(false);
   const [activeVerticalFeedGameId, setActiveVerticalFeedGameId] = useState<string | null>(null);
+  const [highlightPosts, setHighlightPosts] = useState<FeedPost[]>([]);
 
   const [highlightPreview, setHighlightPreview] = useState<any | null>(null);
   const [sponsoredAds, setSponsoredAds] = useState<any[]>([]);
@@ -274,10 +275,18 @@ export default function FeedScreen() {
         const merged: any[] = [];
         if (Array.isArray(highlightsData.nationalTop)) merged.push(...highlightsData.nationalTop);
         if (Array.isArray(highlightsData.ranked)) merged.push(...highlightsData.ranked);
+
+        const mapped = merged
+          .map((item) => mapHighlightToFeedPost(item))
+          .filter((p): p is FeedPost => Boolean(p) && Boolean(p.media_url));
+
+        setHighlightPosts(mapped);
+
         const firstWithMedia = merged.find((item) => typeof item?.media_url === 'string' && item.media_url);
         setHighlightPreview(firstWithMedia || null);
       } else {
         setHighlightPreview(null);
+        setHighlightPosts([]);
       }
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
         const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
@@ -499,9 +508,12 @@ export default function FeedScreen() {
     : undefined;
 
   const openVerticalFeed = useCallback(() => {
-    setActiveVerticalFeedGameId(null);
+    // Use highlights collection as a TikTok-style vertical feed; fall back to server fetch via GameVerticalFeedScreen if empty
+    if (highlightPosts.length === 0) {
+      setActiveVerticalFeedGameId(null);
+    }
     setVerticalFeedModalVisible(true);
-  }, []);
+  }, [highlightPosts.length]);
 
   const closeVerticalFeed = useCallback(() => {
     setVerticalFeedModalVisible(false);
@@ -1091,6 +1103,9 @@ export default function FeedScreen() {
               gameId={activeVerticalFeedGameId}
               onClose={closeVerticalFeed}
               countryCode={userCountryCode}
+              initialPosts={highlightPosts}
+              startIndex={0}
+              title={verticalFeedTitle}
             />
           ) : null}
         </View>

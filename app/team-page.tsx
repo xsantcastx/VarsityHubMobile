@@ -313,28 +313,30 @@ export default function TeamScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       
-      {/* Custom Header */}
-      <View style={[styles.header, { 
-        backgroundColor: theme.card,
-        borderBottomColor: theme.border,
-      }]}>
-        <Pressable 
-          onPress={() => void router.back()} 
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </Pressable>
-      </View>
-      
-      {/* Cover Photo - Reduced Height */}
+      {/* Cover Photo - Extends to top */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#e2e8f0', '#cbd5e1']}
-        style={[styles.coverContainer, { height: 50 }]}
+        style={styles.coverContainerFull}
       >
+        <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+          {/* Custom Header */}
+          <View style={[styles.header, { 
+            backgroundColor: 'transparent',
+            borderBottomWidth: 0,
+          }]}>
+            <Pressable 
+              onPress={() => void router.back()} 
+              style={styles.backButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={colorScheme === 'dark' ? '#fff' : '#000'} />
+            </Pressable>
+          </View>
+        </SafeAreaView>
+        
         {team?.logo_url ? (
           <Image source={{ uri: team.logo_url }} style={styles.coverImage} contentFit="cover" />
         ) : (
@@ -532,7 +534,7 @@ export default function TeamScreen() {
           />
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -552,6 +554,11 @@ const styles = StyleSheet.create({
   coverContainer: {
     height: 50,
     width: '100%',
+  },
+  coverContainerFull: {
+    height: 130,
+    width: '100%',
+    position: 'relative',
   },
   coverImage: {
     width: '100%',

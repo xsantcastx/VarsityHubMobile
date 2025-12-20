@@ -1,6 +1,7 @@
 .git
 .gitignore
 node_modules
+node_modules.bak
 .expo
 .expo-shared
 .idea
@@ -10,6 +11,7 @@ node_modules
 *.lock
 *.ipa
 *.apk
+build/
 build
 build-output.log
 build_output.log
@@ -29,6 +31,10 @@ server/.env
 docs
 overnight-logs-*
 overnight-*
+temp-build
+varsityhub.ipa
+VarsityHub-build27-production.ipa
+build-*.ipa
 *.xcuserstate
 *.xcworkspace
 *.xcuserdatad

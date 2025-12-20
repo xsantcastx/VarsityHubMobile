@@ -18,6 +18,7 @@ android/build/
 android/.gradle/
 server/android/build/
 server/android/.gradle/
+android/app/debug.keystore
 
 # Uploads (user-generated content)
 server/uploads/*
