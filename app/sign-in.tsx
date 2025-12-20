@@ -208,40 +208,43 @@ export default function SignInScreen() {
             {googleReady ? (
               <Pressable
                 style={[
-                  styles.googleButtonContainer,
+                  styles.googleButton,
+                  { backgroundColor: palette.card, borderColor: palette.border },
                   googleLoading && styles.buttonDisabled,
                 ]}
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
               >
-                <View style={styles.googleGIconWrapper}>
-                  {googleLoading ? (
-                    <ActivityIndicator size="small" color="#1F2937" />
-                  ) : (
-                    <Image
-                      source={{
-                        uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIyLjU2IDEyLjI1QzIyLjU2IDE3LjI1IDE5IDE5LjQ0IDE1IDE5LjQ0QzEwLjQ0IDE5LjQ0IDcuNTYgMTYuMDYgNy41NiAxMkM3LjU2IDcuOTQgMTAuNDQgNC41NiAxNSA0LjU2QzE2Ljk0IDQuNTYgMTguNjkgNS4yNSAyMCA2LjMxTDc3LjM4IDIuMTlDNTUuMjcgMy4wNSA0MC40MyAxNy4zNyA0MC40MyAzNS41NEM0MC40MyA0OS4xNSA0OC4zNiA2MCAxMzc2IDYwQTEyIDEyIDAgMSAxIDEyIDQ4QzExLjEyIDQ4IDExLjEyIDQ4IDEwLjI1IDQ3LjkySjMuMDZDNi44NyA0NS43NyAxMS45NCA0NiAxNCA0NkExMiAxMiAwIDAgMCAxNCA0MloiIGZpbGw9ImN1cnJlbnRDb2xvciIvPgo8L3N2Zz4K'
-                      }}
-                      style={styles.googleGIcon}
-                      contentFit="contain"
-                    />
-                  )}
-                </View>
-                <Text style={[styles.googleButtonText, { color: '#FFFFFF' }]}>Continue with Google</Text>
+                <Image
+                  source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766192740/Screenshot_2025-12-19_at_8.05.32_PM_ca1avs.png' }}
+                  style={styles.googleIcon}
+                  contentFit="contain"
+                />
+                {googleLoading ? (
+                  <ActivityIndicator size="small" color={palette.text} />
+                ) : (
+                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
+                )}
               </Pressable>
             ) : (
               <View
-                style={[styles.googleButtonContainer, styles.buttonDisabled]}
+                style={[
+                  styles.googleButton,
+                  { backgroundColor: palette.surface, borderColor: palette.border },
+                  styles.buttonDisabled,
+                ]}
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <View style={[styles.googleGIconWrapper, { opacity: 0.5 }]}>
-                  <Ionicons name="logo-google" size={20} color="#999" />
-                </View>
+                <Image
+                  source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766192740/Screenshot_2025-12-19_at_8.05.32_PM_ca1avs.png' }}
+                  style={[styles.googleIcon, { opacity: 0.5 }]}
+                  contentFit="contain"
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.googleButtonText, { color: '#999' }]}>Google sign in unavailable</Text>
-                  <Text style={[styles.googleButtonSubtext, { color: '#999' }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
+                  <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
                 </View>
               </View>
             )}
@@ -361,31 +364,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 8,
   },
-  googleButtonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1F2937',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
-    width: '100%',
-    height: 50,
-    marginBottom: 0,
-  },
-  googleGIconWrapper: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  googleGIcon: {
-    width: 20,
-    height: 20,
-  },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -400,6 +378,8 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   googleIcon: {
+    width: 20,
+    height: 20,
     marginRight: 8,
   },
   googleButtonText: {
