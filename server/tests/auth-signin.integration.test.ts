@@ -11,7 +11,7 @@
 import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { PrismaClient } from '@prisma/client';
 import type { Express } from 'express';
-import request, { type Test } from 'supertest';
+import request from 'supertest';
 import { createTestApp } from '../src/__tests__/testApp';
 import { prisma as sharedPrisma } from '../src/lib/prisma.js';
 

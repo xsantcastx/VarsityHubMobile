@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "316424843313",
+    "project_id": "varsityhub-mobile",
+    "storage_bucket": "varsityhub-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:316424843313:android:kte6qvms4kbmsii5o0b0o3jjndhs709s",
+        "android_client_info": {
+          "package_name": "com.lime_prod.varsityhub"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
