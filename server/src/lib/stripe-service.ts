@@ -5,8 +5,8 @@
  */
 
 import Stripe from 'stripe';
-import { createLogger } from './logger.js';
 import { stripeConfig } from './config.js';
+import { createLogger } from './logger.js';
 
 const logger = createLogger('stripe-service');
 
