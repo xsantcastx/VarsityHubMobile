@@ -46,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
   CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 4000) + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
 
 # Start the server (with migrations) using start.sh
-CMD ["./start.sh"]
+CMD ["/app/start.sh"]
