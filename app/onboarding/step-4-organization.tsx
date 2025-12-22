@@ -176,8 +176,11 @@ export default function Step4Organization() {
     if (alreadyExists) return true;
     
     // All coaches need organization fields
-    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
+    // Allow proceeding with a manually typed location if no autocomplete selection was made
+    const hasNameAndType = orgName.trim().length > 0 && !!orgType;
+    const hasLocation = !!selectedPlace || (locationTouched && location.trim().length >= 3);
+    return hasNameAndType && hasLocation;
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace, locationTouched, location]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -683,7 +686,7 @@ export default function Step4Organization() {
               )}
             </View>
             {!selectedPlace && locationTouched && (
-              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
+              <Text style={styles.inputHelperText}>Selecting a suggested location is recommended for accuracy, but you can continue with a manual location.</Text>
             )}
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>
