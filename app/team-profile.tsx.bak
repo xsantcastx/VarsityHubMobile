@@ -270,19 +270,51 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberPosition = async (memberId: string, position: string) => {
-    try {
-      setMembers(prev => prev.map(m => 
-        m.id === memberId 
-          ? { ...m, customPosition: position.trim() || undefined }
-          : m
-      ));
-      // TODO: Save to backend
-      console.log('Updated position:', { memberId, position });
-    } catch (_error) {
+    if (!team?.id) {
       setActionModal({
         visible: true,
         title: 'Error',
-        message: 'Failed to update member position',
+        message: 'Team details not loaded yet.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const member = members.find(m => m.id === memberId);
+    if (!member?.user?.id) {
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: 'Unable to identify this member. Please refresh and try again.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+      return;
+    }
+    const trimmed = position.trim();
+    const previous = member.customPosition || undefined;
+    setMembers(prev => prev.map(m => 
+      m.id === memberId 
+        ? { ...m, customPosition: trimmed || undefined }
+        : m
+    ));
+    try {
+      await TeamApi.updateMember(team.id, member.user.id, { custom_position: trimmed || null });
+      setActionModal({
+        visible: true,
+        title: 'Updated!',
+        message: trimmed
+          ? `${member.user.display_name || 'Member'} is now listed as ${trimmed}`
+          : 'Custom position cleared.',
+        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
+      });
+    } catch (error: any) {
+      console.error('Failed to update custom position:', error);
+      setMembers(prev => prev.map(m => 
+        m.id === memberId ? { ...m, customPosition: previous } : m
+      ));
+      setActionModal({
+        visible: true,
+        title: 'Error',
+        message: error?.message || 'Failed to update member position',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     }

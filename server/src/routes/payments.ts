@@ -324,6 +324,20 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Ensure ad exists
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
+  const adType = (ad as { type?: string | null }).type || '';
+
+  // Map ad.type to Stripe price ID, preferring env-configured values
+  const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY || 'price_1SNFWzGJt8CsPE1EIikRsZif';
+  const weekendPriceId = process.env.STRIPE_PRICE_AD_WEEKEND || 'price_1SNFXxGJt8CsPE1ECbmJRQDa';
+  const adTypeToPriceId: Record<string, string> = {
+    'Fri-Sun Advertising': weekendPriceId,
+    'Mond-Thurs Advertising': weekdayPriceId,
+  };
+  const priceId = adTypeToPriceId[adType];
+  debugLog('[payments] Ad checkout price mapping', { adType, priceId, weekdayPriceId, weekendPriceId });
+  if (!priceId) {
+    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType });
+  }
 
   // Calculate sales tax based on ad's target zip code
   const subtotal = calculatePriceCents(isoDates);

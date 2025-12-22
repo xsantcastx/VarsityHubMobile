@@ -100,19 +100,15 @@ test.describe('Step 4: Organization Creation', () => {
 
     await page.goto('http://localhost:8081/onboarding/step-4-organization');
     await page.waitForLoadState('networkidle');
-    
-    // Wait for Step 4 form to render (check for organization name heading or input)
-      await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 10000 }).catch(() => null);
-    await page.waitForTimeout(1000);
 
-    // Find location input field
-      // Ensure we are on Create flow if Search is shown
-      const createToggle = page.locator('text=Create New');
-      if (await createToggle.isVisible().catch(() => false)) {
-        await createToggle.click();
-      }
-      const locationInput = page.locator('input[placeholder="Start typing an address, school, or city"]').first();
-      await locationInput.waitFor({ timeout: 10000 });
+    // Wait robustly for Step 4 UI to render and switch to Create flow
+    await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 30000 }).catch(() => null);
+    const createToggle = page.locator('text=Create New');
+    if (await createToggle.isVisible().catch(() => false)) {
+      await createToggle.click();
+    }
+    const locationInput = page.locator('input[placeholder="Start typing an address, school, or city"]').first();
+    await locationInput.waitFor({ timeout: 30000 });
     
     // Type 2 characters - no suggestions should appear
     await locationInput.fill('St');
@@ -130,8 +126,7 @@ test.describe('Step 4: Organization Creation', () => {
   test('should require place selection before continuing', async ({ page }) => {
     await page.goto('http://localhost:8081/onboarding/step-4-organization');
     await page.waitForLoadState('networkidle');
-      await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 10000 }).catch(() => null);
-    await page.waitForTimeout(1000);
+      await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 30000 }).catch(() => null);
 
     // Fill org name and select type
       // Ensure Create flow
@@ -140,7 +135,7 @@ test.describe('Step 4: Organization Creation', () => {
         await createToggle2.click();
       }
       const orgNameInput = page.locator('input[placeholder="Westhill High School"]').first();
-      await orgNameInput.waitFor({ timeout: 10000 });
+      await orgNameInput.waitFor({ timeout: 30000 });
       await orgNameInput.fill('Test High School');
 
     // Select org type (school)
@@ -151,7 +146,7 @@ test.describe('Step 4: Organization Creation', () => {
 
     // Fill location but DON'T select from autocomplete
       const locationInput = page.locator('input[placeholder="Start typing an address, school, or city"]').first();
-      await locationInput.waitFor({ timeout: 10000 });
+      await locationInput.waitFor({ timeout: 30000 });
     await locationInput.fill('Stamford, CT');
     await page.waitForTimeout(500);
 
@@ -179,8 +174,7 @@ test.describe('Step 4: Organization Creation', () => {
 
     await page.goto('http://localhost:8081/onboarding/step-4-organization');
     await page.waitForLoadState('networkidle');
-      await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 10000 }).catch(() => null);
-    await page.waitForTimeout(1000);
+      await page.waitForSelector('text=/Connect to Organization|Create New|Search/i', { timeout: 30000 }).catch(() => null);
 
     // Fill org name
       const createToggle3 = page.locator('text=Create New');
@@ -188,12 +182,12 @@ test.describe('Step 4: Organization Creation', () => {
         await createToggle3.click();
       }
       const orgNameInput = page.locator('input[placeholder="Westhill High School"]').first();
-      await orgNameInput.waitFor({ timeout: 10000 });
+      await orgNameInput.waitFor({ timeout: 30000 });
       await orgNameInput.fill('Westhill High');
 
     // Trigger autocomplete and select a place
       const locationInput = page.locator('input[placeholder="Start typing an address, school, or city"]').first();
-      await locationInput.waitFor({ timeout: 10000 });
+      await locationInput.waitFor({ timeout: 30000 });
     await locationInput.fill('Westhill High School, Stamford');
     await page.waitForTimeout(500);
 

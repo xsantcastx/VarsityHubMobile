@@ -20,9 +20,9 @@
 - [x] **TypeScript**: 0 compilation errors
 - [x] **ESLint**: Validated (0 errors reported)
 - [x] **Dark Mode**: Navy blue palette (#0f172a) implemented & verified
-- [ ] **Security Scan**: Pending snyk_code_scan per instructions
+- [ ] **Security Scan**: Snyk code scan still pending; OSS + `npm audit` clean
 - [ ] **Console Logging**: Requires cleanup (debug logs in server code)
-- [ ] **TODO Comments**: Apple token verification needs production implementation
+- [x] **Apple Token Verification**: Implemented via `verifyAppleToken` (Apple JWKS, issuer/audience checks)
 
 ### iOS Configuration
 - [x] **Bundle ID**: com.xsantcastx.varsityhub
@@ -94,13 +94,12 @@ snyk_code_scan /Users/varsityhub/Desktop/CODE/VarsityHubMobile
 
 **Action**: Remove or replace with structured logging (e.g., Pino, Winston)
 
-### 5. Implement Apple Token Verification
-**File**: `server/src/routes/auth.ts` line 283  
-**Action**: Replace mock with JWT verification against Apple's servers
-```typescript
-// TODO: Implement proper Apple token verification in production
-// Use: https://developer.apple.com/documentation/sign_in_with_apple/verifying_a_user
-```
+### 5. Validate Apple Token Verification
+- ✅ Implemented in `server/src/lib/appleAuth.ts` + `server/src/routes/auth.ts` (Apple JWKS, issuer/audience enforced)
+- ✅ Simulator tokens supported via `sim-<id>` prefix (dev only)
+- 🔑 Ensure env + key: set `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and place `server/.keys/AuthKey_<ID>.p8`
+- 🔍 Run `./validate-signin-config.sh` (from repo root) to confirm key/env wiring
+- 🧪 Test: `curl -X POST http://localhost:4000/api/auth/apple -H "Content-Type: application/json" -d '{"identity_token":"sim-test-user-123"}'`
 
 ---
 

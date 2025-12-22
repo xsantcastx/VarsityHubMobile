@@ -22,7 +22,8 @@ RUN npx prisma generate
 # Copy source code and startup script
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
-COPY ./start.sh ./
+# Copy startup script from server folder
+COPY ./server/start.sh ./start.sh
 
 # Build TypeScript
 RUN npm run build
@@ -45,5 +46,5 @@ RUN chmod +x ./start.sh
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
   CMD node -e "require('http').get('http://localhost:' + (process.env.PORT || 4000) + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
 
-# Start the server (with migrations) using start.sh
+# Start the server (with migrations) using absolute path for robustness
 CMD ["/app/start.sh"]
