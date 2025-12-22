@@ -98,3 +98,4 @@ playwright-report/
 test-results/
 *.coverage
 build/
+build/
