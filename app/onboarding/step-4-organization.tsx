@@ -216,7 +216,9 @@ export default function Step4Organization() {
       clearOrganizations();
       return;
     }
-    searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch(() => {});
+    searchOrganizations({ query: term, limit: 20, mode: 'nearby', orgType: orgType || undefined }).catch((err: any) => {
+      console.error('[Step4] Organization search failed:', { query: term, error: err?.message || err });
+    });
   }, [clearOrganizations, orgType, searchOrganizations, searchZip]);
 
   const requestLocationSuggestions = useCallback((text: string) => {
