@@ -59,13 +59,21 @@ export function useOrganizationSearch<T = any>(
         if (sport) params.set('sport', sport);
         if (orgType) params.set('org_type', orgType);
         result = await httpGet(`/organizations/search/nearby?${params.toString()}`);
-        // If no results and an orgType was specified, broaden search without orgType
-        if ((Array.isArray(result) ? result.length === 0 : Array.isArray(result?.items) ? result.items.length === 0 : true) && orgType) {
-          const broadened = new URLSearchParams();
-          broadened.set('query', query.trim());
-          broadened.set('limit', String(limit));
-          if (sport) broadened.set('sport', sport);
-          result = await httpGet(`/organizations/search/nearby?${broadened.toString()}`);
+        const count = Array.isArray(result) ? result.length : Array.isArray(result?.items) ? result.items.length : 0;
+        // If no results, broaden: first drop filters, then global list search
+        if (count === 0) {
+          const broadenedParams = new URLSearchParams();
+          broadenedParams.set('query', query.trim());
+          broadenedParams.set('limit', String(limit));
+          // retry nearby without orgType/sport filters
+          const broadenedNearby = await httpGet(`/organizations/search/nearby?${broadenedParams.toString()}`);
+          const broadenedCount = Array.isArray(broadenedNearby) ? broadenedNearby.length : Array.isArray(broadenedNearby?.items) ? broadenedNearby.items.length : 0;
+          if (broadenedCount > 0) {
+            result = broadenedNearby;
+          } else {
+            // final fallback: global list search
+            result = await Organization.list(query.trim() || undefined, limit);
+          }
         }
       } else {
         result = await Organization.list(query.trim() || undefined, limit);
