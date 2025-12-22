@@ -731,7 +731,10 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
   };
   
   if (sport) where.sport = sport;
-  if (orgType) where.org_type = orgType;
+  if (orgType) {
+    // Match organization type case-insensitively (e.g., 'school' vs 'School')
+    where.org_type = { equals: orgType, mode: 'insensitive' } as any;
+  }
   
   const organizations = await prisma.organization.findMany({
     where,
