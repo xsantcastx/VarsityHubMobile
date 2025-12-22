@@ -16,10 +16,8 @@
     "supports_extracurricular": false,
     "features": [
       "Entry-level access",
-      "First two teams free",
-      "Example: Men's and Women's Soccer",
-      "Up to 3 staff per team",
-      "50 athletes per team roster"
+      "First two teams free forever (ex: mens and womens soccer)",
+      "Up to 3 staff per team"
     ],
     "billing": {
       "description": "Free for up to two teams. Upgrade only when you need more.",
