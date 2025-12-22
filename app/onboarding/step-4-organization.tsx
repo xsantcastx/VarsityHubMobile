@@ -633,6 +633,13 @@ export default function Step4Organization() {
                       ))}
                     </ScrollView>
                   )}
+                  {searchZip.trim().length >= 2 && !searching && nearbyOrgs.length === 0 && (
+                    <View style={{ paddingVertical: 16, paddingHorizontal: 12, backgroundColor: isDark ? '#1F2937' : '#F3F4F6', borderRadius: 8, marginTop: 8 }}>
+                      <Text style={{ color: isDark ? '#9CA3AF' : '#6B7280', fontSize: 14, textAlign: 'center' }}>
+                        No organizations found matching "{searchZip}". Try searching by a different name or zip code, or use the Create New button instead.
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </>
             )}
