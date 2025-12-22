@@ -72,7 +72,11 @@ export default function Step4Organization() {
       try {
         const e2e = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
         // Check for existing managed teams
-        const teams = await Team.managed();
+        const teams = await Team.managed().catch((err: any) => {
+          // Gracefully ignore unauthenticated errors so search still works
+          if (err?.status === 401 || err?.message === 'Authentication required') return [];
+          throw err;
+        });
         if (teams && teams.length > 0) {
           const firstTeam = teams[0];
           setExistingTeam(firstTeam);
@@ -96,7 +100,10 @@ export default function Step4Organization() {
           }
         } else if (ob.plan === 'veteran' || ob.plan === 'legend') {
           // Check for existing organizations that the user can manage
-          const orgs = await Organization.mine();
+          const orgs = await Organization.mine().catch((err: any) => {
+            if (err?.status === 401 || err?.message === 'Authentication required') return [];
+            throw err;
+          });
           if (orgs && orgs.length > 0) {
             const firstOrg = orgs[0];
             setExistingOrg(firstOrg);
@@ -121,8 +128,11 @@ export default function Step4Organization() {
           }
           }
         }
-      } catch {
-        Alert.alert('Error', 'Unable to check existing organizations. Please try again.');
+      } catch (err: any) {
+        // Only surface non-auth errors; auth errors are expected when user is not signed in yet
+        if (err?.status !== 401 && err?.message !== 'Authentication required') {
+          Alert.alert('Error', 'Unable to check existing organizations. Please try again.');
+        }
       } finally {
         setChecking(false);
       }

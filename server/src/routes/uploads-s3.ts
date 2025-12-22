@@ -24,7 +24,6 @@ const sanitizeS3FileName = (name: string) => {
   const base = cleaned.split('/').pop() || 'upload';
   return base.replace(/[^A-Za-z0-9._-]/g, '_');
 };
-
 uploadsS3Router.post('/s3-sign', requireAuth as any, async (req: AuthedRequest, res) => {
   const { S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env as any;
   if (!S3_REGION || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) {
@@ -98,4 +97,3 @@ uploadsS3Router.post('/s3-sign', requireAuth as any, async (req: AuthedRequest, 
     return res.status(500).json({ error: 'Failed to generate presigned URL' });
   }
 });
-
