@@ -180,7 +180,198 @@ VarsityHubMobile/
 
 ---
 
-## 8. Next Steps for Deployment
+---
+
+## 9. Modularization & Code Organization ✅
+
+### 9.1 Centralized Configuration Module
+**File:** `server/src/lib/config.ts`
+
+Consolidated all environment variable access into a single config module to:
+- Prevent repeated `process.env` reads throughout routes
+- Validate required settings at startup with clear error messages
+- Provide sensible defaults for optional settings
+- Enable easy refactoring and testing
+
+**Modules Consolidated:**
+```typescript
+// Stripe configuration with price ID mapping
+export const stripeConfig = {
+  secretKey,      // STRIPE_SECRET_KEY
+  webhookSecret,  // STRIPE_WEBHOOK_SECRET
+  prices: {
+    veteran,      // STRIPE_PRICE_VETERAN
+    legend,       // STRIPE_PRICE_LEGEND
+    adWeekday,    // STRIPE_PRICE_AD_WEEKDAY (weekday ads)
+    adWeekend,    // STRIPE_PRICE_AD_WEEKEND (weekend ads)
+  }
+};
+
+// Apple authentication settings
+export const appleConfig = {
+  teamId,   // APPLE_TEAM_ID
+  keyId,    // APPLE_KEY_ID
+  bundleId, // APPLE_BUNDLE_ID
+};
+
+// Google Maps & Geocoding
+export const googleConfig = { mapsApiKey, geocodingApiKey };
+
+// SendGrid email templates
+export const sendgridConfig = {
+  apiKey,
+  templates: {
+    paymentFailed,
+    paymentReceipt,
+    subscriptionExpiring,
+    subscriptionCanceled,
+  }
+};
+
+// App URLs and settings
+export const appConfig = {
+  baseUrl,   // APP_BASE_URL
+  scheme,    // APP_SCHEME
+  nodeEnv,
+  port,
+};
+
+// Plus: cloudinaryConfig, twilioConfig, sentryConfig, databaseConfig
+```
+
+**Startup Validation:**
+- Checks for required env vars on server start
+- Warns about missing optional settings
+- Throws error in production if critical config is missing
+- Call `validateConfigAtStartup()` in `server/src/index.ts`
+
+### 9.2 Structured Logging Utility
+**File:** `server/src/lib/logger.ts`
+
+Replaced ad-hoc `console.log/warn/error` calls with structured logger:
+
+```typescript
+import { createLogger } from '../lib/logger.js';
+
+// In any module:
+const logger = createLogger('payments');
+
+logger.info('Payment received', { userId, amount, invoiceId });
+logger.warn('Payment failed', { error, customerId });
+logger.debug('Processing webhook', { eventType });
+logger.error('Checkout failed', error, { sessionId });
+```
+
+**Features:**
+- Consistent timestamp and module name formatting
+- Log levels: `debug`, `info`, `warn`, `error`
+- Context metadata passed as second parameter
+- Respects `LOG_LEVEL` environment variable
+- Structured JSON output suitable for log aggregation
+
+### 9.3 Stripe Service Module
+**File:** `server/src/lib/stripe-service.ts`
+
+Extracted all Stripe API calls from `payments.ts` route into a dedicated service:
+
+```typescript
+// Session creation
+createMembershipCheckoutSession({ userId, email, plan, priceId, ... })
+createAdCheckoutSession({ adId, email, priceId, quantity, ... })
+
+// Subscription management
+cancelSubscription(subscriptionId)
+getSubscription(subscriptionId)
+updateSubscription(subscriptionId, updates)
+
+// Webhook handling
+verifyWebhookSignature(body, signature)
+handleCheckoutCompleted(session)
+handleInvoicePaymentSucceeded(invoice)
+handleInvoicePaymentFailed(invoice)
+handleSubscriptionDeleted(subscription)
+
+// Helpers
+getAdPriceId(adType) // Returns weekday/weekend price based on ad type
+```
+
+**Benefits:**
+- Routes now focus on HTTP orchestration, not Stripe API details
+- Easy to mock Stripe in tests
+- Centralized error handling and logging
+- Single source of truth for Stripe configuration
+
+### 9.4 Test Fixtures & Mocks
+**File:** `server/src/__tests__/fixtures.ts`
+
+Lightweight, reusable test fixtures to reduce duplication:
+
+```typescript
+// Mock objects
+export const mockUser = { id, email, display_name, preferences, ... }
+export const mockOrganization = { id, name, sport, status, ... }
+export const mockTeam = { id, name, organization_id, ... }
+export const mockGame = { id, team_id, opponent, game_datetime, ... }
+export const mockPost = { id, creator_id, game_id, content, ... }
+export const mockSubscription = { id, user_id, plan, status, ... }
+
+// Mock request/response builders
+export function createMockAuthRequest(overrides?: Partial<Request>)
+export function createMockResponse() // Returns { res, calls[] }
+export function createMockQueryRequest(query)
+export function createMockBodyRequest(body)
+export function createMockParamsRequest(params)
+
+// Assertions
+export function assertResponseStatus(calls, expectedStatus)
+export function getResponseData(calls)
+
+// Config for testing
+export const mockConfig = { stripe, app, ... }
+export const mockStripePrices = { veteran, legend, adWeekday, adWeekend }
+```
+
+**Usage in tests:**
+```typescript
+import {
+  mockUser,
+  createMockAuthRequest,
+  createMockResponse,
+  assertResponseStatus,
+  getResponseData,
+} from './fixtures.js';
+
+test('should process payment', async () => {
+  const req = createMockAuthRequest({ body: { amount: 1999 } });
+  const { res, calls } = createMockResponse();
+  
+  await handlePayment(req as any, res as any);
+  
+  assertResponseStatus(calls, 200);
+  const data = getResponseData(calls);
+  expect(data.status).toBe('success');
+});
+```
+
+---
+
+## 10. Route File Sizes (Post-Refactor Planning)
+
+**Largest route files:**
+- `teams.ts` - 1500 lines (candidates for further extraction: member management, roster operations)
+- `auth.ts` - 1169 lines (candidates: Apple auth, email verification, password reset flows)
+- `payments.ts` - 1147 lines (✅ Stripe logic extracted to lib/stripe-service.ts)
+- `organizations.ts` - 1147 lines (mostly intact; duplicate detection and invite logic are complex)
+- `games.ts` - 921 lines (could extract: scheduling, attendance tracking)
+
+**Next optimization targets (if needed):**
+- Extract Apple auth logic from `auth.ts` to `lib/apple-service.ts`
+- Extract email verification flow to `lib/email-service.ts`
+- Extract team roster and member operations from `teams.ts` to `services/team-service.ts`
+
+---
+
+## 11. Next Steps for Deployment
 
 1. **Push to GitHub** (once .git is locally unlocked):
    ```bash
@@ -205,7 +396,7 @@ VarsityHubMobile/
 
 ---
 
-## Summary
+## 12. Summary of All Changes
 
 ✅ **5 backup files removed**  
 ✅ **Gitignore enhanced** with build artifact patterns  
@@ -214,5 +405,9 @@ VarsityHubMobile/
 ✅ **Stripe billing configured** with live keys and price IDs  
 ✅ **Organization search fixed** with active status filter  
 ✅ **Code quality clean** across all metrics  
+✅ **Configuration centralized** in `lib/config.ts` with validation  
+✅ **Logging standardized** via `lib/logger.ts` for all modules  
+✅ **Stripe service extracted** to `lib/stripe-service.ts` for cleaner routes  
+✅ **Test fixtures created** in `__tests__/fixtures.ts` to reduce duplication  
 
-**Status:** Ready for push to GitHub and deployment to production.
+**Status:** Codebase is clean, modular, and ready for push to GitHub and production deployment.
