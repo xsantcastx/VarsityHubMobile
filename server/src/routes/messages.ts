@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { buildConversationId } from '../lib/messageHelpers.js';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { buildConversationId } from '../lib/messageHelpers.js';
 
 export const messagesRouter = Router();
 

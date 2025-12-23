@@ -4,10 +4,23 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 export const uploadRouter = Router();
 
-const memory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const allowedImageMimePrefixes = ['image/'];
+const isAllowedImageMime = (mime: string) => allowedImageMimePrefixes.some((prefix) => mime.startsWith(prefix));
+
+const memory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!isAllowedImageMime(file.mimetype)) {
+      return cb(new Error('Only image files are allowed'));
+    }
+    cb(null, true);
+  },
+});
 
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -23,7 +36,7 @@ const uploadLimiter = rateLimit({
   },
 });
 
-uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
+uploadRouter.post('/avatar', requireAuth as any, uploadLimiter, memory.single('file'), async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   if (!req.file) return res.status(400).json({ error: 'Missing file' });
   
@@ -40,4 +53,3 @@ uploadRouter.post('/avatar', uploadLimiter, memory.single('file'), async (req: A
     return res.status(500).json({ error: e?.message || 'Upload failed' });
   }
 });
-

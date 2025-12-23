@@ -20,7 +20,15 @@ import GameVerticalFeedScreen, { mapHighlightToFeedPost, type FeedPost } from '.
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
 
 // RSVP Badge Component
-const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
+const RSVPBadge = ({
+  gameItem,
+  onRSVPChange,
+  emailVerified,
+}: {
+  gameItem: any;
+  onRSVPChange?: () => void;
+  emailVerified: boolean;
+}) => {
   const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
@@ -42,6 +50,10 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    if (!emailVerified) {
+      Alert.alert('Verify your email', 'Please verify your email before RSVP.');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -153,6 +165,7 @@ const buildVotePreviewEntry = (payload: any, labels: { teamA: string; teamB: str
 
 
 export default function FeedScreen() {
+  const FEED_LIMIT = 30;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
@@ -177,6 +190,7 @@ export default function FeedScreen() {
   const [voteSummaries, setVoteSummaries] = useState<Record<string, VotePreviewEntry>>({});
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [notificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
+  const loadingRef = useRef(false);
   
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
@@ -207,6 +221,8 @@ export default function FeedScreen() {
   }, []);
 
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (loadingRef.current && !silent) return;
+    loadingRef.current = true;
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -222,7 +238,7 @@ export default function FeedScreen() {
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
       const [gamesData, highlightsData, forFeedAds] = await Promise.all([
-        Game.list('-date'),
+        Game.list('-date', { limit: FEED_LIMIT }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
@@ -251,6 +267,7 @@ export default function FeedScreen() {
             date: addDays(2),
             location: 'Chase Center, San Francisco, CA 94158',
             cover_image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?q=80&w=1280&auto=format&fit=crop',
+            mock: true,
           },
           {
             id: 'sample-duke-unc',
@@ -258,6 +275,7 @@ export default function FeedScreen() {
             date: addDays(5),
             location: 'Cameron Indoor Stadium, Durham, NC 27708',
             cover_image_url: 'https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1280&auto=format&fit=crop',
+            mock: true,
           },
           {
             id: 'sample-patriots-jets',
@@ -265,6 +283,7 @@ export default function FeedScreen() {
             date: addDays(7),
             location: 'Gillette Stadium, Foxborough, MA 02035',
             cover_image_url: 'https://images.unsplash.com/photo-1504457049873-30ffae0d3d31?q=80&w=1280&auto=format&fit=crop',
+            mock: true,
           },
         ];
       }
@@ -305,6 +324,7 @@ export default function FeedScreen() {
       setGames([]);
       setHighlightPreview(null);
     } finally {
+      loadingRef.current = false;
       if (!silent) setLoading(false);
     }
   }, []);
@@ -314,7 +334,7 @@ export default function FeedScreen() {
 
     setLoadingMore(true);
     try {
-      const nextData = await Game.list('-date');
+      const nextData = await Game.list('-date', { limit: FEED_LIMIT });
       
       // Handle cursor-based response or array
       let normalizedGames = [];
@@ -646,7 +666,7 @@ export default function FeedScreen() {
         </View>
       )}
       {!loading && upcomingEvents.length === 0 && pastEvents.length === 0 && !error && (
-  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found.</Text>
+  <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No games found nearby. Try following teams or creating an event.</Text>
       )}
 
       <ScrollView
@@ -802,6 +822,7 @@ export default function FeedScreen() {
                   : Array.isArray(raw?.media)
                     ? raw.media.length
                     : 0;
+              const isMock = !!(raw?.mock);
               const summary = voteSummaries[String(gameItem.id)] || null;
               const voteText = summary
                 ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
@@ -829,6 +850,9 @@ export default function FeedScreen() {
                       <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
                       <Text style={styles.gridDateText}>{eventDate}</Text>
                     </View>
+                    {isMock ? (
+                      <Text style={styles.mockBadge}>Sample game</Text>
+                    ) : null}
                     <Text style={styles.gridTitle} numberOfLines={2}>
                       {gameItem.title ? String(gameItem.title) : 'Game'}
                     </Text>
@@ -851,7 +875,7 @@ export default function FeedScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
+                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} emailVerified={emailVerified} />
                 </Pressable>
               );
             })}
@@ -887,6 +911,7 @@ export default function FeedScreen() {
                     : Array.isArray(raw?.media)
                       ? raw.media.length
                       : 0;
+                const isMock = !!(raw?.mock);
                 const summary = voteSummaries[String(item.id)] || null;
                 const voteText = summary
                   ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
@@ -914,6 +939,9 @@ export default function FeedScreen() {
                         <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
                         <Text style={styles.gridDateText}>{eventDate}</Text>
                       </View>
+                      {isMock ? (
+                        <Text style={styles.mockBadge}>Sample game</Text>
+                      ) : null}
                       <Text style={styles.gridTitle} numberOfLines={2}>
                         {item.title ? String(item.title) : 'Game'}
                       </Text>
@@ -936,7 +964,7 @@ export default function FeedScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} emailVerified={emailVerified} />
                   </Pressable>
                 );
               })}
@@ -1324,6 +1352,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.65)',
   },
   gridDateText: { color: '#F9FAFB', fontWeight: '700', fontSize: 12 },
+  mockBadge: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    color: '#E5E7EB',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
   gridTitle: { color: '#FFFFFF', fontWeight: '800', fontSize: 14, lineHeight: 18 },
   gridMeta: { color: '#E5E7EB', fontSize: 12 },
   gridStatsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
