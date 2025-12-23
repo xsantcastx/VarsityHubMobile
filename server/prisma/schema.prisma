@@ -232,6 +232,7 @@ model Event {
   approved_by     String? // User ID of approver
   approved_at     DateTime?
   rejected_reason String?
+  is_pitch        Boolean  @default(false) // fan-submitted pitch awaiting approval
 
   game         Game?              @relation(fields: [game_id], references: [id], onDelete: SetNull)
   creator      User?              @relation(fields: [creator_id], references: [id], onDelete: SetNull)
@@ -245,6 +246,7 @@ model Event {
   @@index([creator_id])
   @@index([approval_status])
   @@index([event_type])
+  @@index([is_pitch, approval_status])
 }
 
 model Message {

@@ -34,6 +34,7 @@ const serializeEvent = (event: any, opts: { includeGame?: boolean; rsvpCount?: n
     contact_info: event.contact_info,
     approved_at: event.approved_at instanceof Date ? event.approved_at.toISOString() : event.approved_at,
     rejected_reason: event.rejected_reason,
+    is_pitch: event.is_pitch,
   };
   if (typeof opts.rsvpCount === 'number') {
     base.attendees_count = opts.rsvpCount;
@@ -68,6 +69,23 @@ const formatEventDateLabel = (value?: Date | string | null) => {
   if (Number.isNaN(d.getTime())) return undefined;
   return d.toISOString().split('T')[0];
 };
+
+async function getManagedTeamIds(userId: string): Promise<{ ids: string[]; names: string[] }> {
+  const memberships = await prisma.teamMembership.findMany({
+    where: {
+      user_id: userId,
+      role: { in: TEAM_MANAGEMENT_ROLES },
+      status: 'active',
+    },
+    select: { team_id: true, team: { select: { name: true, league: true } } },
+  });
+  const ids = memberships.map((m) => m.team_id).filter(Boolean);
+  const names = memberships
+    .map((m) => [m.team?.name, m.team?.league])
+    .flat()
+    .filter((v): v is string => !!v);
+  return { ids, names };
+}
 
 async function deriveTeamIdsForEvent(gameId?: string | null, linkedLeague?: string | null): Promise<string[]> {
   const teamIds = new Set<string>();
@@ -309,6 +327,10 @@ const createEventSchema = z.object({
   game_id: z.string().optional(),
 });
 
+const pitchEventSchema = createEventSchema.extend({
+  team_hint: z.string().optional(),
+});
+
 eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
@@ -396,6 +418,94 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   });
 });
 
+// Fan pitch submission: fans submit events for coach review
+eventsRouter.post('/pitch', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const parsed = pitchEventSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  const data = parsed.data;
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, preferences: true, display_name: true },
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  if (userRole !== 'fan') {
+    return res.status(403).json({ error: 'Only fans can pitch events' });
+  }
+
+  // Per-user limits: max 5 pending pitches, 10 per rolling 24h
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const pendingCount = await prisma.event.count({
+    where: { creator_id: user.id, is_pitch: true, approval_status: 'pending' },
+  });
+  if (pendingCount >= 5) {
+    return res.status(429).json({
+      error: 'Pitch limit reached',
+      message: 'You already have 5 pending pitches. Please wait for a decision before submitting more.',
+      code: 'PITCH_LIMIT_PENDING',
+    });
+  }
+  const dayCount = await prisma.event.count({
+    where: { creator_id: user.id, is_pitch: true, created_at: { gte: dayAgo } },
+  });
+  if (dayCount >= 10) {
+    return res.status(429).json({
+      error: 'Too many pitches',
+      message: 'You have reached the daily pitch limit. Try again tomorrow.',
+      code: 'PITCH_LIMIT_DAILY',
+    });
+  }
+
+  const linkedLeague = data.linked_league || data.team_hint || null;
+
+  const pitch = await prisma.event.create({
+    data: {
+      title: data.title,
+      date: new Date(data.date),
+      location: data.location,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      description: data.description,
+      event_type: data.event_type,
+      linked_league: linkedLeague || null,
+      max_attendees: data.max_attendees,
+      contact_info: data.contact_info,
+      banner_url: data.banner_url,
+      game_id: data.game_id,
+      creator_id: user.id,
+      creator_role: 'fan',
+      approval_status: 'pending',
+      status: 'draft',
+      is_pitch: true,
+    },
+  });
+
+  try {
+    const teamIds = await deriveTeamIdsForEvent(data.game_id, linkedLeague);
+    if (teamIds.length > 0) {
+      await notifyTeamStaffOfPendingEvent({
+        teamIds,
+        eventId: pitch.id,
+        eventTitle: data.title,
+        submittingUserId: user.id,
+        submittingUserName: (user as any).display_name || null,
+      });
+    }
+  } catch (notificationError) {
+    console.error('Failed to notify coaches about pending pitch:', notificationError);
+  }
+
+  return res.status(201).json({
+    ...serializeEvent(pitch),
+    message: 'Pitch submitted. A coach will review and approve it.',
+  });
+});
+
 // Get pending events for approval (admins & coaches only)
 eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
@@ -425,6 +535,58 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
   });
   
   return res.json(events.map((event) => serializeEvent(event, { includeGame: true, includeCreator: true })));
+});
+
+// Get pending fan pitches (scoped to teams the user manages, unless admin)
+eventsRouter.get('/pitches', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, preferences: true },
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  const isAdmin = await getIsAdmin(req as any);
+  const { ids: managedTeamIds, names: managedTeamNames } = await getManagedTeamIds(user.id);
+
+  if (!isAdmin && userRole !== 'coach') {
+    return res.status(403).json({ error: 'Only coaches and admins can view pitches' });
+  }
+
+  const pitches = await prisma.event.findMany({
+    where: { is_pitch: true, approval_status: 'pending' },
+    orderBy: { created_at: 'desc' },
+    include: {
+      game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true, home_team_id: true, away_team_id: true } },
+      creator: { select: { id: true, display_name: true, avatar_url: true } },
+    },
+    take: 200,
+  });
+
+  let filtered = pitches;
+  if (!isAdmin) {
+    const managedSet = new Set(managedTeamIds);
+    const lowerTeamNames = managedTeamNames.map((n) => n.toLowerCase());
+    filtered = pitches.filter((p) => {
+      const home = (p as any)?.game?.home_team_id;
+      const away = (p as any)?.game?.away_team_id;
+      if ((home && managedSet.has(home)) || (away && managedSet.has(away))) return true;
+      if (p.linked_league) {
+        const ll = p.linked_league.toLowerCase();
+        return lowerTeamNames.some((n) => ll.includes(n));
+      }
+      return false;
+    });
+  }
+
+  return res.json(
+    filtered.map((event) =>
+      serializeEvent(event, { includeGame: true, includeCreator: true }),
+    ),
+  );
 });
 
 // Approve event
@@ -502,6 +664,84 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   return res.json({ 
     ...serializeEvent(updated),
     message: 'Event approved successfully!' 
+  });
+});
+
+// Approve a fan pitch
+eventsRouter.put('/pitches/:id/approve', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { id: true, preferences: true },
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  const isAdmin = await getIsAdmin(req as any);
+
+  if (!isAdmin && userRole !== 'coach') {
+    return res.status(403).json({ error: 'Only coaches and admins can approve pitches' });
+  }
+
+  const eventId = String(req.params.id);
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event || !event.is_pitch) return res.status(404).json({ error: 'Pitch not found' });
+
+  const teamIds = await deriveTeamIdsForEvent(event.game_id, event.linked_league);
+  if (!isAdmin) {
+    if (!teamIds.length) {
+      return res.status(403).json({ error: 'Only admins can approve pitches without a linked team' });
+    }
+
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: TEAM_MANAGEMENT_ROLES },
+        status: 'active',
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Only staff for the linked team(s) or admins can approve this pitch' });
+    }
+  }
+
+  const updated = await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      approval_status: 'approved',
+      status: 'approved',
+      approved_by: user.id,
+      approved_at: new Date(),
+      is_pitch: true,
+    },
+    include: {
+      creator: { select: { id: true, display_name: true, email: true } },
+    },
+  });
+
+  if (updated.creator?.email) {
+    try {
+      await sendEventDecisionEmail({
+        to: updated.creator.email,
+        coachName: updated.creator.display_name || 'Coach',
+        eventName: updated.title,
+        eventDate: formatEventDateLabel(updated.date),
+        eventLocation: updated.location || undefined,
+        approved: true,
+        reviewUrl: `${appBaseUrl}/events/${eventId}`,
+      });
+    } catch (err) {
+      console.warn('[events] Failed to send pitch approval email:', (err as any)?.message || err);
+    }
+  }
+
+  return res.json({
+    ...serializeEvent(updated),
+    message: 'Pitch approved and published!',
   });
 });
 
@@ -593,5 +833,92 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   return res.json({ 
     ...serializeEvent(updated),
     message: 'Event rejected' 
+  });
+});
+
+// Reject a fan pitch
+eventsRouter.put('/pitches/:id/reject', requireVerified as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const parsed = rejectEventSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  const { reason } = parsed.data;
+
+  const user = await prisma.user.findUnique({ 
+    where: { id: req.user.id }, 
+    select: { id: true, preferences: true } 
+  });
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const userRole = prefs.role || 'fan';
+  const isAdmin = await getIsAdmin(req as any);
+  
+  if (!isAdmin && userRole !== 'coach') {
+    return res.status(403).json({ error: 'Only coaches and admins can reject pitches' });
+  }
+  
+  const eventId = String(req.params.id);
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event || !event.is_pitch) return res.status(404).json({ error: 'Pitch not found' });
+
+  const teamIds = await deriveTeamIdsForEvent(event.game_id, event.linked_league);
+  if (!isAdmin) {
+    if (!teamIds.length) {
+      return res.status(403).json({ error: 'Only admins can reject pitches without a linked team' });
+    }
+
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: TEAM_MANAGEMENT_ROLES },
+        status: 'active',
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Only staff for the linked team(s) or admins can reject this pitch' });
+    }
+  }
+  
+  const updated = await prisma.event.update({
+    where: { id: eventId },
+    data: { 
+      approval_status: 'rejected',
+      status: 'rejected',
+      rejected_reason: reason || null,
+      approved_by: null,
+      approved_at: null,
+      is_pitch: true,
+    },
+    include: { 
+      creator: { select: { id: true, display_name: true, email: true } } 
+    }
+  });
+  
+  await prisma.eventRsvp.deleteMany({ where: { event_id: eventId } });
+  await prisma.eventPostAccess.deleteMany({ where: { event_id: eventId } });
+  await prisma.post.updateMany({ where: { event_id: eventId }, data: { event_id: null } });
+  
+  if (updated.creator?.email) {
+    try {
+      await sendEventDecisionEmail({
+        to: updated.creator.email,
+        coachName: updated.creator.display_name || 'Coach',
+        eventName: updated.title,
+        eventDate: formatEventDateLabel(updated.date),
+        approved: false,
+        reviewUrl: `${appBaseUrl}/events/${eventId}`,
+        reason,
+      });
+    } catch (err) {
+      console.warn('[events] Failed to send pitch rejection email:', (err as any)?.message || err);
+    }
+  }
+  
+  return res.json({ 
+    ...serializeEvent(updated),
+    message: 'Pitch rejected' 
   });
 });
