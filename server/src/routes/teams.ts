@@ -836,20 +836,24 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       const subscriptionItem = subscription.items.data[0];
       const paidQuantity = subscriptionItem?.quantity || 0;
       
+      // Veteran plan: first 2 teams are always free, paidQuantity is for additional teams
+      // User can create total of (2 + paidQuantity) teams
+      const allowedTotalTeams = 2 + paidQuantity;
+      
       // User is trying to create team number (ownedTeamsCount + 1)
-      // They should have paid for at least that many teams
-      if (ownedTeamsCount >= paidQuantity) {
+      if (ownedTeamsCount >= allowedTotalTeams) {
         await notifyTeamPlanLimitEmail({
           email: me.email,
           plan: userPlan,
           used: ownedTeamsCount,
-          limit: paidQuantity,
+          limit: allowedTotalTeams,
         });
         return res.status(403).json({
           error: 'Team limit reached',
-          message: `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
+          message: `You've paid for ${paidQuantity} additional team${paidQuantity !== 1 ? 's' : ''} (${allowedTotalTeams} total including 2 free) but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
           code: 'SUBSCRIPTION_QUANTITY_EXCEEDED',
           paid_quantity: paidQuantity,
+          allowed_total_teams: allowedTotalTeams,
           current_teams: ownedTeamsCount,
         });
       }

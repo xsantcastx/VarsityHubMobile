@@ -35,7 +35,11 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
     let quantity = 1;
     if (plan === 'veteran') {
       const totalTeams = Number(team_count) || 0;
-      quantity = Math.max(0, totalTeams - 2) || 1; // Always at least 1 item so session starts
+      const billable = Math.max(0, totalTeams - 2);
+      if (billable === 0) {
+        return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
+      }
+      quantity = billable;
     }
 
     const session = await stripe.checkout.sessions.create({
