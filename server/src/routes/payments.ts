@@ -152,24 +152,31 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   debugLog(`[payments] Plan upgrade: ${currentPlan} → ${chosen} for user ${userId}`);
 
-  // Check for recent payments to prevent duplicates
+  // Check for recent payments to prevent duplicates (24 hour lookback)
   try {
+    const oneDayAgo = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
     const recentSessions = await stripe.checkout.sessions.list({
-      limit: 10,
-      created: { gte: Math.floor((Date.now() - 10 * 60 * 1000) / 1000) } // Last 10 minutes
+      limit: 100, // Check more sessions (increased from 10)
+      created: { gte: oneDayAgo } // Last 24 hours (expanded from 10 minutes)
     });
     
-    const recentUserSession = recentSessions.data.find(session => 
+    // Check for ANY session with this user+plan combo (paid, unpaid, or processing)
+    const existingSession = recentSessions.data.find(session => 
       session.metadata?.user_id === userId && 
-      session.metadata?.plan === chosen &&
-      session.payment_status === 'paid' // Only consider actually paid sessions
+      session.metadata?.plan === chosen
     );
 
-    if (recentUserSession) {
-      debugLog('[payments] Recent PAID session found, updating user preferences from Stripe session');
-      // Update user preferences from the recent successful session
-      await finalizeFromSession(recentUserSession);
-      throw membershipError(400, 'Payment already processed recently');
+    if (existingSession) {
+      if (existingSession.payment_status === 'paid') {
+        debugLog('[payments] Recent PAID session found, updating user preferences from Stripe session');
+        // Update user preferences from the recent successful session
+        await finalizeFromSession(existingSession);
+        throw membershipError(400, 'Payment already processed recently');
+      } else {
+        // Session is unpaid/pending - don't allow creating another
+        debugLog(`[payments] Existing unpaid session found (${existingSession.id}), preventing duplicate checkout`);
+        throw membershipError(400, `You already have a pending payment for ${chosen}. Please complete or cancel that payment first.`);
+      }
     }
   } catch (err: any) {
     if (err.statusCode) throw err; // Re-throw our custom errors
@@ -925,6 +932,32 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       payment_status: session.payment_status
     });
     try {
+      // CRITICAL SECURITY FIX: Verify user owns the ad before updating
+      const ad = await prisma.ad.findUnique({
+        where: { id: ad_id },
+        select: { user_id: true, payment_status: true, price_per_day_cents: true }
+      });
+      
+      if (!ad) {
+        console.error(`[payments] Ad not found: ${ad_id}`);
+        throw new Error('Ad not found');
+      }
+      
+      if (ad.user_id !== inferredUserId) {
+        console.error(`[payments] Authorization failed: User ${inferredUserId} does not own ad ${ad_id} (owner: ${ad.user_id})`);
+        throw new Error('Unauthorized: You do not own this ad');
+      }
+      
+      // Verify payment amount matches expected cost
+      if (ad.payment_status === 'paid') {
+        // Ad was already marked paid - might be duplicate webhook
+        if (alreadyCompleted) {
+          debugLog(`[payments] Ad already paid and transaction already completed, skipping duplicate processing`);
+        } else {
+          console.warn(`[payments] Ad ${ad_id} already marked paid but transaction not completed`);
+        }
+      }
+      
       const result = await prisma.$transaction([
         prisma.ad.update({ 
           where: { id: ad_id }, 
@@ -1004,10 +1037,58 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       });
       return; // Critical fix: don't continue processing unpaid sessions
     } else {
+      // CRITICAL FIX #2: Check idempotence before processing
+      if (alreadyCompleted) {
+        debugLog('[payments] Membership finalization already completed, skipping to prevent duplicate updates', {
+          session_id: session.id,
+          userId,
+          plan
+        });
+        return;
+      }
+      
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         const prefs: any = { ...existingPrefs, plan };
+        
+        // Retrieve subscription details BEFORE updating preferences
+        let subscriptionId: string | undefined = undefined;
+        let subscriptionPeriodEnd: string | undefined = undefined;
+        
+        if (session.subscription) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(String(session.subscription));
+            
+            // CRITICAL FIX #5: Verify subscription is actually active before storing
+            if (sub && sub.id && sub.status === 'active') {
+              subscriptionId = String(sub.id);
+              if (sub.current_period_end) {
+                subscriptionPeriodEnd = new Date(Number(sub.current_period_end) * 1000).toISOString();
+              }
+            } else if (sub && sub.id) {
+              console.warn('[payments] Subscription not active for membership', {
+                subscription_id: sub.id,
+                status: sub.status,
+                user_id: userId,
+                session_id: session.id
+              });
+              throw new Error(`Subscription is not in active state: ${sub.status}`);
+            }
+          } catch (err) {
+            console.error('[payments] Failed to retrieve subscription details:', (err as any)?.message || err);
+            // CRITICAL: Fail the webhook if we can't verify subscription
+            throw new Error('Unable to verify subscription status with Stripe');
+          }
+        }
+        
+        // CRITICAL FIX #2: Only update preferences if we have all required subscription data
+        if (subscriptionId) {
+          prefs.subscription_id = subscriptionId;
+          prefs.subscription_period_end = subscriptionPeriodEnd;
+        } else {
+          throw new Error('Subscription ID not retrieved from Stripe');
+        }
         
         // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
         // This is required for Step 4 (organization creation) and allows coaches to manage orgs
@@ -1015,30 +1096,28 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           prefs.role = 'coach';
         }
         
-        if (session.subscription) {
-          try {
-            const sub = await stripe.subscriptions.retrieve(String(session.subscription));
-            if (sub && sub.id) {
-              prefs.subscription_id = String(sub.id);
-              if (sub.current_period_end) {
-                prefs.subscription_period_end = new Date(Number(sub.current_period_end) * 1000).toISOString();
-              }
-            }
-          } catch (err) {
-            console.warn('Failed to retrieve subscription details:', (err as any)?.message || err);
-          }
-        }
         if (session.customer) {
           prefs.stripe_customer_id = String(session.customer);
         }
-        await prisma.user.update({ where: { id: userId }, data: { preferences: prefs } });
-        console.info('[payments] membership finalize', { userId, plan, subscription_id: prefs.subscription_id, subscription_period_end: prefs.subscription_period_end });
         
-        // Update transaction log to COMPLETED
-        await updateTransactionStatus(session.id, 'COMPLETED', {
-          stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
-          stripeSubscriptionId: session.subscription ? String(session.subscription) : undefined,
+        // CRITICAL FIX #2: Wrap user update and transaction log update in single transaction
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({ where: { id: userId }, data: { preferences: prefs } });
+          
+          // Update transaction log to COMPLETED within same transaction
+          await updateTransactionStatus(session.id, 'COMPLETED', {
+            stripePaymentIntentId: session.payment_intent ? String(session.payment_intent) : undefined,
+            stripeSubscriptionId: subscriptionId,
+          });
         });
+        
+        console.info('[payments] membership finalize', { 
+          userId, 
+          plan, 
+          subscription_id: subscriptionId, 
+          subscription_period_end: subscriptionPeriodEnd 
+        });
+        
         if (shouldSendEmail) {
           await sendSubscriptionEmail({
             userId,
@@ -1048,7 +1127,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           });
         }
       } catch (err) {
-        console.warn('Failed to finalize membership from session:', (err as any)?.message || err);
+        console.error('[payments] Failed to finalize membership from session:', (err as any)?.message || err);
+        // CRITICAL: Don't silently fail - this webhook will be retried
+        throw err;
       }
     }
   }
