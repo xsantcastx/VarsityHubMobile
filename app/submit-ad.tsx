@@ -48,7 +48,9 @@ export default function SubmitAdScreen() {
   const handleBannerChange = (
     uri: string,
     fitMode: 'letterbox' | 'fill' | 'stretch',
-    _position?: { x: number; y: number }
+    _position?: { x: number; y: number },
+    _rotation?: number,
+    _scale?: number
   ) => {
     setBannerUrl(uri);
     setBannerFitMode(fitMode);
@@ -109,8 +111,34 @@ export default function SubmitAdScreen() {
         const baseKey = settings.SETTINGS_KEYS.LOCAL_ADS;
         const scopedKey = currentUserId ? `${baseKey}_${currentUserId}` : baseKey;
         const arr = await settings.getJson<DraftAd[]>(scopedKey, []);
-        // de-dup if server returned same id
-        const next = arr.filter((a) => a.id !== adId).concat([draft]);
+        
+        // De-dup: remove exact ID match OR similar ads (same business/email/zip created recently)
+        const ONE_HOUR_MS = 60 * 60 * 1000;
+        const now = Date.now();
+        const next = arr.filter((a) => {
+          // Always remove exact ID match
+          if (a.id === adId) return false;
+          
+          // Remove similar ads created within the last hour (likely duplicates)
+          const isSimilar = 
+            a.business_name.toLowerCase() === draft.business_name.toLowerCase() &&
+            a.contact_email.toLowerCase() === draft.contact_email.toLowerCase() &&
+            a.zip_code === draft.zip_code;
+          
+          if (isSimilar) {
+            try {
+              const createdAt = new Date(a.created_at).getTime();
+              if (now - createdAt < ONE_HOUR_MS) {
+                return false; // Remove duplicate
+              }
+            } catch {
+              // If date parsing fails, keep the ad
+            }
+          }
+          
+          return true;
+        }).concat([draft]);
+        
         await settings.setJson(scopedKey, next);
         if (currentUserId) {
           const legacy = await settings.getJson<DraftAd[]>(baseKey, []);

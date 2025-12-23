@@ -60,16 +60,24 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           setError(null);
         } else {
           setLocation(null);
-          setError('ZIP code not found');
+          setError('Map preview unavailable');
         }
         setLoading(false);
       } catch (err: any) {
         if (!mounted) return;
         console.error('Geocoding error:', err);
 
+        // Check if it's a 404 (not found) or 500 (server/config error)
         if (err?.status === 404) {
           setLocation(null);
           setError('ZIP code not found');
+          setLoading(false);
+          return;
+        }
+
+        if (err?.status === 500) {
+          setLocation(null);
+          setError('Map preview temporarily unavailable');
           setLoading(false);
           return;
         }
@@ -81,7 +89,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
           return;
         }
 
-        setError('Unable to locate ZIP code');
+        setError('Map preview unavailable');
         setLocation(null);
         setLoading(false);
       }
@@ -142,7 +150,9 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
               {error}
             </Text>
             <Text style={[styles.errorHint, { color: Colors[colorScheme].mutedText }]}>
-              Please enter a valid US or Canadian ZIP code
+              {error.includes('preview') 
+                ? 'Your ad will still work - the map is just a preview' 
+                : 'Please enter a valid US or Canadian ZIP code'}
             </Text>
           </View>
         )}

@@ -20,6 +20,7 @@ import {
     Text,
     View,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 
 type BannerFitMode = 'letterbox' | 'fill' | 'stretch';
 
@@ -27,7 +28,7 @@ type BannerPosition = { x: number; y: number }; // percent 0-100
 
 interface BannerUploadProps {
   value?: string; // Current banner URL
-  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition) => void;
+  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition, rotation?: number, scale?: number) => void;
   aspectRatio?: number; // Target aspect ratio (width/height), e.g., 16/9
   maxWidth?: number; // Max width for preview
   required?: boolean;
@@ -44,6 +45,8 @@ export function BannerUpload({
   const [fitMode, setFitMode] = useState<BannerFitMode>('fill');
   const [uploading, setUploading] = useState(false);
   const [position, setPosition] = useState<BannerPosition>({ x: 50, y: 50 });
+  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270 degrees
+  const [scale, setScale] = useState(1); // 0.5 to 2.0
   const containerSize = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const panStart = useRef<BannerPosition>({ x: 50, y: 50 });
   const [showHint, setShowHint] = useState(false);
@@ -87,7 +90,7 @@ export function BannerUpload({
         }
 
         // Update with selected image
-        onChange(asset.uri, fitMode, position);
+        onChange(asset.uri, fitMode, position, rotation, scale);
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -103,7 +106,11 @@ export function BannerUpload({
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => onChange('', fitMode, position),
+        onPress: () => {
+          setRotation(0);
+          setScale(1);
+          onChange('', fitMode, position, 0, 1);
+        },
       },
     ]);
   };
@@ -111,7 +118,22 @@ export function BannerUpload({
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
     if (value) {
-      onChange(value, newMode, position);
+      onChange(value, newMode, position, rotation, scale);
+    }
+  };
+
+  const handleRotate = () => {
+    const newRotation = (rotation + 90) % 360;
+    setRotation(newRotation);
+    if (value) {
+      onChange(value, fitMode, position, newRotation, scale);
+    }
+  };
+
+  const handleScaleChange = (newScale: number) => {
+    setScale(newScale);
+    if (value) {
+      onChange(value, fitMode, position, rotation, newScale);
     }
   };
 
@@ -162,7 +184,15 @@ export function BannerUpload({
           <>
             <Image
               source={{ uri: value }}
-              style={styles.previewImage}
+              style={[
+                styles.previewImage,
+                {
+                  transform: [
+                    { rotate: `${rotation}deg` },
+                    { scale },
+                  ],
+                },
+              ]}
               contentFit={getContentFit()}
               contentPosition={
                 fitMode === 'fill' ? `${position.x}% ${position.y}%` as any : 'center'
@@ -200,7 +230,7 @@ export function BannerUpload({
                   setPosition({ x: xPct, y: yPct });
                 }}
                 onResponderRelease={() => {
-                  if (value) onChange(value, fitMode, position);
+                  if (value) onChange(value, fitMode, position, rotation, scale);
                 }}
               />
             )}
@@ -274,6 +304,41 @@ export function BannerUpload({
                 </Text>
               </Pressable>
             ))}
+          </View>
+        </View>
+      )}
+
+      {/* Rotation and Zoom Controls */}
+      {value && (
+        <View style={styles.controlsContainer}>
+          <View style={styles.controlRow}>
+            <Text style={[styles.controlLabel, { color: Colors[colorScheme].text }]}>
+              Rotation
+            </Text>
+            <Pressable
+              style={[styles.rotateButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={handleRotate}
+            >
+              <Ionicons name="refresh" size={20} color="#FFFFFF" />
+              <Text style={styles.rotateButtonText}>Rotate 90°</Text>
+            </Pressable>
+          </View>
+          
+          <View style={styles.controlRow}>
+            <Text style={[styles.controlLabel, { color: Colors[colorScheme].text }]}>
+              Zoom: {scale.toFixed(1)}x
+            </Text>
+            <Slider
+              style={styles.slider}
+              minimumValue={0.5}
+              maximumValue={2.0}
+              step={0.1}
+              value={scale}
+              onValueChange={handleScaleChange}
+              minimumTrackTintColor={Colors[colorScheme].tint}
+              maximumTrackTintColor={Colors[colorScheme].border}
+              thumbTintColor={Colors[colorScheme].tint}
+            />
           </View>
         </View>
       )}
@@ -402,6 +467,37 @@ const styles = StyleSheet.create({
   fitModeButtonText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  controlsContainer: {
+    gap: 16,
+    padding: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  controlRow: {
+    gap: 8,
+  },
+  controlLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  rotateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  rotateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  slider: {
+    width: '100%',
+    height: 40,
   },
   descriptionContainer: {
     padding: 12,
