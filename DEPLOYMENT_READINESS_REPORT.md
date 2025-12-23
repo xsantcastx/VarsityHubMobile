@@ -117,7 +117,6 @@
 **Key Integrations:**
 - Prisma ORM (Database)
 - Sentry Error Tracking
-- Firebase/Google Auth
 - Stripe Payments
 - Google Maps
 - Cloudinary Images

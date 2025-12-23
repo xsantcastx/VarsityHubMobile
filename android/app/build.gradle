@@ -5,13 +5,6 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-def googleServicesFile = file("$projectDir/google-services.json")
-if (googleServicesFile.exists()) {
-    apply plugin: "com.google.gms.google-services"
-} else {
-    println("google-services.json not found; skipping Google Services plugin (push notifications will not work).")
-}
-
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 def keystoreProperties = new Properties()

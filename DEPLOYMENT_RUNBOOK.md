@@ -295,7 +295,7 @@ curl -s https://api-production-8ac3.up.railway.app/health | jq '.'
 ### Step 5.2: Extended Monitoring (24 Hours)
 
 - [ ] Dashboard metrics (app version distribution, session counts)
-- [ ] Error logs (Sentry, Firebase Crashlytics)
+- [ ] Error logs (Sentry)
 - [ ] Support channel (Discord, email, help desk)
 - [ ] Onboarding completion rates (should remain stable or improve)
 - [ ] Feed load time (should not degrade)

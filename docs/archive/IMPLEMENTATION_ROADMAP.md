@@ -191,9 +191,9 @@ body: JSON.stringify({
 **Complexity:** VERY HIGH - Requires real-time infrastructure
 
 **Options:**
-1. **Firebase Firestore + Realtime Database** (Easiest)
-   - Real-time messaging out of the box
-   - Good mobile SDK support
+1. **Firebase Firestore + Realtime Database** (Deprecated for this project)
+   - Removed from current stack; keep noted here for historical reference only
+   - Would offer real-time messaging out of the box
    - Cost: Free tier → ~$25/month at scale
 
 2. **SendBird** (Turnkey Solution)

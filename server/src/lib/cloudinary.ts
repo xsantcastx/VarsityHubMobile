@@ -39,19 +39,15 @@ const getCloudinaryConfig = () => {
   return { cloudName, apiKey, apiSecret };
 };
 
-const createSignature = (params: Record<string, string>, apiSecret: string) => {
+const createSignature = (params: Record<string, string>, apiSecret: string, algorithm: 'sha1' | 'sha256') => {
   const toSign = Object.keys(params)
     .sort()
     .map((key) => `${key}=${params[key]}`)
     .join('&');
 
-  // ⚠️  SHA-1 is required by Cloudinary API for request signatures
-  // https://cloudinary.com/documentation/upload_widget#signed_uploads
-  // Although SHA-1 is cryptographically weak for general use,
-  // Cloudinary requires it for API authentication. This is not a security risk
-  // for signed upload requests.
-  // snyk-ignore-next-line Use of Password Hash With Insufficient Computational Effort (Cloudinary requires SHA-1 signatures)
-  return crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
+  // Cloudinary’s v1 API expects a hex digest of params + apiSecret.
+  // Prefer HMAC-SHA256, but fall back to SHA1 for compatibility if needed.
+  return crypto.createHmac(algorithm, apiSecret).update(toSign).digest('hex');
 };
 
 export async function uploadBufferToCloudinary(
@@ -68,28 +64,49 @@ export async function uploadBufferToCloudinary(
   const resourceType: CloudinaryResourceType =
     opts?.resourceType || (file.mimetype.startsWith('video/') ? 'video' : 'image');
 
-  const params = {
-    folder,
-    timestamp: String(timestamp),
+  const buildRequest = (algo: 'sha1' | 'sha256') => {
+    const params = {
+      folder,
+      timestamp: String(timestamp),
+    };
+    const signature = createSignature(params, apiSecret, algo);
+
+    const form = new FormData();
+    form.set(
+      'file',
+      new File([file.buffer], file.originalname || `upload-${Date.now()}`, {
+        type: file.mimetype || 'application/octet-stream',
+      })
+    );
+    form.set('api_key', apiKey);
+    form.set('timestamp', String(timestamp));
+    form.set('folder', folder);
+    form.set('signature', signature);
+    // Cloudinary defaults to SHA-1. Provide hint when using SHA-256; if unsupported, caller will retry with SHA-1.
+    if (algo !== 'sha1') {
+      form.set('signature_algorithm', algo);
+    }
+
+    return form;
   };
-  const signature = createSignature(params, apiSecret);
 
-  const form = new FormData();
-  form.set(
-    'file',
-    new File([file.buffer], file.originalname || `upload-${Date.now()}`, {
-      type: file.mimetype || 'application/octet-stream',
-    })
-  );
-  form.set('api_key', apiKey);
-  form.set('timestamp', String(timestamp));
-  form.set('folder', folder);
-  form.set('signature', signature);
+  const primaryAlgo = (process.env.CLOUDINARY_SIGNATURE_ALGO || 'sha256').toLowerCase() === 'sha1' ? 'sha1' : 'sha256';
+  const fallbackAlgo: 'sha1' = 'sha1';
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-    method: 'POST',
-    body: form,
-  });
+  const attemptUpload = async (algo: 'sha1' | 'sha256') => {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+      method: 'POST',
+      body: buildRequest(algo),
+    });
+    return response;
+  };
+
+  let response = await attemptUpload(primaryAlgo);
+
+  // If SHA-256 is rejected by the API, retry once with SHA-1 to preserve functionality.
+  if (!response.ok && primaryAlgo !== fallbackAlgo) {
+    response = await attemptUpload(fallbackAlgo);
+  }
 
   if (!response.ok) {
     const errorPayload = (await response.json().catch(() => ({}))) as { error?: { message?: string } };

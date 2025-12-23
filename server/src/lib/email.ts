@@ -209,6 +209,7 @@ async function sendTemplateEmail(
   to: string,
   dynamicTemplateData: Record<string, any>
 ): Promise<boolean> {
+  const isProd = (process.env.NODE_ENV || 'development') === 'production';
   if (isMockProvider()) {
     return writeMockEmail({ label, to, templateId: TEMPLATE_IDS[templateKey], dynamicTemplateData });
   }
@@ -217,6 +218,7 @@ async function sendTemplateEmail(
     const msg = `[email] SendGrid API key not configured; cannot send ${label}`;
     console.warn(msg);
     try { captureMessage(msg, 'warning'); } catch {}
+    if (isProd) throw new Error(msg);
     return false;
   }
   const templateId = TEMPLATE_IDS[templateKey];
@@ -224,6 +226,7 @@ async function sendTemplateEmail(
     const msg = `[email] ${label} template (${templateKey}) not configured`;
     console.warn(msg);
     try { captureMessage(msg, 'warning'); } catch {}
+    if (isProd) throw new Error(msg);
     return false;
   }
   try {
@@ -252,10 +255,13 @@ export function initEmailService() {
     return;
   }
 
+  const isProd = (process.env.NODE_ENV || 'development') === 'production';
+
   if (!process.env.SENDGRID_API_KEY) {
     const msg = '⚠️ SENDGRID_API_KEY not set - emails will not be sent';
     console.warn(msg);
     try { captureMessage(msg, 'warning'); } catch {}
+    if (isProd) throw new Error(msg);
     return;
   }
 
@@ -268,9 +274,8 @@ export function initEmailService() {
     console.warn(msg);
     try { captureMessage(msg, 'error'); } catch {}
     const strict = (process.env.EMAIL_STRICT_TEMPLATES || '').toString() === '1';
-    const isProd = (process.env.NODE_ENV || 'development') === 'production';
-    if (strict && isProd) {
-      // Fail hard in production when strict mode is enabled
+    if (isProd || strict) {
+      // Fail hard in production or when strict mode is enabled
       throw new Error(msg);
     }
   } else {

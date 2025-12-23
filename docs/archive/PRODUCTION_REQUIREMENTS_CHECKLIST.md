@@ -318,7 +318,7 @@ CLOUDFRONT_URL=https://d1234567890abc.cloudfront.net
 - [ ] Build production app with Expo EAS
 - [ ] Configure push notification credentials
   - **iOS**: Apple Push Notification Service (APNs) certificate
-  - **Android**: Firebase Cloud Messaging (FCM) server key
+  - **Android**: Expo Push Notification credentials (FCM no longer used)
 - [ ] Test push notifications on real devices
 - [ ] Set up notification categories and actions
 
@@ -329,9 +329,7 @@ EXPO_PROJECT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 **For Native Builds** (if not using Expo push):
-- [ ] **Firebase Cloud Messaging** (Android)
-  - Server Key: `AAAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
-  - google-services.json file
+- [ ] **Android push**: configure via Expo/FCM bridge without Firebase project files
   
 - [ ] **Apple Push Notification Service** (iOS)
   - .p8 key file

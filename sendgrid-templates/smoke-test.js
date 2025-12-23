@@ -158,7 +158,18 @@ if (toTest.length === 0) {
 
 // Load test data
 function loadTestData(templateName) {
-  const testDataPath = path.join(__dirname, 'test-data', `${templateName}.json`);
+  const safeName = path.basename(templateName);
+  if (safeName !== templateName) {
+    throw new Error(`Invalid template name: ${templateName}`);
+  }
+  const testDataDir = path.resolve(__dirname, 'test-data');
+  const testDataPath = path.resolve(testDataDir, `${safeName}.json`);
+
+  // Guard against path traversal or unexpected resolution
+  if (!testDataPath.startsWith(testDataDir)) {
+    throw new Error(`Refusing to read outside test-data directory: ${testDataPath}`);
+  }
+
   try {
     const data = fs.readFileSync(testDataPath, 'utf-8');
     return JSON.parse(data);

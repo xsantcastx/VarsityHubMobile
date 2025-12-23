@@ -516,7 +516,7 @@ Complete rollout to 100% (after 24-48 hours)
 #    - Verify images load
 #    - Verify variables populate
 # 5. Check analytics/monitoring
-#    - Firebase/Sentry for errors
+#    - Sentry for errors
 #    - User session tracking
 ```
 
@@ -621,7 +621,7 @@ Platforms: iOS (App Store) + Android (Google Play)
 ## 🎯 Post-Launch Checklist
 
 ### Day 1 After Launch:
-- [ ] Monitor crash reports in Firebase/Sentry
+- [ ] Monitor crash reports in Sentry
 - [ ] Check user reviews in app stores
 - [ ] Monitor server logs for errors
 - [ ] Track analytics for unusual patterns
