@@ -1,11 +1,11 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Event } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
-import { Event } from '@/api/entities';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function FanPitchScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -126,7 +126,7 @@ export default function FanPitchScreen() {
       </View>
 
       <Button onPress={onSubmit} disabled={submitting}>
-        {submitting ? 'Submitting…' : 'Submit pitch'}
+        <Text>{submitting ? 'Submitting…' : 'Submit pitch'}</Text>
       </Button>
     </ScrollView>
   );

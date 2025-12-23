@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Event } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
-import { Event } from '@/api/entities';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useEffect, useState } from 'react';
+import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 type PitchItem = {
   id: string;
@@ -89,9 +89,11 @@ export default function PitchesScreen() {
         ) : null}
         <View style={styles.actions}>
           <Button variant="outline" onPress={() => reject(item.id)}>
-            Reject
+            <Text>Reject</Text>
           </Button>
-          <Button onPress={() => approve(item.id)}>Approve</Button>
+          <Button onPress={() => approve(item.id)}>
+            <Text>Approve</Text>
+          </Button>
         </View>
       </View>
     );
