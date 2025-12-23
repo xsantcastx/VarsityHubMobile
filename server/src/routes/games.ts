@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { debugLog } from '../lib/debugLog.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { isEmailAdmin } from '../middleware/requireAdmin.js';
+import { getIsAdmin, isEmailAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { makeCreateStoryHandler, makeListMediaHandler, serializeMedia } from './gameStories.js';
@@ -182,7 +182,7 @@ gamesRouter.get('/', async (req, res) => {
 });
 
 // Create a new game
-gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.post('/', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({
@@ -922,7 +922,7 @@ gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
 });
 
 // Approve or reject event
-gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, res) => {
+gamesRouter.put('/:id/approve', requireAuth as any, requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const id = String(req.params.id);
@@ -954,7 +954,7 @@ gamesRouter.put('/:id/approve', requireAuth as any, async (req: AuthedRequest, r
     isCoach = !!membership;
   }
   
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(String((req.user as any)?.role || '').toUpperCase());
+  const isAdmin = await getIsAdmin(req);
 
   if (!isCoach && !isAdmin) {
     return res.status(403).json({ error: 'Only coaches and admins can approve events' });

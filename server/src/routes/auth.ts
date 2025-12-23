@@ -99,7 +99,11 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
   const userRole = role || 'fan';
   
   // Set admin flag for the main admin account
-  const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
+  const adminEmails = (process.env.ADMIN_EMAILS || 'emilmancero@gmail.com')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isAdmin = adminEmails.includes(sanitizedEmail);
   const initialPreferences = { 
     role: userRole, 
     onboarding_completed: false,
@@ -160,7 +164,7 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
   }
   const sendGridReady = isSendGridConfigured();
   const shouldReturnDevCode = process.env.NODE_ENV !== 'production' || !sendGridReady;
-  const payload: any = { access_token, user: sanitizeUser(user) };
+  const payload: any = { access_token, user: { ...sanitizeUser(user), is_admin: isAdmin } };
   if (shouldReturnDevCode) {
     payload.dev_verification_code = code;
     if (!sendGridReady) {
@@ -292,7 +296,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   // Admin users never need onboarding; everyone else checks onboarding_completed
   const needsOnboarding = isAdmin ? false : (sanitized?.preferences?.onboarding_completed === false);
   
-  const body: any = { access_token, user: sanitized, needs_onboarding: needsOnboarding };
+  const body: any = { access_token, user: { ...sanitized, is_admin: isAdmin }, needs_onboarding: needsOnboarding };
   if (!user.email_verified) body.needs_verification = true;
   return res.json(body);
 });
@@ -333,6 +337,9 @@ authRouter.post('/google', async (req, res) => {
       req.log?.warn?.({ audience }, '[auth/google] audience mismatch');
       return res.status(400).json({ error: 'Google credential not issued for this application' });
     }
+
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = adminEmails.includes(email);
 
     const displayNameSource = typeof payload?.name === 'string' && payload.name.trim().length
       ? payload.name.trim()
@@ -398,7 +405,7 @@ authRouter.post('/google', async (req, res) => {
 
     return res.json({
       access_token,
-      user: sanitized,
+      user: { ...sanitized, is_admin: isAdmin },
       needs_onboarding: needsOnboarding,
       created,
     });
@@ -497,13 +504,15 @@ authRouter.post('/apple', async (req, res) => {
       }
     }
 
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
       access_token,
-      user: sanitized,
+      user: { ...sanitized, is_admin: isAdmin },
       needs_onboarding: needsOnboarding,
       created,
     });
