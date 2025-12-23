@@ -24,7 +24,7 @@
       }
     },
     "simulator": {
-      "distribution": "simulator",
+      "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
         "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
@@ -35,6 +35,7 @@
         "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
+        "simulator": true,
         "resourceClass": "m-medium"
       },
       "android": {
