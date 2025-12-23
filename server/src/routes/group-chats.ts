@@ -6,6 +6,28 @@ import { requireAuth } from '../middleware/requireAuth.js';
 const prisma = new PrismaClient();
 const groupChatsRouter = Router();
 
+// Rate limiting for group chat messages: 30 per 5 minutes per user
+const GROUP_MESSAGE_RATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const GROUP_MESSAGE_RATE_LIMIT = 30;
+const userGroupMessageBuckets = new Map<string, number[]>();
+
+function checkGroupMessageRateLimit(userId: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const windowStart = now - GROUP_MESSAGE_RATE_WINDOW_MS;
+  
+  const bucket = userGroupMessageBuckets.get(userId) || [];
+  const pruned = bucket.filter(ts => ts >= windowStart);
+  
+  if (pruned.length >= GROUP_MESSAGE_RATE_LIMIT) {
+    return { allowed: false, remaining: 0 };
+  }
+  
+  pruned.push(now);
+  userGroupMessageBuckets.set(userId, pruned);
+  
+  return { allowed: true, remaining: GROUP_MESSAGE_RATE_LIMIT - pruned.length };
+}
+
 // Get all group chats for the current user
 groupChatsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
@@ -116,6 +138,16 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
 groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Rate limiting check
+    const rateCheck = checkGroupMessageRateLimit(req.user.id);
+    if (!rateCheck.allowed) {
+      return res.status(429).json({ 
+        error: 'RATE_LIMIT_EXCEEDED', 
+        message: `Message rate limit exceeded. Try again in a few minutes.`,
+        retry_after: Math.ceil(GROUP_MESSAGE_RATE_WINDOW_MS / 1000)
+      });
+    }
 
     const { chatId } = req.params;
     const { content } = req.body;

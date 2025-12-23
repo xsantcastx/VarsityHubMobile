@@ -10,6 +10,28 @@ export const messagesRouter = Router();
 
 const baseUserSelect = { id: true, email: true, display_name: true, avatar_url: true };
 
+// Rate limiting for message sends: 30 per 5 minutes per user
+const MESSAGE_RATE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const MESSAGE_RATE_LIMIT = 30;
+const userMessageBuckets = new Map<string, number[]>();
+
+function checkMessageRateLimit(userId: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const windowStart = now - MESSAGE_RATE_WINDOW_MS;
+  
+  const bucket = userMessageBuckets.get(userId) || [];
+  const pruned = bucket.filter(ts => ts >= windowStart);
+  
+  if (pruned.length >= MESSAGE_RATE_LIMIT) {
+    return { allowed: false, remaining: 0 };
+  }
+  
+  pruned.push(now);
+  userMessageBuckets.set(userId, pruned);
+  
+  return { allowed: true, remaining: MESSAGE_RATE_LIMIT - pruned.length };
+}
+
 function parseSort(q: unknown) {
 const s = String(q ?? '').trim();
 if (s === '-created_at' || s === '-created_date') return { created_at: 'desc' as const };
@@ -103,6 +125,17 @@ recipient_email: z.string().email().optional(),
 
 messagesRouter.post('/', async (req: AuthedRequest, res) => {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+// Rate limiting check
+const rateCheck = checkMessageRateLimit(req.user.id);
+if (!rateCheck.allowed) {
+  return res.status(429).json({ 
+    error: 'RATE_LIMIT_EXCEEDED', 
+    message: `Message rate limit exceeded. Try again in a few minutes.`,
+    retry_after: Math.ceil(MESSAGE_RATE_WINDOW_MS / 1000)
+  });
+}
+
 const parsed = sendSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
 const { content, conversation_id, recipient_id, recipient_email } = parsed.data;

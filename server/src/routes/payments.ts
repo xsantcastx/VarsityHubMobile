@@ -323,17 +323,33 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     appliedCode = preview.code;
   }
   const total = Math.max(0, subtotal - discount + taxCents);
-  if (total === 0) {
-    if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
+  
+  // Issue #7 FIX: Validate all dates are valid before processing payment
+  const parsedDates: Date[] = [];
+  for (const dateStr of isoDates) {
+    const parsed = new Date(dateStr + 'T00:00:00.000Z');
+    if (isNaN(parsed.getTime())) {
+      return res.status(400).json({ error: `Invalid date: ${dateStr}` });
     }
+    parsedDates.push(parsed);
+  }
+  
+  if (total === 0) {
     try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
+      await prisma.$transaction(async (tx) => {
+        await tx.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } });
+        await tx.adReservation.createMany({ 
+          data: parsedDates.map((date) => ({ ad_id: String(ad_id), date })), 
+          skipDuplicates: true 
+        });
+        // Issue #9 FIX: Redeem promo AFTER successful transaction
+        if (appliedCode) {
+          await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
+        }
+      });
     } catch (e) {
       console.error('[payments] Failed to process free ad reservation:', e);
+      return res.status(500).json({ error: 'Failed to process reservation. Please try again.' });
     }
     return res.json({ free: true });
   }
@@ -447,7 +463,15 @@ paymentsRouter.post('/webhook', async (req, res) => {
     try {
       await finalizeFromSession(session);
     } catch (e) {
-      console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      // Issue #8 FIX: Return 500 for critical failures to trigger Stripe retry
+      console.error('[payments] CRITICAL: Failed to finalize session in webhook:', {
+        session_id: session.id,
+        error: (e as any)?.message || e,
+        metadata: session.metadata,
+        payment_status: session.payment_status
+      });
+      // Return 500 to tell Stripe to retry this webhook
+      return res.status(500).json({ error: 'Failed to process payment', session_id: session.id });
     }
   }
   
@@ -557,6 +581,30 @@ paymentsRouter.post('/subscription/cancel', expressPkg.json(), requireVerified a
       return res.status(400).json({ error: 'No active subscription found' });
     }
 
+    // Issue #10 FIX: Enforce team limits on cancellation
+    // Check if user has more than 2 teams (Rookie limit)
+    const userOrgs = await prisma.organization.findMany({
+      where: {
+        team_memberships: {
+          some: { user_id: userId, status: 'active' }
+        }
+      },
+      select: { id: true }
+    });
+    
+    const teamCount = await prisma.team.count({
+      where: { organization_id: { in: userOrgs.map(o => o.id) } }
+    });
+    
+    if (teamCount > 2) {
+      return res.status(400).json({ 
+        error: 'Cannot cancel subscription while managing more than 2 teams. Please delete teams before downgrading to Rookie plan.',
+        current_teams: teamCount,
+        rookie_limit: 2,
+        teams_to_remove: teamCount - 2
+      });
+    }
+    
     try {
       await stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
     } catch (err) {
@@ -958,16 +1006,44 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         }
       }
       
-      const result = await prisma.$transaction([
-        prisma.ad.update({ 
+      // Issue #7 FIX: Validate all dates before transaction
+      const parsedDates: Date[] = [];
+      for (const dateStr of dates) {
+        const parsed = new Date(String(dateStr) + 'T00:00:00.000Z');
+        if (isNaN(parsed.getTime())) {
+          console.error(`[payments] Invalid date in webhook: ${dateStr}`);
+          throw new Error(`Invalid reservation date: ${dateStr}`);
+        }
+        parsedDates.push(parsed);
+      }
+      
+      // Issue #7 & #9 FIX: Atomic transaction with promo redemption after verification
+      await prisma.$transaction(async (tx) => {
+        await tx.ad.update({ 
           where: { id: ad_id }, 
           data: { 
             payment_status: 'paid',
             status: 'active' // Mark ad as active when payment is completed
           } 
-        }),
-        prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
+        });
+        await tx.adReservation.createMany({ 
+          data: parsedDates.map((date) => ({ ad_id, date })), 
+          skipDuplicates: true 
+        });
+        
+        // Issue #9 FIX: Redeem promo code AFTER payment and reservations are verified
+        const promoCode = meta.promo_code ? String(meta.promo_code).trim() : '';
+        if (promoCode && session.payment_status === 'paid') {
+          const subtotalCents = Number(meta.subtotal_cents || 0) || 0;
+          await redeemPromo({ 
+            code: promoCode, 
+            subtotalCents, 
+            userId: inferredUserId || 'unknown', 
+            service: 'booking', 
+            orderId: session.id 
+          });
+        }
+      });
       debugLog('[payments] Ad reservation payment completed successfully', {
         ad_id,
         dates,

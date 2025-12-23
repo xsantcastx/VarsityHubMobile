@@ -156,13 +156,21 @@ adsRouter.get('/:id', async (req, res) => {
 });
 
 // Update an Ad (owner-only if authenticated)
-adsRouter.put('/:id', async (req: AuthedRequest, res) => {
+adsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const existing = await prisma.ad.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.user_id && req.user?.id && existing.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Forbidden' });
+  
+  // Issue #5 FIX: Require authentication and ownership for all updates
+  if (!req.user?.id) {
+    return res.status(401).json({ error: 'Authentication required' });
   }
+  
+  // Enforce ownership - only the ad owner can update
+  if (existing.user_id !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You do not own this ad' });
+  }
+  
   const data: any = {};
   const allowed = ['contact_name','contact_email','business_name','banner_url','banner_fit_mode','target_url','target_zip_code','radius','description','status','payment_status'] as const;
   for (const k of allowed) {
