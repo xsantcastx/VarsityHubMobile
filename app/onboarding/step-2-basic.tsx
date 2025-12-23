@@ -125,7 +125,9 @@ export default function Step2Basic() {
   };
 
   const onContinue = async () => {
-    if (!canContinue) return;
+    // SECURITY: Prevent double submission
+    if (!canContinue || saving) return;
+    
     // Final normalization pass
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);

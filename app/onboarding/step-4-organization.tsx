@@ -350,7 +350,8 @@ export default function Step4Organization() {
   };
 
   const onContinue = async () => {
-    if (!canContinue) return;
+    // SECURITY: Prevent double submission
+    if (!canContinue || saving) return;
     
     // Guard: require email verification before creating org
     if (emailVerified === false && !alreadyExists) {

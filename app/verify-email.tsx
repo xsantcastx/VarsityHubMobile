@@ -24,6 +24,8 @@ export default function VerifyEmailScreen() {
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [devCodeLoading, setDevCodeLoading] = useState(false);
+  const [rateLimitEnd, setRateLimitEnd] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<string>('');
 
   const devVerificationEnabled = useMemo(() => {
     if (__DEV__) return true;
@@ -38,6 +40,34 @@ export default function VerifyEmailScreen() {
       setCode(params.devCode);
     }
   }, [params.devCode]);
+
+  // Countdown timer for rate limit lockout
+  useEffect(() => {
+    if (!rateLimitEnd) {
+      setCountdown('');
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const remaining = rateLimitEnd - now;
+
+      if (remaining <= 0) {
+        setRateLimitEnd(null);
+        setCountdown('');
+        setError(null);
+        return;
+      }
+
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      setCountdown(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitEnd]);
 
   const onVerify = async () => {
     if (!code.trim()) return;
@@ -93,12 +123,25 @@ export default function VerifyEmailScreen() {
       }
     } catch (e: any) {
       const errorDuration = Date.now() - startTime;
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
-        extra: { email, code_length: String(code).length },
-      });
-      const errorMsg = e?.message || e?.data?.error || 'Verification failed';
-      setError(errorMsg);
+      
+      // Check for rate limit (429) response
+      if (e?.status === 429 || e?.response?.status === 429 || e?.message?.toLowerCase().includes('rate limit')) {
+        const lockoutMs = 15 * 60 * 1000; // 15 minutes
+        const lockoutEnd = Date.now() + lockoutMs;
+        setRateLimitEnd(lockoutEnd);
+        setError('Too many verification attempts. Please wait 15 minutes before trying again.');
+        captureException(new Error('Email verification rate limit hit'), {
+          tags: { context: 'verify-email-rate-limit', duration_ms: String(errorDuration) },
+          extra: { email, code_length: String(code).length },
+        });
+      } else {
+        captureException(typeof e === 'string' ? new Error(e) : e, {
+          tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
+          extra: { email, code_length: String(code).length },
+        });
+        const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -127,12 +170,25 @@ export default function VerifyEmailScreen() {
       }
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
-      captureException(typeof e === 'string' ? new Error(e) : e, {
-        tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
-        extra: { email, error_code: e?.data?.error },
-      });
-      const errorMsg = e?.message || e?.data?.error || 'Resend failed';
-      setError(errorMsg);
+      
+      // Check for rate limit (429) response
+      if (e?.status === 429 || e?.response?.status === 429 || e?.message?.toLowerCase().includes('rate limit')) {
+        const lockoutMs = 15 * 60 * 1000; // 15 minutes
+        const lockoutEnd = Date.now() + lockoutMs;
+        setRateLimitEnd(lockoutEnd);
+        setError('Too many resend attempts. Please wait 15 minutes before trying again.');
+        captureException(new Error('Email resend rate limit hit'), {
+          tags: { context: 'verify-email-resend-rate-limit', duration_ms: String(resendDuration) },
+          extra: { email },
+        });
+      } else {
+        captureException(typeof e === 'string' ? new Error(e) : e, {
+          tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
+          extra: { email, error_code: e?.data?.error },
+        });
+        const errorMsg = e?.message || e?.data?.error || 'Resend failed';
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -219,6 +275,14 @@ export default function VerifyEmailScreen() {
       
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
+      
+      {/* Rate Limit Countdown */}
+      {rateLimitEnd && countdown ? (
+        <View style={styles.lockoutContainer}>
+          <Ionicons name="time-outline" size={16} color="#DC2626" />
+          <Text style={styles.lockoutText}>Locked out. Try again in {countdown}</Text>
+        </View>
+      ) : null}
       
       {/* Dev Code Display */}
       {devCode ? (
@@ -331,6 +395,20 @@ const styles = StyleSheet.create({
   skipText: { fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
+  lockoutContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  lockoutText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
   devCodeContainer: { 
     flexDirection: 'row', 
     alignItems: 'center', 
