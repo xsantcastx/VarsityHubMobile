@@ -2,6 +2,7 @@ import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import fs from 'node:fs';
 import path from 'node:path';
 import { debugLog } from './debugLog.js';
+import { captureMessage } from './sentry.js';
 
 // RFC-ish email validation used by tests and runtime guards
 export function isValidEmail(email: unknown): boolean {
@@ -138,8 +139,30 @@ const TEMPLATE_IDS = {
   DORMANT_USER_DIGEST: process.env.SENDGRID_DORMANT_USER_DIGEST_TEMPLATE_ID || '',
 } as const;
 
+const ALL_TEMPLATE_KEYS = Object.keys(TEMPLATE_IDS) as (keyof typeof TEMPLATE_IDS)[];
+
 type TemplateKey = keyof typeof TEMPLATE_IDS;
 const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = ['VERIFICATION', 'PASSWORD_RESET', 'PASSWORD_CHANGED', 'ACCOUNT_RECOVERY'];
+
+function getRequiredTemplateKeys(): TemplateKey[] {
+  const strict = (process.env.EMAIL_STRICT_TEMPLATES || '').toString() === '1';
+  const isProd = (process.env.NODE_ENV || 'development') === 'production';
+  const override = (process.env.EMAIL_REQUIRED_TEMPLATES || '').trim();
+  if (override) {
+    const keys = override
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean)
+      .map((k) => k.toUpperCase()) as TemplateKey[];
+    return keys.filter((k) => (ALL_TEMPLATE_KEYS as TemplateKey[]).includes(k));
+  }
+  // In production with strict mode, require all non-empty template keys
+  if (strict && isProd) {
+    return ALL_TEMPLATE_KEYS as TemplateKey[];
+  }
+  // Default: minimal auth templates
+  return REQUIRED_TEMPLATE_KEYS;
+}
 
 // Note: API key is set during initEmailService() to avoid duplicate initialization.
 
@@ -191,12 +214,16 @@ async function sendTemplateEmail(
   }
 
   if (!SENDGRID_API_KEY) {
-    console.warn(`[email] SendGrid API key not configured; cannot send ${label}`);
+    const msg = `[email] SendGrid API key not configured; cannot send ${label}`;
+    console.warn(msg);
+    try { captureMessage(msg, 'warning'); } catch {}
     return false;
   }
   const templateId = TEMPLATE_IDS[templateKey];
   if (!templateId) {
-    console.warn(`[email] ${label} template (${templateKey}) not configured`);
+    const msg = `[email] ${label} template (${templateKey}) not configured`;
+    console.warn(msg);
+    try { captureMessage(msg, 'warning'); } catch {}
     return false;
   }
   try {
@@ -214,7 +241,7 @@ async function sendTemplateEmail(
   }
 }
 
-export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMPLATE_KEYS): string[] {
+export function getMissingEmailTemplates(required: TemplateKey[] = getRequiredTemplateKeys()): string[] {
   return required.filter((key) => !TEMPLATE_IDS[key]).map((key) => key.toLowerCase());
 }
 
@@ -226,17 +253,28 @@ export function initEmailService() {
   }
 
   if (!process.env.SENDGRID_API_KEY) {
-    console.warn('⚠️ SENDGRID_API_KEY not set - emails will not be sent');
+    const msg = '⚠️ SENDGRID_API_KEY not set - emails will not be sent';
+    console.warn(msg);
+    try { captureMessage(msg, 'warning'); } catch {}
     return;
   }
 
   // Read API key directly from env at init to avoid module-level constant issues
   sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
-  const missing = getMissingEmailTemplates();
+  const requiredKeys = getRequiredTemplateKeys();
+  const missing = getMissingEmailTemplates(requiredKeys);
   if (missing.length) {
-    console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
+    const msg = `[email] Missing required SendGrid template IDs: ${missing.join(', ')}`;
+    console.warn(msg);
+    try { captureMessage(msg, 'error'); } catch {}
+    const strict = (process.env.EMAIL_STRICT_TEMPLATES || '').toString() === '1';
+    const isProd = (process.env.NODE_ENV || 'development') === 'production';
+    if (strict && isProd) {
+      // Fail hard in production when strict mode is enabled
+      throw new Error(msg);
+    }
   } else {
-    debugLog('✅ SendGrid email service initialized (password reset, password changed, account recovery)');
+    debugLog('✅ SendGrid email service initialized');
   }
 }
 
