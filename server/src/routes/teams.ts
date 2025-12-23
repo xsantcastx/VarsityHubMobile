@@ -66,6 +66,42 @@ async function notifyTeamPlanLimitEmail({
   }
 }
 
+// ISSUE #3 FIX: Helper function to check if user can access team
+// Includes cascade from organization membership
+async function canAccessTeam(userId: string, teamId: string): Promise<boolean> {
+  // Check direct team membership
+  const teamMember = await prisma.teamMembership.findUnique({
+    where: { 
+      team_id_user_id: { team_id: teamId, user_id: userId } as any
+    }
+  });
+  if (teamMember) return true;
+
+  // Check organization membership (if team belongs to org)
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { organization_id: true }
+  });
+
+  if (team?.organization_id) {
+    const orgMember = await prisma.organizationMembership.findUnique({
+      where: { 
+        organization_id_user_id: { 
+          organization_id: team.organization_id, 
+          user_id: userId 
+        } as any
+      }
+    });
+    
+    // Organization admins get automatic team access
+    if (orgMember && ['owner', 'manager', 'administrator'].includes(orgMember.role || '')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function queueStaffInviteEmails({
   teamId,
   teamName,
@@ -471,11 +507,49 @@ teamsRouter.get('/:id', async (req, res) => {
 // Team members list
 teamsRouter.get('/:id/members', async (req, res) => {
   const id = String(req.params.id);
+  
+  // Get direct team members
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
     include: { user: true },
   });
+  
+  // ISSUE #3 FIX: Include organization members if team belongs to org
+  const team = await prisma.team.findUnique({
+    where: { id },
+    select: { organization_id: true }
+  });
+  
+  let orgMembers: any[] = [];
+  if (team?.organization_id) {
+    const orgMemberships = await prisma.organizationMembership.findMany({
+      where: { 
+        organization_id: team.organization_id,
+        role: { in: ['owner', 'manager', 'administrator'] },
+        status: 'active'
+      },
+      include: { user: true }
+    });
+    
+    // Add org members who aren't already direct team members
+    const teamUserIds = new Set(mems.map(m => m.user_id));
+    orgMembers = orgMemberships
+      .filter(om => !teamUserIds.has(om.user_id))
+      .map(om => ({
+        id: `org_${om.id}`, // Prefix to distinguish from direct members
+        role: 'coach', // Organization admins get coach role on teams
+        status: 'active',
+        custom_position: 'Organization Admin',
+        user: {
+          id: om.user_id,
+          email: (om as any).user?.email || null,
+          display_name: (om as any).user?.display_name || null,
+        },
+        inherited_from_org: true // Flag to indicate this is cascaded access
+      }));
+  }
+  
   const list = mems.map((m) => ({
     id: m.id,
     role: m.role,
@@ -486,8 +560,11 @@ teamsRouter.get('/:id/members', async (req, res) => {
       email: (m as any).user?.email || null,
       display_name: (m as any).user?.display_name || null,
     },
+    inherited_from_org: false
   }));
-  return res.json(list);
+  
+  // Combine direct members + org members
+  return res.json([...list, ...orgMembers]);
 });
 
 // All members across teams (for admin screens); optional search q
@@ -515,7 +592,11 @@ teamsRouter.get('/members/all', async (req, res) => {
 });
 
 // Create team (auth required). Creator becomes owner.
-const createSchema = z.object({ name: z.string().min(2), description: z.string().optional() });
+const createSchema = z.object({ 
+  name: z.string().min(2), 
+  description: z.string().optional(),
+  organization_id: z.string().min(1) // REQUIRED: Teams must belong to an organization
+});
 teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -532,6 +613,38 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',
       code: 'COACH_ROLE_REQUIRED'
+    });
+  }
+  
+  // ISSUE #1 & #2 FIX: Validate organization exists and user has admin access
+  const org = await prisma.organization.findUnique({
+    where: { id: parsed.data.organization_id },
+    include: {
+      memberships: {
+        where: { 
+          user_id: me.id, 
+          role: { in: ['owner', 'manager', 'administrator'] },
+          status: 'active'
+        }
+      }
+    }
+  });
+
+  if (!org) {
+    return res.status(404).json({ 
+      error: 'ORGANIZATION_NOT_FOUND',
+      message: 'Organization not found. Create an organization first.',
+      organization_id: parsed.data.organization_id,
+      code: 'ORGANIZATION_NOT_FOUND'
+    });
+  }
+
+  if (!org.memberships.length) {
+    return res.status(403).json({ 
+      error: 'ORGANIZATION_ACCESS_DENIED',
+      message: 'You must be an administrator of this organization to create teams',
+      organization_name: org.name,
+      code: 'ORGANIZATION_ACCESS_DENIED'
     });
   }
   
@@ -591,7 +704,13 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   
-  const t = await prisma.team.create({ data: { name: parsed.data.name, description: parsed.data.description } });
+  const t = await prisma.team.create({ 
+    data: { 
+      name: parsed.data.name, 
+      description: parsed.data.description,
+      organization_id: parsed.data.organization_id
+    } 
+  });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
 });
@@ -777,7 +896,7 @@ const createTeamSchema = z.object({
   extracurricular_category: z.string().max(100).optional(),
   season_start: z.string().optional(),
   season_end: z.string().optional(),
-  organization_id: z.string().optional(),
+  organization_id: z.string().min(1), // REQUIRED: Teams must belong to an organization
   logo_url: z.string().optional(),
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
@@ -814,6 +933,39 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       error: 'COACH_ROLE_REQUIRED',
       message: 'Only coach accounts can create teams.',
       code: 'COACH_ROLE_REQUIRED'
+    });
+  }
+  
+  // ISSUE #1 & #2 FIX: Validate organization exists and user has admin access
+  const org = await prisma.organization.findUnique({
+    where: { id: data.organization_id },
+    include: {
+      memberships: {
+        where: { 
+          user_id: me.id, 
+          role: { in: ['owner', 'manager', 'administrator'] },
+          status: 'active'
+        }
+      },
+      teams: { where: { status: 'active' }, select: { id: true } }
+    }
+  });
+
+  if (!org) {
+    return res.status(404).json({ 
+      error: 'ORGANIZATION_NOT_FOUND',
+      message: 'Organization not found. Create an organization first at /organizations/create',
+      organization_id: data.organization_id,
+      code: 'ORGANIZATION_NOT_FOUND'
+    });
+  }
+
+  if (!org.memberships.length) {
+    return res.status(403).json({ 
+      error: 'ORGANIZATION_ACCESS_DENIED',
+      message: 'You must be an administrator of this organization to create teams',
+      organization_name: org.name,
+      code: 'ORGANIZATION_ACCESS_DENIED'
     });
   }
   
