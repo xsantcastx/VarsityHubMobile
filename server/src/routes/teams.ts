@@ -709,7 +709,12 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
       name: parsed.data.name, 
       description: parsed.data.description,
       organization_id: parsed.data.organization_id
-    } 
+    },
+    include: {
+      organization: {
+        select: { id: true, name: true, description: true }
+      }
+    }
   });
   await prisma.teamMembership.create({ data: { team_id: t.id, user_id: me.id, role: 'owner' } });
   return res.status(201).json(t);
@@ -1084,6 +1089,11 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       venue_lng: data.venue_lng,
       venue_address: data.venue_address,
       venue_updated_at: data.venue_place_id ? new Date() : null,
+    },
+    include: {
+      organization: {
+        select: { id: true, name: true, description: true }
+      }
     }
   });
   
