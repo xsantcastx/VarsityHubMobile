@@ -43,8 +43,32 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      - name: Run Playwright E2E Tests
-        run: npx playwright test
+      - name: Start Expo web server for Playwright
+        env:
+          CI: "1"
+          PORT: "8081"
+          RCT_METRO_PORT: "8081"
+          EXPO_NO_TELEMETRY: "1"
+        run: |
+          nohup npm run web:playwright > /tmp/expo-web.log 2>&1 &
+          echo $! > /tmp/expo-web.pid
+
+      - name: Wait for Expo web server
+        run: npx wait-on --timeout 120000 http://localhost:8081
+
+      - name: Run Playwright smoke tests
+        run: npm run test:smoke
+
+      - name: Stop Expo web server
+        if: always()
+        run: |
+          if [ -f /tmp/expo-web.pid ]; then
+            kill "$(cat /tmp/expo-web.pid)" || true
+          fi
+          if [ -f /tmp/expo-web.log ]; then
+            echo "---- Expo web log (tail) ----"
+            tail -n 200 /tmp/expo-web.log || true
+          fi
 
       - name: Run Tests
         run: npm test -- --runInBand --no-watchman --passWithNoTests
