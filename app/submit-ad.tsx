@@ -273,12 +273,12 @@ const styles = StyleSheet.create({
     paddingBottom: 32 
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: { 
     fontSize: 28, 
     fontWeight: '800', 
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: -0.5,
   },
   subtitle: { 
