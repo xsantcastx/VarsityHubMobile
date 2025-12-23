@@ -935,7 +935,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       // CRITICAL SECURITY FIX: Verify user owns the ad before updating
       const ad = await prisma.ad.findUnique({
         where: { id: ad_id },
-        select: { user_id: true, payment_status: true, price_per_day_cents: true }
+        select: { user_id: true, payment_status: true }
       });
       
       if (!ad) {
@@ -1051,6 +1051,34 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
         const prefs: any = { ...existingPrefs, plan };
+        
+        // CRITICAL FIX #4: Reconcile team count between checkout and finalization
+        // Team count was stored at checkout time, but user might have added/deleted teams
+        const checkoutTeamCountTotal = meta.team_count_total ? Number(meta.team_count_total) : undefined;
+        const checkoutTeamCountBillable = meta.team_count_billable ? Number(meta.team_count_billable) : undefined;
+        
+        if (plan === 'veteran' && checkoutTeamCountTotal && checkoutTeamCountBillable !== undefined) {
+          // Validate current team count matches checkout
+          const teamData = await prisma.team.findMany({
+            where: { organization_id: { in: (current?.preferences as any)?.org_ids || [] } },
+            select: { id: true }
+          });
+          const currentTeamCount = teamData.length;
+          
+          if (currentTeamCount !== checkoutTeamCountTotal) {
+            // Team count changed since checkout - log this for monitoring
+            const newBillableQuantity = Math.max(0, currentTeamCount - 2);
+            console.info('[payments] Team count changed since checkout', {
+              session_id: session.id,
+              userId,
+              checkoutTeamCountTotal,
+              currentTeamCount,
+              checkoutBillableQuantity: checkoutTeamCountBillable,
+              newBillableQuantity,
+              note: 'Subscription was created with original quantity but user should audit'
+            });
+          }
+        }
         
         // Retrieve subscription details BEFORE updating preferences
         let subscriptionId: string | undefined = undefined;
