@@ -32,6 +32,7 @@
     "server:db:seed": "cd server && npm run seed",
     "server:db:studio": "cd server && npx prisma studio",
     "typecheck": "tsc --noEmit",
+    "check:email-templates": "node server/scripts/check-email-templates.js",
     "test": "jest --runInBand",
     "test:smoke": "playwright test",
     "test:smoke:ui": "playwright test --ui",

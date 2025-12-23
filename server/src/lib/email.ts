@@ -639,8 +639,46 @@ export async function sendSecurityAlertEmail(params: {
     contact_support_link: params.contactSupportLink || `${APP_BASE_URL}/support`,
   });
 }
-export const sendTeamInviteEmail = makeDisabled('sendTeamInviteEmail');
-export const sendOrganizationInviteEmail = makeDisabled('sendOrganizationInviteEmail');
+// Legacy exports kept for callers; route to the active invitation helpers
+export async function sendTeamInviteEmail(params: {
+  to: string;
+  teamName: string;
+  organizationName?: string;
+  role: string;
+  inviterName: string;
+  teamHeroUrl?: string;
+  teamLogoUrl?: string;
+  primaryColor?: string;
+}): Promise<boolean> {
+  return sendTeamInvitationEmail({
+    to: params.to,
+    recipientName: params.inviterName,
+    teamName: params.teamName,
+    inviterName: params.inviterName,
+    role: params.role,
+    acceptLink: params.teamHeroUrl || `${APP_BASE_URL}/team-invites`,
+    declineLink: params.teamHeroUrl || `${APP_BASE_URL}/team-invites`,
+  });
+}
+
+export async function sendOrganizationInviteEmail(params: {
+  to: string;
+  organizationName: string;
+  role: string;
+  inviterName: string;
+  orgLogoUrl?: string;
+  primaryColor?: string;
+}): Promise<boolean> {
+  return sendOrganizationInvitationEmail({
+    to: params.to,
+    recipientName: params.inviterName,
+    organizationName: params.organizationName,
+    inviterName: params.inviterName,
+    role: params.role,
+    acceptLink: `${APP_BASE_URL}/organization-invites`,
+    declineLink: `${APP_BASE_URL}/organization-invites`,
+  });
+}
 
 // ✅ Team Management: Organization Invitation
 export async function sendOrganizationInvitationEmail(params: {
