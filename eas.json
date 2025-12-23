@@ -94,7 +94,7 @@
         "resourceClass": "m-medium"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "large"
       }
     }
   },
