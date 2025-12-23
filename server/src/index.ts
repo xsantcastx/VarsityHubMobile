@@ -37,6 +37,7 @@ import { teamsRouter } from './routes/teams.js';
 import { tournamentsRouter } from './routes/tournaments.js';
 import { uploadRouter } from './routes/upload.js';
 import { uploadsRouter } from './routes/uploads.js';
+import { uploadsS3Router } from './routes/uploads-s3.js';
 import { usersRouter } from './routes/users.js';
 import { startEmailWorker } from './workers/emailWorker.js';
 
@@ -364,7 +365,8 @@ app.use('/notifications', noStore, apiLimiter, notificationsRouter);
 app.use('/events', apiLimiter, eventsRouter);
 app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
-app.use('/uploads', uploadsRouter);
+app.use('/uploads', apiLimiter, uploadsRouter);
+app.use('/uploads', apiLimiter, uploadsS3Router);
 
 app.use('/ads', adsRouter);
 app.use('/payments', paymentLogging, paymentsRouter);

@@ -225,6 +225,10 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
 
 // Dev helper: list uploaded files
 uploadsRouter.get('/list', requireAuth as any, (_req, res) => {
+  // Restrict listing to non-production environments to avoid leaking file metadata
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     const files = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith('.'));
     const base = `${_req.protocol}://${_req.get('host')}`;
