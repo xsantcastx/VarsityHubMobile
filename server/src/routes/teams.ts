@@ -315,7 +315,27 @@ teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res
   
   const prefs = ((user as any).preferences ?? {}) as Record<string, unknown>;
   const subscriptionTier = resolvePlan((prefs as any).plan || (user as any).subscription_tier);
-  const maxTeams = getMaxTeamsForPlan(subscriptionTier);
+  let maxTeams = getMaxTeamsForPlan(subscriptionTier);
+  
+  // CRITICAL FIX: For Veteran plan, check Stripe subscription quantity instead of using plan-definitions.json
+  // which incorrectly returns null (unlimited). Veteran plan limits are dynamic based on paid quantity.
+  if (subscriptionTier === 'veteran' && process.env.STRIPE_SECRET_KEY) {
+    const subscriptionId = (prefs as any).subscription_id;
+    if (subscriptionId) {
+      try {
+        const stripe = await import('stripe');
+        const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+        const subscription = await stripeClient.subscriptions.retrieve(String(subscriptionId));
+        const paidQuantity = subscription.items.data[0]?.quantity || 0;
+        maxTeams = 2 + paidQuantity; // First 2 teams free + paid quantity
+      } catch (err) {
+        console.error('[teams/limits] Failed to check Stripe subscription for Veteran plan:', (err as any)?.message || err);
+      }
+    } else {
+      maxTeams = 2; // No active subscription, default to 2 free teams
+    }
+  }
+  
   const canCreateMore = maxTeams === null ? true : ownedTeamsCount < maxTeams;
   const remaining = maxTeams === null ? null : Math.max(0, maxTeams - ownedTeamsCount);
   
@@ -525,7 +545,33 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   });
   
   const plan = resolvePlan(prefs.plan);
-  const maxTeams = getMaxTeamsForPlan(plan);
+  let maxTeams = getMaxTeamsForPlan(plan);
+  
+  // CRITICAL FIX: For Veteran plan, check Stripe subscription quantity
+  // to prevent bypassing paid team limits (plan-definitions.json incorrectly returns null)
+  if (plan === 'veteran' && process.env.STRIPE_SECRET_KEY) {
+    const subscriptionId = prefs.subscription_id;
+    if (subscriptionId) {
+      try {
+        const stripe = await import('stripe');
+        const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+        const subscription = await stripeClient.subscriptions.retrieve(String(subscriptionId));
+        if (subscription.status !== 'active') {
+          return res.status(403).json({
+            error: 'Subscription not active',
+            message: 'Your Veteran subscription is not active. Please update your billing settings.',
+          });
+        }
+        const paidQuantity = subscription.items.data[0]?.quantity || 0;
+        maxTeams = 2 + paidQuantity;
+      } catch (err) {
+        console.error('[teams] Failed to verify Veteran subscription:', (err as any)?.message || err);
+        return res.status(500).json({ error: 'Unable to verify subscription. Please try again.' });
+      }
+    } else {
+      maxTeams = 2; // No active subscription, limit to 2 free teams
+    }
+  }
   
   if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
     await notifyTeamPlanLimitEmail({
