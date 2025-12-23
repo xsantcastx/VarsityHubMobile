@@ -25,8 +25,8 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const email = user?.email;
-    const veteranPrice = process.env.STRIPE_VETERAN_PRICE_ID;
-    const legendPrice = process.env.STRIPE_LEGEND_PRICE_ID;
+    const veteranPrice = process.env.STRIPE_PRICE_VETERAN || process.env.STRIPE_VETERAN_PRICE_ID;
+    const legendPrice = process.env.STRIPE_PRICE_LEGEND || process.env.STRIPE_LEGEND_PRICE_ID;
     if (!veteranPrice || !legendPrice) {
       return res.status(500).json({ error: 'Missing price IDs' });
     }

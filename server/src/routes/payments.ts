@@ -114,7 +114,7 @@ const membershipPlans = ['veteran', 'legend'] as const;
 type MembershipPlan = typeof membershipPlans[number];
 
 const membershipPriceIds: Record<MembershipPlan, string | undefined> = {
-  veteran: 'price_1SVcqtGJt8CsPE1EtTs2QpO1',
+  veteran: process.env.STRIPE_PRICE_VETERAN || process.env.STRIPE_VETERAN_PRICE_ID,
   legend: process.env.STRIPE_PRICE_LEGEND,
 };
 
