@@ -8,6 +8,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useRef, useState } from 'react';
@@ -20,7 +21,6 @@ import {
     Text,
     View,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 
 type BannerFitMode = 'letterbox' | 'fill' | 'stretch';
 

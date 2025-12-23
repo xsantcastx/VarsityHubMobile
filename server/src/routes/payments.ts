@@ -303,17 +303,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   // Ensure ad exists
   const ad = await prisma.ad.findUnique({ where: { id: String(ad_id) } });
   if (!ad) return res.status(404).json({ error: 'Ad not found' });
-  const adType = (ad as { type?: string | null }).type || '';
-
-  // Map ad.type to Stripe price ID
-  const adTypeToPriceId: Record<string, string> = {
-    'Fri-Sun Advertising': 'price_1SNFXxGJt8CsPE1ECbmJRQDa',
-    'Mond-Thurs Advertising': 'price_1SNFWzGJt8CsPE1EIikRsZif',
-  };
-  const priceId = adTypeToPriceId[adType];
-  if (!priceId) {
-    return res.status(400).json({ error: 'Unsupported ad type for Stripe payment', adType });
-  }
 
   // Calculate sales tax based on ad's target zip code
   const subtotal = calculatePriceCents(isoDates);
@@ -344,13 +333,23 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
+  
+  // Use dynamic pricing instead of fixed price IDs
+  // This ensures correct pricing based on actual dates selected
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     success_url: success,
     cancel_url: cancel,
     line_items: [
       {
-        price: priceId,
+        price_data: {
+          currency: 'usd',
+          unit_amount: subtotal, // Use calculated subtotal in cents
+          product_data: {
+            name: 'Ad Reservation',
+            description: `${isoDates.length} ${isoDates.length === 1 ? 'day' : 'days'} selected (${isoDates.join(', ')})`,
+          },
+        },
         quantity: 1,
       },
     ],

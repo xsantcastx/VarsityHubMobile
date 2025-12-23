@@ -113,7 +113,7 @@ function calculatePrice(selectedISO: Set<string>): number {
     weekSlots.add(getWeekIdentifier(d));
   }
   
-  // Calculate price: $8 per weekday week slot, $10 per weekend week slot
+  // Calculate price: $5 per weekday week slot (Mon-Thu), $8 per weekend week slot (Fri-Sun)
   let total = 0;
   for (const slot of weekSlots) {
     if (slot.endsWith('-weekday')) {
