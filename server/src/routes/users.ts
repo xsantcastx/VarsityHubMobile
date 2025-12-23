@@ -283,7 +283,9 @@ usersRouter.delete('/me', requireAuth as any, async (req: AuthedRequest, res) =>
 // Username availability check (public to authed users)
 usersRouter.get('/username-available', requireAuth as any, async (req: AuthedRequest, res) => {
   const username = String((req.query as any).username || '').trim();
-  const valid = /^[a-z0-9_.]{3,20}$/.test(username);
+  // Allow spaces temporarily (frontend normalizes from Apple/Google names)
+  // Backend will normalize spaces to underscores on save
+  const valid = /^[a-z0-9_. ]{3,20}$/.test(username);
   if (!valid) return res.json({ available: false, valid: false });
   
   // Check both username and display_name fields for conflicts, excluding current user

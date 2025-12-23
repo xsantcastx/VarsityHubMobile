@@ -764,12 +764,27 @@ organizationsRouter.get('/search/nearby', async (req, res) => {
 
 // Check for duplicate organizations
 organizationsRouter.post('/check-duplicate', async (req, res) => {
-  const { name, zip_code } = req.body;
+  const { name, zip_code, place_id } = req.body;
   
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
   }
   
+  // Check by place_id first (most reliable)
+  if (place_id) {
+    const existingByPlace = await prisma.organization.findFirst({
+      where: { place_id, status: 'active' },
+      select: { id: true, name: true, location: true, sport: true }
+    });
+    if (existingByPlace) {
+      return res.json({ 
+        exists: true,
+        organization: existingByPlace
+      });
+    }
+  }
+  
+  // Fallback to name + zip_code check
   const where: any = {
     name: { equals: name, mode: 'insensitive' },
     status: 'active'

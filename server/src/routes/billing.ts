@@ -19,6 +19,17 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
   if (!plan || !['veteran','legend'].includes(String(plan))) {
     return res.status(400).json({ error: 'Invalid plan' });
   }
+  // Validate team_count for Veteran plan
+  if (plan === 'veteran') {
+    const totalTeams = Number(team_count) || 0;
+    if (totalTeams < 3) {
+      return res.status(400).json({ 
+        error: 'Veteran plan requires at least 3 teams',
+        minimum_teams: 3,
+        provided_teams: totalTeams
+      });
+    }
+  }
   if (!stripe) {
     return res.status(503).json({ error: 'BillingUnavailable', message: 'Stripe not configured on server.' });
   }
@@ -52,7 +63,8 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
       metadata: {
         user_id: req.user.id,
         plan,
-        team_count: team_count
+        team_count: team_count || '0',
+        team_count_total: team_count || '0'
       }
     });
     return res.json({ session_id: session.id, url: session.url });
@@ -80,20 +92,26 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
       const session = event.data.object;
       const userId = session.metadata?.user_id;
       const plan = session.metadata?.plan;
+      const teamCountTotal = session.metadata?.team_count_total || session.metadata?.team_count;
       if (userId && plan) {
         const user = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = user?.preferences || {};
+        const prefsUpdate: any = {
+          ...(existingPrefs as object),
+          plan,
+          payment_pending: false
+        };
+        // Persist team_count_total for Veteran plan
+        if (plan === 'veteran' && teamCountTotal) {
+          prefsUpdate.team_count_total = Number(teamCountTotal) || 0;
+        }
         await prisma.user.update({
           where: { id: userId },
           data: {
             subscription_tier: plan,
             subscription_status: 'active',
             stripe_customer_id: session.customer?.toString(),
-            preferences: {
-              ...(existingPrefs as object),
-              plan,
-              payment_pending: false
-            }
+            preferences: prefsUpdate
           }
         });
       }

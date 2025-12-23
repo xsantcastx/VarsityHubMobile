@@ -55,7 +55,12 @@ const registrationLimiter = rateLimit({
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
-const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
+// Brute force protection for code entry: track failed attempts
+const verifyAttempts: Map<string, { count: number; lockedUntil: number | null }> = new Map();
+const MAX_VERIFY_ATTEMPTS = 5;
+const VERIFY_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_ALLOWED_AUDIENCES || process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
@@ -88,7 +93,8 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
   }
   if (exists) return res.status(409).json({ error: 'Email already registered' });
   const password_hash = await bcrypt.hash(password, 10);
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  // Use cryptographically secure random for verification codes
+  const code = String(crypto.randomInt(100000, 1000000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
   
@@ -522,7 +528,8 @@ authRouter.post('/password/forgot', passwordResetLimiter, async (req, res) => {
   }
   debugLog('[password-reset] User found:', user.id, user.email);
 
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  // Use cryptographically secure random for reset codes
+  const code = String(crypto.randomInt(100000, 1000000));
   // Align with template: token expires in 1 hour
   const expires = new Date(Date.now() + 60 * 60 * 1000);
 
@@ -696,15 +703,35 @@ const updateMeSchema = z.object({
   preferences: z.any().optional(),
 });
 
+// Normalize username: replace spaces with underscores, lowercase
+function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
 authRouter.put('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const data = parsed.data as any;
   let patch: any = { ...data };
+  // Normalize username if provided
+  if (data.display_name) {
+    patch.display_name = normalizeUsername(data.display_name);
+  }
+  if (data.username) {
+    patch.username = normalizeUsername(data.username);
+  }
   if (data.preferences) {
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
+    const currentPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
+    const onboardingCompleted = currentPrefs.onboarding_completed === true;
+    
+    // Block role changes after onboarding complete
+    if (onboardingCompleted && 'role' in data.preferences && data.preferences.role !== currentPrefs.role) {
+      return res.status(403).json({ error: 'Role changes are not allowed after onboarding is complete.' });
+    }
+    
+    const mergedPrefs = mergePreferences(currentPrefs, data.preferences);
     patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
@@ -719,9 +746,24 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const data = parsed.data as any;
   let patch: any = { ...data };
+  // Normalize username if provided
+  if (data.display_name) {
+    patch.display_name = normalizeUsername(data.display_name);
+  }
+  if (data.username) {
+    patch.username = normalizeUsername(data.username);
+  }
   if (data.preferences) {
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-    const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
+    const currentPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
+    const onboardingCompleted = currentPrefs.onboarding_completed === true;
+    
+    // Block role changes after onboarding complete
+    if (onboardingCompleted && 'role' in data.preferences && data.preferences.role !== currentPrefs.role) {
+      return res.status(403).json({ error: 'Role changes are not allowed after onboarding is complete.' });
+    }
+    
+    const mergedPrefs = mergePreferences(currentPrefs, data.preferences);
     patch.preferences = mergedPrefs;
   }
   const { preferences, ...rest } = patch;
@@ -888,6 +930,44 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   const data = parsed.data;
   
+  // Validate coach-specific requirements
+  if (data.role === 'coach') {
+    if (!data.organization_id && !data.team_id) {
+      return res.status(400).json({ 
+        error: 'Coaches must create an organization or team before completing onboarding',
+        missing_fields: ['organization_id', 'team_id']
+      });
+    }
+    if (!data.plan || data.plan === 'rookie') {
+      return res.status(400).json({ 
+        error: 'Coaches must select a paid plan (veteran or legend)',
+        current_plan: data.plan || 'none'
+      });
+    }
+    // Validate Veteran plan has team_count_total
+    if (data.plan === 'veteran') {
+      const teamCount = data.team_count_total || 0;
+      if (teamCount < 3) {
+        return res.status(400).json({ 
+          error: 'Veteran plan requires at least 3 teams',
+          minimum_teams: 3,
+          provided_teams: teamCount
+        });
+      }
+    }
+  }
+  
+  // Validate paid plans require completed payment
+  if (data.plan && ['veteran', 'legend'].includes(data.plan)) {
+    if (data.payment_pending === true || data.payment_pending === 'true') {
+      return res.status(400).json({ 
+        error: 'Please complete payment before finishing onboarding',
+        payment_status: 'pending',
+        plan: data.plan
+      });
+    }
+  }
+  
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;
@@ -1029,7 +1109,8 @@ authRouter.post('/verify/request', async (req: AuthedRequest, res) => {
     }
   }
   
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  // Use cryptographically secure random for verification codes
+  const code = String(crypto.randomInt(100000, 1000000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   
   await prisma.user.update({ 
@@ -1093,6 +1174,26 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   
+  // Brute force protection: check if user is locked out
+  const attemptKey = user.id;
+  const attempts = verifyAttempts.get(attemptKey) || { count: 0, lockedUntil: null };
+  
+  if (attempts.lockedUntil && Date.now() < attempts.lockedUntil) {
+    const remainingMs = attempts.lockedUntil - Date.now();
+    const remainingMin = Math.ceil(remainingMs / 60000);
+    debugLog(`[verify/confirm] ❌ User ${user.email} locked out (${remainingMin}m remaining)`);
+    return res.status(429).json({ 
+      error: `Too many failed attempts. Try again in ${remainingMin} minutes.`,
+      locked_until: new Date(attempts.lockedUntil).toISOString()
+    });
+  }
+  
+  // Reset lockout if expired
+  if (attempts.lockedUntil && Date.now() >= attempts.lockedUntil) {
+    attempts.count = 0;
+    attempts.lockedUntil = null;
+  }
+  
   if (user.email_verified) {
     debugLog(`[verify/confirm] ${user.email} already verified`);
     return res.json({ ok: true, already_verified: true });
@@ -1110,10 +1211,32 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
   }
   
   if (String(code) !== String(user.email_verification_code)) {
+    // Track failed attempt
+    attempts.count += 1;
+    
+    if (attempts.count >= MAX_VERIFY_ATTEMPTS) {
+      attempts.lockedUntil = Date.now() + VERIFY_LOCKOUT_MS;
+      verifyAttempts.set(attemptKey, attempts);
+      const attemptDuration = Date.now() - requestStartTime;
+      debugLog(`[verify/confirm] ❌ User ${user.email} locked out after ${attempts.count} failed attempts (${attemptDuration}ms)`);
+      return res.status(429).json({ 
+        error: 'Too many failed attempts. Try again in 15 minutes.',
+        locked_until: new Date(attempts.lockedUntil).toISOString()
+      });
+    }
+    
+    verifyAttempts.set(attemptKey, attempts);
+    const remainingAttempts = MAX_VERIFY_ATTEMPTS - attempts.count;
     const attemptDuration = Date.now() - requestStartTime;
-    debugLog(`[verify/confirm] ❌ Invalid code for ${user.email} (attempt: ${attemptDuration}ms)`);
-    return res.status(400).json({ error: 'Invalid code' });
+    debugLog(`[verify/confirm] ❌ Invalid code for ${user.email} (attempt: ${attemptDuration}ms, ${remainingAttempts} remaining)`);
+    return res.status(400).json({ 
+      error: 'Invalid code',
+      attempts_remaining: remainingAttempts
+    });
   }
+  
+  // Success - clear failed attempts
+  verifyAttempts.delete(attemptKey);
   
   const updated = await prisma.user.update({ 
     where: { id: user.id }, 
