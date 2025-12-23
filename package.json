@@ -42,6 +42,10 @@
     "test:smoke:ui": "playwright test --ui",
     "test:smoke:headed": "playwright test --headed",
     "test:smoke:debug": "playwright test --debug"
+    "smoke:deeplink:android:reset": "bash scripts/deep-link-smoke.sh android reset",
+    "smoke:deeplink:android:verify": "bash scripts/deep-link-smoke.sh android verify",
+    "smoke:deeplink:ios:reset": "bash scripts/deep-link-smoke.sh ios reset",
+    "smoke:deeplink:ios:verify": "bash scripts/deep-link-smoke.sh ios verify"
   },
   "dependencies": {
     "@base44/sdk": "^0.7.0",
