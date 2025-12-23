@@ -111,6 +111,9 @@ export default function Step9Features() {
   );
 
   const onContinue = async () => {
+    // SECURITY: Prevent double submission
+    if (saving) return;
+    
     setSaving(true);
     try {
       // Save to context

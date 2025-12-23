@@ -162,7 +162,8 @@ export default function Step3Plan() {
   };
 
   const onContinue = async () => {
-    if (!plan) return;
+    // SECURITY: Prevent double submission
+    if (!plan || saving) return;
     
     // If Veteran plan and haven't confirmed team count yet, show modal
     if (plan === 'veteran' && !showTeamCountModal) {

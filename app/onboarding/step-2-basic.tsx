@@ -13,7 +13,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
 
-// Allow spaces temporarily so prefilled Apple display names don't block progress; we normalize to underscores.
+// Allow spaces and periods temporarily so prefilled Apple/Google display names don't block progress
+// We normalize spaces to underscores, matching server normalizeUsername function
 const usernameRe = /^[a-z0-9_. ]{3,20}$/;
 
 export default function Step2Basic() {

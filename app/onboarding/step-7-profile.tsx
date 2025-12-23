@@ -81,6 +81,9 @@ export default function Step7Profile() {
   };
 
   const onContinue = async () => {
+    // SECURITY: Prevent double submission
+    if (saving) return;
+    
     // Validate username is required
     if (!username || username.trim().length === 0) {
       Alert.alert('Username Required', 'Please enter a username to continue.');
