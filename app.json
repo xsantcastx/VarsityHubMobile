@@ -23,6 +23,9 @@
           }
         ]
       ],
+    "ios": {
+      "buildNumber": "2"
+    },
     "extra": {
       "router": {},
       "eas": {
