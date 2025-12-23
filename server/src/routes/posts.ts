@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -10,6 +11,13 @@ export const postsRouter = Router();
 
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
 const POST_MILESTONE_THRESHOLDS = [100, 250, 500, 1000];
+// Rate limit: max 10 posts per user per hour
+const postCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req as AuthedRequest)?.user?.id || req.ip,
+  handler: (_req, res) => res.status(429).json({ error: 'Post limit reached. Try again in an hour.' }),
+});
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const detectMediaType = (url?: string | null): 'video' | 'image' => {
@@ -218,7 +226,7 @@ import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
 
-postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/', postCreateLimiter, requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {

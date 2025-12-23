@@ -222,7 +222,7 @@ eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
 // Toggle/set RSVP
 const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolean().optional() });
 
-eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
+eventsRouter.post('/:id/rsvp', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id }, select: { id: true, capacity: true } });
