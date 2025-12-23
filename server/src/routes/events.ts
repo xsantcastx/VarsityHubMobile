@@ -328,20 +328,20 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   
   // Check event limit for free tier
   if (userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')) {
-    const pendingCount = await prisma.event.count({
+    const totalCount = await prisma.event.count({
       where: {
         creator_id: user.id,
-        approval_status: 'pending',
+        approval_status: { in: ['pending', 'approved'] },
       },
     });
     
-    if (pendingCount >= 3) {
+    if (totalCount >= 3) {
       return res.status(403).json({ 
         error: 'Event limit reached',
-        message: "You've reached your limit of 3 pending events. Upgrade to Veteran to create unlimited community events.",
+        message: "You've reached your limit of 3 events. Upgrade to Veteran to create unlimited community events.",
         code: 'EVENT_LIMIT_EXCEEDED',
         limit: 3,
-        current: pendingCount,
+        current: totalCount,
       });
     }
   }
@@ -568,6 +568,11 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
       creator: { select: { id: true, display_name: true, email: true } }
     }
   });
+
+  // Cascade cleanup: remove RSVPs and post access for rejected events
+  await prisma.eventRsvp.deleteMany({ where: { event_id: eventId } });
+  await prisma.eventPostAccess.deleteMany({ where: { event_id: eventId } });
+  await prisma.post.updateMany({ where: { event_id: eventId }, data: { event_id: null } });
   
   if (updated.creator?.email) {
     try {

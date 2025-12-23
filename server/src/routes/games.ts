@@ -329,6 +329,11 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
       isCoach = true;
       debugLog(`✅ Admin ${currentUser?.email} creating event for team ${parsed.data.home_team_id || 'N/A'}`);
     }
+
+    // Require coach/admin to create games
+    if (!isCoach && !isAdmin) {
+      return res.status(403).json({ error: 'Only coaches or admins can create games' });
+    }
     
     // Auto-approve if coach/admin, otherwise set to pending
     gameData.approval_status = (isCoach || isAdmin) ? 'approved' : 'pending';
@@ -478,11 +483,8 @@ gamesRouter.put('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
     });
     canEdit = !!membership;
   }
-  if (!canEdit && existingGame.created_by_id === req.user.id) {
-    canEdit = true;
-  }
   if (!canEdit) {
-    return res.status(403).json({ error: 'Only team coaches or admins can edit this event' });
+    return res.status(403).json({ error: 'Only team coaches or admins can edit this game' });
   }
 
   // Note: Game model doesn't have status fields - all edits are allowed for authorized users
@@ -817,7 +819,22 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
       return res.status(403).json({ error: 'Only team staff, the creator, or admins can delete this game' });
     }
     
-    // Delete the game (cascade deletes will handle related records)
+    // Cascade cleanup: cancel linked events, clear RSVPs/access, detach posts
+    await prisma.event.updateMany({
+      where: { game_id: id },
+      data: {
+        approval_status: 'rejected',
+        status: 'cancelled',
+        rejected_reason: 'Game deleted',
+        approved_by: null,
+        approved_at: null,
+      },
+    });
+    await prisma.eventRsvp.deleteMany({ where: { event_id: { in: (await prisma.event.findMany({ where: { game_id: id }, select: { id: true } })).map(e => e.id) } } });
+    await prisma.eventPostAccess.deleteMany({ where: { event_id: { in: (await prisma.event.findMany({ where: { game_id: id }, select: { id: true } })).map(e => e.id) } } });
+    await prisma.post.updateMany({ where: { game_id: id }, data: { game_id: null } });
+
+    // Delete the game after cleanup
     await prisma.game.delete({ where: { id } });
     
     res.json({ message: 'Game deleted successfully' });
