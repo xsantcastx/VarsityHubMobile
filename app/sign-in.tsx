@@ -22,10 +22,22 @@ import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureException } from '@/utils/sentry';
-import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
 const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
+
+const GOOGLE_ICON_URI = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>
+    <path fill='#4285F4' d='M44.5 20H24v8.5h11.8C34.4 33.7 29.7 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.3 0 6.3 1.2 8.6 3.3l6.4-6.4C34.6 4.4 29.6 2 24 2 12.3 2 2.5 11.8 2.5 23.5S12.3 45 24 45c11.3 0 21-8 21-22 0-1.7-.2-3.3-.5-5Z'/>
+    <path fill='#34A853' d='M6.3 14.7 13.3 19.8C14.8 16.1 19 13 24 13c3.3 0 6.3 1.2 8.6 3.3l6.4-6.4C34.6 4.4 29.6 2 24 2 14.7 2 6.6 7.4 6.3 14.7Z'/>
+    <path fill='#FBBC05' d='M24 45c5.5 0 10.5-1.8 14.5-4.8l-7-5.7c-2.1 1.4-4.7 2.3-7.5 2.3-7.2 0-13.3-5.8-13.9-13h-8v8C6 39.6 14.1 45 24 45Z'/>
+    <path fill='#EA4335' d='M43.5 24c0-1.3-.2-2.7-.5-4H24v8.5h11.8c-.5 2.8-2 5.2-4.3 6.8l7 5.7C41.1 37.2 43.5 31.6 43.5 24Z'/>
+  </svg>`
+)}`;
+
+const GoogleGlyph = ({ size = 20 }: { size?: number }) => (
+  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: size, height: size }} />
+);
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -272,12 +284,9 @@ export default function SignInScreen() {
                 disabled={googleLoading}
                 accessibilityRole="button"
               >
-                <Ionicons
-                  name="logo-google"
-                  size={20}
-                  color={palette.text}
-                  style={styles.googleIconInline}
-                />
+                <View style={styles.googleIconInline}>
+                  <GoogleGlyph size={20} />
+                </View>
                 {googleLoading ? (
                   <ActivityIndicator size="small" color={palette.text} />
                 ) : (
@@ -294,12 +303,9 @@ export default function SignInScreen() {
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <Ionicons
-                  name="logo-google"
-                  size={20}
-                  color={palette.mutedText}
-                  style={[styles.googleIconInline, { opacity: 0.5 }]}
-                />
+                <View style={[styles.googleIconInline, { opacity: 0.5 }]}>
+                  <GoogleGlyph size={20} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
@@ -517,5 +523,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
