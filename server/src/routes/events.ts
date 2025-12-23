@@ -448,6 +448,27 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  // Enforce team scope: only admins or staff for linked teams can approve
+  const teamIds = await deriveTeamIdsForEvent(event.game_id, event.linked_league);
+  if (!isAdmin) {
+    if (!teamIds.length) {
+      return res.status(403).json({ error: 'Only admins can approve events without a linked team' });
+    }
+
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: TEAM_MANAGEMENT_ROLES },
+        status: 'active',
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Only staff for the linked team(s) or admins can approve this event' });
+    }
+  }
   
   const updated = await prisma.event.update({
     where: { id: eventId },
@@ -509,6 +530,27 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   const eventId = String(req.params.id);
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
+
+  // Enforce team scope: only admins or staff for linked teams can reject
+  const teamIds = await deriveTeamIdsForEvent(event.game_id, event.linked_league);
+  if (!isAdmin) {
+    if (!teamIds.length) {
+      return res.status(403).json({ error: 'Only admins can reject events without a linked team' });
+    }
+
+    const membership = await prisma.teamMembership.findFirst({
+      where: {
+        team_id: { in: teamIds },
+        user_id: req.user.id,
+        role: { in: TEAM_MANAGEMENT_ROLES },
+        status: 'active',
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({ error: 'Only staff for the linked team(s) or admins can reject this event' });
+    }
+  }
   
   const parsed = rejectEventSchema.safeParse(req.body);
   const reason = parsed.success ? parsed.data.reason : undefined;

@@ -5,6 +5,26 @@ import { requireAuth } from '../middleware/requireAuth.js';
 
 export const uploadsS3Router = Router();
 
+const allowedS3MimePrefixes = ['image/', 'video/', 'audio/'];
+const allowedS3Mimes = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const isAllowedS3Mime = (mime: string) =>
+  allowedS3MimePrefixes.some((prefix) => mime.startsWith(prefix)) || allowedS3Mimes.has(mime);
+
+const sanitizeS3FileName = (name: string) => {
+  const cleaned = name.replace(/\\/g, '/');
+  const base = cleaned.split('/').pop() || 'upload';
+  return base.replace(/[^A-Za-z0-9._-]/g, '_');
+};
+
 uploadsS3Router.post('/s3-sign', requireAuth as any, async (req: AuthedRequest, res) => {
   const { S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env as any;
   if (!S3_REGION || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) {
@@ -16,11 +36,17 @@ uploadsS3Router.post('/s3-sign', requireAuth as any, async (req: AuthedRequest, 
     return res.status(400).json({ error: 'fileName and fileType are required' });
   }
 
+  if (!isAllowedS3Mime(String(fileType))) {
+    return res.status(400).json({ error: 'File type not allowed' });
+  }
+
+  const safeFileName = sanitizeS3FileName(String(fileName));
+
   try {
     // Generate presigned POST policy for direct browser upload to S3
     const bucket = S3_BUCKET;
     const region = S3_REGION;
-    const key = `uploads/${req.user?.id}/${Date.now()}-${fileName}`;
+    const key = `uploads/${req.user?.id}/${Date.now()}-${safeFileName}`;
     const expirationTime = new Date(Date.now() + 3600000); // 1 hour from now
     const amzDate = expirationTime.toISOString().replace(/[:-]|\.\d{3}/g, '');
     const dateStamp = expirationTime.toISOString().split('T')[0].replace(/-/g, '');

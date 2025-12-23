@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { debugLog } from '../lib/debugLog.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 
 // Extend Request type to include multer file
 interface MulterRequest extends Request {
@@ -38,6 +39,20 @@ const memoryStorage = multer.memoryStorage();
 // Choose storage based on configuration
 const storage = useCloudinary ? memoryStorage : diskStorage;
 
+const allowedGeneralMimePrefixes = ['image/', 'video/', 'audio/'];
+const allowedGeneralMimes = new Set([
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/x-rar-compressed',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const isAllowedGeneralMime = (mime: string) =>
+  allowedGeneralMimePrefixes.some((prefix) => mime.startsWith(prefix)) || allowedGeneralMimes.has(mime);
+
 const upload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
@@ -52,6 +67,12 @@ const upload = multer({
 const fileUpload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB for general files
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    if (!isAllowedGeneralMime(file.mimetype)) {
+      return cb(new Error('File type not allowed'));
+    }
+    cb(null, true);
+  },
 });
 
 export const uploadsRouter = Router();
@@ -68,7 +89,7 @@ uploadsRouter.use((req, res, next) => {
 });
 
 // Original media upload endpoint (images/videos only)
-uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/', requireAuth as any, upload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     // Cloudinary response has different structure
@@ -119,7 +140,7 @@ uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, n
 });
 
 // General file upload endpoint (all file types)
-uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterRequest, res, next) => {
+uploadsRouter.post('/files', requireAuth as any, fileUpload.single('file'), async (req: MulterRequest, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
     // Cloudinary response has different structure
@@ -182,6 +203,10 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
   if (err.message === 'Only image or video files are allowed') {
     return res.status(400).json({ error: err.message });
   }
+
+  if (err.message === 'File type not allowed') {
+    return res.status(400).json({ error: err.message });
+  }
   
   // Cloudinary errors
   if (err.http_code) {
@@ -199,7 +224,7 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
 });
 
 // Dev helper: list uploaded files
-uploadsRouter.get('/list', (_req, res) => {
+uploadsRouter.get('/list', requireAuth as any, (_req, res) => {
   try {
     const files = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith('.'));
     const base = `${_req.protocol}://${_req.get('host')}`;

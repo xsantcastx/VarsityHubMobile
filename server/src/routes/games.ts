@@ -778,9 +778,44 @@ gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) =
   const id = String(req.params.id);
   
   try {
-    // Check if game exists
-    const game = await prisma.game.findUnique({ where: { id } });
+    // Check if game exists and gather team info for authorization
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        home_team_id: true,
+        away_team_id: true,
+        created_by_id: true,
+      },
+    });
     if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    // Authorization: admin OR team staff for linked teams OR game creator
+    const userRecord = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+    const isAdmin = isEmailAdmin(userRecord?.email);
+
+    const teamIds = [game.home_team_id, game.away_team_id].filter((t): t is string => !!t);
+    let canDelete = isAdmin;
+
+    if (!canDelete && teamIds.length) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: { in: teamIds },
+          user_id: req.user.id,
+          role: { in: managementRoles },
+          status: 'active',
+        },
+      });
+      canDelete = !!membership;
+    }
+
+    if (!canDelete && game.created_by_id === req.user.id) {
+      canDelete = true;
+    }
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Only team staff, the creator, or admins can delete this game' });
+    }
     
     // Delete the game (cascade deletes will handle related records)
     await prisma.game.delete({ where: { id } });
