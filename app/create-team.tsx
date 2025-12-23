@@ -344,6 +344,59 @@ export default function CreateTeamScreen() {
   
   const proceedWithTeamCreation = async (_user?: any) => {
     try {
+      // REQUIRED: Organization ID must be set before team creation
+      if (!organizationName.trim()) {
+        Alert.alert('Organization required', 'Please select or create an organization for this team.');
+        setSubmitting(false);
+        return;
+      }
+
+      let organizationId: string | undefined = undefined;
+      
+      try {
+        // Search for existing organization
+        const existingOrgs = await Organization.list(organizationName.trim(), 10);
+        
+        if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
+          // Check for exact match (case-insensitive)
+          const exactMatch = existingOrgs.find((org: any) => 
+            org.name?.toLowerCase() === organizationName.trim().toLowerCase()
+          );
+          
+          if (exactMatch) {
+            organizationId = exactMatch.id;
+          } else {
+            // Use first result if no exact match
+            organizationId = existingOrgs[0].id;
+          }
+        } else {
+          // Create new organization if none found
+          try {
+            const newOrg = await Organization.createOrganization({
+              name: organizationName.trim(),
+              description: `Organization for ${organizationName.trim()}`,
+            });
+            organizationId = newOrg.id;
+          } catch (orgErr: any) {
+            console.error('[CreateTeam] Failed to create organization:', orgErr);
+            Alert.alert('Organization Error', 'Could not create organization. Please try again or contact support.');
+            setSubmitting(false);
+            return;
+          }
+        }
+      } catch (err: any) {
+        console.error('[CreateTeam] Error handling organization:', err);
+        Alert.alert('Organization Error', 'Could not access organization. Please try again or contact support.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (!organizationId) {
+        Alert.alert('Organization Error', 'Could not associate team with organization. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+      
       let logoUrl = null;
       
       // Upload logo if one was selected
@@ -357,52 +410,13 @@ export default function CreateTeamScreen() {
         }
       }
       
-      // Handle organization - find existing or create new
-      let organizationId: string | undefined = undefined;
-      
-      if (organizationName.trim()) {
-        try {
-          // Search for existing organization
-          const existingOrgs = await Organization.list(organizationName.trim(), 10);
-          
-          if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
-            // Check for exact match (case-insensitive)
-            const exactMatch = existingOrgs.find((org: any) => 
-              org.name?.toLowerCase() === organizationName.trim().toLowerCase()
-            );
-            
-            if (exactMatch) {
-              organizationId = exactMatch.id;
-            } else {
-              // Use first result if no exact match
-              organizationId = existingOrgs[0].id;
-            }
-          } else {
-            // Create new organization if none found
-            try {
-              const newOrg = await Organization.createOrganization({
-                name: organizationName.trim(),
-                description: `Organization for ${organizationName.trim()}`,
-              });
-              organizationId = newOrg.id;
-            } catch (orgErr) {
-              console.error('[CreateTeam] Failed to create organization:', orgErr);
-              // Continue without organization if creation fails
-            }
-          }
-        } catch (err) {
-          console.error('[CreateTeam] Error handling organization:', err);
-          // Continue without organization if there's an error
-        }
-      }
-      
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
         sport: sport || undefined,
-        season: season || undefined,
+        season_start: seasonType && seasonYear ? `${seasonYear}-${seasonType}` : undefined,
         primary_color: teamColor || undefined,
-        organization_id: organizationId, // Link to organization
+        organization_id: organizationId, // REQUIRED: Link to organization
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -412,7 +426,17 @@ export default function CreateTeamScreen() {
       ]);
     } catch (e: any) {
       console.error('Team creation error in proceedWithTeamCreation:', e);
-      Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      
+      // Handle specific backend error codes
+      if (e?.code === 'COACH_ROLE_REQUIRED') {
+        Alert.alert('Access Restricted', 'Only coach accounts can create teams.');
+      } else if (e?.code === 'ORGANIZATION_NOT_FOUND') {
+        Alert.alert('Organization Not Found', 'The organization could not be found. Please try again.');
+      } else if (e?.code === 'ORGANIZATION_ACCESS_DENIED') {
+        Alert.alert('Access Denied', 'You do not have permission to create teams in this organization. Please contact the organization administrator.');
+      } else {
+        Alert.alert('Error', e?.message || 'Failed to create team. Please try again.');
+      }
     } finally { 
       setSubmitting(false); 
     }

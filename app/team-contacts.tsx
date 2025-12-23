@@ -75,6 +75,7 @@ interface TeamMember {
   role: string;
   status: 'online' | 'offline' | 'away';
   lastSeen?: string;
+  inherited_from_org?: boolean; // True if member joined via organization cascade
 }
 
 export default function TeamChatScreen() {
@@ -317,6 +318,7 @@ export default function TeamChatScreen() {
           role: m.role || 'player',
           status: (Math.random() > 0.5 ? 'online' : 'offline') as 'online' | 'offline' | 'away',
           lastSeen: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+          inherited_from_org: m.inherited_from_org || false, // Flag for cascaded org members
         })) : [];
         
         setMembers(formattedMembers);
@@ -1442,12 +1444,24 @@ export default function TeamChatScreen() {
           ]} />
         </View>
         <View style={styles.memberDetails}>
-          <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>
-            {item.user?.display_name || 'Team Member'}
-          </Text>
+          <View style={styles.memberNameRow}>
+            <Text style={[styles.memberName, { color: Colors[colorScheme].text }]}>
+              {item.user?.display_name || 'Team Member'}
+            </Text>
+            {item.inherited_from_org && (
+              <View style={[styles.inheritedBadge, { backgroundColor: Colors[colorScheme].tint + '20' }]}>
+                <Text style={[styles.inheritedBadgeText, { color: Colors[colorScheme].tint }]}>Org</Text>
+              </View>
+            )}
+          </View>
           <Text style={[styles.memberRole, { color: Colors[colorScheme].mutedText }]}>
             {item.role}
           </Text>
+          {item.inherited_from_org && (
+            <Text style={[styles.inheritedNote, { color: Colors[colorScheme].mutedText }]}>
+              Joined via organization
+            </Text>
+          )}
           {item.status === 'offline' && item.lastSeen && (
             <Text style={[styles.lastSeen, { color: Colors[colorScheme].mutedText }]}>
               Last seen {formatTime(item.lastSeen)}
@@ -2249,15 +2263,38 @@ const styles = StyleSheet.create({
   memberInfo: {
     flex: 1,
   },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
   memberName: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
+  },
+  inheritedBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+  },
+  inheritedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    color: '#3B82F6',
+  },
+  inheritedNote: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginTop: 2,
   },
   memberRole: {
     fontSize: 12,
     textTransform: 'uppercase',
     opacity: 0.7,
+    marginTop: 2,
   },
   memberStatus: {
     alignItems: 'flex-end',
