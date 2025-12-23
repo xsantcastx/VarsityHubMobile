@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "VarsityHub",
-    "slug": "varsityhub",
+    "slug": "varsityhub-ios",
     "owner": "varsity-hub",
     "version": "1.0.1",
     "scheme": "varsityhubmobile",
@@ -42,7 +42,7 @@
       "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
-      "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub"
+      "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub-ios"
     }
   }
 }
