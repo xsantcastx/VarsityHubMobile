@@ -41,10 +41,28 @@ export default function SignInScreen() {
   const { checkAuth } = useAuth();
 
   const onSubmit = async () => {
+    // SECURITY: Add client-side validation before API call
     if (!email || !password) {
       setError('Please enter email and password');
       return;
     }
+    
+    // SECURITY: Validate email format to prevent noisy backend 400s
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    // SECURITY: Enforce minimum password length
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    
+    // SECURITY: Prevent double submission on rapid taps
+    if (loading) return;
+    
     setLoading(true);
     setError(null);
     try {
@@ -53,7 +71,8 @@ export default function SignInScreen() {
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
         captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
-        setError('Invalid login response');
+        // SECURITY: Normalize error message to prevent leakage
+        setError('Invalid email or password');
         return;
       }
 
@@ -68,8 +87,15 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       await checkAuth();
     } catch (e: any) {
-      const errMsg = e?.message || 'Login failed';
-      // Capture error with context
+      // SECURITY: Normalize backend errors to user-friendly messages
+      let userMessage = 'Invalid email or password';
+      if (e?.response?.status === 429) {
+        userMessage = 'Too many login attempts. Please try again later.';
+      } else if (e?.response?.status === 500) {
+        userMessage = 'Server error. Please try again later.';
+      }
+      
+      // Capture detailed error for debugging, don't expose to user
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         {
@@ -78,13 +104,16 @@ export default function SignInScreen() {
         }
       );
       
-      setError(errMsg);
+      setError(userMessage);
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
+    // SECURITY: Prevent double submission
+    if (googleLoading || loading) return;
+    
     if (!googleReady) {
       setError('Google sign in is not configured yet.');
       return;
@@ -96,7 +125,18 @@ export default function SignInScreen() {
       if (!response?.user?.email && !response?.email) {
         const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
-        setError('Failed to retrieve email from Google');
+        // SECURITY: Normalize error message
+        setError('Failed to sign in with Google. Please try again.');
+        return;
+      }
+
+      // SECURITY: Verify server auth succeeded before routing
+      if (!response?.access_token) {
+        captureException(
+          new Error('Google sign-in: missing access_token after backend linking'),
+          { tags: { context: 'google-signin', email: response?.user?.email || response?.email } }
+        );
+        setError('Failed to sign in with Google. Please try again.');
         return;
       }
 
@@ -119,11 +159,15 @@ export default function SignInScreen() {
         { tags: { context: 'google-signin' } }
       );
       
-      setError(message);
+      // SECURITY: Normalize error message
+      setError('Failed to sign in with Google. Please try again.');
     }
   };
 
   const handleAppleLogin = async () => {
+    // SECURITY: Prevent double submission
+    if (loading) return;
+    
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
       return;
@@ -135,7 +179,18 @@ export default function SignInScreen() {
       if (!response?.user && !response?.email) {
         const errMsg = `Apple sign-in: missing user in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
-        setError('Failed to complete sign-in. Please try again.');
+        // SECURITY: Normalize error message
+        setError('Failed to sign in with Apple. Please try again.');
+        return;
+      }
+
+      // SECURITY: Verify server auth succeeded before routing
+      if (!response?.access_token) {
+        captureException(
+          new Error('Apple sign-in: missing access_token after backend linking'),
+          { tags: { context: 'apple-signin', email: response?.user?.email || response?.email } }
+        );
+        setError('Failed to sign in with Apple. Please try again.');
         return;
       }
 
@@ -161,7 +216,8 @@ export default function SignInScreen() {
         { tags: { context: 'apple-signin' } }
       );
       
-      setError(message);
+      // SECURITY: Normalize error message
+      setError('Failed to sign in with Apple. Please try again.');
     }
   };
 
@@ -216,10 +272,11 @@ export default function SignInScreen() {
                 disabled={googleLoading}
                 accessibilityRole="button"
               >
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766192740/Screenshot_2025-12-19_at_8.05.32_PM_ca1avs.png' }}
-                  style={styles.googleIcon}
-                  contentFit="contain"
+                <Ionicons
+                  name="logo-google"
+                  size={20}
+                  color={palette.text}
+                  style={styles.googleIconInline}
                 />
                 {googleLoading ? (
                   <ActivityIndicator size="small" color={palette.text} />
@@ -237,17 +294,18 @@ export default function SignInScreen() {
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <Image
-                  source={{ uri: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766192740/Screenshot_2025-12-19_at_8.05.32_PM_ca1avs.png' }}
-                  style={[styles.googleIcon, { opacity: 0.5 }]}
-                  contentFit="contain"
+                <Ionicons
+                  name="logo-google"
+                  size={20}
+                  color={palette.mutedText}
+                  style={[styles.googleIconInline, { opacity: 0.5 }]}
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
                 </View>
               </View>
-            )}
+            )}}
 
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
