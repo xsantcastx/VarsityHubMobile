@@ -366,6 +366,26 @@ export default function EventApprovalsScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Quick actions for pitches */}
+      <View style={styles.quickActions}>
+        <Pressable
+          style={[styles.quickAction, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
+          onPress={() => void router.push('/fan-pitch')}
+        >
+          <Ionicons name="megaphone-outline" size={18} color={Colors[colorScheme].tint} />
+          <Text style={[styles.quickActionText, { color: Colors[colorScheme].text }]}>Pitch an Event</Text>
+        </Pressable>
+        {(me?.role === 'coach' || me?.role === 'admin') && (
+          <Pressable
+            style={[styles.quickAction, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
+            onPress={() => void router.push('/pitches')}
+          >
+            <Ionicons name="checkmark-done-circle-outline" size={18} color={Colors[colorScheme].tint} />
+            <Text style={[styles.quickActionText, { color: Colors[colorScheme].text }]}>Review Fan Pitches</Text>
+          </Pressable>
+        )}
+      </View>
       
       {/* Section Tabs */}
       <ScrollView
@@ -579,6 +599,27 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     lineHeight: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  quickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
+    flex: 1,
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   loadingContainer: {
     flex: 1,

@@ -220,6 +220,25 @@ export const Event = {
   rsvpStatus: (id: string) => httpGet(`/events/${encodeURIComponent(id)}/rsvp`),
   rsvp: (id: string, going?: boolean) => httpPost(`/events/${encodeURIComponent(id)}/rsvp`, typeof going === 'boolean' ? { going } : {}),
   myRsvps: () => httpGet('/events/my-rsvps'),
+  pitch: (data: {
+    title: string;
+    date: string;
+    location?: string;
+    latitude?: number;
+    longitude?: number;
+    description?: string;
+    event_type?: string;
+    linked_league?: string;
+    max_attendees?: number;
+    contact_info?: string;
+    banner_url?: string;
+    game_id?: string;
+    team_hint?: string;
+  }) => httpPost('/events/pitch', data),
+  listPitches: () => httpGet('/events/pitches'),
+  approvePitch: (id: string) => httpPut(`/events/pitches/${encodeURIComponent(id)}/approve`, {}),
+  rejectPitch: (id: string, reason?: string) =>
+    httpPut(`/events/pitches/${encodeURIComponent(id)}/reject`, reason ? { reason } : {}),
 };
 
 export const Message = {
