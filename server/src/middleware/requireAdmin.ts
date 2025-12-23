@@ -11,6 +11,7 @@ export function isEmailAdmin(email?: string | null): boolean {
 
 export async function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  if (req.user.is_admin) return next();
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!isEmailAdmin(me?.email)) return res.status(403).json({ error: 'Admin only' });
   return next();
@@ -18,7 +19,7 @@ export async function requireAdmin(req: AuthedRequest, res: Response, next: Next
 
 export async function getIsAdmin(req: AuthedRequest): Promise<boolean> {
   if (!req.user) return false;
+  if (req.user.is_admin) return true;
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   return isEmailAdmin(me?.email);
 }
-

@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { verifyJwt } from '../lib/jwt.js';
 
 export interface AuthedRequest extends Request {
-  user?: { id: string };
+  user?: { id: string; is_admin?: boolean };
   file?: Express.Multer.File;
 }
 
@@ -10,10 +10,9 @@ export function authMiddleware(req: AuthedRequest, _res: Response, next: NextFun
   const header = req.header('Authorization');
   if (!header || !header.startsWith('Bearer ')) return next();
   const token = header.slice('Bearer '.length).trim();
-  const payload = verifyJwt<{ id: string }>(token);
+  const payload = verifyJwt<{ id: string; is_admin?: boolean }>(token);
   if (payload?.id) {
-    req.user = { id: payload.id };
+    req.user = { id: payload.id, is_admin: payload.is_admin === true };
   }
   next();
 }
-

@@ -128,7 +128,7 @@ authRouter.post('/register', registrationLimiter, async (req, res) => {
     console.error('[register] prisma create error:', e);
     return res.status(500).json({ error: 'Failed to create user' });
   }
-  const access_token = signJwt({ id: user.id });
+  const access_token = signJwt({ id: user.id, is_admin: isAdmin });
   try { 
     debugLog('[email] Sending verification email to:', email);
     const emailSend = sendVerificationEmail(email, code, display_name || sanitizedEmail.split('@')[0]);
@@ -290,7 +290,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     Object.assign(user, updatedUser);
   }
   
-  const access_token = signJwt({ id: user.id });
+  const access_token = signJwt({ id: user.id, is_admin: isAdmin });
   const sanitized = sanitizeUser(user);
   
   // Admin users never need onboarding; everyone else checks onboarding_completed
@@ -400,7 +400,7 @@ authRouter.post('/google', async (req, res) => {
     }
 
     const sanitized = sanitizeUser(user);
-    const access_token = signJwt({ id: sanitized.id });
+    const access_token = signJwt({ id: sanitized.id, is_admin: isAdmin });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
@@ -506,8 +506,10 @@ authRouter.post('/apple', async (req, res) => {
 
     const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
     const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
     const sanitized = sanitizeUser(user);
-    const access_token = signJwt({ id: sanitized.id });
+    const access_token = signJwt({ id: sanitized.id, is_admin: isAdmin });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;
 
     return res.json({
