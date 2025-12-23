@@ -763,6 +763,13 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
       return res.status(403).json({ error: 'Role changes are not allowed after onboarding is complete.' });
     }
     
+    // If role is being changed, perform cascade cleanup (for defensive programming)
+    if ('role' in data.preferences && data.preferences.role && data.preferences.role !== currentPrefs.role) {
+      const oldRole = currentPrefs.role || 'fan';
+      const newRole = data.preferences.role;
+      await cleanupRoleDowngrade(req.user.id, oldRole, newRole);
+    }
+    
     const mergedPrefs = mergePreferences(currentPrefs, data.preferences);
     patch.preferences = mergedPrefs;
   }
@@ -778,6 +785,58 @@ function mergePreferences(base: any, incoming: any) {
     out.notifications = { ...(base?.notifications || {}), ...(incoming?.notifications || {}) };
   }
   return out;
+}
+
+// Helper to cascade cleanup when role is downgraded (e.g., coach → fan)
+// This ensures user loses all organization/team leadership when role changes
+async function cleanupRoleDowngrade(userId: string, oldRole: string, newRole: string): Promise<void> {
+  // Only handle coach → fan transitions
+  if (oldRole !== 'coach' || newRole !== 'fan') {
+    return;
+  }
+
+  try {
+    // Remove user from all organization memberships when role downgraded
+    // This prevents orphaned organization ownership
+    const orgMemberships = await prisma.organizationMembership.findMany({
+      where: { user_id: userId }
+    });
+
+    for (const membership of orgMemberships) {
+      // Archive the membership instead of deleting for audit trail
+      await prisma.organizationMembership.update({
+        where: { id: membership.id },
+        data: {
+          status: 'removed',
+          removal_reason: 'User role downgraded from coach to fan',
+          removal_date: new Date()
+        }
+      });
+    }
+
+    // Remove user from all team memberships when role downgraded
+    const teamMemberships = await prisma.teamMembership.findMany({
+      where: { user_id: userId }
+    });
+
+    for (const membership of teamMemberships) {
+      // Archive the membership instead of deleting for audit trail
+      await prisma.teamMembership.update({
+        where: { id: membership.id },
+        data: {
+          status: 'archived',
+          removal_reason: 'User role downgraded from coach to fan',
+          removal_date: new Date()
+        }
+      });
+    }
+
+    console.info(`[Role Downgrade] User ${userId} downgraded from coach to fan. Cleaned up org and team memberships.`);
+  } catch (error) {
+    console.error(`[Role Downgrade] Error cleaning up memberships for user ${userId}:`, error);
+    // Don't throw - log but continue with the role change
+    // This prevents role downgrade from failing due to cleanup issues
+  }
 }
 
 // Partial update for user preferences
@@ -860,6 +919,15 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     messaging_policy_accepted: false,
   };
   const merged = mergePreferences(defaults, mergePreferences(currentPrefs, incoming));
+  
+  // If role is being changed, perform cascade cleanup (for defensive programming)
+  // This ensures if role downgrade ever becomes possible, cleanup still happens
+  if ('role' in incoming && incoming.role && incoming.role !== currentPrefs.role) {
+    const oldRole = currentPrefs.role || 'fan';
+    const newRole = incoming.role;
+    await cleanupRoleDowngrade(req.user.id, oldRole, newRole);
+  }
+  
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });
