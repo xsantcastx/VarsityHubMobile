@@ -137,10 +137,10 @@ android {
         applicationId 'com.xsantcastx.varsityhub'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Keep native versioning aligned with EAS app build version
-        // Use a static literal so EAS can initialize remote versions.
-        versionCode 10
-        versionName "1.0.1"
+            // Keep native versioning aligned with EAS app build version
+            // Drive from resolvedVersionCodeInt / resolvedVersionName or EAS env
+            versionCode resolvedVersionCodeInt
+            versionName resolvedVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -176,6 +176,9 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
+                if (!hasReleaseSigning && (System.getenv('CI') == '1' || System.getenv('EAS_BUILD') == '1')) {
+                    throw new GradleException("Release keystore not configured in CI/EAS environment. Set ANDROID_KEYSTORE_FILE/PASSWORD/KEY_ALIAS/KEY_PASSWORD.")
+                }
         }
     }
     packagingOptions {
