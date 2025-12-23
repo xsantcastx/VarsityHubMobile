@@ -310,8 +310,16 @@ const appConfig = getConfig();
 
                     {/* Events */}
                     <SectionCard title="Events">
+                      <NavRow title="Pitch an Event" onPress={() => void router.push('/fan-pitch')} />
                       <NavRow title="Request to Host Event" onPress={() => void router.push('/settings/request-host-event')} />
                       <NavRow title="RSVP History" onPress={() => void router.push('/settings/rsvp-history')} />
+                      {(role === 'coach' || role === 'admin') && (
+                        <NavRow
+                          title="Review Fan Pitches"
+                          subtitle="Approve or reject submissions"
+                          onPress={() => void router.push('/pitches')}
+                        />
+                      )}
                     </SectionCard>
 
                     {/* Notifications */}

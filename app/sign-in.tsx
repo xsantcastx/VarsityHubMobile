@@ -305,7 +305,7 @@ export default function SignInScreen() {
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
                 </View>
               </View>
-            )}}
+            )}
 
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
@@ -440,6 +440,9 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 8,
   },
+  googleIconInline: {
+    marginRight: 8,
+  },
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -514,7 +517,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
 
 
