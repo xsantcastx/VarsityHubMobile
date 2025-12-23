@@ -46,7 +46,7 @@
     "@prisma/client": "^7.0.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
-    "@react-native-community/slider": "^5.1.1",
+    "@react-native-community/slider": "5.0.1",
     "@react-native-picker/picker": "2.11.1",
     "@react-navigation/bottom-tabs": "^7.3.2",
     "@react-navigation/elements": "^2.3.8",
@@ -104,7 +104,7 @@
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
     "react-native-worklets": "0.5.1",
-    "sentry-expo": "^7.2.0",
+    "sentry-expo": "~7.0.0",
     "typescript": "~5.9.2"
   },
   "devDependencies": {
