@@ -1,7 +1,9 @@
 import { getConfig } from '@/config/env';
-import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as SentryExpo from 'sentry-expo';
+// Access Native Sentry methods from the re-export
+const SentryNative = (SentryExpo as any).Native || SentryExpo;
 
 const appConfig = getConfig();
 const SENTRY_DSN = appConfig.sentryDsn || '';
@@ -27,7 +29,7 @@ export function initSentry() {
   }
 
   try {
-    Sentry.init({
+    SentryExpo.init({
       dsn: SENTRY_DSN,
       environment: appConfig.nodeEnv || 'development',
       debug: false,
@@ -52,9 +54,15 @@ export function initSentry() {
     sentryReady = true;
 
     // Tag with platform and version for filtering
-    Sentry.setTag('platform', Platform.OS);
-    Sentry.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
-    Sentry.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+    if (SentryNative?.setTag) {
+      try {
+        SentryNative.setTag('platform', Platform.OS);
+        SentryNative.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
+        SentryNative.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+      } catch (e) {
+        // Silently ignore tag errors
+      }
+    }
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
     if (__DEV__) {
@@ -74,10 +82,16 @@ export function captureException(error: Error | unknown, context?: Record<string
   }
 
   console.error('[sentry] Capturing exception:', error);
-  if (context) {
-    Sentry.setContext('custom', context);
+  if (context && SentryNative?.setContext) {
+    try {
+      SentryNative.setContext('custom', context);
+    } catch (e) {
+      // Silently ignore context errors
+    }
   }
-  Sentry.captureException(error);
+  if (SentryNative?.captureException) {
+    SentryNative.captureException(error);
+  }
 }
 
 export function captureBreadcrumb(message: string, category: string, data?: Record<string, any>) {
@@ -88,12 +102,14 @@ export function captureBreadcrumb(message: string, category: string, data?: Reco
     return;
   }
 
-  Sentry.addBreadcrumb({
-    message,
-    category,
-    level: 'info',
-    data,
-  });
+  if (SentryNative?.addBreadcrumb) {
+    SentryNative.addBreadcrumb({
+      message,
+      category,
+      level: 'info',
+      data,
+    });
+  }
 }
 
-export default Sentry;
+export default SentryExpo;

@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { apiCall } from '@/config/api';
+import { httpGet } from '@/api/http';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -53,26 +53,17 @@ export default function AdAnalyticsScreen() {
       setLoading(true);
       setError(null);
 
-      const response = await apiCall(`/ads/${id}/analytics`, {
-        method: 'GET',
-      });
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          setError('You do not have permission to view this ad\'s analytics');
-        } else if (response.status === 404) {
-          setError('Ad not found');
-        } else {
-          setError('Failed to load analytics');
-        }
-        return;
-      }
-
-      const data = await response.json();
+      const data = await httpGet(`/ads/${id}/analytics`);
       setAnalytics(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[AdAnalytics] Error fetching analytics:', err);
-      setError('An error occurred while loading analytics');
+      if (err?.status === 403) {
+        setError('You do not have permission to view this ad\'s analytics');
+      } else if (err?.status === 404) {
+        setError('Ad not found');
+      } else {
+        setError('Failed to load analytics');
+      }
     } finally {
       setLoading(false);
     }
