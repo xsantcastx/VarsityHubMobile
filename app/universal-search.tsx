@@ -1,6 +1,3 @@
-import { Organization, Team, User } from '../api/entities';
-import { Colors } from '../constants/Colors';
-import { useColorScheme } from '../hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
@@ -15,6 +12,9 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Organization, Team, User } from '../api/entities';
+import { Colors } from '../constants/Colors';
+import { useColorScheme } from '../hooks/useColorScheme';
 
 type SearchResult = {
   id: string;

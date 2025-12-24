@@ -7,8 +7,12 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { calculateAdPriceDollars } from '../utils/adPricing.js';
+import { adsAnalyticsRouter } from './ads-analytics.js';
 
 export const adsRouter = Router();
+
+// Mount analytics sub-router (handles GET /ads/:id/analytics)
+adsRouter.use('/', adsAnalyticsRouter);
 
 // Create an Ad (optionally associated to the authenticated user)
 adsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {

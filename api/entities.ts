@@ -404,6 +404,21 @@ export const Support = {
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 
+export const HostingRequests = {
+  create: (data: {
+    organization_name: string;
+    contact_name?: string;
+    contact_email?: string;
+    venue?: string;
+    requested_dates?: string;
+    notes?: string;
+  }) => httpPost('/hosting-requests', data),
+  listMine: () => httpGet('/hosting-requests/mine'),
+  listAll: () => httpGet('/hosting-requests'),
+  updateStatus: (id: string, status: 'pending' | 'approved' | 'denied', notes?: string) =>
+    httpPatch(`/hosting-requests/${encodeURIComponent(id)}/status`, { status, notes }),
+};
+
 export const Subscriptions = {
   createCheckout: (plan: string, teamCount?: number) => httpPost('/payments/checkout', { plan, team_count: teamCount }),
   finalizeSession: (sessionId: string) => httpPost('/payments/finalize-session', { session_id: sessionId }),

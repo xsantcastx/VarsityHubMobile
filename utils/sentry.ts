@@ -1,9 +1,14 @@
 import { getConfig } from '@/config/env';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import * as SentryExpo from 'sentry-expo';
-// Access Native Sentry methods from the re-export
-const SentryNative = (SentryExpo as any).Native || SentryExpo;
+import * as Sentry from 'sentry-expo';
+// Native methods are available via Sentry.Native; type as any to avoid missing type declarations
+const SentryNative = ((Sentry as any).Native || Sentry) as {
+  setTag?: (key: string, value: string) => void;
+  setContext?: (key: string, context: Record<string, any>) => void;
+  captureException?: (error: any) => void;
+  addBreadcrumb?: (crumb: { message: string; category: string; level?: string; data?: Record<string, any> }) => void;
+};
 
 const appConfig = getConfig();
 const SENTRY_DSN = appConfig.sentryDsn || '';
@@ -29,7 +34,7 @@ export function initSentry() {
   }
 
   try {
-    SentryExpo.init({
+    Sentry.init({
       dsn: SENTRY_DSN,
       environment: appConfig.nodeEnv || 'development',
       debug: false,
@@ -54,14 +59,12 @@ export function initSentry() {
     sentryReady = true;
 
     // Tag with platform and version for filtering
-    if (SentryNative?.setTag) {
-      try {
-        SentryNative.setTag('platform', Platform.OS);
-        SentryNative.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
-        SentryNative.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
-      } catch (e) {
-        // Silently ignore tag errors
-      }
+    try {
+      SentryNative.setTag('platform', Platform.OS);
+      SentryNative.setTag('app_version', Constants.expoConfig?.version || '1.0.0');
+      SentryNative.setTag('expo_version', Constants.expoConfig?.sdkVersion || 'unknown');
+    } catch (e) {
+      // Silently ignore tag errors
     }
   } catch (error) {
     // Silently fail in development - Sentry initialization errors are non-critical
@@ -82,15 +85,13 @@ export function captureException(error: Error | unknown, context?: Record<string
   }
 
   console.error('[sentry] Capturing exception:', error);
-  if (context && SentryNative?.setContext) {
-    try {
+  try {
+    if (context) {
       SentryNative.setContext('custom', context);
-    } catch (e) {
-      // Silently ignore context errors
     }
-  }
-  if (SentryNative?.captureException) {
     SentryNative.captureException(error);
+  } catch {
+    // ignore capture failures
   }
 }
 
@@ -102,14 +103,16 @@ export function captureBreadcrumb(message: string, category: string, data?: Reco
     return;
   }
 
-  if (SentryNative?.addBreadcrumb) {
+  try {
     SentryNative.addBreadcrumb({
       message,
       category,
       level: 'info',
       data,
     });
+  } catch {
+    // ignore breadcrumb failures
   }
 }
 
-export default SentryExpo;
+export default Sentry;

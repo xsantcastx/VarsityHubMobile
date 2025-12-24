@@ -5,11 +5,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 
 interface AnalyticsData {
@@ -85,6 +87,76 @@ export default function AdAnalyticsScreen() {
     return `${Math.round(seconds / 3600)}h`;
   };
 
+  const generateCSV = useCallback(() => {
+    if (!analytics) return '';
+
+    const headers = [
+      'Metric',
+      'Value',
+    ];
+
+    const rows = [
+      ['Total Impressions', String(analytics.total_impressions)],
+      ['Total Clicks', String(analytics.total_clicks)],
+      ['Click Rate (%)', String(analytics.click_rate.toFixed(2))],
+      ['Avg Session Duration (seconds)', String(Math.round(analytics.avg_session_duration))],
+      ['Total Time Spent (seconds)', String(Math.round(analytics.total_time_spent))],
+      ['Status', analytics.status],
+      ['Payment Status', analytics.payment_status],
+      ['Created', formatDate(analytics.created_at)],
+      [''],
+      ['Click Activity by Date', ''],
+      ['Date', 'Clicks', 'Avg Duration (sec)'],
+    ];
+
+    // Add click data
+    if (analytics.clicks_by_date.length > 0) {
+      analytics.clicks_by_date.forEach((item) => {
+        rows.push([
+          formatDate(item.date),
+          String(item.clicks),
+          String(Math.round(item.avg_duration)),
+        ]);
+      });
+    }
+
+    // Convert to CSV format
+    const csvHeaders = headers.join(',');
+    const csvRows = rows
+      .map((row) =>
+        row
+          .map((cell) => {
+            // Escape quotes and wrap in quotes if contains comma or quote
+            const escaped = String(cell).replace(/"/g, '""');
+            return escaped.includes(',') ? `"${escaped}"` : escaped;
+          })
+          .join(',')
+      )
+      .join('\n');
+
+    return `${csvHeaders}\n${csvRows}`;
+  }, [analytics]);
+
+  const handleExportCSV = useCallback(async () => {
+    try {
+      const csv = generateCSV();
+      if (!csv) {
+        Alert.alert('Error', 'No data to export');
+        return;
+      }
+
+
+      // Share the CSV (on mobile this will offer download/email options)
+      await Share.share({
+        message: csv,
+        title: 'Ad Analytics Export',
+        url: `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`,
+      });
+    } catch {
+      Alert.alert('Error', 'Failed to export analytics');
+    }
+  }, [generateCSV]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -137,6 +209,9 @@ export default function AdAnalyticsScreen() {
           <Text style={[styles.backLink, { color: Colors[colorScheme].tint }]}>← Back</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>Analytics</Text>
+        <TouchableOpacity onPress={handleExportCSV} style={[styles.exportButton, { backgroundColor: Colors[colorScheme].tint }]}>
+          <Text style={styles.exportButtonText}>Export</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Ad Info Card */}
@@ -333,7 +408,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginLeft: 'auto',
+    flex: 1,
+  },
+  exportButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   card: {
     borderRadius: 12,

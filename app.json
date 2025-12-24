@@ -4,28 +4,13 @@
     "slug": "varsityhub-ios",
     "owner": "varsity-hub",
     "version": "1.0.1",
-    "scheme": "varsityhubmobile",
-    
     "runtimeVersion": "1.0.1",
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
     "experiments": {
       "typedRoutes": true
     },
-      "plugins": [
-        [
-          "sentry-expo",
-          {
-            "organization": "varsity-hub",
-            "project": "varsityhub",
-            "enableInExpoDevelopment": true,
-            "debug": false
-          }
-        ]
-      ],
-    "ios": {
-      "buildNumber": "2"
-    },
+    
     "extra": {
       "router": {},
       "eas": {

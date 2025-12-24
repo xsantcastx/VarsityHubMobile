@@ -1,0 +1,29 @@
+name: Email Templates Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies (lockfile)
+        run: npm ci --ignore-scripts
+
+      - name: Verify SendGrid templates
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_VERIFICATION_TEMPLATE_ID: ${{ secrets.SENDGRID_VERIFICATION_TEMPLATE_ID }}
+          SENDGRID_PASSWORD_RESET_TEMPLATE_ID: ${{ secrets.SENDGRID_PASSWORD_RESET_TEMPLATE_ID }}
+          SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID: ${{ secrets.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID }}
+          SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID: ${{ secrets.SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID }}
+          EMAIL_STRICT_TEMPLATES: "1"
+        run: npm run check:email-templates

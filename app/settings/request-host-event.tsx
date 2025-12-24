@@ -5,7 +5,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
-import { Support, User } from '@/api/entities';
+import { HostingRequests, User } from '@/api/entities';
 
 export default function RequestHostEventScreen() {
   const router = useRouter();
@@ -18,11 +18,18 @@ export default function RequestHostEventScreen() {
   useEffect(() => { void (async () => { try { const me: any = await User.me(); setName(me?.display_name || ''); setEmail(me?.email || ''); } catch {} })(); }, []);
   const onSubmit = async () => {
     if (!org.trim()) { Alert.alert('Enter organization name'); return; }
+    if (!email.trim()) { Alert.alert('Enter a contact email'); return; }
     setSending(true);
     try {
-      await Support.contact({ name: name || 'Unknown', email: email || 'unknown@example.com', subject: 'Request to Host Event', message: `Org: ${org}\nVenue: ${venue}\nProposed dates: ${dates}` });
-      Alert.alert('Sent', 'We received your request.');
-      router.back();
+      await HostingRequests.create({
+        organization_name: org.trim(),
+        contact_name: name.trim() || undefined,
+        contact_email: email.trim(),
+        venue: venue.trim() || undefined,
+        requested_dates: dates.trim() || undefined,
+      });
+      Alert.alert('Sent', 'We received your request. You can track the status in My Hosting Requests.');
+      router.replace('/settings/hosting-requests');
     } catch (e: any) { Alert.alert('Failed to send', e?.message || 'Try again later'); } finally { setSending(false); }
   };
   return (

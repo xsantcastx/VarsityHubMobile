@@ -96,6 +96,11 @@ const TEMPLATE_IDS = {
   EVENT_CANCELED: process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID || '',
   EVENT_RSVP_CONFIRMED: process.env.SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID || '',
 
+  // Hosting Requests
+  HOSTING_REQUEST_CONFIRMATION: process.env.SENDGRID_HOSTING_REQUEST_CONFIRMATION_TEMPLATE_ID || '',
+  HOSTING_REQUEST_APPROVED: process.env.SENDGRID_HOSTING_REQUEST_APPROVED_TEMPLATE_ID || '',
+  HOSTING_REQUEST_DENIED: process.env.SENDGRID_HOSTING_REQUEST_DENIED_TEMPLATE_ID || '',
+
   // Membership & Invitations
   ORGANIZATION_INVITATION:
     process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || process.env.SENDGRID_ORGANIZATION_INVITATION_TEMPLATE_ID || '',
@@ -125,8 +130,15 @@ const TEMPLATE_IDS = {
   PLAN_LIMIT_WARNING: process.env.SENDGRID_PLAN_LIMIT_WARNING_TEMPLATE_ID || '',
 
   // Ads & Monetization
-  AD_RESERVATION: process.env.SENDGRID_AD_RESERVATION_TEMPLATE_ID || '',
-  PAYMENT_REQUIRED: process.env.SENDGRID_PAYMENT_REQUIRED_TEMPLATE_ID || '',
+  // Ads & Monetization
+  AD_RESERVATION:
+    process.env.SENDGRID_AD_RESERVATION_TEMPLATE_ID ||
+    process.env.SENDGRID_AD_RESERVATION_CONFIRMATION_TEMPLATE_ID ||
+    '',
+  PAYMENT_REQUIRED:
+    process.env.SENDGRID_PAYMENT_REQUIRED_TEMPLATE_ID ||
+    process.env.SENDGRID_AD_PAYMENT_REQUIRED_TEMPLATE_ID ||
+    '',
   AD_GOES_LIVE: process.env.SENDGRID_AD_GOES_LIVE_TEMPLATE_ID || '',
 
   // Lifecycle & Engagement
@@ -1338,6 +1350,126 @@ export async function sendEventDeniedEmail(params: {
     return true;
   } catch (error) {
     console.error(`[email] ❌ Failed to send event denied email to ${params.to}:`, error);
+    return false;
+  }
+}
+
+export async function sendHostingRequestConfirmationEmail(params: {
+  to: string;
+  contactName: string;
+  organizationName: string;
+  requestedDates: string;
+  statusLink: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY) {
+    console.warn('[email] SendGrid API key not configured');
+    return false;
+  }
+
+  try {
+    const templateId = TEMPLATE_IDS.HOSTING_REQUEST_CONFIRMATION;
+    if (!templateId) {
+      console.warn('[email] SendGrid hosting request confirmation template not configured');
+      return false;
+    }
+
+    await sendMail({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId,
+      dynamicTemplateData: {
+        contact_name: params.contactName,
+        organization_name: params.organizationName,
+        requested_dates: params.requestedDates,
+        status_link: params.statusLink,
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+      },
+    });
+    debugLog(`✅ Hosting request confirmation email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error(`[email] ❌ Failed to send hosting request confirmation email to ${params.to}:`, error);
+    return false;
+  }
+}
+
+export async function sendHostingRequestApprovedEmail(params: {
+  to: string;
+  contactName: string;
+  organizationName: string;
+  approvalNotes?: string;
+  detailsLink: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY) {
+    console.warn('[email] SendGrid API key not configured');
+    return false;
+  }
+
+  try {
+    const templateId = TEMPLATE_IDS.HOSTING_REQUEST_APPROVED;
+    if (!templateId) {
+      console.warn('[email] SendGrid hosting request approved template not configured');
+      return false;
+    }
+
+    await sendMail({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId,
+      dynamicTemplateData: {
+        contact_name: params.contactName,
+        organization_name: params.organizationName,
+        approval_notes: params.approvalNotes || 'Your hosting request has been approved. Thank you for choosing VarsityHub!',
+        details_link: params.detailsLink,
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+      },
+    });
+    debugLog(`✅ Hosting request approved email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error(`[email] ❌ Failed to send hosting request approved email to ${params.to}:`, error);
+    return false;
+  }
+}
+
+export async function sendHostingRequestDeniedEmail(params: {
+  to: string;
+  contactName: string;
+  organizationName: string;
+  denialReason: string;
+  supportLink: string;
+}): Promise<boolean> {
+  if (!SENDGRID_API_KEY) {
+    console.warn('[email] SendGrid API key not configured');
+    return false;
+  }
+
+  try {
+    const templateId = TEMPLATE_IDS.HOSTING_REQUEST_DENIED;
+    if (!templateId) {
+      console.warn('[email] SendGrid hosting request denied template not configured');
+      return false;
+    }
+
+    await sendMail({
+      to: params.to,
+      from: EMAIL_FROM,
+      templateId,
+      dynamicTemplateData: {
+        contact_name: params.contactName,
+        organization_name: params.organizationName,
+        denial_reason: params.denialReason,
+        support_link: params.supportLink,
+        privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+        community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+      },
+    });
+    debugLog(`✅ Hosting request denied email sent to ${params.to}`);
+    return true;
+  } catch (error) {
+    console.error(`[email] ❌ Failed to send hosting request denied email to ${params.to}:`, error);
     return false;
   }
 }
