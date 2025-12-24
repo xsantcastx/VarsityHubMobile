@@ -1,8 +1,8 @@
+import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { httpGet } from '@/api/http';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     ScrollView,
@@ -38,17 +38,7 @@ export default function AdAnalyticsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) {
-      setError('Ad ID is required');
-      setLoading(false);
-      return;
-    }
-
-    fetchAnalytics();
-  }, [id]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -67,7 +57,17 @@ export default function AdAnalyticsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) {
+      setError('Ad ID is required');
+      setLoading(false);
+      return;
+    }
+
+    void fetchAnalytics();
+  }, [id, fetchAnalytics]);
 
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
