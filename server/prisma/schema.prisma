@@ -423,6 +423,19 @@ model AdReservation {
   @@index([ad_id, date])
 }
 
+model AdClick {
+  id               String   @id @default(cuid())
+  ad_id            String
+  ad               Ad       @relation(fields: [ad_id], references: [id], onDelete: Cascade)
+  clicked_at       DateTime @default(now())
+  session_duration Int      @default(0) // duration in seconds spent on target website
+  user_agent       String?  // browser/device info
+  referrer         String?
+
+  @@index([ad_id, clicked_at])
+  @@index([ad_id])
+}
+
 model Ad {
   id              String   @id @default(cuid())
   user_id         String?
@@ -441,6 +454,7 @@ model Ad {
   created_at      DateTime @default(now())
 
   reservations AdReservation[]
+  clicks       AdClick[]
 
   @@index([user_id, created_at])
 }
