@@ -50,7 +50,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.warn('Failed to load theme preference:', error);
       }
     };
-    loadTheme();
+    void loadTheme();
     return () => { mounted = false; };
   }, []);
 

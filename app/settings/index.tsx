@@ -150,7 +150,7 @@ const appConfig = getConfig();
                 try {
                   const result = await testSentryConnection();
                   setTestResult(result.message);
-                } catch (error) {
+                } catch {
                   setTestResult('Test failed with an error');
                 } finally {
                   setTestLoading(false);
@@ -228,6 +228,7 @@ const appConfig = getConfig();
               const [plan, setPlan] = useState<string | null>(null);
               const [role, setRole] = useState<string | null>(null);
               const [isAdmin, setIsAdmin] = useState(false);
+              const [athleteSummary, setAthleteSummary] = useState<{ jersey?: string | number | null; position?: string | null; sport?: string | null }>({});
 
               // Debounce timer refs for PATCH batching
               const timers = useRef<{ [k: string]: any }>({});
@@ -260,6 +261,12 @@ const appConfig = getConfig();
                     setPlan(serverPrefs?.plan ?? null);
                     const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
                     setRole(effectiveRole);
+
+                    setAthleteSummary({
+                      jersey: serverPrefs?.jersey_number ?? me?.jersey_number ?? null,
+                      position: serverPrefs?.position ?? me?.position ?? null,
+                      sport: serverPrefs?.primary_sport || serverPrefs?.sport || me?.primary_sport || me?.sport || null,
+                    });
                   } catch (e: any) {
                     if (!mounted) return;
                     setError(e?.message || 'Failed to load settings');
@@ -370,6 +377,21 @@ const appConfig = getConfig();
                       <NavRow title="Followed Teams" onPress={() => void router.push('/settings/followed-teams')} />
                     </SectionCard>
 
+                    {/* Athlete Profile (athletes only) */}
+                    {role === 'athlete' && (athleteSummary.jersey || athleteSummary.position) && (
+                      <SectionCard title="Athlete Profile">
+                        <NavRow
+                          title="Edit Athlete Info"
+                          subtitle={[
+                            athleteSummary.position ? `${athleteSummary.position}` : null,
+                            athleteSummary.jersey ? `#${athleteSummary.jersey}` : null,
+                            athleteSummary.sport ? `${athleteSummary.sport}` : null,
+                          ].filter(Boolean).join(' · ') || 'Jersey, position, stats'}
+                          onPress={() => void router.push('/edit-profile')}
+                        />
+                      </SectionCard>
+                    )}
+
                     {/* Appearance */}
                     <SectionCard title="Appearance" initiallyOpen>
                       <ThemeRow
@@ -379,6 +401,16 @@ const appConfig = getConfig();
                         onValueChange={setThemePreference}
                       />
                     </SectionCard>
+
+                    {/* Role Clarification (fans only) */}
+                    {role === 'fan' && (
+                      <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
+                        <View style={{ padding: 12, borderRadius: 12, backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F3F4F6', borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }}>
+                          <Text style={{ color: colorScheme === 'dark' ? '#D1D5DB' : '#374151', fontSize: 14, marginBottom: 4 }}>Are you a coach or athlete?</Text>
+                          <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 12 }}>Update your role in Edit Profile to unlock team management, athlete stats, and more features.</Text>
+                        </View>
+                      </View>
+                    )}
 
                     {/* Events */}
                     <SectionCard title="Events">

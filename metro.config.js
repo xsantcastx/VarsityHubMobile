@@ -6,6 +6,8 @@ const config = getDefaultConfig(__dirname);
 // Add resolver alias for shims
 config.resolver.alias = {
   ...config.resolver.alias,
+  // Ensure tslib resolves to our patched shim (needed for sentry-expo on Hermes)
+  tslib: path.resolve(__dirname, 'shims/tslib.js'),
   'is-arrayish': path.resolve(__dirname, 'shims/is-arrayish.js'),
   'react-native-maps': path.resolve(__dirname, 'shims/react-native-maps.js'),
 };

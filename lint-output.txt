@@ -1,0 +1,50 @@
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/useAnalytics.ts
+  6:52  warning  'payload' is assigned a value but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/useAppleAuth.ts
+   17:5   warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+   22:11  warning  Unexpected console statement                                                                                                                                        no-console
+   36:7   warning  Unexpected console statement                                                                                                                                        no-console
+   44:9   warning  Unexpected console statement                                                                                                                                        no-console
+   57:11  warning  Unexpected console statement                                                                                                                                        no-console
+   63:11  warning  Unexpected console statement                                                                                                                                        no-console
+   68:11  warning  Unexpected console statement                                                                                                                                        no-console
+   90:13  warning  Unexpected console statement                                                                                                                                        no-console
+   96:13  warning  Unexpected console statement                                                                                                                                        no-console
+   98:13  warning  Unexpected console statement                                                                                                                                        no-console
+  118:15  warning  Unexpected console statement                                                                                                                                        no-console
+  166:13  warning  Unexpected console statement                                                                                                                                        no-console
+  189:9   warning  Unexpected console statement                                                                                                                                        no-console
+  198:9   warning  Unexpected console statement                                                                                                                                        no-console
+  205:11  warning  Unexpected console statement                                                                                                                                        no-console
+  211:13  warning  Unexpected console statement                                                                                                                                        no-console
+  214:18  warning  'fallbackErr' is defined but never used                                                                                                                             @typescript-eslint/no-unused-vars
+  215:11  warning  Unexpected console statement                                                                                                                                        no-console
+  222:9   warning  Unexpected console statement                                                                                                                                        no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/useCustomColorScheme.tsx
+  53:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/useDeviceLocation.ts
+  101:5  warning  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/useGoogleAuth.ts
+  109:7  warning  Unexpected console statement                                                                                     no-console
+  116:9  warning  Unexpected console statement                                                                                     no-console
+  127:7  warning  Unexpected console statement                                                                                     no-console
+  135:5  warning  Unexpected console statement                                                                                     no-console
+  137:6  warning  React Hook useMemo has a missing dependency: 'shouldUseProxy'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  193:7  warning  Unexpected console statement                                                                                     no-console
+  194:7  warning  Unexpected console statement                                                                                     no-console
+  195:7  warning  Unexpected console statement                                                                                     no-console
+  198:7  warning  Unexpected console statement                                                                                     no-console
+  202:9  warning  Unexpected console statement                                                                                     no-console
+  217:7  warning  Unexpected console statement                                                                                     no-console
+  219:7  warning  Unexpected console statement                                                                                     no-console
+
+/Users/varsityhub/Desktop/CODE/VarsityHubMobile/hooks/usePagination.ts
+  11:36  warning  'T' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 35 problems (0 errors, 35 warnings)
+

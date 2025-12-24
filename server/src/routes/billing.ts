@@ -5,6 +5,10 @@ import type { AuthedRequest } from '../middleware/auth.js';
 // Lazy load Stripe only if key present to avoid runtime crash in dev
 let stripe: any = null;
 const key = process.env.STRIPE_SECRET_KEY;
+// Warn if using a live key during development/QA
+if (key && /^sk_live_/.test(String(key)) && process.env.NODE_ENV !== 'production') {
+  console.warn('[billing] WARNING: Live Stripe key detected in non-production environment. Use sk_test_* for QA.');
+}
 if (key) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const Stripe = require('stripe');

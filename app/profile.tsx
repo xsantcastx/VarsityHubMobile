@@ -1,12 +1,11 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
-import { Sport } from '@/components/JerseyBadge';
-import { Button } from '@/components/ui/button';
 import { MasonryFlatList } from '@/components/MasonryFlatList';
+import ProfileIdentity from '@/components/profile/ProfileIdentity';
+import { Button } from '@/components/ui/button';
+import { getConfig } from '@/config/env';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { usePagination } from '@/hooks/usePagination';
-import { ProfilePreferences } from '@/types/profile';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +23,7 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
+const appConfig = getConfig();
 
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
@@ -413,11 +413,9 @@ export default function ProfileScreen() {
     }
   }, [interCursor, interHasMore, interLoading, interType, sort]);
 
-  const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
-  const rawRole = preferences?.role ?? (me as any)?.role ?? '';
-  const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
-  const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
   const name = me?.display_name || me?.username || 'User';
+  const adminEmails = (appConfig.adminEmails || []).map((e) => String(e || '').toLowerCase());
+  const isAdmin = me?.email ? adminEmails.includes(String(me.email).toLowerCase()) : false;
   
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
@@ -427,7 +425,6 @@ export default function ProfileScreen() {
 
   const renderHeader = () => (
     <>
-      {/* Back Button */}
       <View style={styles.backButtonContainer}>
         <Pressable 
           onPress={() => router.back()}
@@ -437,59 +434,23 @@ export default function ProfileScreen() {
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </Pressable>
       </View>
-      
-      {/* Simple Profile Header - Similar to Organization Page */}
-      <View style={styles.profileOverviewCard}>
-        {/* Top Right Settings Button */}
-        <Pressable onPress={() => void router.push('/settings')} style={styles.settingsButton}>
-          <Ionicons name="settings-outline" size={24} color={theme.mutedText} />
-        </Pressable>
 
-        {/* Profile Header */}
-        <View style={styles.profileHeaderSection}>
-          {/* Avatar */}
-          <Pressable onPress={handleAvatarPress} disabled={isUploadingAvatar} style={styles.profileAvatarContainer}>
-            {me.avatar_url ? (
-              <Image source={{ uri: String(me.avatar_url) }} style={styles.profileAvatar} contentFit="cover" />
-            ) : (
-              <View style={styles.profileAvatarPlaceholder}>
-                <Text style={styles.profileInitials}>{name.charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-            {isUploadingAvatar && (
-              <View style={styles.avatarLoadingOverlay}>
-                <ActivityIndicator color="white" size="small" />
-              </View>
-            )}
-          </Pressable>
-
-          {/* User Info */}
-          <View style={styles.profileInfoSection}>
-            <Text style={[styles.profileName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
-            {me?.username && (
-              <Text style={[styles.profileHandle, { color: theme.mutedText }]}>@{me.username}</Text>
-            )}
-            {roleLabel && (
-              <View style={[styles.roleTag, 
-                roleRaw === 'coach' && styles.coachBadge,
-                roleRaw === 'player' && styles.playerBadge,
-                roleRaw === 'fan' && styles.fanBadge
-              ]}>
-                <Text style={styles.roleTagText}>{roleLabel}</Text>
-              </View>
-            )}
-            {me?.bio && (
-              <Text style={[styles.profileBio, { color: theme.mutedText }]} numberOfLines={2}>
-                {me.bio}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Edit Button */}
-        <Pressable style={styles.editProfileButton} onPress={() => void router.push('/edit-profile')}>
-          <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-        </Pressable>
+      <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+        <ProfileIdentity
+          user={me}
+          theme={theme}
+          isAdmin={isAdmin}
+          _isOwnProfile
+          onPressAvatar={handleAvatarPress}
+          isUploadingAvatar={isUploadingAvatar}
+          onPressSettings={() => void router.push('/settings')}
+          showSettings
+          actionSlot={(
+            <Pressable style={styles.editProfileButton} onPress={() => void router.push('/edit-profile')}>
+              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
+            </Pressable>
+          )}
+        />
       </View>
 
       {/* Stats Section - Simplified */}

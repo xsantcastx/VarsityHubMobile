@@ -1,4 +1,5 @@
 import { JerseyBadge, Sport } from '@/components/JerseyBadge';
+import ProfileIdentity from '@/components/profile/ProfileIdentity';
 import { getConfig } from '@/config/env';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -18,21 +19,6 @@ import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFee
 const appConfig = getConfig();
 const HEADER_IMAGE_DRAG_LIMIT = 120;
 const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-/**
- * Get sport emoji based on sport type
- */
-const getSportEmoji = (sport: string): string => {
-  const emojiMap: Record<string, string> = {
-    basketball: '🏀',
-    football: '🏈',
-    baseball: '⚾',
-    soccer: '⚽',
-    volleyball: '🏐',
-    other: '🏆',
-  };
-  return emojiMap[sport.toLowerCase()] || '🏆';
-};
 
 export default function UserProfileScreen() {
   const params = useLocalSearchParams<{ id?: string; username?: string }>();
@@ -148,10 +134,6 @@ export default function UserProfileScreen() {
   // Athlete-specific data extraction
   const isAthlete = user ? Boolean(user?.preferences?.position || user?.preferences?.jersey_number) : false;
   const jerseyNumber = user?.preferences?.jersey_number || user?.jersey_number;
-  const position = user?.preferences?.position || user?.position;
-  const gradeLevel = user?.preferences?.grade_level;
-  const graduationYear = user?.preferences?.graduation_year;
-  const accolades = user?.preferences?.accolades;
   const primarySport = (user?.preferences?.primary_sport || user?.preferences?.sport || 'other') as Sport;
   const userThemeColor = user?.preferences?.theme_color || '#3B82F6';
   const headerBackgroundImage = user?.preferences?.header_image_url || null;
@@ -159,6 +141,28 @@ export default function UserProfileScreen() {
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
+
+  const isOwnProfile = !!(me?.id && user?.id && me.id === user.id);
+
+  const followButton = (!isOwnProfile && me?.id && user?.id) ? (
+    <Pressable
+      onPress={async () => {
+        const next = !user.is_following;
+        setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
+        try {
+          if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_error: any) {
+          setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
+        }
+      }}
+      style={[S.followButton, user.is_following && S.followingButton]}
+    >
+      <Text style={[S.followButtonText, user.is_following && S.followingButtonText]}>
+        {user.is_following ? 'Following' : 'Follow'}
+      </Text>
+    </Pressable>
+  ) : null;
 
   return (
     <SafeAreaView style={[S.page, { backgroundColor: theme.background }]} edges={['bottom']}>
@@ -196,133 +200,18 @@ export default function UserProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
             
-            {/* Jersey Badge (Top Right for Athletes) */}
-            {isAthlete && jerseyNumber && (
-              <View style={[S.jerseyBadgeTopRight, { top: 20 + insets.top }]}>
-                <JerseyBadge 
-                  jerseyNumber={jerseyNumber} 
-                  sport={primarySport}
-                  teamColor={userThemeColor}
-                  size="medium"
-                />
-              </View>
-            )}
-            
             {/* Profile Content */}
-            <View style={S.profileContent}>
-              {/* Avatar Section */}
-              <View style={S.avatarSection}>
-                <View style={S.avatarContainer}>
-                  {user.avatar_url ? (
-                    <Image source={{ uri: String(user.avatar_url) }} style={S.avatarImage} contentFit="cover" />
-                  ) : (
-                    <View style={S.avatarPlaceholder}>
-                      <Ionicons name="person" size={36} color="#ffffff" />
-                    </View>
-                  )}
-                  {user.verified && (
-                    <View style={S.verifiedBadge}>
-                      <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* User Info */}
-              <View style={S.userInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={S.userName}>{user.display_name || user.username || 'User'}</Text>
-                  {/* Admin Badge - Only visible when viewing own profile as admin */}
-                  {isAdmin && me?.id === user.id && (
-                    <View style={S.adminBadge}>
-                      <Ionicons name="shield-checkmark" size={16} color="#ffffff" />
-                    </View>
-                  )}
-                </View>
-                
-                {/* Role and Plan Badges */}
-                {(user.role || user.preferences?.plan) && (
-                  <View style={S.badgesRow}>
-                    {user.role && (
-                      <View style={[S.roleBadge, 
-                        user.role === 'coach' && S.coachBadge,
-                        (user.role === 'coach') && S.coachBadge,
-                        user.role === 'fan' && S.fanBadge
-                      ]}>
-                        <Ionicons 
-                          name={user.role === 'coach' ? 'flag' : 'heart'} 
-                          size={12} 
-                          color="#ffffff" 
-                        />
-                        <Text style={S.roleText}>
-                          {user.role.toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                    {user.preferences?.plan && (
-                      <View style={[S.planBadge,
-                        user.preferences.plan.toLowerCase() === 'rookie' && S.rookieBadge,
-                        user.preferences.plan.toLowerCase() === 'veteran' && S.veteranBadge,
-                        user.preferences.plan.toLowerCase() === 'legend' && S.legendBadge
-                      ]}>
-                        {user.preferences.plan.toLowerCase() === 'veteran' ? (
-                          <Text style={{ fontSize: 12 }}>🏆</Text>
-                        ) : user.preferences.plan.toLowerCase() === 'legend' ? (
-                          <Text style={{ fontSize: 12 }}>🥇</Text>
-                        ) : (
-                          <Ionicons name="shield" size={12} color="#ffffff" />
-                        )}
-                        <Text style={S.planBadgeText}>{user.preferences.plan.toUpperCase()}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-                
-                {/* Position Badge (Athletes Only) */}
-                {isAthlete && position && (
-                  <View style={S.positionBadge}>
-                    <Text style={S.positionText}>{position.toUpperCase()}</Text>
-                  </View>
-                )}
-                
-                {/* Athletic Credentials (Athletes Only) */}
-                {isAthlete && (gradeLevel || accolades || graduationYear) && (
-                  <View style={S.credentialsContainer}>
-                    <Text style={S.credentialsText}>
-                      {[
-                        gradeLevel,
-                        accolades && accolades.length > 0 ? accolades[0] : null,
-                        graduationYear ? `Class of ${graduationYear}` : null,
-                      ].filter(Boolean).join(' | ')}
-                      {primarySport && primarySport !== 'other' ? ` ${getSportEmoji(primarySport)}` : ''}
-                    </Text>
-                  </View>
-                )}
-                
-                {user.bio && <Text style={S.userBio}>{user.bio}</Text>}
-              </View>
-
-              {/* Follow Button */}
-              {me?.id && user?.id && me.id !== user.id && (
-                <Pressable
-                  onPress={async () => {
-                    const next = !user.is_following;
-                    setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
-                    try {
-                      if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    } catch (_error: any) {
-                      setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
-                    }
-                  }}
-                  style={[S.followButton, user.is_following && S.followingButton]}
-                >
-                  <Text style={[S.followButtonText, user.is_following && S.followingButtonText]}>
-                    {user.is_following ? 'Following' : 'Follow'}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
+            <ProfileIdentity
+              user={user}
+              theme={theme}
+              isAdmin={isAdmin && isOwnProfile}
+              _isOwnProfile={isOwnProfile}
+              actionSlot={followButton}
+              rightAccessory={isAthlete && jerseyNumber ? (
+                <JerseyBadge jerseyNumber={jerseyNumber} sport={primarySport} teamColor={userThemeColor} size="medium" />
+              ) : null}
+              style={{ backgroundColor: 'rgba(15,23,42,0.75)', borderColor: 'rgba(255,255,255,0.08)' }}
+            />
           </View>
 
           {/* Athletic Stats Card */}

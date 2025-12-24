@@ -3,14 +3,13 @@
  * Covers profile loading, pagination, error handling, uploads, and rendering
  */
 
-import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
-import { Alert } from 'react-native';
-import ProfileScreen from '@/app/profile';
 import { User } from '@/api/entities';
 import uploadFile from '@/api/upload';
-import * as ImagePicker from 'expo-image-picker';
+import ProfileScreen from '@/app/profile';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert } from 'react-native';
 
 // Mock modules
 jest.mock('@/api/entities');

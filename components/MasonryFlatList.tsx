@@ -73,7 +73,7 @@ export const MasonryFlatList = React.forwardRef<FlatList, MasonryProps<any>>(
         }
         renderItem={({ item: row }) => (
           <View style={[{ flexDirection: 'row' }, columnWrapperStyle]}>
-            {row.map((cell, cellIdx) => (
+            {row.map((cell, _cellIdx) => (
               <View key={`${cell.index}`} style={{ flex: 1 }}>
                 {renderItem(cell.item, cell.index, cell.column)}
               </View>

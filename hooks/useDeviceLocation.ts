@@ -98,7 +98,7 @@ export function useDeviceLocation(): UseDeviceLocationResult {
 
   // Check permissions on mount
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         const granted = status === 'granted';

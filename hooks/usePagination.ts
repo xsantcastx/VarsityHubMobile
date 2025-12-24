@@ -8,7 +8,7 @@ export interface PaginationState<T> {
   error: string | null;
 }
 
-export interface PaginationOptions<T> {
+export interface PaginationOptions {
   limit?: number;
   onError?: (error: Error) => void;
   onCountsUpdate?: (counts: any) => void;
@@ -35,7 +35,7 @@ export function usePagination<T>(
     nextCursor: string | null;
     counts?: any;
   }>,
-  options: PaginationOptions<T> = {}
+  options: PaginationOptions = {}
 ) {
   const [items, setItems] = useState<T[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);

@@ -3,10 +3,9 @@
  * Covers virtualization, column layout, and rendering
  */
 
-import React from 'react';
-import { render, screen } from '@testing-library/react-native';
-import { Text, View } from 'react-native';
 import { MasonryFlatList } from '@/components/MasonryFlatList';
+import { render } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 describe('MasonryFlatList Component', () => {
   const mockItems = Array.from({ length: 12 }, (_, i) => ({

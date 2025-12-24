@@ -506,8 +506,6 @@ authRouter.post('/apple', async (req, res) => {
 
     const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
     const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
     const sanitized = sanitizeUser(user);
     const access_token = signJwt({ id: sanitized.id, is_admin: isAdmin });
     const needsOnboarding = sanitized?.preferences?.onboarding_completed === false;

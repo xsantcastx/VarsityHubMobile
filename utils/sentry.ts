@@ -1,7 +1,35 @@
+// CRITICAL: Polyfill __extends IMMEDIATELY, before any imports or require calls
+// This must run first because imports themselves may need __extends
+const g = global as any;
+if (typeof g.__extends !== 'function') {
+  g.__extends = function (d: any, b: any) {
+    if (typeof Object.setPrototypeOf === 'function') {
+      Object.setPrototypeOf(d, b);
+    } else {
+      (d as any).__proto__ = b;
+    }
+    function __() {
+      this.constructor = d;
+    }
+    d.prototype = b === null ? Object.create(b) : ((__.prototype = b.prototype), new (__ as any)());
+  };
+}
+
 import { getConfig } from '@/config/env';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import * as Sentry from 'sentry-expo';
+
+// Ensure tslib export exists for modules that expect require('tslib').__extends
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const tslibMod = require('tslib');
+if (tslibMod && typeof tslibMod.__extends !== 'function') {
+  tslibMod.__extends = g.__extends;
+}
+
+// Use require so the shim executes before sentry-expo is evaluated
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Sentry = require('sentry-expo');
+
 // Native methods are available via Sentry.Native; type as any to avoid missing type declarations
 const SentryNative = ((Sentry as any).Native || Sentry) as {
   setTag?: (key: string, value: string) => void;

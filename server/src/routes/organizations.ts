@@ -189,12 +189,9 @@ organizationsRouter.get('/:id', async (req, res) => {
           user: {
             select: { id: true, display_name: true, avatar_url: true }
           }
-        },
-  if (!membership || !isOrganizationAdmin(membership.role)) {
+        }
       }
     }
-  const hasAccess = await userHasOrgAdminAccess(req.user.id, joinRequest.organization_id);
-  if (!hasAccess) return res.status(403).json({ error: 'ORG_ADMIN_REQUIRED', message: 'Only organization admins can deny requests.' });
   });
   
   if (!organization) return res.status(404).json({ error: 'Organization not found' });
@@ -621,21 +618,7 @@ organizationsRouter.post('/invites/:inviteId/accept', requireAuth as any, async 
       where: { organization_id_user_id: { organization_id: invite.organization_id, user_id: user.id } as any }, 
       update: { role: invite.role, status: 'active' }, 
       create: { organization_id: invite.organization_id, user_id: user.id, role: invite.role, status: 'active' } 
-  const membership = await prisma.organizationMembership.findUnique({
-    where: { 
-      organization_id_user_id: { 
-        organization_id: joinRequest.organization_id, 
-        user_id: req.user!.id 
-      } as any 
-    }
-  });
-  
-  if (!membership || !isOrganizationAdmin(membership.role)) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-  
-  const hasAccess = await userHasOrgAdminAccess(req.user.id, joinRequest.organization_id);
-  if (!hasAccess) return res.status(403).json({ error: 'ORG_ADMIN_REQUIRED', message: 'Only organization admins can approve requests.' });
+    }),
     prisma.organizationInvite.update({ where: { id: inviteId }, data: { status: 'accepted' } }),
   ]);
   
@@ -1096,12 +1079,7 @@ organizationsRouter.post('/join-requests/:requestId/deny', requireAuth as any, a
           id: true,
           email: true,
           display_name: true
-  if (!membership) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
-  const orgId = String(req.params.id);
-  const hasAccess = await userHasOrgAdminAccess(req.user.id, orgId);
-  if (!hasAccess) return res.status(403).json({ error: 'ORG_ADMIN_REQUIRED', message: 'Only organization admins can send invites.' });
+        }
       }
     }
   });

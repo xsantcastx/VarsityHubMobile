@@ -23,6 +23,9 @@ export const emailQueue = new Queue('email', REDIS_URL, {
   },
 });
 
+// Increase max listeners to prevent warning (we have multiple cron jobs listening)
+emailQueue.setMaxListeners(15);
+
 // Queue event listeners
 emailQueue.on('waiting', (jobId) => {
   debugLog(`[queue] Email job waiting: ${jobId}`);

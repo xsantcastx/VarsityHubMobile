@@ -50,6 +50,7 @@
     "tsx": "^4.19.0",
     "twilio": "^4.10.1",
     "typescript": "^5.9.3",
+    "undici": "^6.22.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
