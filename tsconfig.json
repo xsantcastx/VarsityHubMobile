@@ -13,6 +13,9 @@
       "@/components/*": [
         "components/*"
       ],
+      "@/app/*": [
+        "app/*"
+      ],
       "@/constants/*": [
         "constants/*"
       ],

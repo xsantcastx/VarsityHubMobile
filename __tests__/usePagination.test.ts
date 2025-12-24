@@ -3,8 +3,8 @@
  * Covers pagination logic, cursor management, and request deduplication
  */
 
-import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { usePagination } from '@/hooks/usePagination';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 describe('usePagination Hook', () => {
   const mockItems = [
@@ -20,7 +20,7 @@ describe('usePagination Hook', () => {
 
   describe('Initial State', () => {
     it('should initialize with empty items', () => {
-      const fetchFn = jest.fn();
+      const fetchFn = jest.fn(async () => ({ items: [], nextCursor: null }));
       const { result } = renderHook(() => usePagination(fetchFn));
 
       expect(result.current.items).toEqual([]);
@@ -31,7 +31,7 @@ describe('usePagination Hook', () => {
     });
 
     it('should have refresh, loadMore, and reset methods', () => {
-      const fetchFn = jest.fn();
+      const fetchFn = jest.fn(async () => ({ items: [], nextCursor: null }));
       const { result } = renderHook(() => usePagination(fetchFn));
 
       expect(typeof result.current.refresh).toBe('function');
@@ -129,7 +129,7 @@ describe('usePagination Hook', () => {
     it('should set isLoading while fetching', async () => {
       const fetchFn = jest.fn(
         () =>
-          new Promise((resolve) =>
+          new Promise<{ items: typeof mockItems; nextCursor: string | null }>((resolve) =>
             setTimeout(() => {
               resolve({
                 items: mockItems,
@@ -157,7 +157,7 @@ describe('usePagination Hook', () => {
     it('should prevent duplicate concurrent refresh requests', async () => {
       const fetchFn = jest.fn(
         () =>
-          new Promise((resolve) =>
+          new Promise<{ items: typeof mockItems; nextCursor: string | null }>((resolve) =>
             setTimeout(() => {
               resolve({ items: mockItems, nextCursor: null });
             }, 50)
@@ -237,7 +237,7 @@ describe('usePagination Hook', () => {
     it('should not loadMore if isLoading', async () => {
       const fetchFn = jest.fn(
         () =>
-          new Promise((resolve) =>
+          new Promise<{ items: typeof mockItems; nextCursor: string | null }>((resolve) =>
             setTimeout(() => {
               resolve({ items: mockItems, nextCursor: 'cursor-1' });
             }, 100)
