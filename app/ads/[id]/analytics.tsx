@@ -1,5 +1,4 @@
 import { Colors } from '@/constants/Colors';
-import { useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { apiCall } from '@/utils/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -31,7 +30,6 @@ interface AnalyticsData {
 
 export default function AdAnalyticsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
