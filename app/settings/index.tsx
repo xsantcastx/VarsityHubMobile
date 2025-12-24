@@ -3,6 +3,7 @@
 import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
+import { getSentryStatus, testSentryConnection } from '@/utils/sentry';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -134,6 +135,77 @@ const appConfig = getConfig();
                       </Pressable>
                     ))}
                   </View>
+                </View>
+              );
+            }
+
+            function SentryDiagnostics() {
+              const colorScheme = useColorScheme();
+              const [testResult, setTestResult] = useState<string | null>(null);
+              const [testLoading, setTestLoading] = useState(false);
+              const status = getSentryStatus();
+
+              const runTest = async () => {
+                setTestLoading(true);
+                try {
+                  const result = await testSentryConnection();
+                  setTestResult(result.message);
+                } catch (error) {
+                  setTestResult('Test failed with an error');
+                } finally {
+                  setTestLoading(false);
+                }
+              };
+
+              return (
+                <View style={{ gap: 12 }}>
+                  <View style={[styles.diagnosticBox, { 
+                    borderColor: status.isActive ? '#10B981' : '#EF4444',
+                    backgroundColor: status.isActive ? '#ECFDF5' : '#FEF2F2',
+                  }]}>
+                    <Text style={[styles.diagnosticLabel, { color: status.isActive ? '#047857' : '#DC2626' }]}>
+                      Status: {status.isActive ? '✅ Active' : '❌ Disabled'}
+                    </Text>
+                    <Text style={[styles.diagnosticSmall, { color: status.isActive ? '#059669' : '#991B1B' }]}>
+                      {status.isDev ? 'Running in dev mode' : 'Production mode'}
+                      {status.hasDsn ? ' • DSN configured' : ' • No DSN'}
+                    </Text>
+                  </View>
+
+                  {status.isActive && (
+                    <Pressable 
+                      onPress={runTest} 
+                      disabled={testLoading}
+                      style={({ pressed }) => [
+                        styles.testButton,
+                        { 
+                          backgroundColor: pressed ? '#0E7490' : '#0891B2',
+                          opacity: testLoading ? 0.6 : 1,
+                        }
+                      ]}
+                    >
+                      <Text style={{ color: '#fff', fontWeight: '600', textAlign: 'center' }}>
+                        {testLoading ? '🔄 Testing...' : '🔍 Send Test Event'}
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {testResult && (
+                    <View style={[styles.resultBox, { 
+                      backgroundColor: testResult.includes('successfully') ? '#ECFDF5' : '#FEF2F2',
+                      borderColor: testResult.includes('successfully') ? '#10B981' : '#EF4444',
+                    }]}>
+                      <Text style={[styles.resultText, { color: testResult.includes('successfully') ? '#047857' : '#DC2626' }]}>
+                        {testResult}
+                      </Text>
+                    </View>
+                  )}
+
+                  {status.dsnPreview && (
+                    <Text style={[styles.diagnosticSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginTop: 4 }]}>
+                      DSN: {status.dsnPreview}
+                    </Text>
+                  )}
                 </View>
               );
             }
@@ -380,6 +452,10 @@ const appConfig = getConfig();
                     <SectionCard title="Support & Feedback">
                       <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
                       <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
+                      <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }}>
+                        <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C', marginBottom: 8 }]}>Error Tracking</Text>
+                        <SentryDiagnostics />
+                      </View>
                     </SectionCard>
 
                     {/* Admin Panel - Only visible to admins */}
@@ -544,5 +620,32 @@ const appConfig = getConfig();
                 fontSize: 12,
                 color: '#9CA3AF',
                 marginLeft: 'auto',
+              },
+              diagnosticBox: {
+                borderWidth: 1,
+                borderRadius: 8,
+                padding: 12,
+                gap: 4,
+              },
+              diagnosticLabel: {
+                fontWeight: '600',
+                fontSize: 14,
+              },
+              diagnosticSmall: {
+                fontSize: 12,
+              },
+              testButton: {
+                paddingVertical: 12,
+                borderRadius: 8,
+                justifyContent: 'center',
+              },
+              resultBox: {
+                borderWidth: 1,
+                borderRadius: 8,
+                padding: 12,
+              },
+              resultText: {
+                fontSize: 13,
+                fontWeight: '500',
               },
             });

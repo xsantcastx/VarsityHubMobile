@@ -115,4 +115,73 @@ export function captureBreadcrumb(message: string, category: string, data?: Reco
   }
 }
 
+/**
+ * Test Sentry connectivity by sending a test event.
+ * Only works if EXPO_PUBLIC_SENTRY_DSN is set to a valid DSN and app is running in production mode.
+ * @returns {Promise<{success: boolean; message: string; dsn?: string}>}
+ */
+export async function testSentryConnection(): Promise<{ success: boolean; message: string; dsn?: string }> {
+  if (__DEV__) {
+    return {
+      success: false,
+      message: 'Sentry test skipped: app is in development mode',
+    };
+  }
+
+  if (!SENTRY_DSN || isPlaceholderDsn(SENTRY_DSN)) {
+    return {
+      success: false,
+      message: 'Sentry is disabled: EXPO_PUBLIC_SENTRY_DSN is not set or invalid',
+    };
+  }
+
+  if (!sentryReady) {
+    return {
+      success: false,
+      message: 'Sentry is not initialized. Check console for initialization errors.',
+    };
+  }
+
+  try {
+    // Add a test breadcrumb first
+    captureBreadcrumb('Sentry test initiated', 'test');
+
+    // Capture a test exception
+    const testError = new Error('🔍 Sentry test event - if you see this in your Sentry dashboard, connectivity is working!');
+    SentryNative.captureException(testError);
+
+    console.log('[sentry] Test event sent successfully');
+    return {
+      success: true,
+      message: 'Test event sent! Check your Sentry dashboard in a few seconds.',
+      dsn: SENTRY_DSN.substring(0, 40) + '...',
+    };
+  } catch (error) {
+    console.error('[sentry] Test failed:', error);
+    return {
+      success: false,
+      message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+}
+
+/**
+ * Check if Sentry is currently active and ready.
+ */
+export function isSentryActive(): boolean {
+  return sentryReady;
+}
+
+/**
+ * Get Sentry status info for debugging.
+ */
+export function getSentryStatus(): { isActive: boolean; isDev: boolean; hasDsn: boolean; dsnPreview?: string } {
+  return {
+    isActive: sentryReady,
+    isDev: __DEV__,
+    hasDsn: !!(SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN)),
+    dsnPreview: SENTRY_DSN ? SENTRY_DSN.substring(0, 40) + '...' : undefined,
+  };
+}
+
 export default Sentry;
