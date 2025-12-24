@@ -11,6 +11,41 @@ import { requireVerified } from '../middleware/requireVerified.js';
 
 export const hostingRouter = Router();
 
+type HostingPayload = {
+  organization_name?: unknown;
+  contact_name?: unknown;
+  contact_email?: unknown;
+  venue?: unknown;
+  requested_dates?: unknown;
+  notes?: unknown;
+};
+
+const sanitizeString = (value: unknown, maxLength = 200) => {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, maxLength);
+};
+
+const isValidEmail = (value: string) => /.+@.+\..+/.test(value);
+
+function validateHostingRequest(body: HostingPayload) {
+  const organization_name = sanitizeString(body.organization_name, 140);
+  if (!organization_name) return { ok: false as const, error: 'organization_name required' };
+
+  const contact_name = sanitizeString(body.contact_name, 140);
+  const contact_email = sanitizeString(body.contact_email, 180);
+  if (!contact_email) return { ok: false as const, error: 'contact_email required' };
+  if (!isValidEmail(contact_email)) return { ok: false as const, error: 'contact_email invalid' };
+
+  const venue = sanitizeString(body.venue, 180) || null;
+  const requested_dates = sanitizeString(body.requested_dates, 180) || null;
+  const notes = sanitizeString(body.notes, 500) || null;
+
+  return {
+    ok: true as const,
+    data: { organization_name, contact_name, contact_email, venue, requested_dates, notes },
+  };
+}
+
 const serialize = (row: any) => ({
   id: row.id,
   organization_name: row.organization_name,
@@ -27,32 +62,28 @@ const serialize = (row: any) => ({
 hostingRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { organization_name, contact_name, contact_email, venue, requested_dates, notes } = (req.body || {}) as Record<
-    string,
-    string | undefined
-  >;
-
-  const organization = (organization_name || '').trim();
-  if (!organization) return res.status(400).json({ error: 'organization_name required' });
+  const validation = validateHostingRequest((req.body || {}) as HostingPayload);
+  if (!validation.ok) return res.status(400).json({ error: validation.error });
+  const { organization_name, contact_name, contact_email, venue, requested_dates, notes } = validation.data;
 
   const me = await prisma.user.findUnique({
     where: { id: req.user.id },
     select: { display_name: true, email: true },
   });
 
-  const name = (contact_name || '').trim() || me?.display_name || 'Unknown';
-  const email = (contact_email || '').trim() || me?.email || '';
+  const name = contact_name || me?.display_name || 'Unknown';
+  const email = contact_email || me?.email || '';
   if (!email) return res.status(400).json({ error: 'contact_email required' });
 
   const created = await prisma.hostingRequest.create({
     data: {
       user_id: req.user.id,
-      organization_name: organization,
+      organization_name,
       contact_name: name,
       contact_email: email,
-      venue: (venue || '').trim() || null,
-      requested_dates: (requested_dates || '').trim() || null,
-      notes: typeof notes === 'string' && notes.trim() ? notes.trim() : null,
+      venue,
+      requested_dates,
+      notes,
       status: 'pending',
     },
   });
@@ -61,8 +92,8 @@ hostingRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) 
   await sendHostingRequestConfirmationEmail({
     to: email,
     contactName: name,
-    organizationName: organization,
-    requestedDates: (requested_dates || '').trim() || 'To be determined',
+    organizationName: organization_name,
+    requestedDates: requested_dates || 'To be determined',
     statusLink: `https://limeprod.com/hosting/${created.id}`, // Update with actual domain
   });
 
