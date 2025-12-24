@@ -2,12 +2,13 @@ import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
+import { MasonryFlatList } from '@/components/MasonryFlatList';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { usePagination } from '@/hooks/usePagination';
+import { ProfilePreferences } from '@/types/profile';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
-import { ProfilePreferences } from '@/types/profile';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -714,74 +715,77 @@ export default function ProfileScreen() {
           ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       ) : (
-        <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}>
-          {renderHeader()}
-          {interactions.length === 0 ? (
-            <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No activity yet</Text></View>
-          ) : (
-            <View style={styles.masonryContainer}>
-              {interactions.map((item, index) => {
-                const postItem = unwrapPost(item);
-                const thumb = postItem?.media_url;
-                const likes = postItem?.upvotes_count ?? 0;
-                const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-                
-                // Create varied aspect ratios for dynamic look
-                const aspectRatios = [1, 1.2, 0.8, 1.5, 0.75, 1.1, 0.9, 1.3];
-                const aspectRatio = aspectRatios[index % aspectRatios.length];
-                
-                return (
-                  <Pressable
-                    key={`${postItem?.id ?? item?.id ?? index}-${index}`}
-                    style={[styles.masonryItem, { aspectRatio }]}
-                    onPress={() => {
-                      const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
-                      const items = mapped.filter(Boolean) as FeedPost[];
-                      const targetId = unwrapPost(interactions[index])?.id;
-                      const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                      setViewerItems(items);
-                      setViewerIndex(Math.max(0, targetIdx));
-                      setViewerOpen(true);
-                    }}
-                  >
-                    {thumb ? (
-                      <View style={styles.gridImageContainer}>
-                        <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                        <View style={styles.gridImageOverlay} />
-                      </View>
-                    ) : (
-                      <View style={[styles.gridImage, styles.gridImageFallback]}>
-                        <LinearGradient 
-                          colors={["#667eea", "#764ba2", "#f093fb"]} 
-                          style={StyleSheet.absoluteFillObject as any} 
-                          start={{ x: 0, y: 0 }} 
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <View style={styles.textPostOverlay}>
-                          <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
-                        </View>
-                      </View>
-                    )}
-                    <View style={styles.gridCounts}>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{likes}</Text>
-                      </View>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{comments}</Text>
-                      </View>
+        <MasonryFlatList
+          key={activeTab + '-masonry'}
+          data={interactions}
+          numColumns={3}
+          columnWrapperStyle={styles.gridRow}
+          keyExtractor={(item, index) => {
+            const postItem = unwrapPost(item);
+            return postItem?.id ? String(postItem.id) : String(index);
+          }}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={() => <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No activity yet</Text></View>}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 2 }}
+          onEndReachedThreshold={0.5}
+          onEndReached={_onEndReachedInteractions}
+          renderItem={(item, index) => {
+            const postItem = unwrapPost(item);
+            const thumb = postItem?.media_url;
+            const likes = postItem?.upvotes_count ?? 0;
+            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+            
+            return (
+              <Pressable
+                style={styles.gridItem}
+                onPress={() => {
+                  const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
+                  const items = mapped.filter(Boolean) as FeedPost[];
+                  const targetId = unwrapPost(interactions[index])?.id;
+                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                  setViewerItems(items);
+                  setViewerIndex(Math.max(0, targetIdx));
+                  setViewerOpen(true);
+                }}
+              >
+                {thumb ? (
+                  <View style={styles.gridImageContainer}>
+                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                    <View style={styles.gridImageOverlay} />
+                  </View>
+                ) : (
+                  <View style={[styles.gridImage, styles.gridImageFallback]}>
+                    <LinearGradient 
+                      colors={["#667eea", "#764ba2", "#f093fb"]} 
+                      style={StyleSheet.absoluteFillObject as any} 
+                      start={{ x: 0, y: 0 }} 
+                      end={{ x: 1, y: 1 }}
+                    />
+                    <View style={styles.textPostOverlay}>
+                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
                     </View>
-                    <View style={styles.gridIconBadge}>
-                      <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-          {interLoading && <ActivityIndicator style={{ marginVertical: 16 }} />}
-        </ScrollView>
+                  </View>
+                )}
+                <View style={styles.gridCounts}>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="arrow-up" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{likes}</Text>
+                  </View>
+                  <View style={styles.gridCountItem}>
+                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                    <Text style={styles.gridCountText}>{comments}</Text>
+                  </View>
+                </View>
+                <View style={styles.gridIconBadge}>
+                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                </View>
+              </Pressable>
+            );
+          }}
+          ListFooterComponent={interLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
+          scrollEnabled={true}
+          nestedScrollEnabled={false}
+        />
       )}
 
       <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
