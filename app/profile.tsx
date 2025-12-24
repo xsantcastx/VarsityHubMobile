@@ -4,8 +4,10 @@ import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { usePagination } from '@/hooks/usePagination';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
+import { ProfilePreferences } from '@/types/profile';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -18,20 +20,6 @@ import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, Style
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
-type ProfilePreferences = {
-  role?: string | null;
-  plan?: string | null;
-  position?: string | null;
-  jersey_number?: string | number | null;
-  grade_level?: string | null;
-  graduation_year?: string | number | null;
-  accolades?: string | null;
-  primary_sport?: Sport | string | null;
-  sport?: string | null;
-  header_image_url?: string | null;
-  header_image_focus_y?: number | null;
-  location?: string | null;
-};
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -157,6 +145,16 @@ export default function ProfileScreen() {
   const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
   const _profileResetCount = useRef(0);
   
+  // Track component mount status to prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  
   const handleAvatarPress = async () => {
     setIsUploadingAvatar(true);
     try {
@@ -185,14 +183,23 @@ export default function ProfileScreen() {
       
       // Use shared upload helper with consistent auth/retry logic
       const { url } = await uploadAvatar(null, manipulated.uri, name);
+      
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
+      
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
   } catch {
     // Avatar upload failed - error handled via Alert below
-    Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+    // Only show alert if still mounted
+    if (isMountedRef.current) {
+      Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
+    }
   } finally {
-      setIsUploadingAvatar(false);
+      if (isMountedRef.current) {
+        setIsUploadingAvatar(false);
+      }
     }
   };
 
@@ -223,15 +230,24 @@ export default function ProfileScreen() {
       const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
       
       const { url } = await uploadAvatar(null, manipulated.uri, name);
+      
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
+      
       const preferences = me?.preferences || {};
       const updatedPreferences = { ...preferences, header_image_url: url };
       await User.updateMe({ preferences: updatedPreferences });
       setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
 
   } catch {
-    Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
+    // Only show alert if still mounted
+    if (isMountedRef.current) {
+      Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
+    }
   } finally {
-      setIsUploadingAvatar(false);
+      if (isMountedRef.current) {
+        setIsUploadingAvatar(false);
+      }
     }
   };
 

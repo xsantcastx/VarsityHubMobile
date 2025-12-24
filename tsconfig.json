@@ -31,6 +31,9 @@
       "@/data/*": [
         "data/*"
       ],
+      "@/types/*": [
+        "types/*"
+      ],
       "@/ui/*": [
         "components/ui/*"
       ],
