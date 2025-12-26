@@ -1169,8 +1169,6 @@ export default function ManageSeasonScreen() {
           {[
             { label: 'Wins', value: seasonStats.wins },
             { label: 'Losses', value: seasonStats.losses },
-            { label: 'Points For', value: seasonStats.pointsFor },
-            { label: 'Points Against', value: seasonStats.pointsAgainst },
           ].map((stat) => (
             <View key={stat.label} style={styles.statItem}>
               <Text style={styles.statNumber}>{stat.value}</Text>
