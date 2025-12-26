@@ -487,6 +487,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
         organization_id: organization.id,
         email: user.email!,
         role: user.role || 'member',
+        assign_team: user.assign_team || null,
       }));
     
     if (invites.length > 0) {
@@ -564,7 +565,8 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
     data: { 
       organization_id: id, 
       email, 
-      role: role || 'member' 
+      role: role || 'member',
+      assign_team: data.assign_team || null
     } 
   });
   // Send email (best effort)

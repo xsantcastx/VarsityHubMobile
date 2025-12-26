@@ -83,8 +83,8 @@ export default function Step6AuthorizedUsers() {
       case 'rookie':
         return {
           name: 'Rookie',
-          maxUsers: 1,
-          description: 'Add 1 authorized user (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
+          maxUsers: 3,
+          description: 'Add up to 3 authorized users (Coach, Manager, Assistant, Equipment, or Health & Wellness) to help manage your team',
           allowedRoles: ['Coach', 'Manager', 'Assistant', 'Equipment', 'Health and Wellness'] as TeamRole[]
         };
       case 'veteran':

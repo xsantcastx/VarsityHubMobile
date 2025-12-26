@@ -1128,6 +1128,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         team_id: team.id,
         email: user.email!,
         role: user.role || 'member',
+        assign_team: user.assign_team || null,
       }));
     
     if (invites.length > 0) {

@@ -701,6 +701,7 @@ model OrganizationInvite {
   organization_id String
   email           String
   role            String   @default("member") // owner | manager | member
+  assign_team     String?  // Optional team name to assign user to upon accepting invite
   status          String   @default("pending") // pending | accepted | declined | revoked
   created_at      DateTime @default(now())
 
@@ -737,6 +738,7 @@ model TeamInvite {
   team_id         String
   email           String
   role            String   @default("member") // owner | manager | coach | assistant_coach | equipment | health_wellness | player | parent | member
+  assign_team     String?  // Optional team name to assign user to (for multi-team organizations)
   status          String   @default("pending") // pending | accepted | declined | revoked
   declined_reason String?  // Optional reason provided when declining invitation
   created_at      DateTime @default(now())
