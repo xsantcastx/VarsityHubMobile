@@ -10,9 +10,9 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView,
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { getApiBaseUrl } from '@/api/http';
 
 type TeamLimitSummary = {
   owned_teams: number;

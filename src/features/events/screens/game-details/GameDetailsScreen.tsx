@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '@/api/http';
+import MatchBanner from '@/app/components/MatchBanner';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useDeviceLocation } from '@/hooks/useDeviceLocation';
@@ -15,8 +17,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getApiBaseUrl } from '@/api/http';
-import MatchBanner from '@/app/components/MatchBanner';
 
 // @ts-ignore JS exports
 import { Event, Game, Team, User } from '@/api/entities';

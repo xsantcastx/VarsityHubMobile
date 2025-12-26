@@ -1,6 +1,7 @@
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
@@ -10,7 +11,6 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '@/utils/uploadUtils';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
 
