@@ -202,7 +202,8 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
 export default function QuickAddGameModal({ visible, onClose, onSave, currentTeamName, currentTeamId, userRole = 'fan', initialData }: QuickAddGameModalProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  const { teams: rawTeams } = useTeamOptions(true);
+  // Only load teams when modal is visible to avoid auth errors during onboarding
+  const { teams: rawTeams } = useTeamOptions(visible);
   
   const [showCurrentTeamPicker, setShowCurrentTeamPicker] = useState(false);
   const [showOpponentPicker, setShowOpponentPicker] = useState(false);
