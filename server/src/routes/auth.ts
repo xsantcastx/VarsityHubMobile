@@ -28,7 +28,7 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts. Please try again in 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false,
+  skipSuccessfulRequests: true, // Only count failed attempts
   keyGenerator: (req) => {
     // Rate limit by IP + email combination for better accuracy
     const email = req.body?.email || 'unknown';

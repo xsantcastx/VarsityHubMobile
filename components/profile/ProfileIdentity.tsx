@@ -1,6 +1,6 @@
-import { JerseyBadge, Sport } from '@/components/JerseyBadge';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -23,19 +23,8 @@ export type ProfileIdentityProps = {
   actionSlot?: React.ReactNode;
   rightAccessory?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-};
-
-const getSportEmoji = (sport: string): string => {
-  const emojiMap: Record<string, string> = {
-    basketball: '🏀',
-    football: '🏈',
-    baseball: '⚾',
-    soccer: '⚽',
-    volleyball: '🏐',
-    other: '🏆',
-  };
-  const key = sport?.toLowerCase?.() || 'other';
-  return emojiMap[key] || '🏆';
+  coverImageUrl?: string;
+  onPressCoverImage?: () => void;
 };
 
 const normalizeRole = (role?: string | null) => (role || '').toLowerCase();
@@ -48,29 +37,26 @@ export function ProfileIdentity({
   isUploadingAvatar = false,
   onPressAvatar,
   onPressSettings,
-  showSettings,
+  showSettings = false,
   actionSlot,
   rightAccessory,
   style,
+  coverImageUrl,
+  onPressCoverImage,
 }: ProfileIdentityProps) {
   const preferences = user?.preferences || {};
   const displayName = user?.display_name || user?.username || 'User';
   const username = user?.username;
-  const bio = user?.bio || preferences?.bio;
   const role = normalizeRole(preferences?.role || user?.role);
-  const plan = preferences?.plan ? String(preferences.plan) : null;
-  const jerseyNumber = preferences?.jersey_number ?? user?.jersey_number;
-  const position = preferences?.position ?? user?.position;
-  const gradeLevel = preferences?.grade_level ?? user?.grade_level;
-  const graduationYear = preferences?.graduation_year ?? user?.graduation_year;
-  const accolades = Array.isArray(preferences?.accolades)
-    ? preferences.accolades
-    : typeof preferences?.accolades === 'string'
-      ? preferences.accolades.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : [];
-  const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
-  const themeColor = preferences?.theme_color || '#3B82F6';
-  const isAthlete = Boolean(position || jerseyNumber || gradeLevel || graduationYear || accolades.length > 0);
+
+  const renderAdminBadge = () => {
+    if (!isAdmin) return null;
+    return (
+      <View style={styles.adminBadge}>
+        <Ionicons name="shield-checkmark" size={16} color="#ffffff" />
+      </View>
+    );
+  };
 
   const renderRoleBadge = () => {
     if (!role) return null;
@@ -83,242 +69,276 @@ export function ProfileIdentity({
     );
   };
 
-  const renderPlanBadge = () => {
-    if (!plan) return null;
-    const kind = plan.toLowerCase();
-    const icon = kind === 'veteran' ? '🏆' : kind === 'legend' ? '🥇' : null;
-    return (
-      <View style={[styles.planBadge, kind === 'rookie' && styles.rookieBadge, kind === 'veteran' && styles.veteranBadge, kind === 'legend' && styles.legendBadge]}>
-        {icon ? <Text style={{ fontSize: 12 }}>{icon}</Text> : <Ionicons name="shield" size={12} color="#ffffff" />}
-        <Text style={styles.planBadgeText}>{plan.toUpperCase()}</Text>
-      </View>
-    );
-  };
-
-  const renderAdminBadge = () => {
-    if (!isAdmin) return null;
-    return (
-      <View style={styles.adminBadge}>
-        <Ionicons name="shield-checkmark" size={16} color="#ffffff" />
-      </View>
-    );
-  };
-
-  const credentials = [
-    gradeLevel,
-    accolades[0],
-    graduationYear ? `Class of ${graduationYear}` : null,
-  ].filter(Boolean).join(' | ');
-
   return (
-    <View style={[styles.card, { backgroundColor: theme.card || '#ffffff', borderColor: theme.border || '#e5e7eb' }, style]}>
-      {showSettings && (
-        <Pressable onPress={onPressSettings} style={styles.settingsButton} hitSlop={10}>
-          <Ionicons name="settings-outline" size={20} color={theme.mutedText || '#6b7280'} />
-        </Pressable>
-      )}
-
-      <View style={styles.headerRow}>
-        <Pressable onPress={onPressAvatar} disabled={!onPressAvatar} style={styles.avatarContainer}>
-          {user?.avatar_url ? (
-            <Image source={{ uri: String(user.avatar_url) }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>{displayName.charAt(0).toUpperCase()}</Text>
-            </View>
-          )}
-          {isUploadingAvatar && (
-            <View style={styles.avatarOverlay}>
-              <ActivityIndicator color="#fff" size="small" />
-            </View>
-          )}
-        </Pressable>
-
-        <View style={styles.infoColumn}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: theme.text || '#0f172a' }]} numberOfLines={1}>{displayName}</Text>
-            {renderAdminBadge()}
+    <View style={style}>
+      {/* Cover Image Section */}
+      <Pressable onPress={onPressCoverImage} disabled={!onPressCoverImage}>
+        {coverImageUrl ? (
+          <Image 
+            source={{ uri: coverImageUrl }} 
+            style={styles.coverImage} 
+            contentFit="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={[theme.tint || '#3B82F6', theme.tint ? theme.tint + 'CC' : '#3B82F688']}
+            start={[0, 0]}
+            end={[1, 1]}
+            style={styles.coverImage}
+          />
+        )}
+        {_isOwnProfile && (
+          <View style={[styles.coverImageButton, { backgroundColor: theme.tint || '#3B82F6' }]}>
+            <Ionicons name="camera" size={20} color="#ffffff" />
           </View>
-          {username ? <Text style={[styles.handle, { color: theme.mutedText || '#6b7280' }]}>@{username}</Text> : null}
-          <View style={styles.badgesRow}>
-            {renderRoleBadge()}
-            {renderPlanBadge()}
-          </View>
-          {isAthlete && position ? (
-            <View style={styles.positionBadge}>
-              <Text style={styles.positionText}>{String(position).toUpperCase()}</Text>
+        )}
+      </Pressable>
+
+      {/* Profile Card (Avatar + Info) */}
+      <View style={[styles.profileCard, { backgroundColor: theme.card || '#ffffff', borderColor: theme.border || '#e5e7eb' }]}>
+        {/* Avatar Section - Negative margin to overlap cover image */}
+        <View style={styles.avatarSection}>
+          <Pressable onPress={onPressAvatar} disabled={!onPressAvatar} style={styles.avatarPressable}>
+            {user?.avatar_url ? (
+              <Image source={{ uri: String(user.avatar_url) }} style={styles.largeAvatar} contentFit="cover" />
+            ) : (
+              <View style={[styles.largeAvatarPlaceholder, { backgroundColor: theme.tint || '#3B82F6' }]}>
+                <Text style={styles.largeAvatarInitial}>{displayName.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+            {isUploadingAvatar && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+              </View>
+            )}
+          </Pressable>
+
+          {/* Name and Username Row */}
+          <View style={styles.nameSection}>
+            <View style={styles.nameRowMain}>
+              <Text style={[styles.nameMain, { color: theme.text || '#0f172a' }]} numberOfLines={1}>
+                {displayName}
+              </Text>
+              <Ionicons name="checkmark-circle" size={20} color="#0ea5e9" />
+              {renderAdminBadge()}
             </View>
-          ) : null}
-          {isAthlete && credentials ? (
-            <Text style={[styles.credentialsText, { color: theme.mutedText || '#6b7280' }]}> 
-              {credentials}
-              {primarySport && primarySport !== 'other' ? ` ${getSportEmoji(primarySport)}` : ''}
-            </Text>
-          ) : null}
-          {bio ? <Text style={[styles.bio, { color: theme.mutedText || '#6b7280' }]} numberOfLines={3}>{bio}</Text> : null}
-          {actionSlot ? <View style={styles.actionSlot}>{actionSlot}</View> : null}
+            {username ? (
+              <Text style={[styles.handleMain, { color: theme.mutedText || '#6b7280' }]}>@{username}</Text>
+            ) : null}
+            
+            {/* Role Badge */}
+            <View style={styles.roleBadgeRow}>
+              {renderRoleBadge()}
+            </View>
+          </View>
+
+          {/* Settings Button (top right) */}
+          {showSettings && (
+            <Pressable onPress={onPressSettings} style={styles.settingsButton} hitSlop={10}>
+              <Ionicons name="settings-outline" size={24} color={theme.mutedText || '#6b7280'} />
+            </Pressable>
+          )}
         </View>
 
-        {jerseyNumber ? (
-          <View style={styles.jerseyContainer}>
-            <JerseyBadge jerseyNumber={jerseyNumber} sport={primarySport} teamColor={themeColor} size="medium" />
+        {/* Stats Section */}
+        <View style={styles.statsSection}>
+          <View style={[styles.statBox, { borderColor: theme.border || '#e5e7eb' }]}>
+            <Text style={[styles.statCount, { color: theme.text || '#0f172a' }]}>0</Text>
+            <Text style={[styles.statLabel2, { color: theme.mutedText || '#6b7280' }]}>POSTS</Text>
           </View>
-        ) : rightAccessory ? rightAccessory : null}
+          <View style={[styles.statBox, { borderColor: theme.border || '#e5e7eb' }]}>
+            <Text style={[styles.statCount, { color: theme.text || '#0f172a' }]}>{user?.followers_count ?? 0}</Text>
+            <Text style={[styles.statLabel2, { color: theme.mutedText || '#6b7280' }]}>FOLLOWERS</Text>
+          </View>
+          <View style={[styles.statBox, { borderColor: theme.border || '#e5e7eb' }]}>
+            <Text style={[styles.statCount, { color: theme.text || '#0f172a' }]}>{user?.following_count ?? 0}</Text>
+            <Text style={[styles.statLabel2, { color: theme.mutedText || '#6b7280' }]}>FOLLOWING</Text>
+          </View>
+        </View>
+
+        {/* Action Slot */}
+        {actionSlot && <View style={styles.actionSlotContainer}>{actionSlot}</View>}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+  // Cover image section
+  coverImage: {
+    width: '100%',
+    height: 220,
+    backgroundColor: '#1f2937',
     position: 'relative',
   },
-  settingsButton: {
+  coverImageButton: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
+    bottom: 16,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
-    zIndex: 2,
+    alignItems: 'center',
+    zIndex: 10,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+
+  // Profile card containing avatar and stats
+  profileCard: {
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: -60,
+    marginBottom: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    zIndex: 5,
   },
-  avatarContainer: {
+
+  // Avatar section with name and badges
+  avatarSection: {
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    alignItems: 'center',
     position: 'relative',
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e5e7eb',
+
+  avatarPressable: {
+    marginBottom: 12,
   },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
+
+  largeAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#ffffff',
+  },
+
+  largeAvatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    borderColor: '#ffffff',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  avatarInitial: {
-    fontSize: 32,
+
+  largeAvatarInitial: {
+    fontSize: 40,
     fontWeight: '700',
     color: '#ffffff',
   },
+
   avatarOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 40,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  infoColumn: {
-    flex: 1,
-    gap: 4,
+
+  settingsButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
   },
-  nameRow: {
+
+  nameSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  nameRowMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    justifyContent: 'center',
+    marginBottom: 4,
   },
-  name: {
-    fontSize: 20,
+
+  nameMain: {
+    fontSize: 24,
     fontWeight: '700',
   },
-  handle: {
+
+  handleMain: {
     fontSize: 14,
     fontWeight: '500',
+    marginBottom: 8,
   },
-  badgesRow: {
+
+  roleBadgeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    marginTop: 4,
-    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
+
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#0ea5e9',
   },
+
   coachBadge: { backgroundColor: '#0ea5e9' },
   athleteBadge: { backgroundColor: '#10b981' },
   fanBadge: { backgroundColor: '#6366f1' },
+
   roleText: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.4,
   },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#0f172a',
-  },
-  planBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
-  rookieBadge: { backgroundColor: '#0ea5e9' },
-  veteranBadge: { backgroundColor: '#f97316' },
-  legendBadge: { backgroundColor: '#111827' },
+
   adminBadge: {
     backgroundColor: '#111827',
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
-  positionBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: '#1f2937',
-    marginTop: 4,
+
+  // Stats section
+  statsSection: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
-  positionText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    fontSize: 12,
-  },
-  credentialsText: {
-    marginTop: 4,
-    fontSize: 13,
-  },
-  bio: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  actionSlot: {
-    marginTop: 12,
-  },
-  jerseyContainer: {
-    marginLeft: 8,
+
+  statBox: {
+    flex: 1,
+    paddingVertical: 16,
     alignItems: 'center',
+    borderRightWidth: 1,
+  },
+
+  statCount: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+
+  statLabel2: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Action slot
+  actionSlotContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
 });
 

@@ -200,12 +200,24 @@ export default function UserProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
             
+            {/* Cover Image Button (for own profile only) */}
+            {isOwnProfile && (
+              <Pressable
+                style={[S.coverImageButton, { marginTop: 12, marginRight: 12 }]}
+                onPress={() => router.push('/edit-profile')}
+              >
+                <Ionicons name="camera" size={20} color="#fff" />
+              </Pressable>
+            )}
+            
             {/* Profile Content */}
             <ProfileIdentity
               user={user}
               theme={theme}
               isAdmin={isAdmin && isOwnProfile}
               _isOwnProfile={isOwnProfile}
+              coverImageUrl={headerBackgroundImage}
+              onPressCoverImage={isOwnProfile ? () => router.push('/edit-profile') : undefined}
               actionSlot={followButton}
               rightAccessory={isAthlete && jerseyNumber ? (
                 <JerseyBadge jerseyNumber={jerseyNumber} sport={primarySport} teamColor={userThemeColor} size="medium" />
@@ -216,24 +228,24 @@ export default function UserProfileScreen() {
 
           {/* Athletic Stats Card */}
           <View style={[S.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Pressable style={S.statItem} onPress={() => void router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <View style={S.statItem}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.posts_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>Posts</Text>
-            </Pressable>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>POSTS</Text>
+            </View>
             
             <View style={[S.statDivider, { backgroundColor: theme.border }]} />
             
-            <Pressable style={S.statItem} onPress={() => void router.push(`/followers?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <View style={S.statItem}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.followers_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>Followers</Text>
-            </Pressable>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>FOLLOWERS</Text>
+            </View>
             
             <View style={[S.statDivider, { backgroundColor: theme.border }]} />
             
-            <Pressable style={S.statItem} onPress={() => void router.push(`/following?id=${user.id}&username=${encodeURIComponent(user.display_name || 'User')}`)}>
+            <View style={S.statItem}>
               <Text style={[S.statNumber, { color: theme.text }]}>{user.following_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>Following</Text>
-            </Pressable>
+              <Text style={[S.statLabel, { color: theme.mutedText }]}>FOLLOWING</Text>
+            </View>
           </View>
 
           <ScrollView contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: Math.max(24, insets.bottom) }}>
@@ -696,5 +708,17 @@ const S = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+  coverImageButton: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
 });

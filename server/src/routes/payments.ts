@@ -97,7 +97,7 @@ async function sendSubscriptionEmail({
     await sendPaymentReceiptEmail({
       to: email,
       planName,
-      amount: formatUsd(totalCents) || (plan === 'legend' ? '$20.00' : '$0.00'),
+      amount: formatUsd(totalCents) || (plan === 'legend' ? '$19.99' : '$0.00'),
       billingPeriod,
     });
   } catch (err) {
@@ -198,28 +198,42 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     throw membershipError(400, 'Select at least one billable team (3 total) to use Veteran plan');
   }
 
-  const lineItems = hasExplicitPriceId
-    ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
-    : [{
-        quantity: chosen === 'veteran' ? billableQuantity : 1,
+  const legendOneTime = chosen === 'legend';
+
+  const lineItems = legendOneTime
+    ? [{
+        quantity: 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 150 : 2000, // Veteran: $1.50/month per additional team, Legend: $20.00/year
-          recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
+          unit_amount: 1999,
           product_data: {
-            name: 'Membership - ' + chosen,
-            description: chosen === 'veteran'
-              ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $20.00/year unlimited (fallback price)',
+            name: 'Membership - legend',
+            description: 'Legend plan - $19.99 annual charge (no auto-renew)',
           },
         },
-      }];
+      }]
+    : hasExplicitPriceId
+      ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
+      : [{
+          quantity: chosen === 'veteran' ? billableQuantity : 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: chosen === 'veteran' ? 150 : 2000, // Veteran: $1.50/month per additional team, Legend: $20.00/year
+            recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
+            product_data: {
+              name: 'Membership - ' + chosen,
+              description: chosen === 'veteran'
+                ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
+                : 'Legend plan - $20.00/year unlimited (fallback price)',
+            },
+          },
+        }];
 
   // Log price selection for debugging
   if (hasExplicitPriceId) {
     debugLog(`[payments] Creating ${chosen} subscription checkout with price ID: ${normalizedPriceId} (quantity: ${chosen === 'veteran' ? billableQuantity : 1})`);
   } else {
-    debugLog(`[payments] Creating ${chosen} subscription checkout with fallback price_data (no configured price ID)`);
+    debugLog(`[payments] Creating ${chosen} ${legendOneTime ? 'one-time payment' : 'subscription'} checkout with fallback price_data (no configured price ID)`);
   }
 
   const appBase = process.env.APP_BASE_URL || (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000');
@@ -230,7 +244,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   // Create checkout session configuration
   const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-    mode: 'subscription',
+    mode: legendOneTime ? 'payment' : 'subscription',
     success_url: success,
     cancel_url: cancel,
     line_items: lineItems as any,
@@ -251,7 +265,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
       sessionConfig.discounts = [{
         promotion_code: promoCode.trim(),
       }];
-      debugLog(`[payments] Applying promo code to subscription: ${promoCode.trim()}`);
+      debugLog(`[payments] Applying promo code to ${legendOneTime ? 'payment' : 'subscription'}: ${promoCode.trim()}`);
     } catch (promoErr) {
       console.warn('[payments] Failed to apply promo code:', promoErr);
       // Continue without promo code rather than failing
@@ -266,9 +280,9 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran billed only for additional teams
+  const amount = chosen === 'veteran' ? 150 * billableQuantity : legendOneTime ? 1999 : 2000; // Veteran billed only for additional teams
   await logTransaction({
-    transactionType: 'SUBSCRIPTION_PURCHASE',
+    transactionType: legendOneTime ? 'ONE_TIME_PURCHASE' : 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
     stripeSessionId: session.id,
     userId: req.user!.id,
@@ -767,8 +781,8 @@ paymentsRouter.get('/subscription/summary', requireVerified as any, async (req: 
         console.warn('[payments] Failed to retrieve summary subscription:', (err as any)?.message || err);
       }
     } else if (plan === 'legend') {
-      // Annual cost fixed at $20.00
-      annual_cost = 20;
+      // Annual cost fixed at $19.99
+      annual_cost = 19.99;
       // status can be determined if subscription id exists
       if (subscriptionId && process.env.STRIPE_SECRET_KEY) {
         try {
@@ -1157,6 +1171,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         }
         
         // Retrieve subscription details BEFORE updating preferences
+        const legendOneTimePayment = plan === 'legend' && session.mode === 'payment';
         let subscriptionId: string | undefined = undefined;
         let subscriptionPeriodEnd: string | undefined = undefined;
         
@@ -1186,12 +1201,15 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           }
         }
         
-        // CRITICAL FIX #2: Only update preferences if we have all required subscription data
+        // CRITICAL FIX #2: Only update preferences if we have required subscription data (or legend one-time payment)
         if (subscriptionId) {
           prefs.subscription_id = subscriptionId;
           prefs.subscription_period_end = subscriptionPeriodEnd;
-        } else {
+        } else if (!legendOneTimePayment) {
           throw new Error('Subscription ID not retrieved from Stripe');
+        } else {
+          delete prefs.subscription_id;
+          delete prefs.subscription_period_end;
         }
         
         // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)

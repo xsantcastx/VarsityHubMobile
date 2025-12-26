@@ -48,6 +48,34 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
     }
   };
   
+  // Emblem color mapping per plan (bronze/silver/gold)
+  const getIconColor = (): string => {
+    switch (option.id) {
+      case 'rookie':
+        return '#CD7F32'; // Bronze
+      case 'veteran':
+        return '#9CA3AF'; // Silver
+      case 'legend':
+        return '#F59E0B'; // Brighter gold to match button
+      default:
+        return '#2563EB';
+    }
+  };
+  
+  // Side button color mapping by plan
+  const getSideButtonColor = (): string => {
+    switch (option.id) {
+      case 'rookie':
+        return '#CD7F32'; // Bronze
+      case 'veteran':
+        return '#9CA3AF'; // Silver
+      case 'legend':
+        return '#F59E0B'; // Brighter gold for Legend
+      default:
+        return '#1E3A8A';
+    }
+  };
+
   return (
     <View style={styles.cardWrapper}>
       <Pressable onPress={onPress} style={[
@@ -59,7 +87,7 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
       ]}>
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          <Ionicons name={getIconName()} size={24} color={isDark ? '#60A5FA' : '#2563EB'} />
+          <Ionicons name={getIconName()} size={24} color={getIconColor()} />
           <Text style={[styles.cardTitle, { color: isDark ? '#F9FAFB' : '#111827' }]}>{option.name}</Text>
         </View>
       </View>
@@ -75,7 +103,7 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
         <Pressable 
           onPress={onContinue}
           disabled={saving}
-          style={styles.sideButton}
+          style={[styles.sideButton, { backgroundColor: getSideButtonColor() }]}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />

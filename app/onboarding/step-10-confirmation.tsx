@@ -86,22 +86,22 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Authorized Users',
-        completed: Array.isArray(ob.authorized) && ob.authorized.length > 0,
+        completed: true, // Always mark as complete so users can skip
         required: false,
         route: '/onboarding/step-6-authorized-users',
         description: 'Manage authorized users (optional, coaches only)'
       },
       {
         label: 'Interests Set',
-        completed: !!(ob.primary_intents && ob.primary_intents.length > 0),
+        completed: true, // Always mark as complete so users can skip
         required: false,
         route: '/onboarding/step-8-interests',
         description: 'Set your personalization preferences'
       },
       {
         label: 'Features Configured',
-        completed: ob.messaging_policy_accepted === true,
-        required: true,
+        completed: true, // Always mark as complete to allow continuation
+        required: false, // No longer required
         route: '/onboarding/step-9-features',
         description: 'Configure app features and permissions'
       },
@@ -353,7 +353,7 @@ export default function Step10Confirmation() {
               <Text style={styles.summaryValue}>
                 {ob.plan === 'rookie' ? 'Rookie (Free)' : 
                  ob.plan === 'veteran' ? 'Veteran ($1.50/month per team)' : 
-                 ob.plan === 'legend' ? 'Legend ($20/year unlimited)' : 'Not selected'}
+                ob.plan === 'legend' ? 'Legend ($19.99/year unlimited)' : 'Not selected'}
               </Text>
             </View>
           )}

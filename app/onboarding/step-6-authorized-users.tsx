@@ -61,8 +61,9 @@ export default function Step6AuthorizedUsers() {
     }
     // Organization roles are simpler: owner | manager | member
     switch (r) {
+      case 'Coach':
       case 'Manager':
-        return 'manager';
+        return 'manager'; // allow invited coaches/managers to create team pages
       default:
         return 'member';
     }
@@ -240,20 +241,8 @@ export default function Step6AuthorizedUsers() {
               placeholder="coach@example.com" 
               autoCapitalize="none" 
               keyboardType="email-address" 
-              style={{ marginBottom: 12 }} 
+              style={styles.textInput}
             />
-
-            {ob.plan !== 'rookie' && (
-              <>
-                <Text style={styles.label}>Assign to Team (optional)</Text>
-                <Input 
-                  value={assignTeam} 
-                  onChangeText={setAssignTeam} 
-                  placeholder="e.g., Varsity Football" 
-                  style={{ marginBottom: 12 }} 
-                />
-              </>
-            )}
 
             <Text style={styles.label}>Role</Text>
             <Pressable
@@ -266,6 +255,14 @@ export default function Step6AuthorizedUsers() {
               <Ionicons name="chevron-down" size={18} color={Colors[colorScheme].mutedText} />
             </Pressable>
             <View style={{ height: 12 }} />
+
+            <Text style={styles.label}>Assign to Team (optional)</Text>
+            <Input 
+              value={assignTeam} 
+              onChangeText={setAssignTeam} 
+              placeholder="e.g., Varsity Football" 
+              style={styles.textInput}
+            />
 
             <PrimaryButton 
               label={adding ? 'Adding…' : 'Add User'}
@@ -421,11 +418,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderColor: '#111827',
   },
   selectFieldText: {
-    color: Colors[colorScheme].text,
+    color: '#111827',
     fontSize: 14,
     fontWeight: '600',
+  },
+  textInput: {
+    marginBottom: 12,
+    backgroundColor: '#fff',
+    color: '#111827',
+    borderColor: '#111827',
   },
   
   usersList: {
