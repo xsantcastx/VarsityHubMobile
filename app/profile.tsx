@@ -1,1313 +1,388 @@
-import { Organization, Team, User } from '@/api/entities';
-import uploadFile from '@/api/upload';
-import { MasonryFlatList } from '@/components/MasonryFlatList';
-import ProfileIdentity from '@/components/profile/ProfileIdentity';
-import { Button } from '@/components/ui/button';
-import { getConfig } from '@/config/env';
+import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import events from '@/utils/events';
-import { pickerMediaTypesProp } from '@/utils/picker';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
-
-const uploadAvatar = uploadFile.uploadFile;
-
-const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-const appConfig = getConfig();
-
-const toFeedPost = (item: any): FeedPost | null => {
-  const id = item?.id ? String(item.id) : null;
-  if (!id) return null;
-  const media = typeof item?.media_url === 'string' ? item.media_url : null;
-  const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
-  const media_type: 'video' | 'image' = media
-    ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
-    : 'image';
-  return {
-    id,
-    media_url: media,
-    media_type,
-    caption: item?.caption ?? item?.content ?? '',
-    upvotes_count: item?.upvotes_count ?? 0,
-    comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
-    bookmarks_count: item?.bookmarks_count ?? 0,
-    created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), display_name: item.author.display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
-    has_upvoted: Boolean(item?.has_upvoted),
-    has_bookmarked: Boolean(item?.has_bookmarked),
-    is_following_author: Boolean(item?.is_following_author),
-  };
-};
-
-type CurrentUser = {
-  id?: string | number;
-  username?: string;
-  email?: string;
-  full_name?: string;
-  display_name?: string;
-  avatar_url?: string;
-  bio?: string;
-  preferences?: {
-    role?: 'fan' | 'coach' | string | null;
-    plan?: string | null;
-    [key: string]: any;
-  } | null;
-  _count?: {
-    posts?: number;
-    followers?: number;
-    following?: number;
-  };
-  [key: string]: any;
-};
 
 export default function ProfileScreen() {
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [me, setMe] = useState<CurrentUser | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'interactions'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
-  });
-  const [posts, setPosts] = useState<any[]>([]);
-  const [postsCursor, setPostsCursor] = useState<string | null>(null);
-  const [postsHasMore, setPostsHasMore] = useState(true);
-  const [postsLoading, setPostsLoading] = useState(false);
-  const postsRequestInFlight = useRef(false);
-
-  const [interactions, setInteractions] = useState<any[]>([]);
-  const [interCursor, setInterCursor] = useState<string | null>(null);
-  const [interHasMore, setInterHasMore] = useState(true);
-  const [interLoading, setInterLoading] = useState(false);
-  const interRequestInFlight = useRef(false);
-  const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
-  const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
-  const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [organizations, setOrganizations] = useState<any[]>([]);
-  const profileRequestInFlight = useRef(false);
-
-  const setIfDifferent = useCallback((setter: any, next: any) => {
-    setter((prev: any) => {
-      try {
-        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch {}
-      return next;
-    });
-  }, []);
-
-  const refreshPosts = useCallback(async (userId: string) => {
-    if (postsRequestInFlight.current) return;
-    postsRequestInFlight.current = true;
-    setPostsLoading(true);
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort });
-      setIfDifferent(setPosts, page.items || []);
-      setPostsCursor(page.nextCursor || null);
-      setPostsHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      postsRequestInFlight.current = false;
-      setPostsLoading(false);
-    }
-  }, [sort, setIfDifferent]);
-
-  const refreshInteractions = useCallback(async (userId: string) => {
-    if (interRequestInFlight.current) return;
-    interRequestInFlight.current = true;
-    setInterLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: interType, sort });
-      setIfDifferent(setInteractions, page.items || []);
-      setInterCursor(page.nextCursor || null);
-      setInterHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      interRequestInFlight.current = false;
-      setInterLoading(false);
-    }
-  }, [interType, sort, setIfDifferent]);
-
-  // Vertical viewer state
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const _profileResetCount = useRef(0);
-  
-  // Track component mount status to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-  
-  const handleAvatarPress = async () => {
-    setIsUploadingAvatar(true);
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        ...pickerMediaTypesProp(),
-        allowsEditing: true,
-        aspect: [1, 1],
-        selectionLimit: 1,
-        quality: 0.9,
-        exif: false,
-      } as any);
-
-      if (pickerResult.canceled) {
-        return;
-      }
-
-      const { uri, fileName } = pickerResult.assets[0] as any;
-      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 800 } }], { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG });
-      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `avatar_${Date.now()}.jpg`;
-      
-      // Use shared upload helper with consistent auth/retry logic
-      const { url } = await uploadAvatar(null, manipulated.uri, name);
-      
-      // Only update state if component is still mounted
-      if (!isMountedRef.current) return;
-      
-      await User.updateMe({ avatar_url: url });
-      setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
-
-  } catch {
-    // Avatar upload failed - error handled via Alert below
-    // Only show alert if still mounted
-    if (isMountedRef.current) {
-      Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
-    }
-  } finally {
-      if (isMountedRef.current) {
-        setIsUploadingAvatar(false);
-      }
-    }
-  };
-
-  const _handleBackgroundImagePress = async () => {
-    setIsUploadingAvatar(true);
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.granted === false) {
-        Alert.alert("Permission required", "You've refused to allow this app to access your photos.");
-        return;
-      }
-
-      const pickerResult = await ImagePicker.launchImageLibraryAsync({
-        ...pickerMediaTypesProp(),
-        allowsEditing: true,
-        aspect: [16, 9],
-        selectionLimit: 1,
-        quality: 0.9,
-        exif: false,
-      } as any);
-
-      if (pickerResult.canceled) {
-        return;
-      }
-
-      const { uri, fileName } = pickerResult.assets[0] as any;
-      const manipulated = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG });
-      const name = (fileName && String(fileName).includes('.')) ? String(fileName) : `background_${Date.now()}.jpg`;
-      
-      const { url } = await uploadAvatar(null, manipulated.uri, name);
-      
-      // Only update state if component is still mounted
-      if (!isMountedRef.current) return;
-      
-      const preferences = me?.preferences || {};
-      const updatedPreferences = { ...preferences, header_image_url: url };
-      await User.updateMe({ preferences: updatedPreferences });
-      setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
-
-  } catch {
-    // Only show alert if still mounted
-    if (isMountedRef.current) {
-      Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
-    }
-  } finally {
-      if (isMountedRef.current) {
-        setIsUploadingAvatar(false);
-      }
-    }
-  };
+  const [user, setUser] = useState<any>(null);
 
   const loadProfile = useCallback(async () => {
-    if (profileRequestInFlight.current) return;
-    profileRequestInFlight.current = true;
     setLoading(true);
     setError(null);
     try {
-      // Step 1: ensure session is valid
-      const u: any = await User.me();
-      if (u && !u._isNotModified) setMe(u ?? null);
-      if (!u?.id) { setLoading(false); return; }
-
-      // Load first page for active tab
-      if (activeTab === 'posts') {
-        await refreshPosts(u.id);
-      } else {
-        await refreshInteractions(u.id);
-      }
+      const me = await User.me();
+      setUser(me);
     } catch (e: any) {
-      console.error('Failed to load profile', e);
-      // Only show sign-in if the session itself is invalid from /me.
-      if (e && e.status === 401) {
-        setError('You need to sign in to view your profile.');
-      } else {
-        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile.');
-      }
+      setError(e?.message || 'Failed to load profile');
+      console.error('Profile load error:', e);
     } finally {
-      profileRequestInFlight.current = false;
       setLoading(false);
     }
-  }, [activeTab, refreshInteractions, refreshPosts]);
-
-  // Refresh on mount and when screen regains focus (after creating a post, etc.)
-  useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
-
-  // Load organizations separately to avoid blocking profile render
-  useEffect(() => {
-    if (!me?.id) return;
-    
-    const loadOrganizations = async () => {
-      try {
-        const myTeams = await Team.list('', true); // mine=true
-        
-        if (Array.isArray(myTeams) && myTeams.length > 0) {
-          // Extract unique organization IDs from teams
-          const orgIds = new Set<string>();
-          const orgNames = new Set<string>();
-          
-          myTeams.forEach((team: any) => {
-            if (team.organization_id) {
-              orgIds.add(team.organization_id);
-            }
-            // Also try to extract organization from team name (e.g., "SHS Men's Soccer" -> "SHS")
-            if (team.name) {
-              const nameParts = String(team.name).split(/\s+/);
-              if (nameParts.length > 0) {
-                orgNames.add(nameParts[0]);
-              }
-            }
-          });
-
-          // Try to fetch by ID first
-          if (orgIds.size > 0) {
-            const orgPromises = Array.from(orgIds).map(id => 
-              Organization.get(id).catch((_err: any) => null)
-            );
-            
-            const orgsData = await Promise.all(orgPromises);
-            const validOrgs = orgsData.filter(org => org !== null);
-            
-            if (validOrgs.length > 0) {
-              setOrganizations(validOrgs);
-            }
-          }
-          
-          // If no orgs found by ID, try searching by name
-          if (orgIds.size === 0 && orgNames.size > 0) {
-            const searchPromises = Array.from(orgNames).map(name => 
-              Organization.list(name, 5).catch((_err: any) => [])
-            );
-            
-            const searchResults = await Promise.all(searchPromises);
-            const flatResults = searchResults.flat();
-            
-            // Deduplicate by ID
-            const uniqueOrgs = flatResults.filter((org: any, index: number, self: any[]) => 
-              org && org.id && self.findIndex((o: any) => o?.id === org.id) === index
-            );
-            
-            setOrganizations(uniqueOrgs);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load organizations', err);
-      }
-    };
-    
-    void loadOrganizations();
-  }, [me?.id]);
-
-  // Refresh when switching tabs
-  useEffect(() => {
-    if (!me?.id) return;
-    setError(null); // Clear any stale errors
-    if (activeTab === 'posts') {
-      void refreshPosts(String(me.id));
-    } else {
-      void refreshInteractions(String(me.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, me?.id]);
-
-  // When interactions filters/sort change while on Interactions tab, refresh
-  useEffect(() => {
-    if (!me?.id) return;
-    if (activeTab === 'interactions') {
-      setError(null); // Clear any stale errors
-      void refreshInteractions(String(me.id));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interType, sort, me?.id]);
-
-  // Refresh interactions when a new comment is created from the viewer
-  useEffect(() => {
-    if (!me?.id) return;
-    const off = events.on('comment:created', () => {
-      if (activeTab === 'interactions') {
-        void refreshInteractions(String(me.id));
-      }
-    });
-    return () => { off(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, me?.id]);
-
-  const loadMorePosts = useCallback(async (userId: string) => {
-    if (postsLoading || !postsHasMore) return;
-    setPostsLoading(true);
-    try {
-      const page = await User.postsForProfile(String(userId), { limit: 10, sort, cursor: postsCursor || undefined });
-      setPosts((prev) => [...prev, ...(page.items || [])]);
-      setPostsCursor(page.nextCursor || null);
-      setPostsHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setPostsLoading(false);
-    }
-  }, [postsCursor, postsHasMore, postsLoading, sort]);
-
-  const loadMoreInteractions = useCallback(async (userId: string) => {
-    if (interLoading || !interHasMore) return;
-    setInterLoading(true);
-    try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: interType, cursor: interCursor || undefined });
-      setInteractions((prev) => [...prev, ...(page.items || [])]);
-      setInterCursor(page.nextCursor || null);
-      setInterHasMore(Boolean(page.nextCursor));
-      if (page.counts) setCounts(page.counts);
-    } finally {
-      setInterLoading(false);
-    }
-  }, [interCursor, interHasMore, interLoading, interType, sort]);
-
-  const name = me?.display_name || me?.username || 'User';
-  const adminEmails = (appConfig.adminEmails || []).map((e) => String(e || '').toLowerCase());
-  const isAdmin = me?.email ? adminEmails.includes(String(me.email).toLowerCase()) : false;
-  
-  const stats = [
-    { label: 'posts', value: me?._count?.posts ?? 0 },
-    { label: 'followers', value: me?._count?.followers ?? 0 },
-    { label: 'following', value: me?._count?.following ?? 0 },
-  ];
-
-  const renderHeader = () => (
-    <>
-      <View style={styles.backButtonContainer}>
-        <Pressable 
-          onPress={() => router.back()}
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </Pressable>
-      </View>
-
-      <View style={{ marginHorizontal: 16, marginTop: 8 }}>
-        <ProfileIdentity
-          user={me}
-          theme={theme}
-          isAdmin={isAdmin}
-          _isOwnProfile
-          onPressAvatar={handleAvatarPress}
-          isUploadingAvatar={isUploadingAvatar}
-          onPressSettings={() => void router.push('/settings')}
-          showSettings
-          actionSlot={(
-            <Pressable style={styles.editProfileButton} onPress={() => void router.push('/edit-profile')}>
-              <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-            </Pressable>
-          )}
-        />
-      </View>
-
-      {/* Stats Section - Simplified */}
-      <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        {stats.map((stat, index) => (
-          <React.Fragment key={stat.label}>
-            <Pressable 
-              style={styles.statItem} 
-              onPress={() => { 
-                if (stat.label === 'followers') { 
-                  void router.push(`/followers?id=${me.id}&username=${name}`);
-                } else if (stat.label === 'following') {
-                  router.push(`/following?id=${me.id}&username=${name}`);
-                }
-              }}
-            >
-              <Text style={[styles.statNumber, { color: theme.text }]}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}>{stat.label}</Text>
-            </Pressable>
-            {index < stats.length - 1 && <View style={[styles.statDivider, { backgroundColor: theme.border }]} />}
-          </React.Fragment>
-        ))}
-      </View>
-
-      {/* Organizations Section */}
-      {organizations.length > 0 && (
-        <View style={[styles.organizationsSection, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.orgHeader}>
-            <Ionicons name="business-outline" size={20} color={theme.tint} />
-            <Text style={[styles.orgTitle, { color: theme.text }]}>Organizations</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.orgList}>
-            {organizations.map((org) => (
-              <Pressable
-                key={org.id}
-                style={[styles.orgCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => void router.push({ pathname: '/league', params: { id: org.id, name: org.name } })}
-              >
-                {org.avatar_url ? (
-                  <Image
-                    source={{ uri: org.avatar_url }}
-                    style={styles.orgLogo}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={[styles.orgLogoPlaceholder, { backgroundColor: theme.border }]}>
-                    <Ionicons name="shield-outline" size={20} color={theme.mutedText} />
-                  </View>
-                )}
-                <Text style={[styles.orgName, { color: theme.text }]} numberOfLines={2}>
-                  {org.display_name || org.name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
-        <Pressable
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
-          style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'posts' && { color: theme.text } ]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch {} }}
-          style={[styles.tab, activeTab === 'interactions' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
-        >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'interactions' && { color: theme.text }]}>Interactions</Text>
-        </Pressable>
-      </View>
-
-      {activeTab === 'interactions' && (
-        <View style={styles.filtersBar}>
-          <View style={styles.segmentedRow}>
-            {(['all','like','comment','save'] as const).map((t) => {
-              const emoji = t === 'all'
-                ? '🗂️'
-                : t === 'like'
-                ? '⬆️'
-                : t === 'comment'
-                ? '💬'
-                : '🔖';
-              const count = t === 'all'
-                ? ''
-                : t === 'like'
-                ? counts ? ` ${counts.likes}` : ''
-                : t === 'comment'
-                ? counts ? ` ${counts.comments}` : ''
-                : counts ? ` ${counts.saves}` : '';
-              return (
-                <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, { backgroundColor: theme.surface }, interType === t && [styles.segmentActive, { backgroundColor: theme.tint }]]}>
-                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{emoji}{count}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.sortRow}>
-            {(['newest','most_upvoted','most_commented'] as const).map(s => (
-              <Pressable key={s} onPress={() => setSort(s)} style={[styles.sortPill, { backgroundColor: theme.surface }, sort === s && [styles.sortPillActive, { backgroundColor: theme.tint }]]}>
-                <Text style={[styles.sortText, { color: theme.text }, sort === s && styles.sortTextActive]}>
-                  {s === 'newest' ? 'Newest' : s === 'most_upvoted' ? 'Most upvoted' : 'Most commented'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
-    </>
-  );
-
-  const renderEmptyPosts = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>No posts yet</Text>
-      <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-    <Button onPress={() => void router.push('/create-post')}><Text>Create Your First Post</Text></Button>
-    </View>
-  );
-
-  const onEndReachedPosts = useCallback(() => { if (me?.id) void loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
-  const _onEndReachedInteractions = useCallback(() => { if (me?.id) void loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
-
-  // Some interaction items may wrap a post (e.g., { type, post, created_at })
-  const unwrapPost = useCallback((item: any) => {
-    return item?.post || item?.target?.post || item?.target || item;
   }, []);
 
-  const SkeletonList = ({ count = 8 }: { count?: number }) => (
-    <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={{ height: 100, backgroundColor: '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
-      ))}
-    </View>
-  );
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
-  if (loading) return <SkeletonList count={8} />;
-
-  if (error) {
+  if (loading) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.error}>{error}</Text>
-        <View style={{ height: 8 }} />
-  <Button onPress={() => void router.push('/sign-in')}><Text>Sign In</Text></Button>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color={theme.tint} />
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!me) {
-    return null; // Or some other placeholder
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.centerContent}>
+          <Text style={[styles.errorText, { color: '#ef4444' }]}>{error}</Text>
+          <Pressable 
+            style={[styles.retryButton, { backgroundColor: theme.tint }]}
+            onPress={loadProfile}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
   }
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-      <Stack.Screen options={{ title: 'Profile' }} />
-      {activeTab === 'posts' ? (
-        <FlatList
-          data={posts}
-          key={activeTab + '-grid'}
-          numColumns={3}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 2 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={onEndReachedPosts}
-          renderItem={({ item, index }) => {
-            const thumb = item.media_url;
-            const _isVideo = !!thumb && VIDEO_EXT.test(thumb);
-            const likes = item.upvotes_count ?? 0;
-            const comments = item.comments_count ?? item?._count?.comments ?? 0;
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (posts || []).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = mapped[index]?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  // Debug: Profile opening viewer
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
-                    </View>
-                  </View>
-                )}
-                {/* Counts overlay (shown for both media and text tiles) */}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                {/* Bottom-right badge: camera for media, text icon for text-only */}
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-        />
-      ) : (
-        <MasonryFlatList
-          key={activeTab + '-masonry'}
-          data={interactions}
-          numColumns={3}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, index) => {
-            const postItem = unwrapPost(item);
-            return postItem?.id ? String(postItem.id) : String(index);
-          }}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={() => <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No activity yet</Text></View>}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 2 }}
-          onEndReachedThreshold={0.5}
-          onEndReached={_onEndReachedInteractions}
-          renderItem={(item, index) => {
-            const postItem = unwrapPost(item);
-            const thumb = postItem?.media_url;
-            const likes = postItem?.upvotes_count ?? 0;
-            const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-            
-            return (
-              <Pressable
-                style={styles.gridItem}
-                onPress={() => {
-                  const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
-                  const items = mapped.filter(Boolean) as FeedPost[];
-                  const targetId = unwrapPost(interactions[index])?.id;
-                  const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                  setViewerItems(items);
-                  setViewerIndex(Math.max(0, targetIdx));
-                  setViewerOpen(true);
-                }}
-              >
-                {thumb ? (
-                  <View style={styles.gridImageContainer}>
-                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                    <View style={styles.gridImageOverlay} />
-                  </View>
-                ) : (
-                  <View style={[styles.gridImage, styles.gridImageFallback]}>
-                    <LinearGradient 
-                      colors={["#667eea", "#764ba2", "#f093fb"]} 
-                      style={StyleSheet.absoluteFillObject as any} 
-                      start={{ x: 0, y: 0 }} 
-                      end={{ x: 1, y: 1 }}
-                    />
-                    <View style={styles.textPostOverlay}>
-                      <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
-                    </View>
-                  </View>
-                )}
-                <View style={styles.gridCounts}>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="arrow-up" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{likes}</Text>
-                  </View>
-                  <View style={styles.gridCountItem}>
-                    <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                    <Text style={styles.gridCountText}>{comments}</Text>
-                  </View>
-                </View>
-                <View style={styles.gridIconBadge}>
-                  <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListFooterComponent={interLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
-          scrollEnabled={true}
-          nestedScrollEnabled={false}
-        />
-      )}
+  if (!user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.centerContent}>
+          <Text style={{ color: theme.text }}>User not found</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-      <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-        <GameVerticalFeedScreen
-          onClose={() => setViewerOpen(false)}
-          showHeader
-          initialPosts={viewerItems}
-          startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Your posts' : 'Your interactions'}
-        />
-      </Modal>
+  const name = user?.display_name || user?.username || 'User';
+  const bio = user?.bio || '';
+  const role = user?.preferences?.role || user?.role || null;
+  const verified = user?.verified || false;
+
+  return (
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: theme.background }]}
+      edges={['top']}
+    >
+      <Stack.Screen 
+        options={{ 
+          title: name,
+          headerRight: () => (
+            <Pressable 
+              onPress={() => router.push('/settings')}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, marginRight: 12 })}
+            >
+              <Ionicons name="settings-outline" size={24} color={theme.text} />
+            </Pressable>
+          ),
+        }} 
+      />
+
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: Math.max(24, insets.bottom + 16) }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section */}
+        <View style={[styles.headerSection, { backgroundColor: theme.surface }]}>
+          {/* Avatar */}
+          <View style={[styles.avatarContainer, { backgroundColor: theme.border }]}>
+            {user?.avatar_url ? (
+              <Image 
+                source={{ uri: user.avatar_url }} 
+                style={styles.avatar}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint }]}>
+                <Ionicons name="person" size={48} color="#ffffff" />
+              </View>
+            )}
+          </View>
+
+          {/* Name & Role */}
+          <View style={styles.infoSection}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={[styles.name, { color: theme.text }]}>{name}</Text>
+              {verified && (
+                <Ionicons name="checkmark-circle" size={20} color={theme.tint} />
+              )}
+            </View>
+            
+            {role && (
+              <View style={[styles.roleBadge, { backgroundColor: theme.tint + '20' }]}>
+                <Text style={[styles.roleText, { color: theme.tint }]}>
+                  {role === 'coach' ? '🏆 Coach' : role === 'fan' ? '👥 Fan' : role}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Bio */}
+        {bio && (
+          <View style={styles.bioSection}>
+            <Text style={[styles.bio, { color: theme.text }]}>{bio}</Text>
+          </View>
+        )}
+
+        {/* Stats */}
+        <View style={[styles.statsSection, { backgroundColor: theme.surface }]}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {user?._count?.posts ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Posts</Text>
+          </View>
+          
+          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+          
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {user?._count?.followers ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Followers</Text>
+          </View>
+          
+          <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+          
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {user?._count?.following ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}>Following</Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionSection}>
+          <Pressable 
+            style={[styles.primaryButton, { backgroundColor: theme.tint }]}
+            onPress={() => router.push('/edit-profile')}
+          >
+            <Ionicons name="create-outline" size={18} color="#ffffff" />
+            <Text style={styles.primaryButtonText}>Edit Profile</Text>
+          </Pressable>
+        </View>
+
+        {/* User Info Details */}
+        <View style={[styles.detailsSection, { backgroundColor: theme.surface }]}>
+          {user?.username && (
+            <DetailRow 
+              icon="at" 
+              label="Username" 
+              value={user.username}
+              theme={theme}
+            />
+          )}
+          {user?.email && (
+            <DetailRow 
+              icon="mail" 
+              label="Email" 
+              value={user.email}
+              theme={theme}
+            />
+          )}
+          {user?.preferences?.position && (
+            <DetailRow 
+              icon="body" 
+              label="Position" 
+              value={user.preferences.position}
+              theme={theme}
+            />
+          )}
+          {user?.preferences?.jersey_number && (
+            <DetailRow 
+              icon="flag" 
+              label="Jersey #" 
+              value={String(user.preferences.jersey_number)}
+              theme={theme}
+            />
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+function DetailRow({ icon, label, value, theme }: any) {
+  return (
+    <View style={styles.detailRow}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+        <Ionicons name={icon as any} size={18} color={theme.mutedText} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.detailLabel, { color: theme.mutedText }]}>{label}</Text>
+          <Text style={[styles.detailValue, { color: theme.text }]} numberOfLines={1}>
+            {value}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1
-  },
-  backButtonContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  center: { 
-    flex: 1, 
-    padding: 24, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
-  },
-  error: { 
-    color: '#b91c1c', 
-    textAlign: 'center' 
-  },
-  profileOverviewCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  settingsButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  profileHeaderSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-    marginBottom: 16,
-  },
-  profileAvatarContainer: {
-    position: 'relative',
-  },
-  profileAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#e5e7eb',
-  },
-  profileAvatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInitials: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  avatarLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profileInfoSection: {
+  container: {
     flex: 1,
-    gap: 4,
   },
-  profileName: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 2,
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
-  profileHandle: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  roleTag: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  roleTagText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  profileBio: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  editProfileButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    backgroundColor: '#3B82F6',
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  editProfileButtonText: {
+  errorText: {
+    fontSize: 16,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
     color: '#ffffff',
-    fontSize: 14,
     fontWeight: '600',
+    fontSize: 16,
   },
 
-  // Legacy styles (keep for compatibility)
-  headerContainer: {
-    position: 'relative',
-    paddingBottom: 0,
-    overflow: 'hidden',
-    backgroundColor: '#ffffff',
-  },
-  headerBackgroundPressable: {
-    position: 'relative',
-    height: 120,
-    width: '100%',
-  },
-  headerBackgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    height: 120,
-  },
-  headerEditOverlay: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
+  // Header Section
+  headerSection: {
+    marginTop: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    zIndex: 5,
-  },
-  headerGradient: {
-    ...StyleSheet.absoluteFillObject,
-    height: 120,
-  },
-  headerControls: {
-    position: 'absolute',
-    right: 12,
-    flexDirection: 'row',
-    gap: 8,
-    zIndex: 10,
-  },
-  controlButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  jerseyBadgeCompact: {
-    marginTop: 0,
-  },
-  profileContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  avatarSection: {
-    marginTop: -35, // Slight overlap
   },
   avatarContainer: {
-    position: 'relative',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 16,
   },
-  avatarImage: {
+  avatar: {
     width: '100%',
     height: '100%',
-    borderRadius: 37,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 37,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 37,
   },
-  nameRow: {
-    flexDirection: 'row',
+  infoSection: {
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap',
   },
-  userInfo: {
-    flex: 1,
-    paddingTop: 12,
-  },
-  userHandle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  userLocation: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#6B7280',
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  athleteCredentialsCompact: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-  },
-  positionBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#3B82F6',
-    marginBottom: 2,
-  },
-  credentialsTextCompact: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#6B7280',
-  },
-  bioSectionCompact: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  userBioCompact: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#374151',
-    lineHeight: 20,
-  },
-  badgesRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginTop: 4,
-    flexWrap: 'wrap',
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
   },
   roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: Colors.light.warning,
-    gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  coachBadge: { backgroundColor: '#1d4ed8' },
-  playerBadge: { backgroundColor: Colors.light.danger },
-  fanBadge: { backgroundColor: '#7c3aed' },
   roleText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  actionsContainerCompact: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  editButtonCompact: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 6,
-    backgroundColor: '#3B82F6',
-    alignItems: 'center',
-  },
-  editButtonTextCompact: {
-    color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
   },
-  
-  // Stats Card
-  statsCard: {
+
+  // Bio
+  bioSection: {
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  bio: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+
+  // Stats
+  statsSection: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    justifyContent: 'space-around',
   },
   statItem: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
   },
   statDivider: {
     width: 1,
-    backgroundColor: '#e2e8f0',
-    marginHorizontal: 16,
+    height: '100%',
   },
-  
-  // Legacy styles kept for existing components
-  statValue: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  name: { fontSize: 18, fontWeight: '800', marginBottom: 4, color: '#111827' },
-  bio: { fontSize: 15, color: '#4B5563', lineHeight: 20, marginTop: 8 },
-  editProfileButtonOld: { 
-    flex: 1,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  masonryContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 8,
-    paddingBottom: 32,
-  },
-  masonryItem: {
-    width: '32%',
-    margin: '0.66%',
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
-  },
-  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, backgroundColor: 'transparent' },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
-  tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
-  activeTabText: { color: 'black' },
-  filtersBar: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 12, backgroundColor: 'transparent' },
-  segmentedRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  segment: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20 },
-  segmentActive: {},
-  segmentText: { fontWeight: '600', fontSize: 13 },
-  segmentTextActive: { color: 'white' },
-  sortRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  sortPill: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 16 },
-  sortPillActive: {},
-  sortText: { fontWeight: '600', fontSize: 12 },
-  sortTextActive: { color: 'white' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
-  activityItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  gridRow: { gap: 3 },
-  gridItem: { 
-    flex: 1, 
-    aspectRatio: 1, 
-    margin: 1.5, 
-    borderRadius: 12, 
-    overflow: 'hidden', 
-    backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
-  },
-  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
-  gridImage: { width: '100%', height: '100%' },
-  gridImageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  gridImageFallback: { alignItems: 'center', justifyContent: 'center', padding: 12, position: 'relative' },
-  textPostOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 8,
-    margin: 8,
-    backdropFilter: 'blur(10px)'
-  },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#ffffff', 
-    fontWeight: '700', 
-    fontSize: 12, 
-    lineHeight: 16,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2
-  },
-  gridIconBadge: { 
-    position: 'absolute', 
-    bottom: 8, 
-    right: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    width: 28, 
-    height: 28, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
-  },
-  gridCounts: { 
-    position: 'absolute', 
-    left: 8, 
-    bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.6)', 
-    borderRadius: 14, 
-    paddingHorizontal: 8, 
-    paddingVertical: 4, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2
-  },
-  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  
-  // Organizations Section
-  organizationsSection: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  orgHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  orgTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  orgList: {
+
+  // Actions
+  actionSection: {
     gap: 12,
-    paddingRight: 16,
+    marginBottom: 20,
   },
-  orgCard: {
-    width: 100,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+  primaryButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
     gap: 8,
   },
-  orgLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  orgLogoPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orgName: {
-    fontSize: 12,
+  primaryButtonText: {
+    color: '#ffffff',
     fontWeight: '600',
-    textAlign: 'center',
+    fontSize: 16,
+  },
+
+  // Details Section
+  detailsSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  detailRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 0,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
