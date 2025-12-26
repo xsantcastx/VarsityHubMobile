@@ -102,7 +102,7 @@ src/shared/
 | Features Migrated | 5 |
 | Screens Migrated | 22+ |
 | Path Aliases | 10+ |
-| Commits | 2 (main migration + verification docs) |
+| Commits | 4 (migration + verification docs + New Architecture fix) |
 
 ## Testing
 
@@ -111,16 +111,24 @@ src/shared/
 - Import path resolution: **PASS**
 - Path alias configuration: **PASS**
 
-### 📋 Manual Testing Required (Next Steps)
+### ✅ iOS Build Configuration Fixed
+**Issue**: `react-native-reanimated` requires New Architecture, but `Podfile.properties.json` had `newArchEnabled: false`
+
+**Fix Applied** (Commit `0134a4b0`):
+- Updated `ios/Podfile.properties.json`: `newArchEnabled: true`
+- Cleaned `ios/Pods/` and `ios/Podfile.lock` (native build cache)
+- TypeScript still passes: **0 errors**
+
+### 📋 Manual Testing - iOS Build
 When ready to test on device:
 ```bash
-# Clear native build cache if needed
-rm -rf ios/Pods ios/Podfile.lock
-
-# Run on simulator
+# Run on simulator (first build may take 5-10 minutes)
 npm run ios
 
-# Or use EAS for clean build
+# If CocoaPods hangs, manually install then retry:
+cd ios && npx pod-install && cd .. && npm run ios
+
+# Or use EAS for production build
 eas build --platform ios --local
 ```
 
