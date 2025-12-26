@@ -5,7 +5,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, Animated, PanResponder } from 'react-native';
+import { ActivityIndicator, Alert, Animated, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
@@ -71,6 +71,7 @@ export default function EditProfileScreen() {
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
+  const [primaryTeamId, setPrimaryTeamId] = useState<string | null>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
   const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -151,6 +152,21 @@ export default function EditProfileScreen() {
         membershipArrays.some((value) => Array.isArray(value) && value.length > 0) ||
         membershipHints.some((value) => Boolean(value));
       setHasTeamMembership(detectedMembership);
+
+      // Derive a primary team id for redirects
+      const hintId = membershipHints.find((value) => Boolean(value));
+      let derivedTeamId: string | null = hintId ? String(hintId) : null;
+      if (!derivedTeamId) {
+        const firstMembershipArray = membershipArrays.find((value) => Array.isArray(value) && value.length > 0);
+        if (firstMembershipArray) {
+          const firstItem = firstMembershipArray.find((item: any) => item?.id || item?.team_id || item?.team?.id);
+          const candidate = firstItem?.team?.id || firstItem?.team_id || firstItem?.id;
+          if (candidate) {
+            derivedTeamId = String(candidate);
+          }
+        }
+      }
+      setPrimaryTeamId(derivedTeamId);
 
       let derivedRole = prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
       if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
@@ -425,8 +441,12 @@ export default function EditProfileScreen() {
       
       // Redirect based on role
       if (userRole === 'coach' || userRole === 'admin') {
-        // Coaches and admins go to team profile
-        router.replace('/team-profile');
+        // Coaches and admins go to their team profile when possible
+        if (primaryTeamId) {
+          router.replace(`/team-profile?id=${primaryTeamId}`);
+        } else {
+          router.replace('/manage-teams');
+        }
       } else {
         // Fans go back to previous screen
         router.back();

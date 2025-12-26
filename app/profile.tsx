@@ -158,19 +158,10 @@ export default function ProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
           )}
-          
-          {/* Settings Button */}
-          <Pressable 
-            style={[styles.settingsButton, { top: insets.top + 8 }]}
-            onPress={() => router.push('/settings')}
-          >
-            <Ionicons name="settings-outline" size={22} color="#ffffff" />
-          </Pressable>
         </View>
 
         {/* Profile Content */}
         <View style={styles.profileContent}>
-          {/* Avatar with Story Ring */}
           <View style={styles.avatarSection}>
             <Pressable 
               style={[
@@ -204,13 +195,21 @@ export default function ProfileScreen() {
               )}
             </Pressable>
 
-            {/* Edit Profile Button */}
-            <Pressable 
-              style={[styles.editButton, { borderColor: theme.border }]}
-              onPress={() => router.push('/edit-profile')}
-            >
-              <Text style={[styles.editButtonText, { color: theme.text }]}>Edit profile</Text>
-            </Pressable>
+            <View style={styles.actionsColumn}>
+              <Pressable 
+                style={[styles.editButton, { borderColor: theme.border }]}
+                onPress={() => router.push('/edit-profile')}
+              >
+                <Text style={[styles.editButtonText, { color: theme.text }]}>Edit profile</Text>
+              </Pressable>
+
+              <Pressable 
+                style={[styles.settingsIconButton, { borderColor: theme.border }]}
+                onPress={() => router.push('/settings')}
+              >
+                <Ionicons name="settings-outline" size={18} color={theme.text} />
+              </Pressable>
+            </View>
           </View>
 
           {/* User Info */}
@@ -268,7 +267,7 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Tabs Section (Posts, Replies, Highlights, etc.) */}
+          {/* Tabs Section */}
           <View style={[styles.tabsContainer, { borderTopColor: theme.border, borderBottomColor: theme.border }]}>
             <Pressable style={[styles.tab, styles.activeTab]}>
               <Text style={[styles.tabText, styles.activeTabText, { color: theme.text }]}>Posts</Text>
@@ -277,17 +276,11 @@ export default function ProfileScreen() {
               <Text style={[styles.tabText, { color: theme.mutedText }]}>Replies</Text>
             </Pressable>
             <Pressable style={styles.tab}>
-              <Text style={[styles.tabText, { color: theme.mutedText }]}>Highlights</Text>
-            </Pressable>
-            <Pressable style={styles.tab}>
-              <Text style={[styles.tabText, { color: theme.mutedText }]}>Media</Text>
-            </Pressable>
-            <Pressable style={styles.tab}>
-              <Text style={[styles.tabText, { color: theme.mutedText }]}>Likes</Text>
+              <Text style={[styles.tabText, { color: theme.mutedText }]}>Upvotes</Text>
             </Pressable>
           </View>
 
-          {/* Posts Section (Empty State) */}
+          {/* Posts Section */}
           <View style={styles.postsEmptyState}>
             <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
               No posts yet
@@ -340,16 +333,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  settingsButton: {
-    position: 'absolute',
-    right: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
   // Profile Content
   profileContent: {
@@ -361,6 +344,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginTop: -40,
     marginBottom: 12,
+  },
+  actionsColumn: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   avatarWrapper: {
     width: 134,
@@ -391,11 +378,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    marginBottom: 8,
   },
   editButtonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  settingsIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // User Info
