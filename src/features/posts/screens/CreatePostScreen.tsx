@@ -7,6 +7,7 @@ import { Game, Post, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { PromptPresets } from '@/components/RotatingPrompts';
+import { EmptyState } from '@/components/ui';
 import { MentionInput } from '@/components/ui/MentionInput';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -730,13 +731,12 @@ export default function CreatePostScreen() {
                 ))}
               </>
             ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>No Events Found</Text>
-                <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
-                  There are no upcoming events in the next 7 days.
-                </Text>
-              </View>
+              <EmptyState
+                icon="calendar-outline"
+                title="No Events Found"
+                subtitle="There are no upcoming events in the next 7 days."
+                style={styles.emptyStateContainer}
+              />
             )}
           </ScrollView>
         </SafeAreaView>
@@ -1431,22 +1431,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  emptyStateContainer: {
     paddingVertical: 48,
-    gap: 12,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
+    paddingHorizontal: 16,
   },
   
   // Nearby games

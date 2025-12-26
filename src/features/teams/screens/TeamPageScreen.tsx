@@ -1,5 +1,6 @@
 import { Game, Post, Team } from '@/api/entities';
 import PostCard from '@/components/PostCard';
+import { EmptyState } from '@/components/ui';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -506,19 +507,18 @@ export default function TeamPageScreen() {
           }
         }}
         ListEmptyComponent={
-          <View style={[styles.emptyState, { marginTop: 100, width: '100%' }]}>
-            <Ionicons 
-              name={activeTab === 'feed' ? 'newspaper-outline' : activeTab === 'schedule' ? 'calendar-outline' : 'people-outline'} 
-              size={48} 
-              color={theme.mutedText} 
-            />
-            <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-              {activeTab === 'feed' ? 'No posts yet' : activeTab === 'schedule' ? 'No scheduled games' : 'No roster members found'}
-            </Text>
-            <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-              {activeTab === 'feed' ? 'Posts from team games and team mentions will appear here' : activeTab === 'schedule' ? 'Upcoming games from all teams will appear here' : 'Players from all teams will appear here'}
-            </Text>
-          </View>
+          <EmptyState
+            icon={activeTab === 'feed' ? 'newspaper-outline' : activeTab === 'schedule' ? 'calendar-outline' : 'people-outline'}
+            title={activeTab === 'feed' ? 'No posts yet' : activeTab === 'schedule' ? 'No scheduled games' : 'No roster members found'}
+            subtitle={
+              activeTab === 'feed'
+                ? 'Posts from team games and team mentions will appear here'
+                : activeTab === 'schedule'
+                  ? 'Upcoming games from all teams will appear here'
+                  : 'Players from all teams will appear here'
+            }
+            style={styles.emptyStateContainer}
+          />
         }
         contentContainerStyle={{ 
           paddingHorizontal: activeTab === 'feed' ? 6 : activeTab === 'roster' ? 16 : 12, 
@@ -778,18 +778,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
     marginBottom: 12,
   },
-  emptyState: {
-    alignItems: 'center',
+  emptyStateContainer: {
+    width: '100%',
     paddingVertical: 48,
-    gap: 12,
-  },
-  emptyStateText: {
-    fontSize: 16,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+    marginTop: 80,
   },
   errorText: {
     fontSize: 16,

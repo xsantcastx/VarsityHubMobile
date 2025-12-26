@@ -1,4 +1,5 @@
 import { Game, User } from '@/api/entities';
+import { EmptyState } from '@/components/ui';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type GameEvent = {
@@ -256,12 +257,15 @@ export default function EventsCalendarScreen() {
             </Text>
             
             {selectedDateGames.length === 0 ? (
-              <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
-                <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
-                  No events on this day
-                </Text>
-              </View>
+              <EmptyState
+                icon="calendar-outline"
+                title="No events on this day"
+                subtitle="Select another date or follow more teams to see their games."
+                style={{
+                  ...styles.emptyStateContainer,
+                  backgroundColor: Colors[colorScheme].surface,
+                } as ViewStyle}
+              />
             ) : (
               selectedDateGames.map(game => {
                 const gameTime = game.date ? format(parseISO(game.date), 'h:mm a') : 'TBD';
@@ -319,15 +323,15 @@ export default function EventsCalendarScreen() {
           </Text>
           
           {games.filter(g => g.date && isFuture(parseISO(g.date))).length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
-              <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
-              <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
-                No upcoming events
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: Colors[colorScheme].mutedText }]}>
-                Events from your followed teams will appear here
-              </Text>
-            </View>
+            <EmptyState
+              icon="calendar-outline"
+              title="No upcoming events"
+              subtitle="Events from your followed teams will appear here."
+              style={{
+                ...styles.emptyStateContainer,
+                backgroundColor: Colors[colorScheme].surface,
+              } as ViewStyle}
+            />
           ) : (
             games
               .filter(g => g.date && isFuture(parseISO(g.date)))
@@ -572,20 +576,9 @@ const styles = StyleSheet.create({
   upcomingGameLocation: {
     fontSize: 13,
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+  emptyStateContainer: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
     borderRadius: 12,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 12,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    marginTop: 4,
-    textAlign: 'center',
   },
 });

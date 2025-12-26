@@ -20,6 +20,10 @@ export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [hasActiveStory, setHasActiveStory] = useState(false);
   const [userStories, setUserStories] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
+  const [items, setItems] = useState<any[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -67,9 +71,38 @@ export default function ProfileScreen() {
     }
   }, []);
 
+  const fetchList = useCallback(async () => {
+    if (!user?.id) return;
+    setListLoading(true);
+    setListError(null);
+    try {
+      if (activeTab === 'posts') {
+        const res = await User.postsForProfile(user.id, { limit: 20, sort: 'newest' });
+        const list = res?.items || res || [];
+        setItems(list);
+      } else {
+        const type = activeTab === 'replies' ? 'comment' : 'like';
+        const res = await User.interactionsForProfile(user.id, { limit: 20, sort: 'newest', type });
+        const list = (res?.items || res || []).map((it: any) => {
+          const post = it?.post || it?.target?.post || it?.target || it;
+          return { ...post, __interaction: it };
+        });
+        setItems(list);
+      }
+    } catch (e: any) {
+      setListError(e?.message || 'Failed to load');
+    } finally {
+      setListLoading(false);
+    }
+  }, [activeTab, user?.id]);
+
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
 
   if (loading) {
     return (
@@ -269,23 +302,59 @@ export default function ProfileScreen() {
 
           {/* Tabs Section */}
           <View style={[styles.tabsContainer, { borderTopColor: theme.border, borderBottomColor: theme.border }]}>
-            <Pressable style={[styles.tab, styles.activeTab]}>
-              <Text style={[styles.tabText, styles.activeTabText, { color: theme.text }]}>Posts</Text>
+            <Pressable
+              style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
+              onPress={() => setActiveTab('posts')}
+            >
+              <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText, { color: activeTab === 'posts' ? theme.text : theme.mutedText }]}>Posts</Text>
             </Pressable>
-            <Pressable style={styles.tab}>
-              <Text style={[styles.tabText, { color: theme.mutedText }]}>Replies</Text>
+            <Pressable
+              style={[styles.tab, activeTab === 'replies' && styles.activeTab]}
+              onPress={() => setActiveTab('replies')}
+            >
+              <Text style={[styles.tabText, activeTab === 'replies' && styles.activeTabText, { color: activeTab === 'replies' ? theme.text : theme.mutedText }]}>Replies</Text>
             </Pressable>
-            <Pressable style={styles.tab}>
-              <Text style={[styles.tabText, { color: theme.mutedText }]}>Upvotes</Text>
+            <Pressable
+              style={[styles.tab, activeTab === 'upvotes' && styles.activeTab]}
+              onPress={() => setActiveTab('upvotes')}
+            >
+              <Text style={[styles.tabText, activeTab === 'upvotes' && styles.activeTabText, { color: activeTab === 'upvotes' ? theme.text : theme.mutedText }]}>Upvotes</Text>
             </Pressable>
           </View>
 
-          {/* Posts Section */}
-          <View style={styles.postsEmptyState}>
-            <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-              No posts yet
-            </Text>
-          </View>
+          {/* Content Section */}
+          {listLoading ? (
+            <View style={styles.listState}><ActivityIndicator color={theme.tint} /></View>
+          ) : listError ? (
+            <View style={styles.listState}>
+              <Text style={[styles.emptyStateText, { color: '#b91c1c' }]}>{listError}</Text>
+              <Pressable style={[styles.retryButton, { backgroundColor: theme.tint }]} onPress={() => void fetchList()}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : items.length === 0 ? (
+            <View style={styles.postsEmptyState}>
+              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                {activeTab === 'posts' ? 'No posts yet' : activeTab === 'replies' ? 'No replies yet' : 'No upvotes yet'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.cardList}>
+              {items.map((item, idx) => {
+                const title = item?.title || item?.caption || item?.content || 'Post';
+                const subtitle = item?.created_at ? new Date(item.created_at).toLocaleDateString() : '';
+                return (
+                  <View key={item?.id || idx} style={[styles.card, { borderColor: theme.border }]}> 
+                    <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>{title}</Text>
+                    {subtitle ? <Text style={[styles.cardSubtitle, { color: theme.mutedText }]}>{subtitle}</Text> : null}
+                    {activeTab !== 'posts' && item?.__interaction?.type ? (
+                      <Text style={[styles.cardBadge, { color: theme.mutedText }]}>{item.__interaction.type}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -322,7 +391,7 @@ const styles = StyleSheet.create({
 
   // Header Banner
   headerBanner: {
-    height: 200,
+    height: 120,
     position: 'relative',
   },
   bannerImage: {
@@ -336,13 +405,13 @@ const styles = StyleSheet.create({
 
   // Profile Content
   profileContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   avatarSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginTop: -40,
+    marginTop: -24,
     marginBottom: 12,
   },
   actionsColumn: {
@@ -350,10 +419,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   avatarWrapper: {
-    width: 134,
-    height: 134,
-    borderRadius: 67,
-    borderWidth: 4,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
     borderColor: '#ffffff',
     backgroundColor: '#ffffff',
     padding: 4,
@@ -364,12 +433,12 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 63,
+    borderRadius: 58,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 63,
+    borderRadius: 58,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -394,8 +463,8 @@ const styles = StyleSheet.create({
 
   // User Info
   userInfoSection: {
-    marginTop: 4,
-    gap: 8,
+    marginTop: 2,
+    gap: 6,
   },
   displayName: {
     fontSize: 22,
@@ -425,15 +494,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 4,
+    marginTop: 2,
   },
   joinedText: {
     fontSize: 15,
   },
   followStats: {
     flexDirection: 'row',
-    gap: 20,
-    marginTop: 8,
+    gap: 14,
+    marginTop: 6,
   },
   followStatItem: {
     flexDirection: 'row',
@@ -452,11 +521,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    marginTop: 16,
+    marginTop: 10,
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 12,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -474,10 +543,37 @@ const styles = StyleSheet.create({
 
   // Posts
   postsEmptyState: {
-    paddingVertical: 60,
+    paddingVertical: 36,
     alignItems: 'center',
   },
   emptyStateText: {
     fontSize: 15,
+  },
+  listState: {
+    paddingVertical: 36,
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardList: {
+    paddingVertical: 12,
+    gap: 10,
+  },
+  card: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+  },
+  cardBadge: {
+    fontSize: 12,
+    marginTop: 6,
   },
 });
