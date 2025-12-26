@@ -6,6 +6,7 @@ import { useDeviceLocation } from '@/hooks/useDeviceLocation';
 import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
+import { findBestMatch } from '@/utils/teamMatch';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
@@ -621,7 +622,6 @@ const GameDetailsScreen = () => {
   };
 
   // Get team logo by name
-  const { findBestMatch } = require('../../utils/teamMatch');
   const getTeamLogo = (teamName: string) => {
     if (!teamName) return null;
     // Prefer vm.teams (from backend payload) for accurate avatars
