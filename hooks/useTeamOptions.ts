@@ -27,7 +27,13 @@ export function useTeamOptions<T = any>(autoLoad: boolean = true): UseTeamOption
       setError(null);
     } catch (err: any) {
       console.error('[useTeamOptions] failed', err);
-      setError(err?.message || 'Unable to load teams');
+      // Don't show authentication errors as hard failures - user might not be fully logged in yet
+      const isAuthError = err?.message?.toLowerCase().includes('auth') || err?.status === 401;
+      if (!isAuthError) {
+        setError(err?.message || 'Unable to load teams');
+      } else {
+        setError(null); // Silently fail for auth errors
+      }
       setTeams([]);
     } finally {
       setLoading(false);
