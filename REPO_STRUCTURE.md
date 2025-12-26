@@ -5,9 +5,11 @@
 ## Phase 2 Kickoff (feature-first layout)
 - New `src/features/profile/screens/` owns `ProfileScreen`, `EditProfileScreen`, and `StoryViewerScreen`; `app/profile.tsx`, `app/edit-profile.tsx`, and `app/story-viewer.tsx` now delegate to these feature modules.
 - New `src/features/auth/screens/` owns `SignInScreen`, `SignUpScreen`, `ForgotPasswordScreen`, `ResetPasswordScreen`, and `ResetScreen`; `app/sign-in.tsx`, `app/sign-up.tsx`, `app/forgot-password.tsx`, `app/reset-password.tsx`, and `app/reset.tsx` delegate to these modules.
+- New `src/features/posts/screens/` owns `FeedScreen`, `PostDetailScreen`, and `CreatePostScreen`; `app/feed.tsx`, `app/post-detail.tsx`, and `app/create-post.tsx` delegate to these modules.
 - Path aliases added for `@/features/*`, `@/shared/*`, and `@/* → src/*` across TypeScript, Babel, and Jest to support feature-first imports.
 - `src/features/profile/index.ts` exports the profile screens for reuse; future features should follow the same pattern (`screens/`, `components/`, `hooks/`, `services/`, `types/`).
 - `src/features/auth/index.ts` exports auth screens; future feature folders should mirror this export pattern.
+- `src/features/posts/index.ts` exports posts screens.
 - Next targets: migrate auth/events/teams flows into `src/features`, and move shared UI/hook/utilities into `src/shared`.
 
 ```
