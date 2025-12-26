@@ -1,238 +1,405 @@
-# VarsityHub Mobile - Repository Structure
+# VarsityHub Mobile — Repository Structure
 
-This document explains the organized structure of the VarsityHub Mobile repository.
+**Current State (December 25, 2025) — Phase 1 Complete**
 
-## 📁 Directory Overview
-
-### Root Level (Production Code)
 ```
 VarsityHubMobile/
-├── src/                    # Main React Native source code
-├── components/             # Reusable UI components
-├── screens/                # Screen components (if organized)
-├── hooks/                  # Custom React hooks
-├── context/                # Context API for state management
-├── utils/                  # Utility functions
-├── constants/              # App constants and config
-├── assets/                 # Images, fonts, icons
-├── locales/                # i18n translations
-├── app/                    # Expo app entry point
-├── android/                # Android native code
-├── ios/                    # iOS native code
-├── api/                    # API client code
-├── server/                 # Backend server code (if included)
-├── scripts/                # Build and automation scripts
-└── tools/                  # Development tools
-```
-
-### Documentation (`.docs/`)
-Organized by purpose and workflow:
-
-```
-.docs/
-├── guides/                 # Setup and implementation guides
-│   ├── IMPLEMENTATION_GUIDE.md
-│   ├── DEVELOPER_TOOLKIT_QUICKREF.md
-│   ├── DEBUGGING_AND_MONITORING_QUICKSTART.md
-│   ├── SNYK_SETUP_GUIDE.md
-│   ├── DOCKER_DEPLOYMENT.md
-│   └── VSCODE_EXTENSIONS_SETUP.md
 │
-├── checklists/             # QA and verification checklists
-│   ├── DAY_3_QA_CHECKLIST.md
-│   ├── SETUP_CHECKLIST.md
-│   ├── PRODUCTION_LAUNCH_CHECKLIST.md
-│   ├── READINESS_CHECKLIST.md
-│   └── MORNING_REVIEW_CHECKLIST.md
+├── 📋 DOCUMENTATION_INDEX.md          ← Main entry point for all docs
+├── 📋 STYLE.md                        ← Code conventions & naming patterns
+├── 📋 REPO_STRUCTURE.md               ← This file
+├── 📋 README.md                       ← Project overview
 │
-├── plans/                  # Project plans and roadmaps
-│   ├── MASTER_LAUNCH_ACTION_PLAN.md
-│   ├── CATCH_BLOCK_CLEANUP_ROADMAP.md
-│   ├── WEEK_1_PROGRESS.md
-│   └── VERIFICATION_PLAN_EXECUTION.md
+├── 🔧 Configuration Files (Root Only)
+│   ├── package.json                   ← Dependencies & npm scripts
+│   ├── tsconfig.json                  ← TypeScript config
+│   ├── app.json                       ← Expo app manifest
+│   ├── babel.config.js                ← Babel transpilation
+│   ├── metro.config.js                ← Metro bundler config
+│   ├── jest.config.js                 ← Jest testing config
+│   ├── eslint.config.js               ← ESLint rules
+│   ├── eas.json                       ← EAS Build config
+│   ├── playwright.config.ts           ← E2E testing config
+│   ├── .gitignore                     ← Git ignore rules
+│   └── webpack.config.js              ← Webpack (if used)
 │
-├── architecture/           # System design and implementation
-│   ├── AUTH_FLOW_UNIFIED.md
-│   ├── BACKEND_LOCATION_INTEGRATION.md
-│   ├── LOCATION_SYSTEM_INTEGRATION.md
-│   ├── ORGANIZATION_JOIN_SYSTEM.md
-│   ├── EMAIL_SMS_IMPLEMENTATION_COMPLETE.md
-│   ├── PAYMENT_SECURITY_VERIFICATION.md
-│   └── VETERAN_BILLING_IMPLEMENTATION.md
+├── .docs/                             ← ALL DOCUMENTATION (100+ files)
+│   ├── guides/                        ← How-to & setup guides
+│   │   ├── QUICK_START.md
+│   │   ├── EXTENSIONS_QUICK_START.md
+│   │   ├── SNYK_SETUP_GUIDE.md
+│   │   ├── SECURITY_GOVERNANCE.md
+│   │   ├── IMPLEMENTATION_GUIDE.md
+│   │   ├── DOCKER_DEPLOYMENT.md
+│   │   ├── DEBUGGING_AND_MONITORING_QUICKSTART.md
+│   │   └── ... (8 more guides)
+│   │
+│   ├── launch/                        ← Release & production
+│   │   ├── DAY_4_RELEASE_GUIDE.md
+│   │   ├── LAUNCH_GUIDE.md
+│   │   ├── LAUNCH_DASHBOARD.md
+│   │   ├── PRODUCTION_GRADE_A.md
+│   │   ├── PRODUCTION_READINESS.md
+│   │   ├── PRE_QA_PRODUCTION_READINESS_AUDIT.md
+│   │   └── ... (5 more launch docs)
+│   │
+│   ├── checklists/                    ← Verification lists
+│   │   ├── DAY_3_QA_CHECKLIST.md
+│   │   ├── LAUNCH_CHECKLIST.md
+│   │   ├── SETUP_CHECKLIST.md
+│   │   ├── MORNING_REVIEW_CHECKLIST.md
+│   │   ├── LOCATION_CHECKLIST.md
+│   │   └── ... (8 more checklists)
+│   │
+│   ├── plans/                         ← Strategic plans & timelines
+│   │   ├── MASTER_LAUNCH_ACTION_PLAN.md
+│   │   ├── PUBLISHING_TIMELINE.md
+│   │   ├── AUTH_ROLES_TEST_PLAN.md
+│   │   ├── ANDROID_OVERNIGHT_TESTING_PLAN.md
+│   │   └── ... (4 more plans)
+│   │
+│   ├── qa/                            ← Quality assurance & testing
+│   │   ├── CRITICAL_FLOWS_TEST.md
+│   │   ├── EMAIL_SMS_VERIFICATION_AUDIT.md
+│   │   ├── QA_LIVE_MONITORING_DASHBOARD.md
+│   │   └── QA_QUICK_COMMANDS.md
+│   │
+│   ├── security/                      ← Security & compliance
+│   │   ├── SNYK_REMEDIATION_GUIDE.md
+│   │   ├── SNYK_SETUP_COMPLETE.md
+│   │   ├── HARDENING_COMPLETE.md
+│   │   ├── PRIVACY_POLICY.md
+│   │   ├── TERMS_OF_SERVICE.md
+│   │   └── ... (6 more security docs)
+│   │
+│   ├── email-system/                  ← Email templates & config
+│   │   ├── COMPLETE_VARIABLE_REFERENCE.md
+│   │   ├── EMAIL_TEMPLATE_AUDIT.md
+│   │   ├── EMAIL_TEMPLATES_STATUS.md
+│   │   ├── EMAIL_TEMPLATE_MATRIX.md
+│   │   ├── phase1/
+│   │   ├── phase2/
+│   │   └── ... (9 more email docs)
+│   │
+│   ├── architecture/                  ← System design & implementation
+│   │   ├── AUTH_FLOW_UNIFIED.md
+│   │   ├── AUTH_ROLES_EXECUTION_LOG.md
+│   │   ├── ACCOUNT_PERMISSIONS_IMPLEMENTATION.md
+│   │   ├── BACKEND_LOCATION_INTEGRATION.md
+│   │   ├── EMAIL_SMS_IMPLEMENTATION_COMPLETE.md
+│   │   ├── LOCATION_SYSTEM_INTEGRATION.md
+│   │   ├── PAYMENT_SECURITY_VERIFICATION.md
+│   │   └── ... (11 more architecture docs)
+│   │
+│   ├── automation/                    ← CI/CD & automated testing
+│   │   ├── OVERNIGHT_AUTOMATION.md
+│   │   ├── OVERNIGHT_AUTOMATION_ARCHITECTURE.md
+│   │   ├── NIGHTLY_AUTOMATION_SUITE_READY.md
+│   │   └── OVERNIGHT_QUICKSTART.md
+│   │
+│   ├── archive/                       ← Dated & historical reports
+│   │   ├── reports/
+│   │   └── ... (100+ old files)
+│   │
+│   ├── reports/                       ← Quality & audit reports
+│   │   └── (empty - for new reports)
+│   │
+│   └── ... (miscellaneous standalone docs migrated from root)
 │
-├── security/               # Security and compliance docs
-│   ├── MOBILE_SECURITY_HARDENING.md
-│   ├── SECURITY_GOVERNANCE.md
-│   ├── SNYK_REMEDIATION_GUIDE.md
-│   ├── PRIVACY_POLICY.md
-│   └── TERMS_OF_SERVICE.md
+├── logs/                              ← Build logs & output files
+│   ├── metro-fix.log
+│   ├── eas-build.log
+│   ├── eas-build-output.txt
+│   ├── lint-output.txt
+│   ├── typecheck-output.txt
+│   ├── build-output.log
+│   ├── SENDGRID_VERIFICATION_SUMMARY.txt
+│   └── ... (80 log files total)
 │
-├── qa/                     # QA procedures and monitoring
-│   ├── DAY_3_QA_EXECUTION.md
-│   ├── QA_QUICK_COMMANDS.md
-│   ├── QA_LIVE_MONITORING_DASHBOARD.md
-│   └── CRITICAL_FLOWS_TEST.md
+├── artifacts/                         ← Build artifacts & binaries
+│   └── build-1765427087772.ipa        ← iOS build artifact
 │
-├── launch/                 # Launch procedures and timeline
-│   ├── LAUNCH_DASHBOARD.md
-│   ├── LAUNCH_GUIDE.md
-│   ├── DAY_4_RELEASE_GUIDE.md
-│   └── PRE_QA_PRODUCTION_READINESS_AUDIT.md
+├── 🎯 Source Code
+│   ├── app/                           ← React Native screens & navigation (Expo Router)
+│   │   ├── (auth)/
+│   │   │   ├── login.tsx
+│   │   │   ├── signup.tsx
+│   │   │   ├── forgot-password.tsx
+│   │   │   └── verify-email.tsx
+│   │   │
+│   │   ├── (main)/
+│   │   │   ├── _layout.tsx            ← Tab navigation layout
+│   │   │   ├── profile.tsx            ← Profile screen (updated: Twitter-style)
+│   │   │   ├── events.tsx
+│   │   │   ├── teams.tsx
+│   │   │   ├── discover.tsx
+│   │   │   └── messages.tsx
+│   │   │
+│   │   ├── event-details.tsx
+│   │   ├── team-profile.tsx
+│   │   ├── edit-profile.tsx           ← Profile editor (fixed: teamId redirect)
+│   │   ├── organization.tsx
+│   │   ├── story-viewer.tsx           ← Story viewer (new)
+│   │   ├── _layout.tsx                ← Root navigation layout
+│   │   ├── +html.tsx
+│   │   └── App.tsx                    ← App entry point
+│   │
+│   ├── components/                    ← Shared UI components
+│   │   ├── Avatar.tsx
+│   │   ├── Button.tsx
+│   │   ├── HelloWave.tsx
+│   │   ├── ParallaxScrollView.tsx
+│   │   ├── TextField.tsx
+│   │   ├── ThemedText.tsx
+│   │   ├── ThemedView.tsx
+│   │   ├── ThemeToggle.tsx
+│   │   ├── StoryRing.tsx              ← Story indicator ring (new)
+│   │   ├── RoleBadge.tsx              ← Role badge component (new)
+│   │   ├── tabs/
+│   │   │   ├── ProfileTabs.tsx        ← Simplified tabs (new)
+│   │   │   └── TabBar.tsx
+│   │   │
+│   │   ├── layouts/
+│   │   │   └── (layout components)
+│   │   │
+│   │   ├── ui/                        ← Design system primitives
+│   │   │   ├── Text.tsx
+│   │   │   ├── View.tsx
+│   │   │   ├── Button.tsx
+│   │   │   ├── Input.tsx
+│   │   │   └── ... (design system tokens)
+│   │   │
+│   │   └── modals/
+│   │       ├── ImagePickerModal.tsx
+│   │       └── SettingsModal.tsx
+│   │
+│   ├── api/                           ← API clients & services
+│   │   ├── client.ts                  ← HTTP client (Axios)
+│   │   ├── userApi.ts
+│   │   ├── eventApi.ts
+│   │   ├── teamApi.ts
+│   │   ├── postApi.ts
+│   │   ├── authApi.ts
+│   │   └── entities/
+│   │       ├── User.ts
+│   │       ├── Event.ts
+│   │       ├── Team.ts
+│   │       └── Post.ts
+│   │
+│   ├── hooks/                         ← Custom React hooks
+│   │   ├── useAuth.ts                 ← Auth context hook
+│   │   ├── useNavigation.ts
+│   │   ├── useApiFetch.ts
+│   │   ├── useLocalStorage.ts
+│   │   ├── useTheme.ts
+│   │   ├── useLocation.ts
+│   │   └── ... (10+ hooks)
+│   │
+│   ├── context/                       ← React Context providers
+│   │   ├── AuthContext.tsx
+│   │   ├── ThemeContext.tsx
+│   │   ├── UserContext.tsx
+│   │   └── LocationContext.tsx
+│   │
+│   ├── utils/                         ← Utility functions
+│   │   ├── formatDate.ts
+│   │   ├── formatCurrency.ts
+│   │   ├── validators.ts
+│   │   ├── parsing.ts
+│   │   ├── storage.ts
+│   │   └── logging.ts
+│   │
+│   ├── constants/                     ← App constants
+│   │   ├── API_BASE_URL.ts
+│   │   ├── API_ENDPOINTS.ts
+│   │   ├── theme.ts                   ← Colors, spacing, typography
+│   │   ├── APP_VERSION.ts
+│   │   └── PERMISSIONS.ts
+│   │
+│   ├── types/                         ← Global TypeScript types
+│   │   ├── index.ts
+│   │   ├── user.types.ts
+│   │   ├── event.types.ts
+│   │   ├── team.types.ts
+│   │   └── common.types.ts
+│   │
+│   ├── config/                        ← App configuration
+│   │   ├── appConfig.ts
+│   │   ├── apiConfig.ts
+│   │   └── featureFlags.ts
+│   │
+│   └── __tests__/                     ← Project-level tests
+│       ├── hooks/
+│       │   ├── useAuth.test.ts
+│       │   └── useApiFetch.test.ts
+│       │
+│       ├── utils/
+│       │   ├── formatDate.test.ts
+│       │   └── validators.test.ts
+│       │
+│       ├── api/
+│       │   └── client.test.ts
+│       │
+│       ├── integration/
+│       │   └── auth-flow.integration.test.ts
+│       │
+│       └── e2e/
+│           └── profile.e2e.test.ts
 │
-└── automation/             # Overnight automation scripts and guides
-    ├── OVERNIGHT_AUTOMATION.md
-    ├── OVERNIGHT_AUTOMATION_ARCHITECTURE.md
-    ├── NIGHTLY_AUTOMATION_GUIDE.md
-    └── OVERNIGHT_QUICKSTART.md
-```
-
-### Logs and Cache (`.logs/` and `.cache/`)
-```
-.logs/
-├── overnight/              # Overnight automation run logs
-│   ├── overnight-results.txt
-│   ├── overnight-lint.log
-│   └── overnight-security-audit.log
+├── assets/                            ← Images, fonts, icons
+│   ├── images/
+│   │   ├── logo.png
+│   │   ├── splash-screen.png
+│   │   └── ...
+│   │
+│   ├── fonts/
+│   │   ├── Inter-Regular.ttf
+│   │   ├── Inter-Bold.ttf
+│   │   └── ...
+│   │
+│   └── icons/
+│       ├── home.svg
+│       ├── profile.svg
+│       └── ...
 │
-.cache/
-└── expo/                   # Expo cache files
-```
-
-### Configuration Files (Root)
-```
-.env                        # Environment variables (git ignored)
-.env.example                # Example environment template
-.gitignore                  # Git ignore rules
-.railwayignore              # Railway deployment ignores
-eslint.config.js            # ESLint configuration
-tsconfig.json               # TypeScript configuration
-babel.config.js             # Babel configuration
-metro.config.js             # Metro bundler configuration
-app.json                    # Expo app configuration
-eas.json                    # EAS build configuration
-```
-
-### GitHub Configuration (`.github/`)
-```
-.github/
-├── workflows/              # GitHub Actions CI/CD workflows
-│   └── snyk-security.yml
+├── .github/                           ← GitHub Actions & templates
+│   ├── workflows/
+│   │   ├── ci.yml
+│   │   ├── deploy.yml
+│   │   └── test.yml
+│   │
+│   ├── instructions/
+│   │   ├── snyk_rules.instructions.md ← Security at inception
+│   │   └── ...
+│   │
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md
+│       └── feature_request.md
 │
-└── instructions/           # Special instructions for automated tools
-    └── snyk_rules.instructions.md
+├── node_modules/                      ← Dependencies (auto-generated)
+├── dist/                              ← Compiled output (auto-generated)
+├── web-build/                         ← Web build output (auto-generated)
+│
+└── .expo/                             ← Expo CLI metadata (auto-generated)
 ```
-
-## 🎯 How to Navigate
-
-### For Development
-- **Start here:** `.docs/guides/IMPLEMENTATION_GUIDE.md`
-- **Quick setup:** `.docs/guides/DEVELOPER_TOOLKIT_QUICKREF.md`
-- **Debugging:** `.docs/guides/DEBUGGING_AND_MONITORING_QUICKSTART.md`
-
-### For QA and Testing
-- **QA checklist:** `.docs/checklists/DAY_3_QA_CHECKLIST.md`
-- **API commands:** `.docs/qa/QA_QUICK_COMMANDS.md`
-- **Live monitoring:** `.docs/qa/QA_LIVE_MONITORING_DASHBOARD.md`
-
-### For Security
-- **Security hardening:** `.docs/security/MOBILE_SECURITY_HARDENING.md`
-- **Snyk setup:** `.docs/security/SNYK_SETUP_GUIDE.md`
-- **Privacy/Legal:** `.docs/security/PRIVACY_POLICY.md`
-
-### For Launch
-- **Launch procedures:** `.docs/launch/LAUNCH_GUIDE.md`
-- **Pre-launch audit:** `.docs/launch/PRE_QA_PRODUCTION_READINESS_AUDIT.md`
-- **Day 4 release:** `.docs/launch/DAY_4_RELEASE_GUIDE.md`
-
-### For Automation
-- **Overnight automation:** `.docs/automation/OVERNIGHT_AUTOMATION.md`
-- **Setup automation:** `.docs/automation/OVERNIGHT_QUICKSTART.md`
-
-## 📊 Document Organization Rules
-
-| Pattern | Location | Purpose |
-|---------|----------|---------|
-| `*_GUIDE.md` | `guides/` | Implementation guides and tutorials |
-| `*_CHECKLIST.md` | `checklists/` | Verification and testing checklists |
-| `*_PLAN.md` | `plans/` | Project plans and roadmaps |
-| `*_IMPLEMENTATION.md` | `architecture/` | Feature implementation docs |
-| `*_SECURITY.md` | `security/` | Security-related documentation |
-| `*_VERIFICATION.md` | `checklists/` | Verification and audit docs |
-| `QA_*.md` | `qa/` | QA and testing procedures |
-| `DAY_*.md` | Root `.docs/` | Daily progress (can be archived later) |
-| `LAUNCH_*.md` | `launch/` | Launch procedures |
-| `OVERNIGHT_*.md` | `automation/` | Overnight automation docs |
-
-## 🧹 Housekeeping
-
-### Daily Logs
-Production logs are stored in:
-- `.logs/overnight/` - Overnight automation results
-- `.cache/expo/` - Expo temporary files (can be safely deleted)
-
-### Cleanup
-When starting fresh or before major milestones:
-```bash
-# Safe to delete (regeneratable)
-rm -rf .cache/
-rm -rf node_modules/
-rm -rf .expo/
-
-# Archive old daily logs
-mv .logs/overnight .logs/overnight-archive-DATE
-
-# Keep important docs in .docs/
-```
-
-## 🎓 Entry Points by Role
-
-### **Backend Developer**
-1. `.docs/architecture/` - Understand system design
-2. `.docs/guides/IMPLEMENTATION_GUIDE.md` - Setup
-3. `api/` - API client code
-
-### **Mobile Developer**
-1. `.docs/guides/DEVELOPER_TOOLKIT_QUICKREF.md` - Quick start
-2. `.docs/architecture/` - Feature architectures
-3. `src/` and `components/` - Main code
-
-### **QA Engineer**
-1. `.docs/checklists/DAY_3_QA_CHECKLIST.md` - QA steps
-2. `.docs/qa/QA_QUICK_COMMANDS.md` - Testing commands
-3. `.docs/qa/QA_LIVE_MONITORING_DASHBOARD.md` - Monitoring
-
-### **DevOps/Infrastructure**
-1. `.docs/guides/DOCKER_DEPLOYMENT.md` - Deployment
-2. `.docs/security/SNYK_SETUP_GUIDE.md` - Security scanning
-3. `.github/workflows/` - CI/CD pipelines
-
-### **Product Manager**
-1. `.docs/launch/LAUNCH_GUIDE.md` - Launch timeline
-2. `.docs/plans/MASTER_LAUNCH_ACTION_PLAN.md` - Project plan
-3. `.docs/security/PRIVACY_POLICY.md` - Legal docs
-
-## 📈 Update Frequency
-
-| Folder | Update Frequency | Purpose |
-|--------|------------------|---------|
-| `.docs/guides/` | Rarely | Long-term reference |
-| `.docs/checklists/` | Per release | Operational procedures |
-| `.docs/plans/` | Weekly | Project tracking |
-| `.docs/architecture/` | As needed | Design updates |
-| `.docs/security/` | Monthly | Compliance updates |
-| `.logs/` | Daily | Temporary results |
-
-## ✅ Benefits of This Organization
-
-✅ **Easy Navigation** - Find docs by purpose, not filename
-✅ **Clear Hierarchy** - Understand which docs relate to each other
-✅ **Scalable** - Easy to add new categories as project grows
-✅ **Role-Based** - Each person knows where to look
-✅ **Professional** - Clean, organized repository
-✅ **Maintainable** - Easy to archive and clean up old docs
 
 ---
 
-**Last Updated:** Dec 5, 2025
-**Structure Version:** 1.0
-**Total Files Organized:** 90+ markdown documents
+## Quick Stats
+
+| Category | Count | Status |
+|----------|-------|--------|
+| **Screens** | 12+ | ✅ Active |
+| **Components** | 20+ | ✅ Shared library |
+| **Custom Hooks** | 10+ | ✅ Reusable |
+| **API Endpoints** | 5+ | ✅ Organized |
+| **Documentation Files** | 100+ | ✅ Organized in `.docs/` |
+| **Build Logs/Artifacts** | 80+ | ✅ In `logs/` & `artifacts/` |
+| **Root Config Files** | 13 | ✅ Minimal, essential only |
+| **Lines of Code** | ~10k | 📊 (TypeScript + React) |
+
+---
+
+## Key Directories Explained
+
+### `/app` — Screens & Navigation
+- **Purpose:** Expo Router screens that users interact with
+- **Pattern:** Each route is a file or folder with layout
+- **Naming:** Use `.tsx` extension, PascalCase for screens
+- **Note:** `(main)` groups screens into a tab-based layout
+
+### `/components` — Reusable UI
+- **Purpose:** Shared components used across multiple screens
+- **Pattern:** One component = one file
+- **Types:**
+  - Functional components (buttons, inputs, cards)
+  - Layout components (sidebars, headers)
+  - UI primitives in `components/ui/`
+
+### `/api` — Backend Communication
+- **Purpose:** HTTP clients and API service methods
+- **Pattern:** One entity = one API file (`userApi.ts`, `eventApi.ts`)
+- **Exports:** Namespaced functions (`userApi.getProfile()`)
+
+### `/hooks` — Custom React Hooks
+- **Purpose:** Reusable logic extracted from components
+- **Pattern:** Start with `use` prefix
+- **Exports:** Named exports, can be multiple hooks per file
+
+### `/context` — State Management
+- **Purpose:** React Context providers for global state
+- **Pattern:** Context creation + Provider component
+- **Use Cases:** Auth, theme, user preferences, notifications
+
+### `/utils` — Helper Functions
+- **Purpose:** Pure functions with no side effects
+- **Pattern:** Organized by concern (format, parse, validate)
+- **Examples:** `formatDate()`, `parseUrl()`, `validateEmail()`
+
+### `/types` — TypeScript Definitions
+- **Purpose:** Shared type interfaces and enums
+- **Pattern:** One file per entity or grouped by concern
+- **Naming:** Use `.types.ts` suffix or `index.ts`
+
+### `.docs/` — Documentation
+- **Purpose:** All project knowledge (guides, plans, reports)
+- **Organized By:** Category (guides, launch, security, qa, etc.)
+- **Entry Point:** `DOCUMENTATION_INDEX.md` (at root)
+
+### `logs/` — Build Outputs
+- **Purpose:** Build logs, test results, verification output
+- **Contents:** All `.log`, `.txt`, `*output*` files
+- **Policy:** Ignored by Git, local-only
+
+### `artifacts/` — Build Artifacts
+- **Purpose:** IPA, APK, binaries, compiled outputs
+- **Contents:** Build products (`.ipa`, `.apk`)
+- **Policy:** Ignored by Git, local-only
+
+---
+
+## Phase 2 Future State (Post-Submission)
+
+Once code is refactored to feature-first structure:
+
+```
+src/
+├── features/
+│   ├── auth/              ← Auth feature module
+│   ├── profile/           ← Profile feature module
+│   ├── teams/             ← Teams feature module
+│   ├── events/            ← Events feature module
+│   ├── posts/             ← Posts/feed feature module
+│   └── discover/          ← Discovery feature module
+│
+├── shared/
+│   ├── components/        ← Reusable across features
+│   ├── ui/                ← Design system
+│   ├── hooks/             ← Shared hooks
+│   ├── utils/             ← Utility functions
+│   ├── constants/         ← Constants
+│   └── types/             ← Global types
+│
+├── app/                   ← Navigation & entry points
+├── assets/                ← Media & fonts
+├── config/                ← Configuration
+└── __tests__/             ← Project-level tests
+```
+
+---
+
+## How to Navigate
+
+1. **Starting development?** Read `.docs/guides/QUICK_START.md`
+2. **Adding a feature?** Follow patterns in `STYLE.md` → Create in feature folder → Write tests
+3. **Deploying?** Check `.docs/launch/DAY_4_RELEASE_GUIDE.md`
+4. **Debugging?** See `.docs/guides/DEBUGGING_AND_MONITORING_QUICKSTART.md`
+5. **Security?** Review `.docs/security/SNYK_REMEDIATION_GUIDE.md`
+
+---
+
+## Last Updated
+- **Date:** December 25, 2025
+- **Version:** 2.0 (Phase 1 Complete)
+- **Status:** ✅ Documentation consolidated, code structure documented
+- **Next:** Phase 2 feature-first refactor (post-submission)

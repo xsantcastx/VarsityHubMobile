@@ -81,6 +81,10 @@ overnight-results/
 build-*.ipa
 ENV_ALIGNMENT_REPORT.md
 
+# Consolidated build artifacts and logs (local only, not in version control)
+logs/
+artifacts/
+
 # Test/output artifacts
 coverage/
 coverage-*/
