@@ -39,7 +39,7 @@ export function ProfileIdentity({
   onPressSettings,
   showSettings = false,
   actionSlot,
-  rightAccessory,
+  rightAccessory: _rightAccessory,
   style,
   coverImageUrl,
   onPressCoverImage,
