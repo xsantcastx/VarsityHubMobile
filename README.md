@@ -6,6 +6,8 @@ This repository contains the Expo mobile app and the Node/Express API.
 
 ## 🚀 Quick Start
 
+**Node version:** Use Node 20+ (`nvm use` will read `.nvmrc`). Older runtimes (Node 18) will throw `toReversed is not a function` during `expo start`.
+
 ### First Time Setup
 ```bash
 # Install dependencies (generates ~2 GB of artifacts)
@@ -127,4 +129,3 @@ On EAS/production, set it via your environment management (or keep `false` to us
 **Last Updated**: December 2, 2025  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)
-
