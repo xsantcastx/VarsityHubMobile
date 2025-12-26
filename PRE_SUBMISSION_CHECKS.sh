@@ -16,8 +16,8 @@ fi
 
 # Check 2: App configuration
 echo "2️⃣ App Configuration..."
-if grep -q '"slug": "varsityhub"' app.json; then
-  echo "   ✅ App slug configured"
+if grep -q '"slug": "varsityhub-ios"' app.json; then
+  echo "   ✅ App slug configured (varsityhub-ios)"
 else
   echo "   ❌ App slug not found"
   exit 1
