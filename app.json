@@ -32,9 +32,6 @@
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
       "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub-ios"
     },
-    "plugins": [
-      "sentry-expo",
-      "@sentry/react-native"
-    ]
+    "plugins": []
   }
 }

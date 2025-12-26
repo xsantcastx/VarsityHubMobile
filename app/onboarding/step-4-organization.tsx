@@ -663,7 +663,12 @@ export default function Step4Organization() {
                 <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
               )}
               {locationSuggestions.length > 0 && (
-                <View style={styles.locationSuggestionList}>
+                <ScrollView 
+                  style={styles.locationSuggestionList}
+                  scrollEnabled={true}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={false}
+                >
                   {locationSuggestions.map((suggestion, index) => (
                     <Pressable
                       key={suggestion.place_id}
@@ -683,7 +688,7 @@ export default function Step4Organization() {
                       ) : null}
                     </Pressable>
                   ))}
-                </View>
+                </ScrollView>
               )}
             </View>
             {!selectedPlace && locationTouched && (
@@ -908,19 +913,27 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   locationFieldWrapper: {
     position: 'relative',
     marginBottom: 8,
+    zIndex: 100,
   },
   locationSpinner: {
     position: 'absolute',
     right: 12,
     top: 12,
+    zIndex: 10,
   },
   locationSuggestionList: {
-    marginTop: 6,
+    position: 'absolute',
+    top: 44 + 6, // input height + marginTop
+    left: 0,
+    right: 0,
+    marginTop: 0,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors[colorScheme].border,
     borderRadius: 12,
     backgroundColor: Colors[colorScheme].surface,
     overflow: 'hidden',
+    zIndex: 1000,
+    maxHeight: 250,
   },
   locationSuggestionItem: {
     paddingVertical: 10,
