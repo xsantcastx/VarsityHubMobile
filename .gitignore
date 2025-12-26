@@ -62,6 +62,12 @@ server/.env.production
 server/.env.railway
 server/.env.railway.api
 
+# Python virtual environments
+.venv/
+venv/
+ENV/
+env/
+
 # typescript
 *.tsbuildinfo
 
