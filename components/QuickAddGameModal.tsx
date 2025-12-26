@@ -48,7 +48,7 @@ interface QuickAddGameModalProps {
   };
 }
 
-export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'other';
+export type EventType = 'game' | 'fundraiser' | 'watch_party' | 'team_trip' | 'meeting' | 'pep_rally' | 'banquet' | 'other';
 
 export interface QuickGameData {
   id?: string; // Add id for editing
@@ -196,6 +196,8 @@ const EVENT_TYPES: { value: EventType; label: string; icon: keyof typeof Ionicon
   { value: 'watch_party', label: 'Watch Party', icon: 'tv-outline', description: 'Watch game together' },
   { value: 'team_trip', label: 'Team Trip', icon: 'bus-outline', description: 'Travel or field trip' },
   { value: 'meeting', label: 'Meeting', icon: 'people-outline', description: 'Team meeting or practice' },
+  { value: 'pep_rally', label: 'Pep Rally', icon: 'megaphone-outline', description: 'Team pep rally or spirit event' },
+  { value: 'banquet', label: 'Banquet', icon: 'restaurant-outline', description: 'Team banquet or celebration' },
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline', description: 'Other event type' },
 ];
 
