@@ -7,6 +7,15 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": [
+        "src/*"
+      ],
+      "@/features/*": [
+        "src/features/*"
+      ],
+      "@/shared/*": [
+        "src/shared/*"
+      ],
       "@/api/*": [
         "api/*"
       ],
@@ -34,6 +43,9 @@
       "@/data/*": [
         "data/*"
       ],
+      "@/assets/*": [
+        "assets/*"
+      ],
       "@/types/*": [
         "types/*"
       ],
@@ -55,6 +67,8 @@
     "app/**/*.ts",
     "app/**/*.tsx",
     "data/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     "api/**/*.ts",
     "api/**/*.tsx",
     "components/**/*.ts",

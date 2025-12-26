@@ -1,0 +1,385 @@
+import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// @ts-ignore
+import { User } from '@/api/entities';
+import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Colors } from '@/constants/Colors';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { useAppleAuth } from '@/hooks/useAppleAuth';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { captureException } from '@/utils/sentry';
+import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { Image } from 'expo-image';
+
+const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
+
+const GOOGLE_ICON_URI = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'>
+    <path fill='#4285F4' d='M44.5 20H24v8.5h11.8C34.4 33.7 29.7 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.3 0 6.3 1.2 8.6 3.3l6.4-6.4C34.6 4.4 29.6 2 24 2 12.3 2 2.5 11.8 2.5 23.5S12.3 45 24 45c11.3 0 21-8 21-22 0-1.7-.2-3.3-.5-5Z'/>
+    <path fill='#34A853' d='M6.3 14.7 13.3 19.8C14.8 16.1 19 13 24 13c3.3 0 6.3 1.2 8.6 3.3l6.4-6.4C34.6 4.4 29.6 2 24 2 14.7 2 6.6 7.4 6.3 14.7Z'/>
+    <path fill='#FBBC05' d='M24 45c5.5 0 10.5-1.8 14.5-4.8l-7-5.7c-2.1 1.4-4.7 2.3-7.5 2.3-7.2 0-13.3-5.8-13.9-13h-8v8C6 39.6 14.1 45 24 45Z'/>
+    <path fill='#EA4335' d='M43.5 24c0-1.3-.2-2.7-.5-4H24v8.5h11.8c-.5 2.8-2 5.2-4.3 6.8l7 5.7C41.1 37.2 43.5 31.6 43.5 24Z'/>
+  </svg>`
+)}`;
+
+const GoogleGlyph = ({ size = 20 }: { size?: number }) => (
+  <Image source={{ uri: GOOGLE_ICON_URI }} style={{ width: size, height: size }} />
+);
+
+export default function SignUpScreen() {
+  const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+  const { signInWithApple, loading: appleLoading, ready: appleReady } = useAppleAuth();
+  const { trackTap } = useAnalytics();
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const attemptRegistration = async (attempt: number = 1): Promise<any> => {
+    setRetryCount(attempt > 1 ? attempt : 0);
+    
+    try {
+      return await User.register(email, password, name || undefined);
+    } catch (e: any) {
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'email-signup-attempt' },
+        extra: { attempt, email },
+      });
+      
+      // Handle the race condition: if we get "Email already registered" on retry,
+      // it likely means the first attempt actually succeeded but we didn't get the response
+      if (attempt > 1 && e?.message?.includes('Email already registered')) {
+        try {
+          // Try to sign in with the same credentials
+          const loginResult = await User.loginViaEmailPassword(email, password);
+          // Return the login result as if it was a successful registration
+          return loginResult;
+        } catch (loginError: any) {
+          console.error(`[sign-up] Recovery login failed:`, loginError?.message);
+          // If login fails, the user might not have been created after all
+          // Or there might be a password issue - throw a helpful error
+          throw new Error('Registration may have partially succeeded but login failed. Please try signing in directly or contact support.');
+        }
+      }
+      
+      // Only retry on timeout or network errors, not validation errors
+      const isRetryableError = e?.message?.includes('Request timeout') || 
+                              e?.message?.includes('Network request failed') ||
+                              e?.message?.includes('fetch');
+      
+      if (isRetryableError && attempt < 3) {
+        setRetryCount(attempt);
+        // Wait a bit before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+        return attemptRegistration(attempt + 1);
+      } else {
+        throw e; // Re-throw if not retryable or max attempts reached
+      }
+    }
+  };
+
+  const onSubmit = async () => {
+    if (!email || !password) { setError('Please enter email and password'); return; }
+    if (!email.includes('@') || !email.includes('.')) { setError('Please enter a valid email address'); return; }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    trackTap('auth_email_submit', { screen: 'sign_up' });
+    setLoading(true); setError(null); setRetryCount(0);
+    
+    try {
+      const res: any = await attemptRegistration();
+      // After successful signup, redirect to email verification screen
+      // Pass dev code if available for easier testing
+      if (res?.dev_verification_code) {
+        router.replace(`/verify-email?devCode=${res.dev_verification_code}`);
+      } else {
+        router.replace('/verify-email');
+      }
+    } catch (e: any) {
+      console.error('[sign-up] Registration failed after all attempts:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, {
+        tags: { context: 'email-signup-final' },
+        extra: { email },
+      });
+      
+      // Handle specific error types with better messaging
+      let errorMessage = 'Sign up failed';
+      if (e?.message?.includes('Registration may have partially succeeded')) {
+        errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
+      } else if (e?.message?.includes('Email already registered')) {
+        errorMessage = 'This email is already registered. Try signing in instead.';
+      } else if (e?.message?.includes('Request timeout')) {
+        errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
+      } else if (e?.message?.includes('Network request failed')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      } else if (e?.message?.includes('password')) {
+        errorMessage = 'Password must be at least 8 characters and contain letters and numbers.';
+      } else if (e?.message?.includes('email')) {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (e?.message) {
+        errorMessage = e.message;
+      }
+      
+      setError(errorMessage);
+    } finally { setLoading(false); }
+  };
+
+  const handleGoogleSignUp = async () => {
+    if (!googleReady) {
+      setError('Google sign up is not configured yet. Please use email for now.');
+      return;
+    }
+    setError(null);
+    try {
+      trackTap('auth_google_tap', { screen: 'sign_up' });
+      const response: any = await signInWithGoogle();
+      const account = response?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      // Everyone lands on feed
+      router.replace('/(tabs)' as any);
+    } catch (e: any) {
+      const message = e?.message || 'Google sign up failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        return;
+      }
+      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
+      setError(message);
+    }
+  };
+
+  const handleAppleSignUp = async () => {
+    if (Platform.OS !== 'ios') {
+      setError('Apple sign in is only available on iOS.');
+      return;
+    }
+    if (!appleReady) {
+      setError('Apple sign in is still initializing. Please try again in a moment.');
+      return;
+    }
+    if (appleLoading) {
+      return;
+    }
+    setError(null);
+    try {
+      trackTap('auth_apple_tap', { screen: 'sign_up' });
+      const response: any = await signInWithApple();
+      
+      // The response includes both access_token and user data
+      // Check needs_onboarding from the auth response directly
+      const needsOnboarding = response?.needs_onboarding === true;
+      
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      
+      router.replace('/(tabs)' as any);
+    } catch (e: any) {
+      console.error('[sign-up] Apple sign up error:', e);
+      captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'apple-signup' } });
+      const message = e?.message || 'Apple sign up failed';
+      if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
+        return;
+      }
+      setError(message);
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+      <Stack.Screen 
+        options={{ 
+          title: 'Create Account',
+          headerShown: true,
+          headerBackTitle: 'Back'
+        }} 
+      />
+      <KeyboardAwareScreen contentContainerStyle={styles.content}>
+        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
+        <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
+        
+        {error ? <Text style={[styles.error, { color: Colors[colorScheme].tint }]}>{error}</Text> : null}
+
+        {!showEmailForm ? (
+          <>
+          {/* Apple Sign Up Option (iOS only) */}
+          {Platform.OS === 'ios' ? (
+            <AppleAuthenticationButton
+              onPress={handleAppleSignUp}
+              buttonType={AppleAuthenticationButtonType.SIGN_UP}
+              buttonStyle={colorScheme === 'dark' ? AppleAuthenticationButtonStyle.WHITE : AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={8}
+              style={{ width: '100%', height: 50, marginBottom: 8 }}
+            />
+          ) : null}
+
+          {/* Google Sign Up Option */}
+          {googleReady ? (
+            <Pressable
+              style={[
+                styles.googleButton,
+                { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border },
+                googleLoading && styles.buttonDisabled,
+              ]}
+              onPress={handleGoogleSignUp}
+              disabled={googleLoading}
+              accessibilityRole="button"
+            >
+              <View style={styles.googleIcon}>
+                <GoogleGlyph size={20} />
+              </View>
+              {googleLoading ? (
+                <ActivityIndicator size="small" color={Colors[colorScheme].text} />
+              ) : (
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Continue with Google</Text>
+              )}
+            </Pressable>
+          ) : (
+            <View
+              style={[
+                styles.googleButton,
+                { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border },
+                styles.buttonDisabled,
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel="Google sign up not available"
+            >
+              <View style={[styles.googleIcon, { opacity: 0.5 }]}>
+                <GoogleGlyph size={20} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].mutedText }]}>Google sign up unavailable</Text>
+                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Add Google OAuth client IDs to enable this option.</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Email Sign Up Option */}
+          <Button onPress={() => setShowEmailForm(true)} variant="outline">
+            <Ionicons name="mail" size={16} color={Colors[colorScheme].text} style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
+          </Button>
+        </>
+        ) : (
+          <>
+          {/* Back Button */}
+          <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
+            <Ionicons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
+          </Pressable>
+
+          {/* Email Form */}
+          <Input placeholder="Display name (optional)" value={name} onChangeText={setName} style={{ marginBottom: 10 }} />
+          <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} />
+          <Input placeholder="Password (min 8 chars)" value={password} onChangeText={setPassword} secureTextEntry />
+          <View style={{ height: 12 }} />
+          <Button onPress={onSubmit} disabled={loading}>
+            {loading ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="white" />
+                <Text style={{ color: 'white', marginLeft: 8, fontSize: 16 }}>
+                  {retryCount > 0 ? `Retrying... (${retryCount}/3)` : 'Creating account...'}
+                </Text>
+              </View>
+            ) : 'Sign Up'}
+          </Button>
+          </>
+        )}
+
+          <Pressable style={{ marginTop: 24, alignItems: 'center' }} onPress={() => void router.replace('/sign-in')}>
+          <Text style={[styles.signInLink, { color: Colors[colorScheme].tint }]}>Already have an account? Sign in</Text>
+        </Pressable>
+      </KeyboardAwareScreen>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16 },
+  content: {
+    flexGrow: 1,
+  },
+  title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
+  error: { marginBottom: 8, textAlign: 'center' },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  googleIcon: {
+    marginRight: 8,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleButtonSubtext: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  backText: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  signInLink: {
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  disabledGoogleButton: {
+    borderColor: '#CBD5F5',
+    backgroundColor: '#F3F4F6',
+  },
+});

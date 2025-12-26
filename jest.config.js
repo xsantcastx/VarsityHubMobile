@@ -4,6 +4,8 @@ module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
+    '^@/features/(.*)$': '<rootDir>/src/features/$1',
+    '^@/shared/(.*)$': '<rootDir>/src/shared/$1',
     '^@/(.*)$': '<rootDir>/$1',
     'UTFSequence$': '<rootDir>/shims/UTFSequenceMock.js',
   },

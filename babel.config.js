@@ -7,6 +7,8 @@ module.exports = function (api) {
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         alias: {
           // Place more specific aliases first to avoid '@' greedy matches
+          '@/features': './src/features',
+          '@/shared': './src/shared',
           '@/components': './components',
           '@/constants': './constants',
           '@/hooks': './hooks',
@@ -15,6 +17,7 @@ module.exports = function (api) {
           '@/utils': './utils',
           '@/config': './config',
           '@/data': './data',
+          '@/assets': './assets',
           '@/ui': './components/ui',
           // Shim problematic nested deps on Windows
           'is-arrayish': './shims/is-arrayish',
