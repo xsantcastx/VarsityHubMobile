@@ -104,6 +104,8 @@ export default function ManageSeasonScreen() {
   const [currentTeam, setCurrentTeam] = useState<{ id: string; name: string } | null>(null);
   const [managedTeams, setManagedTeams] = useState<Array<{ id: string; name: string }>>([]);
   const [teamSelectorOpen, setTeamSelectorOpen] = useState<boolean>(false);
+  const [error, setError] = useState<{ message: string; timestamp: number } | null>(null);
+  const [errorVisible, setErrorVisible] = useState(false);
 
   // Guard: restrict to coach role
   useEffect(() => {
@@ -147,6 +149,9 @@ export default function ManageSeasonScreen() {
       }
     } catch (error) {
       console.error('Error loading team:', error);
+      const msg = error instanceof Error ? error.message : 'Failed to load team';
+      setError({ message: msg, timestamp: Date.now() });
+      setErrorVisible(true);
     } finally {
       setLoading(false);
     }
@@ -238,12 +243,8 @@ export default function ManageSeasonScreen() {
         ? 'Server is busy, please try again in a moment'
         : 'Failed to load games from server';
       
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: errorMessage,
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
+      setError({ message: errorMessage, timestamp: Date.now() });
+      setErrorVisible(true);
     } finally {
       setLoading(false);
     }
@@ -447,12 +448,9 @@ export default function ManageSeasonScreen() {
                 options: [{ label: 'OK', onPress: () => {}, color: undefined }],
               });
             } catch (error) {
-              setActionModal({
-                visible: true,
-                title: 'Error',
-                message: 'Failed to delete game. Please try again.',
-                options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-              });
+              const msg = error instanceof Error ? error.message : 'Failed to delete game';
+              setError({ message: msg, timestamp: Date.now() });
+              setErrorVisible(true);
               console.error('Error deleting game:', error);
             }
           }
@@ -529,12 +527,9 @@ export default function ManageSeasonScreen() {
       });
     } catch (error: any) {
       console.error('Error approving game:', error);
-      setActionModal({
-        visible: true,
-        title: 'Approval Failed',
-        message: error?.message || 'We could not approve this game. Please try again.',
-        options: [{ label: 'OK', onPress: () => {} }],
-      });
+      const msg = error?.message || 'We could not approve this game';
+      setError({ message: msg, timestamp: Date.now() });
+      setErrorVisible(true);
     }
   };
 
@@ -561,12 +556,9 @@ export default function ManageSeasonScreen() {
               });
             } catch (error: any) {
               console.error('Error rejecting game:', error);
-              setActionModal({
-                visible: true,
-                title: 'Rejection Failed',
-                message: error?.message || 'We could not reject this game. Please try again.',
-                options: [{ label: 'OK', onPress: () => {} }],
-              });
+              const msg = error?.message || 'We could not reject this game';
+              setError({ message: msg, timestamp: Date.now() });
+              setErrorVisible(true);
             }
           },
         },
@@ -754,12 +746,8 @@ export default function ManageSeasonScreen() {
       console.error('Error message:', error?.message);
       const details = error?.data?.issues ? `\nDetails: ${JSON.stringify(error.data.issues)}` : '';
       const errorMsg = (error?.data?.error || error?.data?.message || error?.message || 'Unknown error') + details;
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: `Failed to add event: ${errorMsg}`,
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
+      setError({ message: `Failed to add event: ${errorMsg}`, timestamp: Date.now() });
+      setErrorVisible(true);
     }
   };
 
@@ -886,12 +874,9 @@ export default function ManageSeasonScreen() {
       });
       
     } catch (error) {
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: `Failed to create bulk games: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setError({ message: `Failed to create bulk games: ${msg}`, timestamp: Date.now() });
+      setErrorVisible(true);
       console.error('Error creating bulk games:', error);
     }
   };
@@ -1162,7 +1147,9 @@ export default function ManageSeasonScreen() {
             </Text>
           </View>
           <View style={styles.settingsButton}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>{getWinPercentage()}%</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12, textAlign: 'center' }}>
+              {getWinPercentage()}%
+            </Text>
           </View>
         </View>
         <View style={styles.statsGrid}>
@@ -1707,6 +1694,49 @@ export default function ManageSeasonScreen() {
         currentTeamName={currentTeam?.name || 'My Team'}
         currentTeamId={params.teamId || ''}
       />
+
+      {/* Error Toast */}
+      {errorVisible && error && (
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 16,
+            right: 16,
+            backgroundColor: '#EF4444',
+            padding: 16,
+            borderRadius: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            shadowColor: '#000',
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 5,
+            zIndex: 1000,
+          }}
+        >
+          <Ionicons name="alert-circle" size={20} color="#fff" />
+          <Text
+            style={{
+              flex: 1,
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: '500',
+            }}
+            numberOfLines={2}
+          >
+            {error.message}
+          </Text>
+          <Pressable
+            onPress={() => setErrorVisible(false)}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name="close" size={18} color="#fff" />
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
