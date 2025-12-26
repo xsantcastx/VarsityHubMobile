@@ -134,11 +134,29 @@ export default function Step10Confirmation() {
   };
 
   const onComplete = async () => {
+    // Allow users to complete onboarding even if optional steps aren't done
+    // Just warn them about incomplete required steps
     if (!completion.allRequiredComplete) {
-      Alert.alert('Setup Incomplete', 'Please complete all required steps before continuing.');
+      const incompleteSteps = completion.checks
+        .filter(check => check.required && !check.completed)
+        .map(check => check.label)
+        .join(', ');
+      
+      Alert.alert(
+        'Setup Incomplete', 
+        `The following required steps are incomplete: ${incompleteSteps}. You can still complete these later in settings.`,
+        [
+          { text: 'Complete Later', onPress: () => proceedWithCompletion(), style: 'default' },
+          { text: 'Go Back', style: 'cancel' }
+        ]
+      );
       return;
     }
 
+    await proceedWithCompletion();
+  };
+
+  const proceedWithCompletion = async () => {
     setCompleting(true);
     try {
       // Debug: log final payload
