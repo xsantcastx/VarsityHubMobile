@@ -344,11 +344,12 @@ const appConfig = getConfig();
               };
 
               return (
-                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
+                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['bottom']}>
                   <Stack.Screen options={{ 
                     title: 'Settings', 
                     headerBackTitle: 'Back',
                     headerShown: true,
+                    headerLargeTitle: false,
                   }} />
                   <ScrollView 
                     style={{ flex: 1 }}

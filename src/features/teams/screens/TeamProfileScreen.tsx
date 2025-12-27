@@ -1,15 +1,15 @@
+import { Team as TeamApi } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Team as TeamApi } from '@/api/entities';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 
-const COVER_HEIGHT = 240;
+const COVER_HEIGHT = Math.max(180, Math.min(220, Math.floor(Dimensions.get('window').height * 0.24)));
 const AVATAR_SIZE = 100;
 
 export default function TeamProfileScreen() {
@@ -115,12 +115,7 @@ export default function TeamProfileScreen() {
             <LinearGradient colors={['#667eea', '#764ba2']} style={S.coverImage} />
           )}
 
-          {isOwnTeam && (
-            <Pressable style={S.editButton} onPress={() => router.push(`/team-edit?id=${team.id}`)}>
-              <Ionicons name="image-outline" size={20} color="#fff" />
-              <Text style={S.editButtonText}>Edit cover</Text>
-            </Pressable>
-          )}
+          {/* Edit cover is handled in team edit; remove inline button */}
 
           <Pressable style={S.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -334,7 +329,7 @@ const S = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 16, fontWeight: '500' },
-  coverSection: { position: 'relative', height: COVER_HEIGHT },
+  coverSection: { position: 'relative', height: COVER_HEIGHT, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },
   backButton: {
     position: 'absolute',
@@ -360,7 +355,14 @@ const S = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   editButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  profileSection: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16, marginBottom: 16 },
+  profileSection: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: AVATAR_SIZE * 0.2 + 8,
+    paddingBottom: 8,
+    marginTop: -(AVATAR_SIZE * 1.1),
+    marginBottom: 12,
+  },
   avatarContainer: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -368,7 +370,7 @@ const S = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#fff',
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },

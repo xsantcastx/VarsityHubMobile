@@ -6,10 +6,10 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const COVER_HEIGHT = 240;
+const COVER_HEIGHT = Math.max(180, Math.min(220, Math.floor(Dimensions.get('window').height * 0.24)));
 const AVATAR_SIZE = 100;
 
 export default function UserProfileScreen() {
@@ -22,29 +22,72 @@ export default function UserProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [me, setMe] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
-  const [posts, setPosts] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [tabError, setTabError] = useState<string | null>(null);
+
+  const loadTabData = useCallback(
+    async (tab: 'posts' | 'replies' | 'upvotes', targetId: string) => {
+      setTabLoading(true);
+      setTabError(null);
+      try {
+        if (tab === 'posts') {
+          const page = await User.postsForProfile(String(targetId), { limit: 20, sort: 'newest' });
+          setItems(page?.items || page || []);
+        } else {
+          const type = tab === 'replies' ? 'comment' : 'like';
+          const res = await User.interactionsForProfile(String(targetId), { limit: 20, sort: 'newest', type });
+          const list = (res?.items || res || []).map((it: any) => {
+            const post = it?.post || it?.target?.post || it?.target || it;
+            return { ...post, __interaction: it };
+          });
+          setItems(list);
+        }
+      } catch (e: any) {
+        setItems([]);
+        setTabError(e?.message || 'Failed to load activity');
+      } finally {
+        setTabLoading(false);
+      }
+    },
+    []
+  );
 
   const load = useCallback(async () => {
-    if (!params.id) {
-      setError('No user ID');
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
-      const current = await User.me();
+      const current = await User.me().catch(() => null);
       setMe(current);
-      const u = await User.getPublic(String(params.id));
-      setUser(u);
-      const page = await User.postsForProfile(String(params.id), { limit: 20, sort: 'newest' });
-      setPosts(page.items || []);
+      const targetId = params.id || current?.id;
+      if (!targetId) {
+        setError('Sign in to view profiles');
+        return;
+      }
+
+      let targetUser = null;
+      try {
+        targetUser = await User.getPublic(String(targetId));
+      } catch (err) {
+        if (current && String(current.id) === String(targetId)) {
+          targetUser = current;
+        } else {
+          throw err;
+        }
+      }
+
+      setTabError(null);
+      setTabLoading(true);
+      setItems([]);
+      setUser(targetUser);
+      setActiveTab('posts');
     } catch (e: any) {
       if (e?.status === 401) {
         setError('Sign in to view profiles');
       } else {
         setError(e?.message || 'Failed to load user');
       }
+      setTabLoading(false);
     } finally {
       setLoading(false);
     }
@@ -55,6 +98,25 @@ export default function UserProfileScreen() {
   }, [load]);
 
   const isOwnProfile = !!(me?.id && user?.id && me.id === user.id);
+  const role = user?.preferences?.role || user?.role;
+  const joinedDate =
+    user?.preferences?.joined_date ||
+    user?.created_at ||
+    null;
+
+  const roleBadge = (() => {
+    const normalized = String(role || '').toLowerCase();
+    if (normalized === 'coach') return { icon: '🏆', text: 'Coach', color: '#1d4ed8' };
+    if (normalized === 'athlete' || normalized === 'player') return { icon: '⚡', text: 'Athlete', color: '#059669' };
+    if (normalized === 'staff') return { icon: '👔', text: 'Staff', color: '#7c3aed' };
+    return null;
+  })();
+
+  useEffect(() => {
+    if (user?.id) {
+      void loadTabData(activeTab, String(user.id));
+    }
+  }, [activeTab, user?.id, loadTabData]);
 
   const onFollow = async () => {
     if (!user?.id) return;
@@ -114,12 +176,7 @@ export default function UserProfileScreen() {
             <LinearGradient colors={['#667eea', '#764ba2']} style={S.coverImage} />
           )}
 
-          {isOwnProfile && (
-            <Pressable style={S.editButton} onPress={() => router.push('/edit-profile')}>
-              <Ionicons name="image-outline" size={20} color="#fff" />
-              <Text style={S.editButtonText}>Edit cover</Text>
-            </Pressable>
-          )}
+          {/* Edit cover moved to Edit Profile; remove inline cover edit button */}
 
           <Pressable style={S.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -132,7 +189,9 @@ export default function UserProfileScreen() {
             {user?.avatar_url ? (
               <Image source={{ uri: user.avatar_url }} style={S.avatar} contentFit="cover" />
             ) : (
-              <View style={[S.avatar, { backgroundColor: theme.card }]} />
+              <View style={[S.avatarPlaceholder, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <Ionicons name="person" size={42} color={theme.mutedText} />
+              </View>
             )}
           </View>
 
@@ -148,17 +207,22 @@ export default function UserProfileScreen() {
             <Text style={[S.username, { color: theme.mutedText }]} numberOfLines={1}>
               @{user?.username || user?.id}
             </Text>
+            {roleBadge ? (
+              <View style={[S.roleBadge, { backgroundColor: roleBadge.color }]}>
+                <Text style={S.roleBadgeText}>{roleBadge.icon} {roleBadge.text}</Text>
+              </View>
+            ) : null}
             {user?.bio && (
               <Text style={[S.bio, { color: theme.text }]} numberOfLines={2}>
                 {user.bio}
               </Text>
             )}
-            {user?.preferences?.joined_date && (
+            {joinedDate && (
               <View style={S.joinedRow}>
                 <Ionicons name="calendar-outline" size={16} color={theme.mutedText} />
                 <Text style={[S.joinedText, { color: theme.mutedText }]}>
                   Joined{' '}
-                  {new Date(user.preferences.joined_date).toLocaleDateString('en-US', {
+                  {new Date(joinedDate).toLocaleDateString('en-US', {
                     month: 'long',
                     year: 'numeric',
                   })}
@@ -231,7 +295,23 @@ export default function UserProfileScreen() {
 
         {/* Content */}
         <View style={S.contentSection}>
-          {posts.length === 0 ? (
+          {tabLoading ? (
+            <View style={S.emptyState}>
+              <ActivityIndicator color={theme.tint} />
+              <Text style={[S.emptyStateText, { color: theme.text }]}>Loading {activeTab}…</Text>
+            </View>
+          ) : tabError ? (
+            <View style={S.emptyState}>
+              <Ionicons name="alert-circle-outline" size={28} color="#ef4444" />
+              <Text style={[S.emptyStateText, { color: theme.text }]}>{tabError}</Text>
+              <Pressable
+                style={[S.retryButton, { backgroundColor: theme.tint }]}
+                onPress={() => user?.id && loadTabData(activeTab, String(user.id))}
+              >
+                <Text style={S.retryButtonText}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : items.length === 0 ? (
             <View style={S.emptyState}>
               <Ionicons name="document-outline" size={48} color={theme.mutedText} />
               <Text style={[S.emptyStateText, { color: theme.text }]}>No posts yet</Text>
@@ -240,7 +320,7 @@ export default function UserProfileScreen() {
               </Text>
             </View>
           ) : (
-            posts.map((post) => (
+            items.map((post) => (
               <Pressable
                 key={post.id}
                 style={[S.postCard, { backgroundColor: theme.card, borderColor: theme.border }]}
@@ -283,7 +363,7 @@ const S = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { fontSize: 16, fontWeight: '500' },
-  coverSection: { position: 'relative', height: COVER_HEIGHT },
+  coverSection: { position: 'relative', height: COVER_HEIGHT, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },
   backButton: {
     position: 'absolute',
@@ -309,7 +389,14 @@ const S = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   editButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  profileSection: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16, marginBottom: 16 },
+  profileSection: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: AVATAR_SIZE * 0.2 + 8,
+    paddingBottom: 8,
+    marginTop: -(AVATAR_SIZE * 1.1),
+    marginBottom: 12,
+  },
   avatarContainer: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -317,13 +404,28 @@ const S = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#fff',
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   avatar: { width: '100%', height: '100%' },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: AVATAR_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   nameContainer: { alignItems: 'center', marginBottom: 16 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   displayName: { fontSize: 22, fontWeight: '700' },
   username: { fontSize: 14, marginBottom: 8 },
+  roleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  roleBadgeText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   bio: { fontSize: 14, lineHeight: 20, marginBottom: 8, textAlign: 'center', paddingHorizontal: 12 },
   joinedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   joinedText: { fontSize: 13 },
@@ -367,4 +469,15 @@ const S = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 48 },
   emptyStateText: { fontSize: 16, fontWeight: '600', marginTop: 16 },
   emptyStateSubtext: { fontSize: 14, marginTop: 6 },
+  retryButton: {
+    marginTop: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });

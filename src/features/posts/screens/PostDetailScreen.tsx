@@ -14,7 +14,7 @@ import {
     Pressable,
     ScrollView,
     StatusBar,
-              if (post.author_id) { void router.push(`/user-profile?id=${post.author_id}`);
+    StyleSheet,
     Text,
     TextInput,
     View
@@ -308,7 +308,6 @@ export default function PostDetailScreen() {
         await User.follow(post.author_id);
         setFollowing(true);
       }
-    } catch {
     } catch (error) {
       console.error('Error toggling follow:', error);
     }
@@ -326,7 +325,6 @@ export default function PostDetailScreen() {
         // Fallback to toggle if API doesn't return the state
         setSaved(!saved);
       }
-    } catch {
     } catch (error) {
       console.error('Error toggling save:', error);
     }
@@ -518,7 +516,9 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => { if (post.author_id) { void void router.push(`/user-profile?id=${post.author_id}`);
+              onPress={() => {
+                if (post.author_id) {
+                  void router.push(`/user-profile?id=${post.author_id}`);
                 }
               }}
               disabled={!post.author_id}

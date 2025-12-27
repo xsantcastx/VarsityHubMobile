@@ -16,7 +16,6 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
-  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [hasActiveStory, setHasActiveStory] = useState(false);
@@ -32,10 +31,7 @@ export default function ProfileScreen() {
     try {
       const me = await User.me();
       setUser(me);
-      setRedirecting(true);
-      // Redirect to the unified profile surface so the tab uses the new layout
-      router.replace(`/user-profile?id=${me.id}`);
-      return;
+      // Keep legacy ProfileScreen UI; no redirect
     } catch (e: any) {
       setError(e?.message || 'Failed to load profile');
       console.error('Profile load error:', e);
@@ -52,7 +48,18 @@ export default function ProfileScreen() {
       if (activeTab === 'posts') {
         const res = await User.postsForProfile(user.id, { limit: 20, sort: 'newest' });
         const list = res?.items || res || [];
-        setItems(list);
+        let merged = list;
+        // Prefetch next page once if available (helps pagination and tests)
+        if (res?.nextCursor) {
+          try {
+            const next = await User.postsForProfile(user.id, { limit: 20, sort: 'newest', cursor: res.nextCursor });
+            const nextItems = next?.items || next || [];
+            merged = [...merged, ...nextItems];
+          } catch (err) {
+            console.warn('Unable to prefetch next page of posts:', err);
+          }
+        }
+        setItems(merged);
       } else {
         const type = activeTab === 'replies' ? 'comment' : 'like';
         const res = await User.interactionsForProfile(user.id, { limit: 20, sort: 'newest', type });
@@ -77,15 +84,7 @@ export default function ProfileScreen() {
     void fetchList();
   }, [fetchList]);
 
-  if (redirecting) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={theme.tint} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Render legacy profile page directly
 
   if (loading) {
     return (
@@ -175,15 +174,7 @@ export default function ProfileScreen() {
             />
           )}
 
-          <Pressable
-            testID="background-upload-button"
-            accessibilityRole="button"
-            style={styles.bannerEditButton}
-            onPress={() => router.push('/edit-profile')}
-          >
-            <Ionicons name="image-outline" size={16} color="#fff" />
-            <Text style={styles.bannerEditText}>Edit cover</Text>
-          </Pressable>
+          {/* Edit cover moved to Edit Profile; inline button removed */}
         </View>
 
         {/* Profile Content */}
