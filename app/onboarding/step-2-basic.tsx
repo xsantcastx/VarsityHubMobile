@@ -1,6 +1,6 @@
 import DateField from '@/components/ui/DateField';
-import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -228,7 +228,7 @@ export default function Step2Basic() {
         <Text style={styles.error}>Please enter a valid date of birth</Text>
       )}
 
-      <Text style={styles.label}>Zip code</Text>
+      <Text style={styles.label}>ZIP code</Text>
       <Input 
         value={zip} 
         onChangeText={setZip} 

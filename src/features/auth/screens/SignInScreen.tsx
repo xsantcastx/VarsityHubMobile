@@ -15,12 +15,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { Button, Input } from '@/shared/components';
 import { captureException } from '@/utils/sentry';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -127,7 +126,7 @@ export default function SignInScreen() {
     if (googleLoading || loading) return;
     
     if (!googleReady) {
-      setError('Google sign in is not configured yet.');
+      setError('Google sign in is not available. Please try email or Apple.');
       return;
     }
     setError(null);
@@ -138,7 +137,7 @@ export default function SignInScreen() {
         const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
         // SECURITY: Normalize error message
-        setError('Failed to sign in with Google. Please try again.');
+        setError('Google sign in failed. Please try again or use email.');
         return;
       }
 
@@ -148,7 +147,7 @@ export default function SignInScreen() {
           new Error('Google sign-in: missing access_token after backend linking'),
           { tags: { context: 'google-signin', email: response?.user?.email || response?.email } }
         );
-        setError('Failed to sign in with Google. Please try again.');
+        setError('Google sign in failed. Please try again or use email.');
         return;
       }
 
@@ -202,7 +201,7 @@ export default function SignInScreen() {
           new Error('Apple sign-in: missing access_token after backend linking'),
           { tags: { context: 'apple-signin', email: response?.user?.email || response?.email } }
         );
-        setError('Failed to sign in with Apple. Please try again.');
+        setError('Apple sign in failed. Please try again or use email.');
         return;
       }
 
@@ -229,7 +228,7 @@ export default function SignInScreen() {
       );
       
       // SECURITY: Normalize error message
-      setError('Failed to sign in with Apple. Please try again.');
+      setError('Apple sign in failed. Please try again or use email.');
     }
   };
 
@@ -357,7 +356,7 @@ export default function SignInScreen() {
             </View>
 
             <Pressable style={styles.forgotLink} onPress={() => void router.push('/forgot-password')}>
-              <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password?</Text>
+              <Text style={[styles.forgotLinkText, { color: palette.tint }]}>Forgot password</Text>
             </Pressable>
 
             <Button onPress={onSubmit} disabled={loading}>

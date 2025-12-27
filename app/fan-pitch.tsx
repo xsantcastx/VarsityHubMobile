@@ -1,8 +1,7 @@
 import { Event } from '@/api/entities';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Button, Input } from '@/shared/components';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';

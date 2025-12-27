@@ -1,2 +1,5 @@
-// Shared constants
-// Re-export commonly used constants here as they are migrated
+// Shared constants - centralized design system tokens and accessibility guidelines
+export * from './Accessibility';
+export * from './Colors';
+export * from './Theme';
+

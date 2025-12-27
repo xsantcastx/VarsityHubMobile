@@ -71,31 +71,39 @@ export default function TeamPageScreen() {
 
       let teamData: LeagueTeam | null = null;
 
-      // Try to fetch from Team API
-      try {
-        const allTeams = await Team.list();
-        const teamsList = Array.isArray(allTeams) ? allTeams : [];
-        
-        // Try to find by ID first
-        if (teamId) {
-          teamData = teamsList.find((t: any) => t.id === teamId) || null;
+      // Prefer a direct fetch to ensure organization_id and other fields are present
+      if (teamId) {
+        try {
+          teamData = await Team.get(teamId);
+        } catch (apiErr) {
+          console.error('Failed to fetch team by id:', apiErr);
         }
-        
-        // If not found by ID, try by name
-        if (!teamData && teamName) {
-          teamData = teamsList.find((t: any) => 
-            t.name?.toLowerCase() === teamName.toLowerCase()
-          ) || null;
-        }
-      } catch (apiErr) {
-        console.error('Failed to fetch teams from API:', apiErr);
-        // Continue without team data from API
       }
 
-      // If we couldn't find a team in the API, create a minimal team object from the name/id
+      // Fallback to list lookup by id or name
+      if (!teamData) {
+        try {
+          const allTeams = await Team.list();
+          const teamsList = Array.isArray(allTeams) ? allTeams : [];
+          
+          if (teamId) {
+            teamData = teamsList.find((t: any) => t.id === teamId) || null;
+          }
+          
+          if (!teamData && teamName) {
+            teamData = teamsList.find((t: any) => 
+              t.name?.toLowerCase() === teamName.toLowerCase()
+            ) || null;
+          }
+        } catch (apiErr) {
+          console.error('Failed to fetch teams from API:', apiErr);
+        }
+      }
+
+      // If we couldn't find a team in the API, create a minimal team object from the name only (no temp id to avoid bad fetches)
       if (!teamData && teamName) {
         teamData = {
-          id: teamId || `temp-${teamName}`,
+          id: teamId || undefined,
           name: teamName,
           logo_url: undefined,
         };
@@ -374,7 +382,14 @@ export default function TeamPageScreen() {
               @{(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}
             </Text>
             <Pressable
-              onPress={() => router.push(`/organization?id=${team?.organization_id || team?.id}` as any)}
+              onPress={() => {
+                const orgId = team?.organization_id;
+                if (orgId) {
+                  router.push(`/organization?id=${orgId}` as any);
+                } else {
+                  router.push({ pathname: '/request-join-organization', params: { team_id: team?.id || '', team_name: team?.name } } as any);
+                }
+              }}
             >
               <Text style={styles.orgEmojiButton}>🏢</Text>
             </Pressable>

@@ -42,6 +42,8 @@ export default function CreateTeamScreen() {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [clubType, setClubType] = useState<'sport' | 'extracurricular'>('sport');
+  const [extracurricularCategory, setExtracurricularCategory] = useState('');
   const [sport, setSport] = useState('');
   const [seasonType, setSeasonType] = useState(''); // Fall, Spring, Summer, Winter
   const [seasonYear, setSeasonYear] = useState(''); // Year editable by user
@@ -123,7 +125,7 @@ export default function CreateTeamScreen() {
     }
 
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -144,7 +146,7 @@ export default function CreateTeamScreen() {
     }
 
     const pickerResult = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -200,6 +202,11 @@ export default function CreateTeamScreen() {
     if (!name.trim()) { 
       Alert.alert('Team name required', 'Please enter a team name to continue.');
       return; 
+    }
+    
+    if (clubType === 'extracurricular' && !extracurricularCategory.trim()) {
+      Alert.alert('Category required', 'Please enter a category for your extracurricular club.');
+      return;
     }
     
     if (!teamColor) {
@@ -413,7 +420,9 @@ export default function CreateTeamScreen() {
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
-        sport: sport || undefined,
+        club_type: clubType,
+        extracurricular_category: clubType === 'extracurricular' ? extracurricularCategory.trim() : undefined,
+        sport: clubType === 'sport' ? (sport || undefined) : undefined,
         season_start: seasonType && seasonYear ? `${seasonYear}-${seasonType}` : undefined,
         primary_color: teamColor || undefined,
         organization_id: organizationId, // REQUIRED: Link to organization
@@ -430,6 +439,18 @@ export default function CreateTeamScreen() {
       // Handle specific backend error codes
       if (e?.code === 'COACH_ROLE_REQUIRED') {
         Alert.alert('Access Restricted', 'Only coach accounts can create teams.');
+      } else if (e?.code === 'LEGEND_TIER_REQUIRED') {
+        Alert.alert(
+          'Legend Plan Required',
+          'Extracurricular clubs require the Legend plan. Upgrade to unlock this feature.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'View Plans',
+              onPress: () => router.push('/subscription-paywall')
+            }
+          ]
+        );
       } else if (e?.code === 'ORGANIZATION_NOT_FOUND') {
         Alert.alert('Organization Not Found', 'The organization could not be found. Please try again.');
       } else if (e?.code === 'ORGANIZATION_ACCESS_DENIED') {
@@ -585,32 +606,128 @@ export default function CreateTeamScreen() {
             </Text>
           </View>
 
-          {/* Sport Selection */}
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
-            <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
-              {sports.map((sportOption) => (
+          {/* Club Type Selection (Sport vs Extracurricular) - Only show for Legend users */}
+          {teamLimits && normalizePlanTier(teamLimits.subscription_tier) === 'legend' && (
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Club Type</Text>
+              <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 12 }]}>
+                Create a sports team or an extracurricular club
+              </Text>
+              <View style={styles.clubTypeContainer}>
                 <Pressable
-                  key={sportOption}
                   style={[
-                    styles.chipButton,
+                    styles.clubTypeButton,
                     { 
-                      backgroundColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].surface,
-                      borderColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].border
+                      backgroundColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                      borderColor: clubType === 'sport' ? Colors[colorScheme].tint : Colors[colorScheme].border
                     }
                   ]}
-                  onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                  onPress={() => {
+                    setClubType('sport');
+                    setExtracurricularCategory('');
+                  }}
                 >
+                  <Ionicons 
+                    name="basketball-outline" 
+                    size={24} 
+                    color={clubType === 'sport' ? '#fff' : Colors[colorScheme].text} 
+                  />
                   <Text style={[
-                    styles.chipText,
-                    { color: sport === sportOption ? '#fff' : Colors[colorScheme].text }
+                    styles.clubTypeButtonText,
+                    { color: clubType === 'sport' ? '#fff' : Colors[colorScheme].text }
                   ]}>
-                    {sportOption}
+                    Sport
+                  </Text>
+                  <Text style={[
+                    styles.clubTypeButtonSubtext,
+                    { color: clubType === 'sport' ? '#fff' : Colors[colorScheme].mutedText }
+                  ]}>
+                    Athletic teams
                   </Text>
                 </Pressable>
-              ))}
-            </RNScrollView>
-          </View>
+                
+                <Pressable
+                  style={[
+                    styles.clubTypeButton,
+                    { 
+                      backgroundColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                      borderColor: clubType === 'extracurricular' ? Colors[colorScheme].tint : Colors[colorScheme].border
+                    }
+                  ]}
+                  onPress={() => setClubType('extracurricular')}
+                >
+                  <Ionicons 
+                    name="school-outline" 
+                    size={24} 
+                    color={clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text} 
+                  />
+                  <Text style={[
+                    styles.clubTypeButtonText,
+                    { color: clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].text }
+                  ]}>
+                    Extracurricular
+                  </Text>
+                  <Text style={[
+                    styles.clubTypeButtonSubtext,
+                    { color: clubType === 'extracurricular' ? '#fff' : Colors[colorScheme].mutedText }
+                  ]}>
+                    Theater, Chess, etc.
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Extracurricular Category - Only show when extracurricular is selected */}
+          {clubType === 'extracurricular' && (
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
+                Category <Text style={{ color: '#EF4444' }}>*</Text>
+              </Text>
+              <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 8 }]}>
+                e.g., Theater, Chess Club, Debate Team, Robotics, etc.
+              </Text>
+              <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+                <Ionicons name="bookmark-outline" size={20} color={Colors[colorScheme].mutedText} />
+                <TextInput
+                  value={extracurricularCategory}
+                  onChangeText={setExtracurricularCategory}
+                  placeholder="e.g. Theater Club"
+                  placeholderTextColor={Colors[colorScheme].mutedText}
+                  style={[styles.textInput, { color: Colors[colorScheme].text }]}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Sport Selection - Only show for sport club type */}
+          {clubType === 'sport' && (
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Sport</Text>
+              <RNScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
+                {sports.map((sportOption) => (
+                  <Pressable
+                    key={sportOption}
+                    style={[
+                      styles.chipButton,
+                      { 
+                        backgroundColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].surface,
+                        borderColor: sport === sportOption ? Colors[colorScheme].tint : Colors[colorScheme].border
+                      }
+                    ]}
+                    onPress={() => setSport(sport === sportOption ? '' : sportOption)}
+                  >
+                    <Text style={[
+                      styles.chipText,
+                      { color: sport === sportOption ? '#fff' : Colors[colorScheme].text }
+                    ]}>
+                      {sportOption}
+                    </Text>
+                  </Pressable>
+                ))}
+              </RNScrollView>
+            </View>
+          )}
 
           {/* Season Selection */}
           <View style={styles.fieldGroup}>
@@ -1082,5 +1199,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginTop: 8,
+  },
+  // Club type styles
+  clubTypeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  clubTypeButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  clubTypeButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  clubTypeButtonSubtext: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
   },
 });

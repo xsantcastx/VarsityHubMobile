@@ -5,11 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
+    PanResponder,
     Platform,
     Pressable,
     RefreshControl,
@@ -340,6 +341,42 @@ export default function HighlightsScreen() {
     posts: HighlightItem[];
   }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
+  const panResponderRef = useRef<any>(null);
+  const swipeStartXRef = useRef(0);
+
+  // Setup swipe gesture handler
+  useEffect(() => {
+    panResponderRef.current = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        swipeStartXRef.current = evt.nativeEvent.pageX;
+      },
+      onPanResponderRelease: (evt) => {
+        const currentX = evt.nativeEvent.pageX;
+        const diff = swipeStartXRef.current - currentX;
+        const minSwipeDistance = 50;
+
+        if (Math.abs(diff) > minSwipeDistance) {
+          if (diff > 0) {
+            // Swiped left - go to next tab
+            const tabs: TabType[] = ['trending', 'recent', 'top'];
+            const currentIdx = tabs.indexOf(activeTab);
+            if (currentIdx < tabs.length - 1) {
+              setActiveTab(tabs[currentIdx + 1]);
+            }
+          } else {
+            // Swiped right - go to previous tab
+            const tabs: TabType[] = ['trending', 'recent', 'top'];
+            const currentIdx = tabs.indexOf(activeTab);
+            if (currentIdx > 0) {
+              setActiveTab(tabs[currentIdx - 1]);
+            }
+          }
+        }
+      },
+    });
+  }, [activeTab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -623,8 +660,10 @@ export default function HighlightsScreen() {
         />
       </ScrollView>
 
-      {/* Show search results when searching */}
-      {searchQuery.trim() ? (
+      {/* Content area with swipe gesture handling */}
+      <View style={{ flex: 1 }} {...(panResponderRef.current ? panResponderRef.current.panHandlers : {})}>
+        {/* Show search results when searching */}
+        {searchQuery.trim() ? (
         searching ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
@@ -766,6 +805,7 @@ export default function HighlightsScreen() {
           }
         />
       )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -1022,7 +1062,9 @@ const styles = StyleSheet.create({
   contentSection: {
     flex: 1,
     padding: 16,
+    paddingBottom: 12,
     justifyContent: 'space-between',
+    display: 'flex',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1086,6 +1128,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
+    marginTop: 8,
+    flexWrap: 'wrap',
   },
   stat: {
     flexDirection: 'row',
@@ -1096,19 +1140,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'transparent',
+    minHeight: 36,
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },

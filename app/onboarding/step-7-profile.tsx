@@ -1,5 +1,5 @@
-import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
+import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImageManipulator from 'expo-image-manipulator';

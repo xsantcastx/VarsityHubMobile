@@ -5,13 +5,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { Button, Input } from '@/shared/components';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -136,7 +135,7 @@ export default function SignUpScreen() {
 
   const handleGoogleSignUp = async () => {
     if (!googleReady) {
-      setError('Google sign up is not configured yet. Please use email for now.');
+      setError('Google sign up is not available. Please use email for now.');
       return;
     }
     setError(null);
@@ -158,7 +157,7 @@ export default function SignUpScreen() {
         return;
       }
       captureException(typeof e === 'string' ? new Error(e) : e, { tags: { context: 'google-signup' } });
-      setError(message);
+      setError('Google sign up failed. Please try again or use email.');
     }
   };
 
@@ -196,7 +195,7 @@ export default function SignUpScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
-      setError(message);
+      setError('Apple sign up failed. Please try again or use email.');
     }
   };
 
@@ -213,11 +212,11 @@ export default function SignUpScreen() {
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
         
-        {error ? <Text style={[styles.error, { color: Colors[colorScheme].tint }]}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: '#dc2626' }]}>{error}</Text> : null}
 
         {!showEmailForm ? (
           <>
-          {/* Apple Sign Up Option (iOS only) */}
+          {/* Apple Sign up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
             <AppleAuthenticationButton
               onPress={handleAppleSignUp}
@@ -228,7 +227,7 @@ export default function SignUpScreen() {
             />
           ) : null}
 
-          {/* Google Sign Up Option */}
+          {/* Google Sign up Option */}
           {googleReady ? (
             <Pressable
               style={[
@@ -275,7 +274,7 @@ export default function SignUpScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Email Sign Up Option */}
+          {/* Email Sign up Option */}
           <Button onPress={() => setShowEmailForm(true)} variant="outline">
             <Ionicons name="mail" size={16} color={Colors[colorScheme].text} style={{ marginRight: 8 }} />
             <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
@@ -302,7 +301,7 @@ export default function SignUpScreen() {
                   {retryCount > 0 ? `Retrying... (${retryCount}/3)` : 'Creating account...'}
                 </Text>
               </View>
-            ) : 'Sign Up'}
+            ) : 'Sign up'}
           </Button>
           </>
         )}

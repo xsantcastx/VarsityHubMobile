@@ -1,2 +1,2 @@
-// Shared utilities
-// Re-export commonly used utilities here as they are migrated
+// Shared utilities (bridge to existing utils until fully migrated)
+export { createPageUrl } from '@/utils/index';

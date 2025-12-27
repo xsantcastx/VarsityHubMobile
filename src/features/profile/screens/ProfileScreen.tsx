@@ -191,6 +191,16 @@ export default function ProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
           )}
+
+          <Pressable
+            testID="background-upload-button"
+            accessibilityRole="button"
+            style={styles.bannerEditButton}
+            onPress={() => router.push('/edit-profile')}
+          >
+            <Ionicons name="image-outline" size={16} color="#fff" />
+            <Text style={styles.bannerEditText}>Edit cover</Text>
+          </Pressable>
         </View>
 
         {/* Profile Content */}
@@ -202,6 +212,8 @@ export default function ProfileScreen() {
                 hasActiveStory && styles.avatarWithStory,
                 { borderColor: hasActiveStory ? theme.tint : '#ffffff' }
               ]}
+              testID="avatar-upload-button"
+              accessibilityRole="button"
               onPress={() => {
                 if (hasActiveStory && userStories.length > 0) {
                   router.push({
@@ -401,6 +413,23 @@ const styles = StyleSheet.create({
   bannerGradient: {
     width: '100%',
     height: '100%',
+  },
+  bannerEditButton: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  bannerEditText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 
   // Profile Content

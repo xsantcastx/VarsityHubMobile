@@ -76,7 +76,7 @@ export default function AdConfirmationScreen() {
               🎉 Your Ad is Live!
             </Text>
             <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-              Your payment was successful and your ad campaign is now active.
+              Your payment was successful, and your ad campaign is now active.
             </Text>
           </View>
 

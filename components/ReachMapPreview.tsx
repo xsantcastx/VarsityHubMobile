@@ -65,19 +65,19 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
         setLoading(false);
       } catch (err: any) {
         if (!mounted) return;
-        console.error('Geocoding error:', err);
+        // Silent fail - don't block user
 
         // Check if it's a 404 (not found) or 500 (server/config error)
         if (err?.status === 404) {
           setLocation(null);
-          setError('ZIP code not found');
+          setError(null); // Don't show error, just skip map
           setLoading(false);
           return;
         }
 
         if (err?.status === 500) {
           setLocation(null);
-          setError('Map preview temporarily unavailable');
+          setError(null); // Don't show error, just skip map
           setLoading(false);
           return;
         }

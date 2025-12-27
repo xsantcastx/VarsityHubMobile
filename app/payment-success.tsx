@@ -191,7 +191,7 @@ export default function PaymentSuccessScreen() {
               <Text style={styles.successTitle}>Payment Successful!</Text>
               <Text style={styles.successText}>
                 {isAdPayment 
-                  ? 'Your ad payment has been processed successfully. Your ad reservation is now confirmed and will appear in "My Ads"!'
+                  ? 'Your ad payment was processed successfully. Your reservation is confirmed and will appear in "My Ads".'
                   : 'Your subscription has been activated. You can now create additional teams and access premium features.'}
               </Text>
               {isAdPayment && (

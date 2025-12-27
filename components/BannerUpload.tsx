@@ -69,10 +69,11 @@ export function BannerUpload({
 
       // Launch picker
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false, // Allow full image without cropping
         quality: 0.9,
         exif: false,
+        allowsMultipleSelection: false,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -92,9 +93,13 @@ export function BannerUpload({
         // Update with selected image
         onChange(asset.uri, fitMode, position, rotation, scale);
       }
-    } catch (error) {
-      console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    } catch (error: any) {
+      // iOS Simulator has known issues loading PNGs - suppress on simulator
+      const isSimulator = error?.message?.includes('public.png') || error?.message?.includes('Cannot load representation');
+      if (!isSimulator) {
+        console.error('Image picker error:', error);
+        Alert.alert('Error', 'Failed to pick image. Please try again.');
+      }
     } finally {
       setUploading(false);
     }
@@ -249,7 +254,7 @@ export function BannerUpload({
               Tap to upload banner
             </Text>
             <Text style={[styles.uploadHint, { color: Colors[colorScheme].mutedText }]}>
-              Recommended: 1920x1080 (16:9)
+              Recommended: 896x256 (3.5:1)
             </Text>
             <Text style={[styles.uploadHint, { color: Colors[colorScheme].mutedText }]}>
               Max size: 5MB

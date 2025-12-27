@@ -16,7 +16,8 @@
     "supports_extracurricular": false,
     "features": [
       "Entry-level access",
-      "First two teams free forever (ex: mens and womens soccer)",
+      "First two teams free",
+      "Example: Men's and Women's Soccer",
       "Up to 3 staff per team",
       "50 athletes per team roster"
     ],
@@ -42,7 +43,7 @@
     "supports_extracurricular": false,
     "features": [
       "Everything in Rookie",
-      "$1.50/month per additional team (3+ total)",
+      "$1.50/month per additional team",
       "Up to 5 staff per team"
     ],
     "billing": {

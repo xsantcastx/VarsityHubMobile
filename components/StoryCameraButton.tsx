@@ -76,7 +76,7 @@ export function StoryCameraButton({
 
       // Launch camera (not gallery)
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ['images', 'videos'],
         allowsEditing: false,
         quality: 0.9,
         exif: false,

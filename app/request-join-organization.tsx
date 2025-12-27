@@ -39,9 +39,12 @@ export default function RequestJoinOrganizationScreen() {
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
 
   useEffect(() => {
-    if (params.team_id) {
+    const teamId = params.team_id;
+    // Skip loading when no real team id (e.g., temp placeholders)
+    const isTempId = typeof teamId === 'string' && teamId.startsWith('temp-');
+    if (teamId && !isTempId) {
       // Load team details
-      Team.get(params.team_id)
+      Team.get(teamId)
         .then((data) => {
           setMyTeam({
             id: data.id,
@@ -52,12 +55,14 @@ export default function RequestJoinOrganizationScreen() {
           });
         })
         .catch((err) => {
-          console.error('[RequestJoinOrg] Error loading team:', err);
+          console.warn('[RequestJoinOrg] Error loading team, falling back to route params:', err?.message || err);
           setMyTeam({
-            id: params.team_id,
+            id: teamId,
             name: params.team_name || 'My Team',
           });
         });
+    } else if (params.team_name) {
+      setMyTeam({ id: teamId || 'temp', name: params.team_name });
     }
   }, [params.team_id, params.team_name]);
 
@@ -94,7 +99,7 @@ export default function RequestJoinOrganizationScreen() {
       await Organization.requestToJoin(
         selectedOrg.id,
         message.trim() || undefined,
-        undefined
+        myTeam.id
       );
 
       Alert.alert(

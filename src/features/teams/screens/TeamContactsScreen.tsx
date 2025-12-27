@@ -654,7 +654,7 @@ export default function TeamChatScreen() {
   const pickImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
       });
@@ -992,7 +992,7 @@ export default function TeamChatScreen() {
       if (type === 'media') {
         // Use image picker for media
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.All,
+          mediaTypes: ['images', 'videos'],
           allowsEditing: false,
           quality: 0.8,
         });

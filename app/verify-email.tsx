@@ -5,11 +5,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Button, Input } from '@/shared/components';
 import { captureException } from '@/utils/sentry';
 
 export default function VerifyEmailScreen() {
@@ -32,6 +31,7 @@ export default function VerifyEmailScreen() {
     return process.env.EXPO_PUBLIC_ENABLE_DEV_VERIFY === 'true';
   }, []);
   const configuredDevCode = process.env.EXPO_PUBLIC_DEV_VERIFICATION_CODE;
+  const showDevCodeButton = devVerificationEnabled && (!!configuredDevCode || !!devCode);
 
   // Load dev code from params if available
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function VerifyEmailScreen() {
         extra: { email },
       });
       
-      setInfo('✅ Email verified successfully!');
+      setInfo('✅ Email verified! Redirecting...');
       setCode('');
       setIsVerified(true);
       
@@ -118,7 +118,7 @@ export default function VerifyEmailScreen() {
           typeof userError === 'string' ? new Error(userError) : (userError as Error),
           { tags: { context: 'verify-email-refresh' }, extra: { email } }
         );
-        setError('Verification successful but failed to load profile. Please sign in again.');
+        setError('Verification succeeded but profile load failed. Please sign in again.');
         setTimeout(() => router.replace('/sign-in'), 2000);
       }
     } catch (e: any) {
@@ -139,7 +139,7 @@ export default function VerifyEmailScreen() {
           tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
           extra: { email, code_length: String(code).length },
         });
-        const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+        const errorMsg = e?.message || e?.data?.error || 'Verification code invalid or expired. Please try again.';
         setError(errorMsg);
       }
     } finally {
@@ -164,9 +164,14 @@ export default function VerifyEmailScreen() {
       
       if (res?.dev_verification_code) {
         setDevCode(res.dev_verification_code);
-        setInfo(`Code sent (dev: ${res.dev_verification_code})`);
+        setInfo(`Code: ${res.dev_verification_code} (dev mode)`);
       } else {
-        setInfo('Code sent to your email');
+        setInfo('Verification code sent to your email.');
+      }
+
+      // If neither email nor dev code is available, surface a clear message
+      if (!res?.dev_verification_code && !pendingVerificationEmail && !user?.email) {
+        setError('No email on file. Please sign in again to verify.');
       }
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
@@ -186,7 +191,7 @@ export default function VerifyEmailScreen() {
           tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
           extra: { email, error_code: e?.data?.error },
         });
-        const errorMsg = e?.message || e?.data?.error || 'Resend failed';
+        const errorMsg = e?.message || e?.data?.error || 'Failed to send code. Please try again.';
         setError(errorMsg);
       }
     } finally {
@@ -195,7 +200,10 @@ export default function VerifyEmailScreen() {
   };
 
   const handleUseDevCode = async () => {
-    if (!devVerificationEnabled) return;
+    if (!devVerificationEnabled) {
+      setError('Dev verification is disabled. Enable EXPO_PUBLIC_ENABLE_DEV_VERIFY to use this.');
+      return;
+    }
 
     if (devCode) {
       setCode(devCode);
@@ -304,7 +312,7 @@ export default function VerifyEmailScreen() {
         />
       </View>
 
-      {devVerificationEnabled && (
+      {showDevCodeButton && (
         <Pressable
           style={[styles.devButton, devCodeLoading && styles.devButtonDisabled]}
           onPress={handleUseDevCode}
@@ -312,7 +320,7 @@ export default function VerifyEmailScreen() {
         >
           <Ionicons name="bug-outline" size={16} color="#065F46" />
           <Text style={styles.devButtonText}>
-            {devCodeLoading ? 'Fetching dev code...' : 'Use dev code (testing only)'}
+            {devCodeLoading ? 'Fetching dev code...' : 'Use dev code (testing)'}
           </Text>
         </Pressable>
       )}
@@ -335,14 +343,14 @@ export default function VerifyEmailScreen() {
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
           <Pressable onPress={onResend} disabled={loading}>
-            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend Code</Text>
+            <Text style={[styles.linkText, { color: Colors[colorScheme].tint }, loading && styles.linkTextDisabled]}>Resend code</Text>
           </Pressable>
         </View>
       )}
       
       {!isVerified && (
         <Pressable style={styles.skipButton} onPress={() => void router.replace('/onboarding/step-1-role')}>
-          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
+          <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now (limited)</Text>
         </Pressable>
       )}
       

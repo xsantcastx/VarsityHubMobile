@@ -9,11 +9,11 @@ import { ActivityIndicator, Alert, Animated, PanResponder, Platform, Pressable, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
+import { getApiBaseUrl } from '@/api/http';
 import { uploadFile } from '@/api/upload';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getApiBaseUrl } from '@/api/http';
 
 const SPORTS_OPTIONS = [
   'Football', 'Basketball', 'Baseball', 'Soccer', 'Volleyball', 
@@ -230,7 +230,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -250,7 +250,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -309,7 +309,7 @@ export default function EditProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [3, 2],
       quality: 0.85,

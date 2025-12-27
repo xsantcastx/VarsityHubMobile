@@ -5,9 +5,9 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { User } from '@/api/entities';
-import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAuth } from '@/context/AuthProvider';
+import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { getApiBaseUrl } from '../../api/http';
 

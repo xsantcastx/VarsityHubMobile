@@ -4,7 +4,7 @@
  */
 
 import { usePagination } from '@/hooks/usePagination';
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react-native';
 
 describe('usePagination Hook', () => {
   const mockItems = [
@@ -17,6 +17,10 @@ describe('usePagination Hook', () => {
     { id: '4', title: 'Item 4' },
     { id: '5', title: 'Item 5' },
   ];
+
+  afterEach(() => {
+    cleanup();
+  });
 
   describe('Initial State', () => {
     it('should initialize with empty items', () => {
@@ -83,11 +87,16 @@ describe('usePagination Hook', () => {
         counts,
       });
 
-      renderHook(() =>
+      const { result } = renderHook(() =>
         usePagination(fetchFn, { onCountsUpdate })
       );
 
-      // Wait for initial async operations
+      // Trigger refresh to get counts
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      // Wait for callback to be called
       await waitFor(() => {
         expect(onCountsUpdate).toHaveBeenCalledWith(counts);
       });
@@ -127,28 +136,33 @@ describe('usePagination Hook', () => {
     });
 
     it('should set isLoading while fetching', async () => {
+      let resolvePromise: (value: any) => void;
       const fetchFn = jest.fn(
         () =>
-          new Promise<{ items: typeof mockItems; nextCursor: string | null }>((resolve) =>
-            setTimeout(() => {
-              resolve({
-                items: mockItems,
-                nextCursor: 'cursor-1',
-              });
-            }, 100)
-          )
+          new Promise<{ items: typeof mockItems; nextCursor: string | null }>((resolve) => {
+            resolvePromise = resolve;
+          })
       );
 
       const { result } = renderHook(() => usePagination(fetchFn));
 
-      const refreshPromise = act(async () => {
-        await result.current.refresh();
+      // Start refresh
+      act(() => {
+        result.current.refresh();
       });
 
-      // During loading
-      expect(result.current.isLoading).toBe(true);
+      // Wait for isLoading to become true
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(true);
+      });
 
-      await refreshPromise;
+      // Resolve the fetch
+      await act(async () => {
+        resolvePromise!({
+          items: mockItems,
+          nextCursor: 'cursor-1',
+        });
+      });
 
       // After loading
       expect(result.current.isLoading).toBe(false);
@@ -301,13 +315,13 @@ describe('usePagination Hook', () => {
         await result.current.refresh();
       });
 
-      expect(fetchFn).toHaveBeenCalledWith(null);
+      await waitFor(() => expect(fetchFn).toHaveBeenCalledWith(null));
 
       await act(async () => {
         await result.current.loadMore();
       });
 
-      expect(fetchFn).toHaveBeenCalledWith('cursor-1');
+      await waitFor(() => expect(fetchFn).toHaveBeenCalledWith('cursor-1'));
     });
   });
 
@@ -325,7 +339,7 @@ describe('usePagination Hook', () => {
         await result.current.refresh();
       });
 
-      expect(result.current.items.length).toBeGreaterThan(0);
+      await waitFor(() => expect(result.current.items.length).toBeGreaterThan(0));
 
       // Reset
       act(() => {
@@ -397,8 +411,10 @@ describe('usePagination Hook', () => {
         await result.current.refresh();
       });
 
-      expect(result.current.items).toEqual(customItems);
-      expect(result.current.items[0]?.active).toBe(true);
+      await waitFor(() => {
+        expect(result.current.items).toEqual(customItems);
+        expect(result.current.items[0]?.active).toBe(true);
+      });
     });
   });
 });

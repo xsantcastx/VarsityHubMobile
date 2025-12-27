@@ -1,6 +1,6 @@
-import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
+import { Input } from '@/shared/components';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

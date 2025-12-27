@@ -406,7 +406,7 @@ const appConfig = getConfig();
                     {role === 'fan' && (
                       <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
                         <View style={{ padding: 12, borderRadius: 12, backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#F3F4F6', borderWidth: 1, borderColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }}>
-                          <Text style={{ color: colorScheme === 'dark' ? '#D1D5DB' : '#374151', fontSize: 14, marginBottom: 4 }}>Are you a coach or athlete?</Text>
+                          <Text style={{ color: colorScheme === 'dark' ? '#D1D5DB' : '#374151', fontSize: 14, marginBottom: 4 }}>Are you a coach or an athlete?</Text>
                           <Text style={{ color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', fontSize: 12 }}>Update your role in Edit Profile to unlock team management, athlete stats, and more features.</Text>
                         </View>
                       </View>

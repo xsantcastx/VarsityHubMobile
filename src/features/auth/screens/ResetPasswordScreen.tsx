@@ -1,8 +1,7 @@
 import { User } from '@/api/entities';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { Button, Input } from '@/shared/components';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {

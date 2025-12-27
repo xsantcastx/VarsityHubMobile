@@ -157,7 +157,7 @@ export default function SubmitAdScreen() {
     }
   };
 
-  const topPadding = useMemo(() => Math.max(insets.top + 12, 20), [insets.top]);
+  const topPadding = 12;
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (
@@ -238,7 +238,7 @@ export default function SubmitAdScreen() {
             <BannerUpload 
               value={bannerUrl || ''} 
               onChange={handleBannerChange}
-              aspectRatio={16 / 9}
+              aspectRatio={3.5}
               required={true}
             />
             {!bannerUrl && (

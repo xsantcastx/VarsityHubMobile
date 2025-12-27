@@ -1107,7 +1107,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
@@ -1186,7 +1186,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)

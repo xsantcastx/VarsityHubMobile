@@ -1,7 +1,6 @@
 import { User } from '@/api/entities';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+import { Button, Input } from '@/shared/components';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -28,7 +27,7 @@ export default function ForgotPasswordScreen() {
   const onSubmit = async () => {
     const trimmed = email.trim();
     if (!trimmed) {
-      setError('Enter the email you use to sign in.');
+      setError('Please enter your email address.');
       return;
     }
     setLoading(true);
@@ -37,12 +36,12 @@ export default function ForgotPasswordScreen() {
     try {
       const res: any = await User.requestPasswordReset(trimmed);
       if (res?.ok) {
-        setInfo('Check your email for a reset code.');
+        setInfo('Check your email for reset instructions.');
       } else {
         setInfo('If that email is registered, we sent reset instructions.');
       }
     } catch (e: any) {
-      setError(e?.message || 'Unable to request password reset.');
+      setError(e?.message || 'Unable to send reset code. Please try again.');
     } finally {
       setLoading(false);
     }
