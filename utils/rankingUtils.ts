@@ -60,25 +60,7 @@ export const calculateRanking = (
   // Determine ranking based on tab and position
   switch (currentTab) {
     case 'trending':
-      // Top 3 trending posts get trending badges with position
-      if (index === 0 && isNationalTop) {
-        return { type: 'trending', position: 1, show: true };
-      }
-      if (index < 3 && isNationalTop) {
-        return { type: 'trending', position: index + 1, show: true };
-      }
-      // Very recent posts (under 1 hour) get live badge
-      if (hoursSincePost < 1) {
-        return { type: 'live', show: true };
-      }
-      // Posts with high scores get hot badge
-      if (score > 50 || totalEngagement > 30) {
-        return { type: 'hot', show: true };
-      }
-      // Rising posts (1-6 hours old with good engagement)
-      if (hoursSincePost >= 1 && hoursSincePost < 6 && totalEngagement > 10) {
-        return { type: 'rising', show: true };
-      }
+      // TRENDING TAB: NO badges shown (circles are handled separately in UI)
       break;
 
     case 'recent':
@@ -101,25 +83,11 @@ export const calculateRanking = (
       break;
 
     case 'top':
-      // National top posts get national badges with position
-      if (isNationalTop && nationalTopIndex < 5) {
-        return { type: 'national', position: nationalTopIndex + 1, show: true };
+      // Top 10 posts ALL get trending badges with their position (#1-#10)
+      if (index < 10) {
+        return { type: 'trending', position: index + 1, show: true };
       }
-      // Viral posts with extremely high engagement
-      if (upvotes > 100 || comments > 50 || totalEngagement > 80) {
-        return { type: 'viral', show: true };
-      }
-      // Local top posts (nearby with good engagement)
-      if (userLocation && item.lat && item.lng) {
-        const distance = calculateDistance(
-          userLocation.lat, userLocation.lng,
-          item.lat, item.lng
-        );
-        if (distance < 50 && upvotes > 5) { // Within 50km with decent engagement
-          return { type: 'local', show: true };
-        }
-      }
-      // Hot posts that didn't make national top
+      break;
       if (!isNationalTop && totalEngagement > 25) {
         return { type: 'hot', show: true };
       }

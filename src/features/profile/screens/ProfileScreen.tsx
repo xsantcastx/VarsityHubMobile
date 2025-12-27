@@ -16,6 +16,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [hasActiveStory, setHasActiveStory] = useState(false);
@@ -31,38 +32,10 @@ export default function ProfileScreen() {
     try {
       const me = await User.me();
       setUser(me);
-      
-      // Check if user has active stories (posted within last 24 hours)
-      try {
-        const postsResponse = await User.postsForProfile(me.id, { limit: 50, sort: 'newest' });
-        const posts = postsResponse?.items || postsResponse || [];
-        
-        // Filter for story posts created in last 24 hours
-        const now = Date.now();
-        const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
-        
-        const activeStories = posts.filter((post: any) => {
-          if (!post.media_url) return false;
-          const createdAt = new Date(post.created_at).getTime();
-          return createdAt > twentyFourHoursAgo;
-        }).map((post: any) => ({
-          id: post.id,
-          media_url: post.media_url,
-          media_type: post.media_url?.match(/\.(mp4|mov|webm|m4v|avi)$/i) ? 'video' : 'image',
-          created_at: post.created_at,
-          author: {
-            id: me.id,
-            display_name: me.display_name || me.username,
-            avatar_url: me.avatar_url,
-          },
-        }));
-        
-        setUserStories(activeStories);
-        setHasActiveStory(activeStories.length > 0);
-      } catch (storyError) {
-        console.error('Failed to load stories:', storyError);
-        setHasActiveStory(false);
-      }
+      setRedirecting(true);
+      // Redirect to the unified profile surface so the tab uses the new layout
+      router.replace(`/user-profile?id=${me.id}`);
+      return;
     } catch (e: any) {
       setError(e?.message || 'Failed to load profile');
       console.error('Profile load error:', e);
@@ -103,6 +76,16 @@ export default function ProfileScreen() {
   useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  if (redirecting) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" color={theme.tint} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (

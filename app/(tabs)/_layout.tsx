@@ -18,6 +18,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="feed/index"
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         tabBarInactiveTintColor: colorScheme === 'dark' ? '#D1D5DB' : Colors[colorScheme ?? 'light'].tabIconDefault,
@@ -104,6 +105,4 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-
 

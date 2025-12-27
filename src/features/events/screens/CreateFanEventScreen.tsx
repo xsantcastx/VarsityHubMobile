@@ -20,12 +20,12 @@ import { httpPost } from '@/api/http';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 
 const EVENT_TYPES = [
-  { value: 'game', label: '🏈 Game/Match', icon: 'football' },
-  { value: 'watch_party', label: '📺 Watch Party', icon: 'tv' },
-  { value: 'fundraiser', label: '💰 Fundraiser', icon: 'cash' },
-  { value: 'tryout', label: '🏃 Tryout/Practice', icon: 'fitness' },
-  { value: 'bbq', label: '🍔 BBQ/Social', icon: 'restaurant' },
-  { value: 'other', label: '📌 Other', icon: 'ellipsis-horizontal' },
+  { value: 'game', label: 'Game/Match', icon: 'football' },
+  { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
+  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
+  { value: 'practice', label: 'Practice/Clinic', icon: 'barbell' },
+  { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
+  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
 ];
 
 export default function CreateFanEventScreen() {
@@ -140,7 +140,22 @@ export default function CreateFanEventScreen() {
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Create Event', headerShown: true }} />
+      <Stack.Screen
+        options={{
+          title: 'Create Event',
+          headerShown: true,
+          headerBackTitleVisible: false,
+          headerLeft: () => (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/feed'))}
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
+            </Pressable>
+          ),
+        }}
+      />
       
       <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}

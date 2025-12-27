@@ -19,7 +19,6 @@ app/(tabs)/game-highlights.tsx
 app/(tabs)/game-photos.tsx
 app/(tabs)/game-reviews.tsx
 app/(tabs)/highlights/index.tsx
-app/(tabs)/index.tsx
 app/(tabs)/messages/index.tsx
 app/(tabs)/my-ads.tsx
 app/(tabs)/notifications/index.tsx

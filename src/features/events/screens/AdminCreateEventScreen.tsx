@@ -20,12 +20,12 @@ import { httpPost } from '@/api/http';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const EVENT_TYPES = [
-  { value: 'game', label: '🏈 Game/Match', icon: 'football' },
-  { value: 'watch_party', label: '📺 Watch Party', icon: 'tv' },
-  { value: 'fundraiser', label: '💰 Fundraiser', icon: 'cash' },
-  { value: 'tryout', label: '🏃 Tryout/Practice', icon: 'fitness' },
-  { value: 'bbq', label: '🍔 BBQ/Social', icon: 'restaurant' },
-  { value: 'other', label: '📌 Other', icon: 'ellipsis-horizontal' },
+  { value: 'game', label: 'Game/Match', icon: 'football' },
+  { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
+  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
+  { value: 'practice', label: 'Practice/Clinic', icon: 'barbell' },
+  { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
+  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
 ];
 
 export default function CreateEventScreen() {

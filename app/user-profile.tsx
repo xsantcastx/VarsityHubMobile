@@ -1,724 +1,370 @@
-import { JerseyBadge, Sport } from '@/components/JerseyBadge';
-import ProfileIdentity from '@/components/profile/ProfileIdentity';
-import { getConfig } from '@/config/env';
+import { User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-// @ts-ignore api exports
-import { User } from '@/api/entities';
-import { BackHeader } from '@/components/ui/BackHeader';
-import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
-import { getGradientForColor } from '@/utils/theme';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const appConfig = getConfig();
-const HEADER_IMAGE_DRAG_LIMIT = 120;
-const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const COVER_HEIGHT = 240;
+const AVATAR_SIZE = 100;
 
 export default function UserProfileScreen() {
-  const params = useLocalSearchParams<{ id?: string; username?: string }>();
+  const params = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [posts, setPosts] = useState<any[]>([]);
   const [me, setMe] = useState<any>(null);
-  // Collage grid state
-  const screenWidth = Dimensions.get('window').width;
-  const [postsWrapWidth, setPostsWrapWidth] = useState<number>(screenWidth);
-  const GUTTER = 6;
-  // Viewer state
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
-  const [viewerItems, setViewerItems] = useState<FeedPost[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
+  const [posts, setPosts] = useState<any[]>([]);
 
   const load = useCallback(async () => {
-    if (!params.id) { setError('No user id'); setLoading(false); return; }
-    setLoading(true); setError(null);
+    if (!params.id) {
+      setError('No user ID');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     try {
-      // Fetch current user and the public profile for target id
-      try { 
-        const current = await User.me(); 
-        setMe(current);
-        
-        // Check if current user is admin
-        const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : [])
-          .map((e) => e.toLowerCase());
-        setIsAdmin(adminEmails.includes((current?.email || '').toLowerCase()));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (_error: any) {}
+      const current = await User.me();
+      setMe(current);
       const u = await User.getPublic(String(params.id));
       setUser(u);
-      const page = await User.postsForProfile(String(params.id), { limit: 10, sort: 'newest' });
+      const page = await User.postsForProfile(String(params.id), { limit: 20, sort: 'newest' });
       setPosts(page.items || []);
     } catch (e: any) {
-      // Error loading user profile - handled via error message display
-      // Handle 401 separately like profile.tsx
-      if (e && e.status === 401) {
-        setError('You need to sign in to view profiles.');
+      if (e?.status === 401) {
+        setError('Sign in to view profiles');
       } else {
         setError(e?.message || 'Failed to load user');
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, [params.id]);
 
-  useEffect(() => { void load(); }, [load]);
-
-  // Helpers to map posts -> feed posts for viewer
-  const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
-  const toFeedPost = (item: any): FeedPost | null => {
-    const id = item?.id ? String(item.id) : null;
-    if (!id) return null;
-    const isCollage = item?.type === 'collage' || !!item?.collage;
-    const media = isCollage
-      ? (typeof item?.preview_url === 'string' ? item.preview_url : (typeof item?.media_url === 'string' ? item.media_url : null))
-      : (typeof item?.media_url === 'string' ? item.media_url : null);
-    const explicit = typeof item?.media_type === 'string' ? String(item.media_type).toLowerCase() : null;
-    const media_type: 'video' | 'image' = media
-      ? (explicit === 'video' || explicit === 'image' ? (explicit as any) : (VIDEO_EXT.test(media) ? 'video' : 'image'))
-      : 'image';
-    return {
-      id,
-      media_url: media,
-      media_type,
-      caption: item?.caption ?? item?.content ?? '',
-      upvotes_count: item?.upvotes_count ?? 0,
-      comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
-      bookmarks_count: item?.bookmarks_count ?? 0,
-      created_at: item?.created_at ?? null,
-      author: item?.author ? { id: String(item.author.id ?? id), display_name: item.author.display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
-      has_upvoted: Boolean(item?.has_upvoted),
-      has_bookmarked: Boolean(item?.has_bookmarked),
-      is_following_author: Boolean(item?.is_following_author),
-      type: isCollage ? 'collage' : (item?.type ?? null),
-      collage: isCollage ? (item?.collage ?? null) : null,
-      preview_url: typeof item?.preview_url === 'string' ? item.preview_url : null,
-    };
-  };
-
-  // Collage helpers
-  const columnWidth = Math.max(0, (postsWrapWidth - 4 * 1 - GUTTER) / 2); // align with profile padding
-  const chooseAspect = (id: string) => {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash) + id.charCodeAt(i);
-    const pick = Math.abs(hash) % 3;
-    return pick === 0 ? 1 : pick === 1 ? 3/4 : 4/3;
-  };
-  const makeMasonryColumns = (items: any[]) => {
-    const colA: any[] = [];
-    const colB: any[] = [];
-    let hA = 0;
-    let hB = 0;
-    for (let idx = 0; idx < items.length; idx++) {
-      const it = items[idx];
-      const id = String(it?.id ?? idx);
-      const aspect = chooseAspect(id);
-      const estH = columnWidth / aspect + GUTTER;
-      const entry = { ...it, __idx: idx, __aspect: aspect };
-      if (hA <= hB) { colA.push(entry); hA += estH; } else { colB.push(entry); hB += estH; }
-    }
-    return { colA, colB };
-  };
-  const { colA, colB } = makeMasonryColumns(posts);
-  
-  // Athlete-specific data extraction
-  const isAthlete = user ? Boolean(user?.preferences?.position || user?.preferences?.jersey_number) : false;
-  const jerseyNumber = user?.preferences?.jersey_number || user?.jersey_number;
-  const primarySport = (user?.preferences?.primary_sport || user?.preferences?.sport || 'other') as Sport;
-  const userThemeColor = user?.preferences?.theme_color || '#3B82F6';
-  const headerBackgroundImage = user?.preferences?.header_image_url || null;
-  const headerImageFocusY = clampValue(typeof user?.preferences?.header_image_focus_y === 'number' ? user.preferences.header_image_focus_y : 0, -1, 1);
-  const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
-    ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
-    : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const isOwnProfile = !!(me?.id && user?.id && me.id === user.id);
 
-  const followButton = (!isOwnProfile && me?.id && user?.id) ? (
-    <Pressable
-      onPress={async () => {
-        const next = !user.is_following;
-        setUser((prev: any) => ({ ...prev, is_following: next, followers_count: (prev.followers_count || 0) + (next ? 1 : -1) }));
-        try {
-          if (next) await User.follow(String(user.id)); else await User.unfollow(String(user.id));
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (_error: any) {
-          setUser((prev: any) => ({ ...prev, is_following: !next, followers_count: (prev.followers_count || 0) + (!next ? 1 : -1) }));
-        }
-      }}
-      style={[S.followButton, user.is_following && S.followingButton]}
-    >
-      <Text style={[S.followButtonText, user.is_following && S.followingButtonText]}>
-        {user.is_following ? 'Following' : 'Follow'}
-      </Text>
-    </Pressable>
-  ) : null;
+  const onFollow = async () => {
+    if (!user?.id) return;
+    const next = !user.is_following;
+    setUser((prev: any) => ({
+      ...prev,
+      is_following: next,
+      followers_count: (prev.followers_count || 0) + (next ? 1 : -1),
+    }));
+    try {
+      if (next) {
+        await User.follow(String(user.id));
+      } else {
+        await User.unfollow(String(user.id));
+      }
+    } catch {
+      setUser((prev: any) => ({
+        ...prev,
+        is_following: !next,
+        followers_count: (prev.followers_count || 0) + (!next ? 1 : -1),
+      }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[S.container, { backgroundColor: theme.background }]}>
+        <View style={S.center}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <SafeAreaView style={[S.container, { backgroundColor: theme.background }]}>
+        <View style={S.center}>
+          <Text style={[S.errorText, { color: theme.text }]}>{error || 'Not found'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const coverUrl = user?.preferences?.header_image_url;
 
   return (
-    <SafeAreaView style={[S.page, { backgroundColor: theme.background }]} edges={['bottom']}>
+    <SafeAreaView style={[S.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      <BackHeader 
-        title={user?.display_name || user?.username || 'Profile'} 
-        backgroundColor={theme.background}
-        textColor={theme.text}
-      />
-      {loading ? (
-        <View style={S.center}><ActivityIndicator /></View>
-      ) : error ? (
-        <View style={S.center}><Text style={S.error}>{error}</Text></View>
-      ) : !user ? (
-        <View style={S.center}><Text>Not found</Text></View>
-      ) : (
-        <>
-          {/* Modern Sport-Inspired Header with proper spacing */}
-          <View style={[S.headerContainer, { marginTop: 8 }]}>
-            {/* Background Image / Gradient */}
-            {headerBackgroundImage ? (
-              <Image
-                source={{ uri: headerBackgroundImage }}
-                style={[
-                  S.headerBackgroundImage,
-                  { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
-                ]}
-                contentFit="cover"
-              />
-            ) : null}
-            <LinearGradient
-              colors={heroGradientColors}
-              style={S.headerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            
-            {/* Cover Image Button (for own profile only) */}
-            {isOwnProfile && (
-              <Pressable
-                style={[S.coverImageButton, { marginTop: 12, marginRight: 12 }]}
-                onPress={() => router.push('/edit-profile')}
-              >
-                <Ionicons name="camera" size={20} color="#fff" />
-              </Pressable>
-            )}
-            
-            {/* Profile Content */}
-            <ProfileIdentity
-              user={user}
-              theme={theme}
-              isAdmin={isAdmin && isOwnProfile}
-              _isOwnProfile={isOwnProfile}
-              coverImageUrl={headerBackgroundImage}
-              onPressCoverImage={isOwnProfile ? () => router.push('/edit-profile') : undefined}
-              actionSlot={followButton}
-              rightAccessory={isAthlete && jerseyNumber ? (
-                <JerseyBadge jerseyNumber={jerseyNumber} sport={primarySport} teamColor={userThemeColor} size="medium" />
-              ) : null}
-              style={{ backgroundColor: 'rgba(15,23,42,0.75)', borderColor: 'rgba(255,255,255,0.08)' }}
-            />
-          </View>
 
-          {/* Athletic Stats Card */}
-          <View style={[S.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <View style={S.statItem}>
-              <Text style={[S.statNumber, { color: theme.text }]}>{user.posts_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>POSTS</Text>
-            </View>
-            
-            <View style={[S.statDivider, { backgroundColor: theme.border }]} />
-            
-            <View style={S.statItem}>
-              <Text style={[S.statNumber, { color: theme.text }]}>{user.followers_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>FOLLOWERS</Text>
-            </View>
-            
-            <View style={[S.statDivider, { backgroundColor: theme.border }]} />
-            
-            <View style={S.statItem}>
-              <Text style={[S.statNumber, { color: theme.text }]}>{user.following_count ?? 0}</Text>
-              <Text style={[S.statLabel, { color: theme.mutedText }]}>FOLLOWING</Text>
-            </View>
-          </View>
+      <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16}>
+        {/* Cover Image */}
+        <View style={S.coverSection}>
+          {coverUrl ? (
+            <Image source={{ uri: coverUrl }} style={S.coverImage} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={['#667eea', '#764ba2']} style={S.coverImage} />
+          )}
 
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 4, paddingBottom: Math.max(24, insets.bottom) }}>
-            {posts.length === 0 ? (
-              <View style={{ padding: 16, alignItems: 'center' }}>
-                <Text style={{ color: theme.mutedText }}>No posts yet.</Text>
-              </View>
+          {isOwnProfile && (
+            <Pressable style={S.editButton} onPress={() => router.push('/edit-profile')}>
+              <Ionicons name="image-outline" size={20} color="#fff" />
+              <Text style={S.editButtonText}>Edit cover</Text>
+            </Pressable>
+          )}
+
+          <Pressable style={S.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </Pressable>
+        </View>
+
+        {/* Profile Identity */}
+        <View style={[S.profileSection, { backgroundColor: theme.background }]}>
+          <View style={S.avatarContainer}>
+            {user?.avatar_url ? (
+              <Image source={{ uri: user.avatar_url }} style={S.avatar} contentFit="cover" />
             ) : (
-              <View style={{ flexDirection: 'row', gap: GUTTER }} onLayout={(e) => setPostsWrapWidth(e.nativeEvent.layout.width)}>
-                <View style={{ flex: 1, gap: GUTTER }}>
-                  {colA.map((item) => {
-                    const isCollage = item?.type === 'collage' || !!item?.collage;
-                    const thumb = (isCollage ? item?.preview_url : item?.media_url) as string | null;
-                    const likes = item?.upvotes_count ?? 0;
-                    const comments = item?.comments_count ?? item?._count?.comments ?? 0;
-                    const aspect = item.__aspect || 1;
-                    const height = columnWidth / aspect;
-                    return (
-                      <Pressable
-                        key={String(item.id)}
-                        style={[S.gridItem, { width: columnWidth, height }]}
-                        onPress={() => {
-                          const mapped = (posts || []).map(toFeedPost);
-                          const items = mapped.filter(Boolean) as FeedPost[];
-                          const targetId = mapped[item.__idx]?.id;
-                          const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : item.__idx;
-                          // Debug: UserProfile opening viewer (colA)
-                          setViewerItems(items);
-                          setViewerIndex(Math.max(0, targetIdx));
-                          setViewerOpen(true);
-                        }}
-                      >
-                        {thumb ? (
-                          <Image source={{ uri: thumb }} style={S.gridImage} contentFit="cover" />
-                        ) : (
-                          <View style={[S.gridImage, S.gridImageFallback]}>
-                            <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
-                            <Text numberOfLines={2} ellipsizeMode="tail" style={S.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
-                          </View>
-                        )}
-                        <View style={S.gridCounts}>
-                          <View style={S.gridCountItem}>
-                            <Ionicons name="arrow-up" size={12} color="#fff" />
-                            <Text style={S.gridCountText}>{likes}</Text>
-                          </View>
-                          <View style={S.gridCountItem}>
-                            <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                            <Text style={S.gridCountText}>{comments}</Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
+              <View style={[S.avatar, { backgroundColor: theme.card }]} />
+            )}
+          </View>
+
+          <View style={S.nameContainer}>
+            <View style={S.nameRow}>
+              <Text style={[S.displayName, { color: theme.text }]} numberOfLines={1}>
+                {user?.display_name || 'User'}
+              </Text>
+              {user?.verified && (
+                <Ionicons name="checkmark-circle" size={20} color="#3b82f6" />
+              )}
+            </View>
+            <Text style={[S.username, { color: theme.mutedText }]} numberOfLines={1}>
+              @{user?.username || user?.id}
+            </Text>
+            {user?.bio && (
+              <Text style={[S.bio, { color: theme.text }]} numberOfLines={2}>
+                {user.bio}
+              </Text>
+            )}
+            {user?.preferences?.joined_date && (
+              <View style={S.joinedRow}>
+                <Ionicons name="calendar-outline" size={16} color={theme.mutedText} />
+                <Text style={[S.joinedText, { color: theme.mutedText }]}>
+                  Joined{' '}
+                  {new Date(user.preferences.joined_date).toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
                   })}
-                </View>
-                <View style={{ flex: 1, gap: GUTTER }}>
-                  {colB.map((item) => {
-                    const isCollage = item?.type === 'collage' || !!item?.collage;
-                    const thumb = (isCollage ? item?.preview_url : item?.media_url) as string | null;
-                    const likes = item?.upvotes_count ?? 0;
-                    const comments = item?.comments_count ?? item?._count?.comments ?? 0;
-                    const aspect = item.__aspect || 1;
-                    const height = columnWidth / aspect;
-                    return (
-                      <Pressable
-                        key={String(item.id)}
-                        style={[S.gridItem, { width: columnWidth, height }]}
-                        onPress={() => {
-                          const mapped = (posts || []).map(toFeedPost);
-                          const items = mapped.filter(Boolean) as FeedPost[];
-                          const targetId = mapped[item.__idx]?.id;
-                          const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : item.__idx;
-                          // Debug: UserProfile opening viewer (colB)
-                          setViewerItems(items);
-                          setViewerIndex(Math.max(0, targetIdx));
-                          setViewerOpen(true);
-                        }}
-                      >
-                        {thumb ? (
-                          <Image source={{ uri: thumb }} style={S.gridImage} contentFit="cover" />
-                        ) : (
-                          <View style={[S.gridImage, S.gridImageFallback]}>
-                            <LinearGradient colors={["#0b1120", "#0b1120", "#020617"]} style={StyleSheet.absoluteFillObject as any} />
-                            <Text numberOfLines={2} ellipsizeMode="tail" style={S.gridTextOnly}>{String(item.caption || item.content || '').trim() || 'Post'}</Text>
-                          </View>
-                        )}
-                        <View style={S.gridCounts}>
-                          <View style={S.gridCountItem}>
-                            <Ionicons name="arrow-up" size={12} color="#fff" />
-                            <Text style={S.gridCountText}>{likes}</Text>
-                          </View>
-                          <View style={S.gridCountItem}>
-                            <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                            <Text style={S.gridCountText}>{comments}</Text>
-                          </View>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                </Text>
               </View>
             )}
-          </ScrollView>
+          </View>
 
-          <Modal visible={viewerOpen} animationType="slide" onRequestClose={() => setViewerOpen(false)}>
-            <GameVerticalFeedScreen
-              onClose={() => setViewerOpen(false)}
-              showHeader
-              initialPosts={viewerItems}
-              startIndex={viewerIndex}
-              title={(user.display_name || 'Profile') + "'s posts"}
-            />
-          </Modal>
-        </>
-      )}
+          {!isOwnProfile && (
+            <Pressable style={[S.followButton, user?.is_following && S.followingButton]} onPress={onFollow}>
+              <Ionicons
+                name={user?.is_following ? 'checkmark' : 'person-add'}
+                size={18}
+                color={user?.is_following ? theme.tint : '#fff'}
+              />
+              <Text style={[S.followButtonText, user?.is_following && S.followingButtonText]}>
+                {user?.is_following ? 'Following' : 'Follow'}
+              </Text>
+            </Pressable>
+          )}
+
+          {isOwnProfile && (
+            <Pressable
+              style={[S.followButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}
+              onPress={() => router.push('/edit-profile')}
+            >
+              <Ionicons name="pencil" size={18} color={theme.text} />
+              <Text style={[S.followButtonText, { color: theme.text }]}>Edit profile</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Stats Row */}
+        <View style={[S.statsRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{user?.posts_count ?? 0}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Posts</Text>
+          </View>
+          <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{user?.followers_count ?? 0}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Followers</Text>
+          </View>
+          <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{user?.following_count ?? 0}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Following</Text>
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={[S.tabsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {['posts', 'replies', 'upvotes'].map((tab) => (
+            <Pressable
+              key={tab}
+              style={[S.tab, activeTab === tab && S.activeTab, { borderBottomColor: activeTab === tab ? theme.tint : 'transparent' }]}
+              onPress={() => setActiveTab(tab as any)}
+            >
+              <Text
+                style={[
+                  S.tabText,
+                  activeTab === tab ? { color: theme.tint, fontWeight: '700' } : { color: theme.mutedText },
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Content */}
+        <View style={S.contentSection}>
+          {posts.length === 0 ? (
+            <View style={S.emptyState}>
+              <Ionicons name="document-outline" size={48} color={theme.mutedText} />
+              <Text style={[S.emptyStateText, { color: theme.text }]}>No posts yet</Text>
+              <Text style={[S.emptyStateSubtext, { color: theme.mutedText }]}>
+                This user hasn't posted anything yet
+              </Text>
+            </View>
+          ) : (
+            posts.map((post) => (
+              <Pressable
+                key={post.id}
+                style={[S.postCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                onPress={() => router.push(`/post-detail?id=${post.id}`)}
+              >
+                <View style={S.postHeader}>
+                  <Text style={[S.postTitle, { color: theme.text }]} numberOfLines={2}>
+                    {post.title || post.caption || post.content || 'Untitled'}
+                  </Text>
+                </View>
+                {post.media_url && (
+                  <Image source={{ uri: post.media_url }} style={S.postMedia} contentFit="cover" />
+                )}
+                <View style={S.postStats}>
+                  <View style={S.statItem}>
+                    <Ionicons name="arrow-up" size={16} color={theme.mutedText} />
+                    <Text style={[S.statItemText, { color: theme.mutedText }]}>{post.upvotes_count ?? 0}</Text>
+                  </View>
+                  <View style={S.statItem}>
+                    <Ionicons name="chatbubble-outline" size={16} color={theme.mutedText} />
+                    <Text style={[S.statItemText, { color: theme.mutedText }]}>{post.comments_count ?? 0}</Text>
+                  </View>
+                  <View style={S.statItem}>
+                    <Ionicons name="eye-outline" size={16} color={theme.mutedText} />
+                    <Text style={[S.statItemText, { color: theme.mutedText }]}>
+                      {(post.upvotes_count ?? 0) * 12}
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const S = StyleSheet.create({
-  page: { 
-    flex: 1
-  },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  error: { color: '#dc2626', fontSize: 16, fontWeight: '500' },
-
-  // Modern Sport Header Styles
-  headerContainer: {
-    position: 'relative',
-    paddingBottom: 20,
-    marginTop: 8, // Space for BackHeader
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#0b1120',
-  },
-  headerBackgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    height: 220,
-  },
-  headerGradient: {
-    ...StyleSheet.absoluteFillObject,
-    height: 220,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  profileContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
-  },
-  avatarSection: {
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 16, fontWeight: '500' },
+  coverSection: { position: 'relative', height: COVER_HEIGHT },
+  coverImage: { width: '100%', height: '100%' },
+  backButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  editButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  editButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  profileSection: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16, marginBottom: 16 },
+  avatarContainer: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 4,
+    borderColor: '#fff',
+    overflow: 'hidden',
     marginBottom: 16,
   },
-  avatarContainer: {
-    position: 'relative',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 46,
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 46,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verifiedBadge: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  userInfo: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  userBio: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginTop: 8,
-    paddingHorizontal: 20,
-  },
-  badgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 4,
-    flexWrap: 'wrap',
-    justifyContent: 'center'
-  },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: Colors.light.warning,
-    marginTop: 8,
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  coachBadge: { backgroundColor: '#1d4ed8' },
-  playerBadge: { backgroundColor: Colors.light.danger },
-  fanBadge: { backgroundColor: '#7c3aed' },
-  adminBadge: {
-    backgroundColor: Colors.dark.danger,
-    borderRadius: 20,
-    padding: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  roleText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#111827',
-    gap: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  rookieBadge: { backgroundColor: Colors.light.success },
-  veteranBadge: { backgroundColor: Colors.light.warning },
-  legendBadge: { backgroundColor: Colors.light.danger },
-  planBadgeText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  avatar: { width: '100%', height: '100%' },
+  nameContainer: { alignItems: 'center', marginBottom: 16 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  displayName: { fontSize: 22, fontWeight: '700' },
+  username: { fontSize: 14, marginBottom: 8 },
+  bio: { fontSize: 14, lineHeight: 20, marginBottom: 8, textAlign: 'center', paddingHorizontal: 12 },
+  joinedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  joinedText: { fontSize: 13 },
   followButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: '#3b82f6',
     minWidth: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  followingButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  followButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  followingButtonText: {
-    color: '#1e3a8a',
-  },
-
-  // Athletic Stats Card
-  statsCard: {
+  followingButton: { backgroundColor: '#f0f4f8' },
+  followButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  followingButtonText: { color: '#3b82f6' },
+  statsRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    marginTop: -8, // Adjusted for proper spacing
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 1,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#e2e8f0',
-    marginHorizontal: 16,
-  },
-
-  // Legacy styles for backward compatibility
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
-  avatarWrap: { width: 64, height: 64, borderRadius: 32, overflow: 'hidden' },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
-  name: { fontWeight: '800', fontSize: 18 },
-  bio: { color: '#6b7280' },
-  followBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: '#111827' },
-  followBtnOn: { backgroundColor: '#E5E7EB' },
-  followBtnText: { color: '#FFFFFF', fontWeight: '800' },
-  followBtnTextOn: { color: '#111827' },
-  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 8 },
-  statBox: { alignItems: 'center' },
-  statNum: { fontWeight: '900', fontSize: 16 },
-
-  // Enhanced Grid Styles
-  gridItem: { 
-    borderRadius: 16, 
-    overflow: 'hidden', 
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
-  gridImage: { width: '100%', height: '100%' },
-  gridImageOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  gridImageFallback: { 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    padding: 16, 
-    position: 'relative',
-    backgroundColor: '#f8fafc',
-  },
-  textPostOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderRadius: 12,
-    margin: 8,
-  },
-  gridTextOnly: { 
-    textAlign: 'center', 
-    color: '#1e40af', 
-    fontWeight: '700', 
-    fontSize: 12, 
-    lineHeight: 16,
-  },
-  gridCounts: { 
-    position: 'absolute', 
-    left: 8, 
-    bottom: 8, 
-    backgroundColor: 'rgba(0,0,0,0.75)', 
-    borderRadius: 16, 
-    paddingHorizontal: 10, 
-    paddingVertical: 6, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  gridCountText: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
-  
-  // Athlete-specific styles
-  jerseyBadgeTopRight: {
-    position: 'absolute',
-    right: 16,
-    zIndex: 10,
-  },
-  positionBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    overflow: 'hidden',
+    marginBottom: 16,
   },
-  positionText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  credentialsContainer: {
-    marginTop: 6,
-    paddingHorizontal: 12,
-  },
-  credentialsText: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  coverImageButton: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
+  statCell: { flex: 1, alignItems: 'center', paddingVertical: 16 },
+  statNumber: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  statLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1 },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, marginBottom: 16 },
+  tab: { flex: 1, paddingVertical: 12, borderBottomWidth: 2, alignItems: 'center' },
+  activeTab: { borderBottomColor: 'currentColor' },
+  tabText: { fontSize: 15, fontWeight: '500' },
+  contentSection: { paddingHorizontal: 16, paddingBottom: 32 },
+  postCard: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12, overflow: 'hidden' },
+  postHeader: { marginBottom: 8 },
+  postTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  postMedia: { width: '100%', height: 180, borderRadius: 8, marginBottom: 12 },
+  postStats: { flexDirection: 'row', gap: 16 },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statItemText: { fontSize: 13, fontWeight: '600' },
+  emptyState: { alignItems: 'center', paddingVertical: 48 },
+  emptyStateText: { fontSize: 16, fontWeight: '600', marginTop: 16 },
+  emptyStateSubtext: { fontSize: 14, marginTop: 6 },
 });

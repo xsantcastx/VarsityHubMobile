@@ -1,6 +1,4 @@
-import { Game, Organization, Post, Team, User } from '@/api/entities';
-import PostCard from '@/components/PostCard';
-import { GameCard } from '@/components/ui/GameCard';
+import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,890 +6,424 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-type LeagueTeam = {
-  id: string;
-  name: string;
-  sport?: string;
-  season?: string;
-  logo_url?: string;
-  description?: string;
-  organization_id?: string;
-  _count?: {
-    members?: number;
-    games?: number;
-  };
-};
+const COVER_HEIGHT = 240;
+const AVATAR_SIZE = 100;
 
 export default function OrganizationScreen() {
+  const params = useLocalSearchParams<{ id?: string }>();
+  const router = useRouter();
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ id?: string }>();
-  
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [organization, setOrganization] = useState<any | null>(null);
-  const [fallbackTeam, setFallbackTeam] = useState<any | null>(null);
-  const [teams, setTeams] = useState<LeagueTeam[]>([]);
-  const [games, setGames] = useState<any[]>([]);
-  const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'schedule' | 'feed'>('teams');
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [org, setOrg] = useState<any>(null);
+  const [me, setMe] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'teams' | 'posts' | 'games'>('teams');
+  const [teams, setTeams] = useState<any[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
 
-  // Swipe gesture handler
-  const translateX = useSharedValue(0);
-  const swipeGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      // Only allow positive swipes (left to right)
-      if (event.translationX > 0) {
-        translateX.value = event.translationX;
-      }
-    })
-    .onEnd((event) => {
-      // If swipe distance is > 100px, go back
-      if (event.translationX > 100) {
-        router.back();
-      } else {
-        // Snap back to original position
-        translateX.value = withSpring(0);
-      }
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  const loadOrganization = useCallback(async () => {
+  const load = useCallback(async () => {
+    if (!params.id) {
+      setError('No organization ID');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
-    setFallbackTeam(null);
     try {
-      const orgId = params.id;
-      if (!orgId) {
-        setError('No organization ID provided');
-        setLoading(false);
-        return;
+      const o = await Organization.getPublic(String(params.id));
+      setOrg(o);
+      const teamsPage = await Organization.teams(String(params.id), { limit: 50 });
+      setTeams(teamsPage?.items || []);
+      const postsPage = await Organization.posts(String(params.id), { limit: 20, sort: 'newest' });
+      setPosts(postsPage?.items || []);
+    } catch (e: any) {
+      if (e?.status === 401) {
+        setError('Sign in to view organizations');
+      } else {
+        setError(e?.message || 'Failed to load organization');
       }
-
-      let resolvedOrgId = orgId;
-      setOrganizationId(resolvedOrgId);
-
-      // Identify current user role for privilege-gated UI
-      let me: any = null;
-      try {
-        me = await User.me();
-        const role = (me?.preferences?.role || me?.role || '').toLowerCase();
-        if (role) setCurrentRole(role);
-      } catch {}
-
-      // Load organization details (name, teams, memberships)
-      let orgData: any | null = null;
-      const normalizedQuery = String(resolvedOrgId).replace(/[-_]+/g, ' ').trim();
-
-      try {
-        orgData = await Organization.get(resolvedOrgId);
-        setOrganization(orgData);
-      } catch (err: any) {
-        // Attempt to resolve by name/slug if ID lookup fails
-        try {
-          const candidates = await Organization.list(normalizedQuery, 1);
-          if (Array.isArray(candidates) && candidates.length > 0) {
-            resolvedOrgId = String(candidates[0].id);
-            setOrganizationId(resolvedOrgId);
-            orgData = await Organization.get(resolvedOrgId);
-            setOrganization(orgData);
-          }
-        } catch {}
-
-        // If still no org, attempt team resolution (by id then by name)
-        if (!orgData) {
-          try {
-            let team: any = null;
-            try {
-              team = await Team.get(resolvedOrgId);
-            } catch {
-              const teamCandidates = await Team.list(normalizedQuery, false, { limit: 5 });
-              if (Array.isArray(teamCandidates) && teamCandidates.length > 0) {
-                team = teamCandidates[0];
-              }
-            }
-
-            if (team?.organization_id) {
-              resolvedOrgId = String(team.organization_id);
-              setOrganizationId(resolvedOrgId);
-              orgData = await Organization.get(resolvedOrgId);
-              setOrganization(orgData);
-            } else if (team) {
-              // No linked org; use team data as fallback view
-              setFallbackTeam(team);
-              setLoading(false);
-              return;
-            } else {
-              // Neither org nor team could be resolved
-              setError('Organization not found. Please verify the link or ID.');
-              setLoading(false);
-              return;
-            }
-          } catch (teamErr: any) {
-            // Quietly handle and present a concise error
-            setError('Organization not found. Please verify the link or ID.');
-            setLoading(false);
-            return;
-          }
-        }
-      }
-
-      if (!orgData) {
-        setError('Organization not found.');
-        setLoading(false);
-        return;
-      }
-
-      // Normalize teams and hydrate counts
-      let orgTeams: LeagueTeam[] = Array.isArray(orgData.teams)
-        ? orgData.teams.map((team: any) => ({
-            id: team.id,
-            name: team.name,
-            sport: team.sport,
-            season: team.season ?? team.season_start ?? undefined,
-            logo_url: team.logo_url || team.avatar_url,
-            description: team.description,
-            organization_id: orgId,
-            _count: { members: team._count?.memberships ?? team._count?.members ?? 0 },
-          }))
-        : [];
-
-      // Fallback: fetch teams via directory endpoint if org payload lacks teams
-      if (orgTeams.length === 0) {
-        try {
-          const allTeams = await Team.list(undefined, undefined, { limit: 200 });
-          orgTeams = (allTeams || [])
-            .filter((t: any) => t.organization_id === orgId)
-            .map((team: any) => ({
-              id: team.id,
-              name: team.name,
-              sport: team.sport,
-              season: team.season,
-              logo_url: team.logo_url || team.avatar_url,
-              description: team.description,
-              organization_id: team.organization_id,
-              _count: { members: team._count?.members ?? 0 },
-            }));
-        } catch (err) {
-          console.error('[Organization] Failed to load teams list:', err);
-        }
-      }
-
-      const teamIds = new Set(orgTeams.map((t) => String(t.id).toLowerCase()));
-      const teamNames = orgTeams.map((t) => (t.name || '').toLowerCase()).filter(Boolean);
-
-      // Fetch games and posts scoped to this organization
-      const [gamesResult, postsResult] = await Promise.all([
-        (async () => {
-          try {
-            const allGames = await Game.list('-date', { limit: 100, showPending: true });
-            return (allGames || [])
-              .filter((g: any) => {
-                const homeId = String(g.home_team_id || g.team_id || '').toLowerCase();
-                const awayId = String(g.away_team_id || '').toLowerCase();
-                const homeName = (g.home_team || g.home_team_name || g.title || '').toLowerCase();
-                const awayName = (g.away_team || g.away_team_name || g.opponent || g.opponent_name || '').toLowerCase();
-                const idMatch = (homeId && teamIds.has(homeId)) || (awayId && teamIds.has(awayId));
-                const nameMatch = teamNames.some((name) => homeName.includes(name) || awayName.includes(name));
-                return idMatch || nameMatch;
-              })
-              .sort((a: any, b: any) => {
-                const dateA = new Date(a.date || a.scheduled_date || a.created_at || 0).getTime();
-                const dateB = new Date(b.date || b.scheduled_date || b.created_at || 0).getTime();
-                return dateA - dateB;
-              });
-          } catch (err) {
-            console.error('Failed to load games:', err);
-            return [];
-          }
-        })(),
-        (async () => {
-          try {
-            const allPosts = await Post.list('-created_at', 50);
-            return (allPosts || []).filter((p: any) => {
-              const content = (p.content || p.caption || '').toLowerCase();
-              const game = p.game || {};
-              const homeId = String(game.home_team_id || '').toLowerCase();
-              const awayId = String(game.away_team_id || '').toLowerCase();
-              const homeName = (game.home_team || '').toLowerCase();
-              const awayName = (game.away_team || '').toLowerCase();
-              const idMatch = (homeId && teamIds.has(homeId)) || (awayId && teamIds.has(awayId));
-              const nameMatch = teamNames.some((name) =>
-                homeName.includes(name) || awayName.includes(name) || content.includes(`#${name.replace(/\s+/g, '')}`) || content.includes(name)
-              );
-              return idMatch || nameMatch;
-            });
-          } catch (err) {
-            console.error('Failed to load posts:', err);
-            return [];
-          }
-        })(),
-      ]).catch(err => {
-        console.error('Failed to load games or posts:', err);
-        return [[], []];
-      });
-
-      // Detect membership so the follow button reflects reality
-      const isMember = Array.isArray(orgData.memberships)
-        ? orgData.memberships.some((m: any) => {
-            const memberUserId = m.user_id || m.user?.id;
-            const status = (m.status || 'active').toLowerCase();
-            return memberUserId && memberUserId === me?.id && status === 'active';
-          })
-        : false;
-      if (typeof isMember === 'boolean') {
-        setIsFollowing(isMember);
-      }
-
-      setTeams(orgTeams);
-      setGames(gamesResult || []);
-      setPosts(postsResult || []);
-    } catch (err: any) {
-      console.error('Failed to load organization:', err);
-      setError(err?.message || 'Failed to load organization data');
     } finally {
       setLoading(false);
     }
   }, [params.id]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadOrganization();
-    setRefreshing(false);
-  }, [loadOrganization]);
-
   useEffect(() => {
-    void loadOrganization();
-  }, [loadOrganization]);
+    void load();
+  }, [load]);
 
-  const handleTeamPress = (teamId: string) => {
-    void router.push({ pathname: '/(tabs)/team-page', params: { id: teamId } });
-  };
+  const isOwnOrg = !!(me?.id && org?.id && me.id === org.owner_id);
 
-  const handleGamePress = (gameId: string) => {
-    void router.push({ pathname: '/game-detail', params: { id: gameId } });
-  };
-
-  const handlePostPress = (postId: string) => {
-    void router.push({ pathname: '/post-detail', params: { id: postId } });
-  };
-
-  const handleFollowPress = () => {
-    setIsFollowing((prev) => {
-      const next = !prev;
-      Alert.alert(
-        next ? 'Following' : 'Unfollowed',
-        next
-          ? `You will see updates from ${orgName || 'this organization'}.`
-          : `You will stop receiving updates from ${orgName || 'this organization'}.`
-      );
-      return next;
-    });
-  };
-
-  const renderTeamCard = ({ item }: { item: LeagueTeam }) => (
-    <Pressable
-      style={[styles.teamCard, { 
-        backgroundColor: theme.card,
-        borderColor: theme.border,
-      }]}
-      onPress={() => handleTeamPress(item.id)}
-    >
-      <View style={styles.teamCardContent}>
-        {item.logo_url ? (
-          <Image source={{ uri: item.logo_url }} style={styles.teamLogo} contentFit="cover" />
-        ) : (
-          <View style={[styles.teamLogoPlaceholder, { backgroundColor: theme.surface }]}>
-            <Ionicons name="people" size={24} color={theme.mutedText} />
-          </View>
-        )}
-        <View style={styles.teamInfo}>
-          <Text style={[styles.teamName, { color: theme.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          {item.sport && (
-            <Text style={[styles.teamMeta, { color: theme.mutedText }]} numberOfLines={1}>
-              {item.sport}{item.season ? ` • ${item.season}` : ''}
-            </Text>
-          )}
-          {item._count?.members !== undefined && (
-            <Text style={[styles.teamMeta, { color: theme.mutedText }]} numberOfLines={1}>
-              {item._count.members} members
-            </Text>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.mutedText} />
-      </View>
-    </Pressable>
-  );
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'teams':
-        if (teams.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No teams in this organization
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.teamsList}>
-            {teams.map((team) => (
-              <View key={team.id}>
-                {renderTeamCard({ item: team })}
-              </View>
-            ))}
-          </View>
-        );
-
-      case 'schedule':
-        if (games.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No games scheduled
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.gamesList}>
-            {games.map((game) => (
-              <GameCard
-                key={game.id}
-                game={game}
-                onPress={() => handleGamePress(game.id)}
-              />
-            ))}
-          </View>
-        );
-
-      case 'feed':
-        if (posts.length === 0) {
-          return (
-            <View style={styles.emptyState}>
-              <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
-              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No posts yet
-              </Text>
-            </View>
-          );
-        }
-        return (
-          <View style={styles.postsList}>
-            {posts.map((post, index) => (
-              <PostCard
-                key={`${post.id}-${index}`}
-                post={post}
-                onPress={() => handlePostPress(post.id)}
-              />
-            ))}
-          </View>
-        );
-
-      default:
-        return null;
+  const onFollow = async () => {
+    if (!org?.id) return;
+    const next = !org.is_following;
+    setOrg((prev: any) => ({
+      ...prev,
+      is_following: next,
+      followers_count: (prev.followers_count || 0) + (next ? 1 : -1),
+    }));
+    try {
+      if (next) {
+        await Organization.follow(String(org.id));
+      } else {
+        await Organization.unfollow(String(org.id));
+      }
+    } catch {
+      setOrg((prev: any) => ({
+        ...prev,
+        is_following: !next,
+        followers_count: (prev.followers_count || 0) + (!next ? 1 : -1),
+      }));
     }
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ 
-          title: 'Organization', 
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-            </Pressable>
-          ),
-        }} />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={theme.tint} />
+      <SafeAreaView style={[S.container, { backgroundColor: theme.background }]}>
+        <View style={S.center}>
+          <ActivityIndicator />
         </View>
       </SafeAreaView>
     );
   }
 
-  if (error && !fallbackTeam) {
+  if (error || !org) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ 
-          title: 'Organization', 
-          headerShown: true,
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-            </Pressable>
-          ),
-        }} />
-        <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, { color: theme.mutedText }]}>{error}</Text>
-          <Pressable onPress={loadOrganization} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
+      <SafeAreaView style={[S.container, { backgroundColor: theme.background }]}>
+        <View style={S.center}>
+          <Text style={[S.errorText, { color: theme.text }]}>{error || 'Not found'}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (fallbackTeam) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-        <Stack.Screen options={{ title: fallbackTeam?.name || 'Team', headerShown: false }} />
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}> 
-            <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="chevron-back" size={24} color={theme.text} />
-            </Pressable>
-            <Text style={[styles.topBarTitle, { color: theme.text }]}>Team</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <LinearGradient
-            colors={['#0ea5e9', '#2563eb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroHeader}
-          >
-            <View style={styles.heroContent}>
-              <View style={styles.heroIcon}>
-                <Ionicons name="people" size={56} color="#ffffff" />
-              </View>
-              <View style={styles.heroText}>
-                <Text style={styles.heroTitle}>{fallbackTeam?.name || 'Team'}</Text>
-                {fallbackTeam?.sport ? (
-                  <Text style={styles.heroSubtitle}>{fallbackTeam.sport}</Text>
-                ) : null}
-              </View>
-              <Pressable
-                onPress={() => handleTeamPress(fallbackTeam.id)}
-                style={[styles.followButton, { backgroundColor: '#fff', borderColor: 'rgba(255,255,255,0.35)' }]}
-              >
-                <Ionicons name="chevron-forward" size={18} color={theme.tint} />
-                <Text style={[styles.followButtonText, { color: theme.tint }]}>Open Team</Text>
-              </Pressable>
-            </View>
-          </LinearGradient>
-
-          <View style={[styles.fallbackCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.fallbackTitle, { color: theme.text }]}>No linked organization</Text>
-            <Text style={[styles.fallbackBody, { color: theme.mutedText }]}>This team is not linked to an organization yet.</Text>
-            <Pressable onPress={() => handleTeamPress(fallbackTeam.id)} style={[styles.primaryButton, { backgroundColor: theme.tint }]}>
-              <Text style={styles.primaryButtonText}>Go to Team Page</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
-
-  const orgName = organization?.name
-    || (typeof params.id === 'string' && params.id.length > 6
-      ? `Organization ${params.id.slice(0, 6)}`
-      : 'Organization');
-  const teamCount = teams.length;
-  const gameCount = games.length;
-  const postCount = posts.length;
-  const heroSubtitle = organization?.location
-    || (['coach', 'organizer', 'admin'].includes((currentRole || '').toLowerCase()) && organizationId
-      ? `ID: ${organizationId.substring(0, 8)}...`
-      : null);
+  const coverUrl = org?.preferences?.header_image_url;
 
   return (
-    <GestureDetector gesture={swipeGesture}>
-      <Animated.View style={[{ flex: 1 }, animatedStyle]}>
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-          <Stack.Screen options={{ 
-            title: `Organization`, 
-            headerShown: false,
-          }} />
-          
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          >
-            <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}> 
-              <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="chevron-back" size={24} color={theme.text} />
-              </Pressable>
-              <Text style={[styles.topBarTitle, { color: theme.text }]}>Organization</Text>
-              <View style={{ width: 40 }} />
-            </View>
+    <SafeAreaView style={[S.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-            {/* Hero Header with Gradient */}
-            <LinearGradient
-              colors={['#0ea5e9', '#2563eb']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.heroHeader}
+      <ScrollView showsVerticalScrollIndicator={false} scrollEventThrottle={16}>
+        {/* Cover Image */}
+        <View style={S.coverSection}>
+          {coverUrl ? (
+            <Image source={{ uri: coverUrl }} style={S.coverImage} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={['#667eea', '#764ba2']} style={S.coverImage} />
+          )}
+
+          {isOwnOrg && (
+            <Pressable style={S.editButton} onPress={() => router.push(`/org-edit?id=${org.id}`)}>
+              <Ionicons name="image-outline" size={20} color="#fff" />
+              <Text style={S.editButtonText}>Edit cover</Text>
+            </Pressable>
+          )}
+
+          <Pressable style={S.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </Pressable>
+        </View>
+
+        {/* Organization Identity */}
+        <View style={[S.profileSection, { backgroundColor: theme.background }]}>
+          <View style={S.avatarContainer}>
+            {org?.logo_url ? (
+              <Image source={{ uri: org.logo_url }} style={S.avatar} contentFit="cover" />
+            ) : (
+              <View style={[S.avatar, { backgroundColor: theme.card }]}>
+                <Ionicons name="business" size={50} color={theme.mutedText} />
+              </View>
+            )}
+          </View>
+
+          <View style={S.nameContainer}>
+            <View style={S.nameRow}>
+              <Text style={[S.displayName, { color: theme.text }]} numberOfLines={1}>
+                {org?.name || 'Organization'}
+              </Text>
+              {org?.verified && (
+                <Ionicons name="checkmark-circle" size={20} color="#3b82f6" />
+              )}
+            </View>
+            {org?.sport && (
+              <Text style={[S.username, { color: theme.mutedText }]} numberOfLines={1}>
+                {org.sport.charAt(0).toUpperCase() + org.sport.slice(1)} • {org.location || 'Location TBA'}
+              </Text>
+            )}
+            {org?.bio && (
+              <Text style={[S.bio, { color: theme.text }]} numberOfLines={2}>
+                {org.bio}
+              </Text>
+            )}
+            {org?.founded_year && (
+              <View style={S.joinedRow}>
+                <Ionicons name="calendar-outline" size={16} color={theme.mutedText} />
+                <Text style={[S.joinedText, { color: theme.mutedText }]}>
+                  Founded {org.founded_year}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {!isOwnOrg && (
+            <Pressable style={[S.followButton, org?.is_following && S.followingButton]} onPress={onFollow}>
+              <Ionicons
+                name={org?.is_following ? 'checkmark' : 'person-add'}
+                size={18}
+                color={org?.is_following ? theme.tint : '#fff'}
+              />
+              <Text style={[S.followButtonText, org?.is_following && S.followingButtonText]}>
+                {org?.is_following ? 'Following' : 'Follow'}
+              </Text>
+            </Pressable>
+          )}
+
+          {isOwnOrg && (
+            <Pressable
+              style={[S.followButton, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}
+              onPress={() => router.push(`/org-edit?id=${org.id}`)}
             >
-              <View style={styles.heroContent}>
-                <View style={styles.heroIcon}>
-                  <Ionicons name="business" size={56} color="#ffffff" />
-                </View>
-                <View style={styles.heroText}>
-                  <Text style={styles.heroTitle}>{orgName}</Text>
-                  {heroSubtitle ? (
-                    <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-                  ) : null}
-                </View>
-                <Pressable
-                  onPress={handleFollowPress}
-                  style={[
-                    styles.followButton,
-                    {
-                      backgroundColor: isFollowing ? '#fff' : 'rgba(255,255,255,0.15)',
-                      borderColor: 'rgba(255,255,255,0.35)',
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={isFollowing ? 'checkmark-circle' : 'person-add'}
-                    size={18}
-                    color={isFollowing ? theme.tint : '#fff'}
-                  />
-                  <Text
-                    style={[
-                      styles.followButtonText,
-                      { color: isFollowing ? theme.tint : '#fff' },
-                    ]}
-                  >
-                    {isFollowing ? 'Following' : 'Follow'}
+              <Ionicons name="pencil" size={18} color={theme.text} />
+              <Text style={[S.followButtonText, { color: theme.text }]}>Edit org</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Stats Row */}
+        <View style={[S.statsRow, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{teams.length}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Teams</Text>
+          </View>
+          <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{org?.posts_count ?? 0}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Posts</Text>
+          </View>
+          <View style={[S.statDivider, { backgroundColor: theme.border }]} />
+          <View style={S.statCell}>
+            <Text style={[S.statNumber, { color: theme.text }]}>{org?.followers_count ?? 0}</Text>
+            <Text style={[S.statLabel, { color: theme.mutedText }]}>Followers</Text>
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={[S.tabsContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          {['teams', 'posts', 'games'].map((tab) => (
+            <Pressable
+              key={tab}
+              style={[S.tab, activeTab === tab && S.activeTab, { borderBottomColor: activeTab === tab ? theme.tint : 'transparent' }]}
+              onPress={() => setActiveTab(tab as any)}
+            >
+              <Text
+                style={[
+                  S.tabText,
+                  activeTab === tab ? { color: theme.tint, fontWeight: '700' } : { color: theme.mutedText },
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Content */}
+        <View style={S.contentSection}>
+          {activeTab === 'teams' && (
+            <>
+              {teams.length === 0 ? (
+                <View style={S.emptyState}>
+                  <Ionicons name="people-outline" size={48} color={theme.mutedText} />
+                  <Text style={[S.emptyStateText, { color: theme.text }]}>No teams</Text>
+                  <Text style={[S.emptyStateSubtext, { color: theme.mutedText }]}>
+                    This organization has no teams yet
                   </Text>
-                </Pressable>
-              </View>
-            </LinearGradient>
-
-            {/* Stats Card */}
-            <View style={styles.statsCard}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: theme.text }]}>{teamCount}</Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Teams</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: theme.text }]}>{gameCount}</Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Games</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: theme.text }]}>{postCount}</Text>
-                <Text style={[styles.statLabel, { color: theme.mutedText }]}>Posts</Text>
-              </View>
-            </View>
-
-            {/* Tabs with Modern Design */}
-            <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-              {(['teams', 'schedule', 'feed'] as const).map((tab) => (
-                <Pressable
-                  key={tab}
-                  onPress={() => setActiveTab(tab)}
-                  style={[
-                    styles.modernTab,
-                    activeTab === tab && [
-                      styles.modernTabActive,
-                      { backgroundColor: theme.tint }
-                    ],
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modernTabLabel,
-                      { color: activeTab === tab ? '#ffffff' : theme.mutedText },
-                    ]}
+                </View>
+              ) : (
+                teams.map((team) => (
+                  <Pressable
+                    key={team.id}
+                    style={[S.teamCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => router.push(`/team-profile?id=${team.id}`)}
                   >
-                    {tab === 'teams' && <Ionicons name="people" size={16} />}
-                    {tab === 'schedule' && <Ionicons name="calendar" size={16} />}
-                    {tab === 'feed' && <Ionicons name="newspaper" size={16} />}
-                    {' '}{tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+                    <View style={S.teamHeader}>
+                      {team.logo_url && (
+                        <Image source={{ uri: team.logo_url }} style={S.teamAvatar} contentFit="cover" />
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[S.teamName, { color: theme.text }]} numberOfLines={1}>
+                          {team.name}
+                        </Text>
+                        <Text style={[S.teamInfo, { color: theme.mutedText }]} numberOfLines={1}>
+                          {team.sport || 'Sport TBA'} • {team._count?.members || 0} members
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))
+              )}
+            </>
+          )}
 
-            {/* Tab Content */}
-            <View style={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}>
-              {renderTabContent()}
+          {activeTab === 'posts' && (
+            <>
+              {posts.length === 0 ? (
+                <View style={S.emptyState}>
+                  <Ionicons name="document-outline" size={48} color={theme.mutedText} />
+                  <Text style={[S.emptyStateText, { color: theme.text }]}>No posts yet</Text>
+                  <Text style={[S.emptyStateSubtext, { color: theme.mutedText }]}>
+                    This organization hasn't posted anything yet
+                  </Text>
+                </View>
+              ) : (
+                posts.map((post) => (
+                  <Pressable
+                    key={post.id}
+                    style={[S.postCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => router.push(`/post-detail?id=${post.id}`)}
+                  >
+                    <View style={S.postHeader}>
+                      <Text style={[S.postTitle, { color: theme.text }]} numberOfLines={2}>
+                        {post.title || post.caption || post.content || 'Untitled'}
+                      </Text>
+                    </View>
+                    {post.media_url && (
+                      <Image source={{ uri: post.media_url }} style={S.postMedia} contentFit="cover" />
+                    )}
+                    <View style={S.postStats}>
+                      <View style={S.statItem}>
+                        <Ionicons name="arrow-up" size={16} color={theme.mutedText} />
+                        <Text style={[S.statItemText, { color: theme.mutedText }]}>{post.upvotes_count ?? 0}</Text>
+                      </View>
+                      <View style={S.statItem}>
+                        <Ionicons name="chatbubble-outline" size={16} color={theme.mutedText} />
+                        <Text style={[S.statItemText, { color: theme.mutedText }]}>{post.comments_count ?? 0}</Text>
+                      </View>
+                      <View style={S.statItem}>
+                        <Ionicons name="eye-outline" size={16} color={theme.mutedText} />
+                        <Text style={[S.statItemText, { color: theme.mutedText }]}>
+                          {(post.upvotes_count ?? 0) * 12}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))
+              )}
+            </>
+          )}
+
+          {activeTab === 'games' && (
+            <View style={S.emptyState}>
+              <Ionicons name="football-outline" size={48} color={theme.mutedText} />
+              <Text style={[S.emptyStateText, { color: theme.text }]}>No games scheduled</Text>
+              <Text style={[S.emptyStateSubtext, { color: theme.mutedText }]}>
+                Check back soon for upcoming games
+              </Text>
             </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Animated.View>
-    </GestureDetector>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  topBar: {
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 10,
-  },
-  topBarTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
+const S = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 16, fontWeight: '500' },
+  coverSection: { position: 'relative', height: COVER_HEIGHT },
+  coverImage: { width: '100%', height: '100%' },
   backButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
     width: 40,
     height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerContainer: {
-    flex: 1,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Hero Header Styles
-  heroHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 18,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  heroContent: {
+  editButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  editButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  profileSection: { alignItems: 'center', paddingHorizontal: 16, paddingTop: 24, paddingBottom: 16, marginBottom: 16 },
+  avatarContainer: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 4,
+    borderColor: '#fff',
+    overflow: 'hidden',
+    marginBottom: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroText: {
-    flex: 1,
-    justifyContent: 'center',
-  },
+  avatar: { width: '100%', height: '100%' },
+  nameContainer: { alignItems: 'center', marginBottom: 16 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  displayName: { fontSize: 22, fontWeight: '700' },
+  username: { fontSize: 14, marginBottom: 8 },
+  bio: { fontSize: 14, lineHeight: 20, marginBottom: 8, textAlign: 'center', paddingHorizontal: 12 },
+  joinedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  joinedText: { fontSize: 13 },
   followButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 6,
-  },
-  followButtonText: {
-    fontWeight: '700',
-  },
-  fallbackCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
-    gap: 10,
-  },
-  fallbackTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  fallbackBody: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  primaryButton: {
-    marginTop: 6,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
-    fontWeight: '500',
-  },
-  statsCard: {
-    marginHorizontal: 16,
-    marginTop: -28,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 28,
-    backgroundColor: '#e5e7eb',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  // Modern Tab Styles
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
     gap: 8,
-  },
-  modernTab: {
-    flex: 1,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
+    borderRadius: 24,
+    backgroundColor: '#3b82f6',
+    minWidth: 120,
   },
-  modernTabActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  modernTabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  contentContainer: {
-    paddingHorizontal: 16,
-  },
-  teamsList: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  gamesList: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  postsList: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  teamCard: {
+  followingButton: { backgroundColor: '#f0f4f8' },
+  followButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  followingButtonText: { color: '#3b82f6' },
+  statsRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    padding: 12,
-    marginBottom: 8,
-  },
-  teamCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  teamLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-  },
-  teamLogoPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  teamInfo: {
-    flex: 1,
-  },
-  teamName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  teamMeta: {
-    fontSize: 12,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    gap: 12,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  emptyStateSubtext: {
-    fontSize: 13,
-  },
-  errorText: {
-    fontSize: 16,
+    overflow: 'hidden',
     marginBottom: 16,
-    textAlign: 'center',
   },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#007AFF',
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  statCell: { flex: 1, alignItems: 'center', paddingVertical: 16 },
+  statNumber: { fontSize: 20, fontWeight: '700', marginBottom: 4 },
+  statLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1 },
+  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, marginBottom: 16 },
+  tab: { flex: 1, paddingVertical: 12, borderBottomWidth: 2, alignItems: 'center' },
+  activeTab: { borderBottomColor: 'currentColor' },
+  tabText: { fontSize: 15, fontWeight: '500' },
+  contentSection: { paddingHorizontal: 16, paddingBottom: 32 },
+  teamCard: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12, overflow: 'hidden' },
+  teamHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  teamAvatar: { width: 48, height: 48, borderRadius: 24 },
+  teamName: { fontSize: 15, fontWeight: '600' },
+  teamInfo: { fontSize: 13, marginTop: 4 },
+  postCard: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 12, overflow: 'hidden' },
+  postHeader: { marginBottom: 8 },
+  postTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  postMedia: { width: '100%', height: 180, borderRadius: 8, marginBottom: 12 },
+  postStats: { flexDirection: 'row', gap: 16 },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statItemText: { fontSize: 13, fontWeight: '600' },
+  emptyState: { alignItems: 'center', paddingVertical: 48 },
+  emptyStateText: { fontSize: 16, fontWeight: '600', marginTop: 16 },
+  emptyStateSubtext: { fontSize: 14, marginTop: 6 },
 });

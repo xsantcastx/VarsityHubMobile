@@ -14,7 +14,7 @@ import {
     Pressable,
     ScrollView,
     StatusBar,
-    StyleSheet,
+              if (post.author_id) { void router.push(`/user-profile?id=${post.author_id}`);
     Text,
     TextInput,
     View
@@ -49,14 +49,6 @@ const formatCount = (value?: number | null) => {
   return String(value);
 };
 
-const getCountryFlag = (countryCode?: string | null) => {
-  const flags: { [key: string]: string } = {
-    'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
-    'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'BR': '🇧🇷', 'MX': '🇲🇽',
-  };
-  return flags[countryCode || ''] || '🌍';
-};
-
 const getSportCategory = (title?: string | null, content?: string | null) => {
   const text = (title + ' ' + content || '').toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
@@ -73,11 +65,8 @@ export default function PostDetailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
-  const actionButtonBg = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(37, 99, 235, 0.08)';
-  const actionButtonBorder = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.35)' : 'rgba(37, 99, 235, 0.18)';
   const statPrimaryColor = colorScheme === 'dark' ? '#E2E8F0' : '#1F2937';
   const statMutedColor = colorScheme === 'dark' ? '#CBD5F5' : '#6B7280';
-  const onTint = theme.onTint ?? '#ffffff';
   
   // Parse params for multi-post navigation
   const postIdsArray = params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
@@ -104,19 +93,13 @@ export default function PostDetailScreen() {
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
-  const upvotePalette = post?.has_upvoted
-    ? {
-        backgroundColor: theme.tint,
-        borderColor: theme.tint,
-        icon: onTint,
-        text: onTint,
-      }
-    : {
-        backgroundColor: actionButtonBg,
-        borderColor: actionButtonBorder,
-        icon: theme.tint,
-        text: theme.tint,
-      };
+  const commentInputRef = useRef<TextInput>(null);
+
+  const eventId = post?.event_id || post?.game_id || post?.game?.id;
+  const upvoteIconColor = post?.has_upvoted ? Colors[colorScheme].tint : statMutedColor;
+  const upvoteTextColor = post?.has_upvoted ? statPrimaryColor : statMutedColor;
+  const actionIconColor = colorScheme === 'dark' ? '#E2E8F0' : '#1F2937';
+  const actionMutedColor = colorScheme === 'dark' ? '#94A3B8' : '#6B7280';
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -152,30 +135,25 @@ export default function PostDetailScreen() {
             </View>
             <View style={[styles.skeletonFollowButton, { backgroundColor: Colors[colorScheme].surface }]} />
           </View>
+
+          <View style={[styles.skeletonCommentsCount, { backgroundColor: Colors[colorScheme].surface }]} />
         </View>
         
         {/* Comments Skeleton */}
-        <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
-          <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
-            <View style={[styles.skeletonCommentsTitle, { backgroundColor: Colors[colorScheme].surface }]} />
-            <View style={[styles.skeletonCommentsCount, { backgroundColor: Colors[colorScheme].surface }]} />
-          </View>
-          
-          {Array.from({ length: 3 }).map((_, i) => (
-            <View key={i} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
-              <View style={styles.commentHeader}>
-                <View style={styles.commentAuthor}>
-                  <View style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
-                  <View style={styles.commentAuthorInfo}>
-                    <View style={[styles.skeletonCommentAuthor, { backgroundColor: Colors[colorScheme].surface }]} />
-                    <View style={[styles.skeletonCommentDate, { backgroundColor: Colors[colorScheme].surface }]} />
-                  </View>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <View key={i} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}> 
+            <View style={styles.commentHeader}>
+              <View style={styles.commentAuthor}>
+                <View style={[styles.commentAvatar, { backgroundColor: Colors[colorScheme].surface }]} />
+                <View style={styles.commentAuthorInfo}>
+                  <View style={[styles.skeletonCommentAuthor, { backgroundColor: Colors[colorScheme].surface }]} />
+                  <View style={[styles.skeletonCommentDate, { backgroundColor: Colors[colorScheme].surface }]} />
                 </View>
               </View>
-              <View style={[styles.skeletonCommentText, { backgroundColor: Colors[colorScheme].surface }]} />
             </View>
-          ))}
-        </View>
+            <View style={[styles.skeletonCommentText, { backgroundColor: Colors[colorScheme].surface }]} />
+          </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -202,7 +180,7 @@ export default function PostDetailScreen() {
       setPost(p);
       
       // Handle comments response - it returns { items, nextCursor }
-      let commentsArray = [];
+      let commentsArray = [] as any[];
       if (Array.isArray(c)) {
         commentsArray = c;
       } else if (c && Array.isArray(c.items)) {
@@ -308,28 +286,13 @@ export default function PostDetailScreen() {
     void sharePost();
   };
 
-  const onSendToFriend = () => {
-    // Navigate to messages/DM with pre-filled post link
-    Alert.alert(
-      'Send to Friend',
-      'Choose how to send this post',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Via VarsityHub DM',
-          onPress: () => {
-            router.push(`/messages?sharePost=${currentPostId}`);
-          }
-        },
-        {
-          text: 'Share Externally',
-          onPress: onShare
-        }
-      ]
-    );
+  const onShareOptions = () => {
+    void onShare();
+  };
+
+  const onOpenEvent = () => {
+    if (!eventId) return;
+    void router.push(`/event-detail?id=${eventId}`);
   };
 
   const onFollow = async () => {
@@ -346,9 +309,8 @@ export default function PostDetailScreen() {
         setFollowing(true);
       }
     } catch {
+    } catch (error) {
       console.error('Error toggling follow:', error);
-      // Revert optimistic update on error
-      setFollowing(following);
     }
   };
 
@@ -365,9 +327,8 @@ export default function PostDetailScreen() {
         setSaved(!saved);
       }
     } catch {
+    } catch (error) {
       console.error('Error toggling save:', error);
-      // Revert optimistic update on error
-      setSaved(saved);
     }
   };
 
@@ -425,22 +386,17 @@ export default function PostDetailScreen() {
     setUpdatingComment(true);
     try {
       await PostApi.updateComment(currentPostId, editCommentId, editCommentText.trim());
-      setComments(prevComments => prevComments.map(c => 
+      setComments(prevComments => prevComments.map(c =>
         String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
       ));
       setEditCommentId(null);
       setEditCommentText('');
-      Alert.alert('Success', 'Comment updated successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update comment');
     } finally {
       setUpdatingComment(false);
     }
   };
-
-  if (loading) {
-    return <SkeletonLoader />;
-  }
 
   if (error && !loading) {
     return (
@@ -465,6 +421,8 @@ export default function PostDetailScreen() {
   const isVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
   const hasMedia = isImage || isVideo;
   const category = getSportCategory(post.title, post.content);
+  const captionText = post.caption || post.content;
+  const estimatedViews = (post.upvotes_count || 0) * 12;
 
   // Render single post content (reusable for both single and multi-post views)
   const renderPostContent = () => (
@@ -481,27 +439,26 @@ export default function PostDetailScreen() {
                   <VideoPlayer uri={post.media_url} style={styles.heroVideo} />
                 </View>
               )}
-              
+
               {/* Media Overlay */}
-              <LinearGradient 
-                colors={['transparent', 'rgba(0,0,0,0.8)']} 
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
                 style={styles.mediaOverlay}
               />
-              
+
               {/* Category Badge */}
               <View style={styles.mediaTopOverlay}>
-                <View style={[styles.categoryBadge, { backgroundColor: category.color }]}>
+                <View style={[styles.categoryBadge, { backgroundColor: category.color }]}> 
                   <Text style={styles.categoryIcon}>{category.icon}</Text>
                   <Text style={styles.categoryText}>{category.name}</Text>
                 </View>
-                <Text style={styles.countryFlag}>{getCountryFlag(post.country_code)}</Text>
               </View>
-              
+
               {/* Expand Icon */}
               <View style={styles.expandIcon}>
                 <Ionicons name="expand-outline" size={24} color="#fff" />
               </View>
-              
+
               {/* Live Badge */}
               {post.created_at && new Date(post.created_at).getTime() > Date.now() - 3600000 && (
                 <View style={styles.liveBadge}>
@@ -510,71 +467,47 @@ export default function PostDetailScreen() {
               )}
             </Pressable>
           ) : (
-            <LinearGradient 
-              colors={[category.color + '40', category.color + '20']} 
+            <LinearGradient
+              colors={[category.color + '40', category.color + '20']}
               style={styles.noMediaHero}
             >
               <Text style={styles.noMediaIcon}>{category.icon}</Text>
               <Text style={[styles.noMediaText, { color: Colors[colorScheme].text }]}>Text Post</Text>
             </LinearGradient>
           )}
+
         </View>
 
-        {/* Post Content */}
-        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
-          {/* Title */}
-          {post.title && (
+        {/* Primary Content Card */}
+        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+          {post.title ? (
             <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{post.title}</Text>
-          )}
-          
-          {/* Content */}
-          {post.content && (
-            <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{post.content}</Text>
-          )}
+          ) : null}
 
-          {/* Game/Event Info */}
-          {post.game && (
-            <Pressable 
-              style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (post.game?.id) { void void router.push(`/game-detail?id=${post.game.id}`);
-                }
-              }}
-            >
-              <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
-              <View style={styles.gameDetails}>
-                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
-                  {post.game.title}
-                </Text>
-                {(post.game.home_team || post.game.away_team) && (
-                  <Text style={[styles.gameTeams, { color: Colors[colorScheme].mutedText }]}>
-                    {post.game.home_team && post.game.away_team 
-                      ? `${post.game.home_team} vs ${post.game.away_team}`
-                      : post.game.home_team || post.game.away_team}
-                  </Text>
-                )}
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
-            </Pressable>
-          )}
+          {captionText ? (
+            <Text style={[styles.postText, { color: Colors[colorScheme].mutedText }]}>
+              {captionText}
+            </Text>
+          ) : null}
 
-          {/* Team Links */}
-          {(post.team_id || post.team) && (
-            <Pressable 
+          {eventId && (
+            <Pressable
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { const teamId = post.team_id || post.team?.id;
-                if (teamId) { void void router.push(`/team-profile?id=${teamId}`);
-                }
-              }}
+              onPress={onOpenEvent}
             >
-              <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
+              <Ionicons name="navigate-outline" size={20} color={Colors[colorScheme].tint} />
               <View style={styles.teamDetails}>
-                <Text style={[styles.teamTitle, { color: Colors[colorScheme].text }]}>
-                  {post.team?.name || 'Team'}
-                </Text>
-                {post.team?.sport && (
-                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}>
-                    {post.team.sport}
+                <Text style={[styles.teamTitle, { color: Colors[colorScheme].text }]}>Linked Event</Text>
+                {post?.game?.home_team && post?.game?.away_team ? (
+                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}> 
+                    {post.game.home_team} vs {post.game.away_team}
                   </Text>
+                ) : post?.game?.title ? (
+                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}> 
+                    {post.game.title}
+                  </Text>
+                ) : (
+                  <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}>View event details</Text>
                 )}
               </View>
               <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
@@ -598,7 +531,7 @@ export default function PostDetailScreen() {
                 </View>
               )}
               <View style={styles.authorDetails}>
-                <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
+                <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}> 
                   {post.author?.display_name || 'Anonymous'}
                 </Text>
                 <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(post.created_at)}</Text>
@@ -607,7 +540,7 @@ export default function PostDetailScreen() {
             
             {post.author_id && String(post.author_id) !== String(currentUser?.id) && (
               <Pressable 
-                style={[
+                style={[ 
                   styles.followButton, 
                   { 
                     borderColor: following ? Colors[colorScheme].tint : Colors[colorScheme].tint,
@@ -632,103 +565,62 @@ export default function PostDetailScreen() {
           </View>
 
           {/* Stats & Actions */}
-          <View style={styles.statsSection}>
-            <View style={styles.stats}>
-              <View style={styles.stat}>
-                <Ionicons name="arrow-up" size={18} color={theme.tint} />
-                <Text style={[styles.statText, { color: statPrimaryColor }]}>{formatCount(post.upvotes_count || 0)}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color={statMutedColor} />
-                <Text style={[styles.statText, { color: statMutedColor }]}>{formatCount(comments.length || 0)}</Text>
-              </View>
-              <View style={styles.stat}>
-                <Ionicons name="eye-outline" size={18} color={statMutedColor} />
-                <Text style={[styles.statText, { color: statMutedColor }]}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.actions}>
-              <Pressable 
-                style={[
-                  styles.actionButton, 
-                  { backgroundColor: upvotePalette.backgroundColor, borderColor: upvotePalette.borderColor },
-                  voting && styles.actionButtonDisabled,
-                ]} 
-                onPress={onUpvote}
-                disabled={voting}
-              >
-                <Ionicons 
-                  name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"} 
-                  size={20} 
-                  color={upvotePalette.icon} 
-                />
-                <Text style={[styles.actionText, { color: upvotePalette.text }]}>
-                  {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
-                </Text>
-              </Pressable>
-              
-              <Pressable 
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: actionButtonBg, borderColor: actionButtonBorder },
-                ]}
-                onPress={onSave}
-              >
-                <Ionicons 
-                  name={saved ? "bookmark" : "bookmark-outline"} 
-                  size={20} 
-                  color={saved ? "#FBBF24" : statMutedColor} 
-                />
-              </Pressable>
-            </View>
-          </View>
+          <View style={[styles.compactActions, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}>
+            <Pressable
+              style={[styles.compactActionButton, voting && styles.statDisabled]}
+              onPress={onUpvote}
+              disabled={voting}
+              hitSlop={6}
+            >
+              <Ionicons name={post?.has_upvoted ? 'arrow-up' : 'arrow-up-outline'} size={20} color={upvoteIconColor} />
+              <Text style={[styles.actionCount, { color: upvoteTextColor }]}>{formatCount(post.upvotes_count || 0)}</Text>
+            </Pressable>
 
-          {/* Quick Links */}
-          {(post.game?.id || post.team_id || post.team?.id || post.author_id) && (
-            <View style={[styles.quickLinks, { borderTopColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.quickLinksTitle, { color: Colors[colorScheme].text }]}>
-                Quick Links
-              </Text>
-              <View style={styles.quickLinksRow}>
-                {post.game?.id && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => void router.push(`/game-detail?id=${post.game.id}`)}
-                  >
-                    <Ionicons name="basketball" size={18} color="#2563EB" />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Event
-                    </Text>
-                  </Pressable>
-                )}
-                {(post.team_id || post.team?.id) && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => { const teamId = post.team_id || post.team?.id;
-                      if (teamId) void void router.push(`/team-profile?id=${teamId}`);
-                    }}
-                  >
-                    <Ionicons name="people" size={18} color="#10B981" />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Team
-                    </Text>
-                  </Pressable>
-                )}
-                {post.author_id && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => void router.push(`/user-profile?id=${post.author_id}`)}
-                  >
-                    <Ionicons name="person" size={18} color="#8B5CF6" />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Profile
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
+            <Pressable
+              style={styles.compactActionButton}
+              onPress={() => commentInputRef.current?.focus()}
+              hitSlop={6}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color={actionMutedColor} />
+              <Text style={[styles.actionCount, { color: actionMutedColor }]}>{formatCount(comments.length || 0)}</Text>
+            </Pressable>
+
+            <View style={styles.compactActionButton}>
+              <Ionicons name="eye-outline" size={20} color={actionMutedColor} />
+              <Text style={[styles.actionCount, { color: actionMutedColor }]}>{formatCount(estimatedViews)}</Text>
             </View>
-          )}
+
+            {eventId && (
+              <Pressable 
+                style={styles.compactActionButton}
+                onPress={onOpenEvent}
+                hitSlop={6}
+              >
+                <Ionicons name="navigate-outline" size={20} color={actionIconColor} />
+                <Text style={[styles.actionLabel, { color: actionIconColor }]}>Event</Text>
+              </Pressable>
+            )}
+
+            <Pressable 
+              style={styles.compactActionButton}
+              onPress={onSave}
+              hitSlop={6}
+            >
+              <Ionicons 
+                name={saved ? "bookmark" : "bookmark-outline"} 
+                size={20} 
+                color={saved ? "#FBBF24" : actionMutedColor} 
+              />
+            </Pressable>
+
+            <Pressable 
+              style={styles.compactActionButton}
+              onPress={onShareOptions}
+              hitSlop={6}
+            >
+              <Ionicons name="share-outline" size={20} color={actionIconColor} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Comments Section */}
@@ -748,6 +640,7 @@ export default function PostDetailScreen() {
               </View>
             )}
             <TextInput
+              ref={commentInputRef}
               style={[styles.commentInput, { 
                 backgroundColor: Colors[colorScheme].surface, 
                 borderColor: Colors[colorScheme].border,
@@ -786,7 +679,8 @@ export default function PostDetailScreen() {
                   <View style={styles.commentHeader}>
                     <Pressable 
                       style={styles.commentAuthor}
-                      onPress={() => { if (c.author_id) { void void router.push(`/user-profile?id=${c.author_id}`);
+                      onPress={() => {
+                        if (c.author_id) { void router.push(`/user-profile?id=${c.author_id}`);
                         }
                       }}
                       disabled={!c.author_id}
@@ -860,9 +754,6 @@ export default function PostDetailScreen() {
               <Ionicons name="trash-outline" size={22} color="#DC2626" />
             </Pressable>
           )}
-          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
-            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
           <Pressable style={styles.headerActionButton} onPress={onShare}>
             <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>
@@ -1027,9 +918,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingTop: 0,
     borderBottomWidth: 1,
   },
   backButton: {
@@ -1151,9 +1042,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
   },
-  countryFlag: {
-    fontSize: 20,
-  },
   liveBadge: {
     position: 'absolute',
     top: 16,
@@ -1183,6 +1071,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     marginHorizontal: 16,
     borderRadius: 16,
+    borderWidth: 1,
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 4 },
@@ -1194,6 +1083,7 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  statDisabled: { opacity: 0.6 },
   postTitle: {
     fontSize: 24,
     fontWeight: '800',
@@ -1324,67 +1214,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  actionButtonDisabled: { opacity: 0.6 },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Quick Links
-  quickLinks: {
-    paddingTop: 20,
-    marginTop: 20,
-    borderTopWidth: 1,
-  },
-  quickLinksTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  quickLinksRow: {
+  compactActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 12,
   },
-  quickLinkButton: {
+  compactActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
-  quickLinkText: {
+  actionCount: {
     fontSize: 14,
     fontWeight: '600',
   },
-
+  actionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   // Comments Section
   commentsSection: {
     margin: 16,

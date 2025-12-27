@@ -1,12 +1,14 @@
+import { Ionicons } from '@expo/vector-icons';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
-import { Stack, useRootNavigationState, useRouter } from 'expo-router';
+import { Stack, useNavigation, usePathname, useRootNavigationState, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, LogBox, Platform, View } from 'react-native';
+import { ActivityIndicator, LogBox, Platform, Pressable, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -49,6 +51,9 @@ if (Platform.OS === 'web' && __DEV__) {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
+  const navigation = useNavigation();
+  const pathname = usePathname();
+  const segments = useSegments();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -153,42 +158,166 @@ export default function RootLayout() {
           <AuthProvider navReady={!!navState?.key}>
             <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
               <OfflineBanner />
-              <Stack screenOptions={{ headerShown: false }}>
+              <Stack screenOptions={{ headerShown: true }}>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="create-post" options={{ headerShown: false }} />
-                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
+                <Stack.Screen name="edit-profile" options={{ headerShown: true }} />
                 <Stack.Screen name="post-detail" options={{ headerShown: false }} />
                 <Stack.Screen name="user-profile" options={{ headerShown: false }} />
                 <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-                <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
+                <Stack.Screen name="team-hub" options={{ headerShown: true }} />
+                <Stack.Screen name="team-contacts" options={{ headerShown: true }} />
                 <Stack.Screen name="game-detail" options={{ headerShown: false }} />
                 <Stack.Screen name="highlights" options={{ headerShown: false }} />
                 <Stack.Screen name="messages" options={{ headerShown: false }} />
                 <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-                <Stack.Screen name="followers" options={{ headerShown: false }} />
-                <Stack.Screen name="following" options={{ headerShown: false }} />
+                <Stack.Screen name="followers" options={{ headerShown: true }} />
+                <Stack.Screen name="following" options={{ headerShown: true }} />
                 <Stack.Screen name="create-team" options={{ headerShown: false }} />
                 <Stack.Screen name="edit-team" options={{ headerShown: false }} />
                 <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
                 <Stack.Screen name="my-team" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                <Stack.Screen name="verify-email" options={{ headerShown: false }} />
-                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                <Stack.Screen name="reset" options={{ headerShown: false }} />
-                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                <Stack.Screen name="sign-in" options={{ headerShown: true }} />
+                <Stack.Screen name="sign-up" options={{ headerShown: true }} />
+                <Stack.Screen name="verify-email" options={{ headerShown: true }} />
+                <Stack.Screen name="forgot-password" options={{ headerShown: true }} />
+                <Stack.Screen name="reset" options={{ headerShown: true }} />
+                <Stack.Screen name="reset-password" options={{ headerShown: true }} />
                 <Stack.Screen name="payment-success" options={{ headerShown: false }} />
                 <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
                 <Stack.Screen name="onboarding" options={{ headerShown: false }} />
                 <Stack.Screen name="+not-found" />
               </Stack>
+              <GlobalBackButton
+                canGoBack={navigation?.canGoBack?.() ?? false}
+                pathname={pathname}
+                segments={segments}
+                onBack={() => router.back()}
+                colorScheme={colorScheme}
+              />
               <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
             </NavigationThemeProvider>
           </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
+  );
+}
+
+type GlobalBackButtonProps = {
+  canGoBack: boolean;
+  pathname?: string | null;
+  segments: string[];
+  onBack: () => void;
+  colorScheme?: 'light' | 'dark' | null;
+};
+
+function GlobalBackButton({ canGoBack, pathname, segments, onBack, colorScheme }: GlobalBackButtonProps) {
+  const insets = useSafeAreaInsets();
+  const scheme = colorScheme ?? 'light';
+  const theme = Colors[scheme];
+
+  const currentPath = pathname || `/${segments.join('/')}`;
+  const isSignIn = currentPath.includes('sign-in');
+  const isTabRoot = segments[0] === '(tabs)' && segments.length <= 2;
+
+  const routesWithCustomBack = [
+    'create-collage',
+    'notifications',
+    'messages',
+    'dm-restrictions',
+    'ad-calendar',
+    'following',
+    'followers',
+    'submit-ad',
+    'message-thread',
+    'fan-pitch',
+    'zip-code',
+    'create-post',
+    'create',
+    'feedback',
+    'league',
+    'post-detail',
+    'edit-profile',
+    'story-viewer',
+    'contact',
+    'billing',
+    'universal-search',
+    'create-team',
+    'admin-reports',
+    'manage-users',
+    'edit-username',
+    'manage-teams',
+    'favorites',
+    'team-profile',
+    'team-hub',
+    'subscription-paywall',
+    'team-page',
+    'admin-user-detail',
+    'ad-analytics',
+    'edit-team',
+    'request-join-organization',
+    'organization-join-requests',
+    'forgot-password',
+    'organization',
+    'user-profile',
+    'verify-email',
+    'reset-password',
+    'reset',
+    'onboarding',
+    'manage-season',
+    'admin-ads',
+    'admin-users',
+    'admin-teams',
+    'admin-messages',
+    'admin-create-event',
+    'create-fan-event',
+    'team-contacts',
+    'team-viewer',
+    'game-details',
+    'game-detail',
+    'game-map',
+    'game-highlights',
+    'game-photos',
+    'game-reviews',
+  ];
+
+  const hasCustomBack = routesWithCustomBack.some((slug) => currentPath.includes(slug));
+  const shouldShow = canGoBack && !isSignIn && !isTabRoot && !hasCustomBack;
+
+  if (!shouldShow) return null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      onPress={onBack}
+      style={{
+        position: 'absolute',
+        top: Math.max(insets.top, 10) + 6,
+        left: 12,
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: scheme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)',
+        borderWidth: 1,
+        borderColor: scheme === 'dark' ? 'rgba(255,255,255,0.08)' : theme.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 6,
+        elevation: 3,
+        zIndex: 100,
+      }}
+    >
+      <Ionicons
+        name="arrow-back"
+        size={22}
+        color={scheme === 'dark' ? '#fff' : theme.text}
+      />
+    </Pressable>
   );
 }

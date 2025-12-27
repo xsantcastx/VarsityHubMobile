@@ -31,7 +31,7 @@ import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
-const CARD_HEIGHT = 220;
+const CARD_HEIGHT = 170;
 
 const mapHighlightItem = (input: any): HighlightItem | null => {
   if (!input) return null;
@@ -138,14 +138,14 @@ const HighlightCard = React.memo(({
   // Calculate ranking for this item
   const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
   
-  // Show numbered ranking for Trending (top 3) and Top (1-10)
-  const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);
+  // Show numbered CIRCLE ranking ONLY for Trending top 3
+  const showNumberedRank = currentTab === 'trending' && index < 3;
   const rankNumber = index + 1;
   
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
-        {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 */}
+        {/* Numbered Ranking Badge ONLY for Trending Top 3 */}
         {showNumberedRank && (
           <View style={[
             styles.numberBadge, 
@@ -168,8 +168,8 @@ const HighlightCard = React.memo(({
                   </View>
                 </View>
               )}
-              {/* Ranking Badge */}
-              {ranking.show && (
+              {/* Ranking Badge - Show ONLY if NOT showing circle badge */}
+              {ranking.show && !showNumberedRank && (
                 <RankingBadge 
                   type={ranking.type} 
                   position={ranking.position}
@@ -191,8 +191,8 @@ const HighlightCard = React.memo(({
                 <Text style={styles.categoryIcon}>{category.icon}</Text>
                 <Text style={styles.noMediaText}>Text Post</Text>
               </View>
-              {/* Ranking Badge for text posts */}
-              {ranking.show && (
+              {/* Ranking Badge - Show ONLY if NOT showing circle badge */}
+              {ranking.show && !showNumberedRank && (
                 <RankingBadge 
                   type={ranking.type} 
                   position={ranking.position}
@@ -253,7 +253,7 @@ const HighlightCard = React.memo(({
                 Alert.alert('Upvote', 'Feature coming soon!');
               }}
             >
-              <Ionicons name="arrow-up" size={18} color={upvoteColor} />
+              <Ionicons name="arrow-up" size={20} color={upvoteColor} />
               <Text style={[styles.statText, { color: upvoteColor, fontWeight: '700' }]}>{formatCount(item.upvotes_count || 0)}</Text>
             </Pressable>
             
@@ -264,8 +264,8 @@ const HighlightCard = React.memo(({
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
-              <Ionicons name="chatbubble" size={16} color={mutedIconColor} />
-              <Text style={[styles.statText, { color: statTextColor, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Ionicons name="chatbubble" size={18} color={mutedIconColor} />
+              <Text style={[styles.statText, { color: statTextColor, fontWeight: '700' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
             <Pressable 
@@ -290,14 +290,14 @@ const HighlightCard = React.memo(({
                 }
               }}
             >
-              <Ionicons name="share-outline" size={16} color={shareColor} />
-              <Text style={[styles.statText, { color: shareColor, fontWeight: '600' }]}>Share</Text>
+              <Ionicons name="share-outline" size={18} color={shareColor} />
+              <Text style={[styles.statText, { color: shareColor, fontWeight: '700' }]}>Share</Text>
             </Pressable>
             
             {item._score && (
               <View style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}>
-                <Ionicons name="trending-up" size={16} color={shareColor} />
-                <Text style={[styles.statText, { color: statTextColor }]}>{Math.round(item._score)}</Text>
+                <Ionicons name="trending-up" size={18} color={shareColor} />
+                <Text style={[styles.statText, { color: statTextColor, fontWeight: '700' }]}>{Math.round(item._score)}</Text>
               </View>
             )}
           </View>
@@ -311,7 +311,14 @@ const TabButton = ({ title, active, onPress, colorScheme }: { title: string; act
   <Pressable 
     style={[
       styles.tabButton, 
-      { backgroundColor: active ? Colors[colorScheme].tint : Colors[colorScheme].surface }
+      active && { 
+        backgroundColor: Colors[colorScheme].tint,
+        borderColor: Colors[colorScheme].tint,
+      },
+      !active && { 
+        backgroundColor: Colors[colorScheme].surface,
+        borderColor: Colors[colorScheme].border,
+      }
     ]} 
     onPress={onPress}
   >
@@ -621,7 +628,7 @@ export default function HighlightsScreen() {
         <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
         <TextInput
           style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-          placeholder="Search teams, events, users..."
+          placeholder="Search teams, events, users, organizations, posts..."
           placeholderTextColor={Colors[colorScheme].tabIconDefault}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -660,10 +667,8 @@ export default function HighlightsScreen() {
         />
       </ScrollView>
 
-      {/* Content area with swipe gesture handling */}
-      <View style={{ flex: 1 }} {...(panResponderRef.current ? panResponderRef.current.panHandlers : {})}>
-        {/* Show search results when searching */}
-        {searchQuery.trim() ? (
+      {/* Show search results when searching */}
+      {searchQuery.trim() ? (
         searching ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
@@ -805,7 +810,6 @@ export default function HighlightsScreen() {
           }
         />
       )}
-      </View>
     </SafeAreaView>
   );
 }
@@ -834,10 +838,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabsContainer: {
-    paddingHorizontal: 16,
-    gap: 8,
-    paddingVertical: 8,
-    height: 50,
+    marginBottom: 8,
+    zIndex: 100,
+    backgroundColor: 'transparent',
+    elevation: 5,
   },
   loadingContainer: {
     flex: 1,
@@ -905,10 +909,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
-    marginBottom: 4,
-    marginTop: 8,
+    marginBottom: 8,
+    marginTop: 4,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 12,
     borderWidth: 1,
     gap: 8,
@@ -943,23 +947,28 @@ const styles = StyleSheet.create({
   },
   tabsContent: {
     gap: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tabButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 36,
+    borderWidth: 1.5,
   },
   activeTab: {},
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   activeTabText: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
   },
   emptyContainer: {
     flex: 1,
@@ -978,12 +987,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   list: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: 12,
+    paddingTop: 0,
+    paddingBottom: 24,
   },
   card: {
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 14,
+    marginBottom: 12,
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -1158,8 +1168,8 @@ const styles = StyleSheet.create({
     }),
   },
   statText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#6B7280',
   },
   numberBadge: {
