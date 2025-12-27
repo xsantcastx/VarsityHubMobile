@@ -84,7 +84,12 @@ export default function MessagesScreen() {
       }
     } catch (e: any) {
       console.error('Failed to load messages', e);
-      setError('Unable to load messages.');
+      if (e?.status === 401) {
+        setError('Please sign in to view your messages.');
+        setMessages([]);
+      } else {
+        setError('Unable to load messages.');
+      }
     } finally {
       setLoading(false);
     }
@@ -357,7 +362,16 @@ export default function MessagesScreen() {
 
       <View style={styles.contentContainer}>
         {loading && <View style={styles.center}><ActivityIndicator /></View>}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {error && !loading && (
+          <View style={styles.errorBox}>
+            <Text style={styles.error}>{error}</Text>
+            {error.includes('sign in') && (
+              <Pressable style={[styles.errorButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => router.push('/sign-in')}>
+                <Text style={styles.errorButtonText}>Go to Sign In</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
@@ -542,7 +556,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   center: { paddingVertical: 32, alignItems: 'center' },
-  error: { color: '#b91c1c', marginBottom: 8, paddingHorizontal: 16 },
+  errorBox: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
+  error: { color: '#b91c1c', marginBottom: 8, paddingHorizontal: 0 },
+  errorButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  errorButtonText: { color: 'white', fontWeight: '700' },
   conversationRow: {
     flexDirection: 'row',
     alignItems: 'center',

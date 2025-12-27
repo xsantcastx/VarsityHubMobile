@@ -1,5 +1,5 @@
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';

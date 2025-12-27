@@ -1,6 +1,6 @@
 import { Organization } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';

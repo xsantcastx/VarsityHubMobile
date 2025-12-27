@@ -1,14 +1,14 @@
-import { Game, Post, Team, User } from '@/api/entities';
+import { Game, Organization, Post, Team, User } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import { GameCard } from '@/components/ui/GameCard';
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +37,8 @@ export default function OrganizationScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organization, setOrganization] = useState<any | null>(null);
+  const [fallbackTeam, setFallbackTeam] = useState<any | null>(null);
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
@@ -71,6 +73,7 @@ export default function OrganizationScreen() {
   const loadOrganization = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setFallbackTeam(null);
     try {
       const orgId = params.id;
       if (!orgId) {
@@ -79,41 +82,136 @@ export default function OrganizationScreen() {
         return;
       }
 
-      setOrganizationId(orgId);
+      let resolvedOrgId = orgId;
+      setOrganizationId(resolvedOrgId);
 
       // Identify current user role for privilege-gated UI
+      let me: any = null;
       try {
-        const me: any = await User.me();
+        me = await User.me();
         const role = (me?.preferences?.role || me?.role || '').toLowerCase();
         if (role) setCurrentRole(role);
       } catch {}
 
-      // Fetch all teams in this organization
-      let allTeams: any[] = [];
-      try {
-        allTeams = await Team.list();
-      } catch (err) {
-        console.error('[Organization] Failed to load teams list:', err);
-      }
-      const orgTeams = allTeams.filter((t: any) => t.organization_id === orgId);
+      // Load organization details (name, teams, memberships)
+      let orgData: any | null = null;
+      const normalizedQuery = String(resolvedOrgId).replace(/[-_]+/g, ' ').trim();
 
-      // Fetch games for all teams in organization
+      try {
+        orgData = await Organization.get(resolvedOrgId);
+        setOrganization(orgData);
+      } catch (err: any) {
+        // Attempt to resolve by name/slug if ID lookup fails
+        try {
+          const candidates = await Organization.list(normalizedQuery, 1);
+          if (Array.isArray(candidates) && candidates.length > 0) {
+            resolvedOrgId = String(candidates[0].id);
+            setOrganizationId(resolvedOrgId);
+            orgData = await Organization.get(resolvedOrgId);
+            setOrganization(orgData);
+          }
+        } catch {}
+
+        // If still no org, attempt team resolution (by id then by name)
+        if (!orgData) {
+          try {
+            let team: any = null;
+            try {
+              team = await Team.get(resolvedOrgId);
+            } catch {
+              const teamCandidates = await Team.list(normalizedQuery, false, { limit: 5 });
+              if (Array.isArray(teamCandidates) && teamCandidates.length > 0) {
+                team = teamCandidates[0];
+              }
+            }
+
+            if (team?.organization_id) {
+              resolvedOrgId = String(team.organization_id);
+              setOrganizationId(resolvedOrgId);
+              orgData = await Organization.get(resolvedOrgId);
+              setOrganization(orgData);
+            } else if (team) {
+              // No linked org; use team data as fallback view
+              setFallbackTeam(team);
+              setLoading(false);
+              return;
+            } else {
+              // Neither org nor team could be resolved
+              setError('Organization not found. Please verify the link or ID.');
+              setLoading(false);
+              return;
+            }
+          } catch (teamErr: any) {
+            // Quietly handle and present a concise error
+            setError('Organization not found. Please verify the link or ID.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      if (!orgData) {
+        setError('Organization not found.');
+        setLoading(false);
+        return;
+      }
+
+      // Normalize teams and hydrate counts
+      let orgTeams: LeagueTeam[] = Array.isArray(orgData.teams)
+        ? orgData.teams.map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            sport: team.sport,
+            season: team.season ?? team.season_start ?? undefined,
+            logo_url: team.logo_url || team.avatar_url,
+            description: team.description,
+            organization_id: orgId,
+            _count: { members: team._count?.memberships ?? team._count?.members ?? 0 },
+          }))
+        : [];
+
+      // Fallback: fetch teams via directory endpoint if org payload lacks teams
+      if (orgTeams.length === 0) {
+        try {
+          const allTeams = await Team.list(undefined, undefined, { limit: 200 });
+          orgTeams = (allTeams || [])
+            .filter((t: any) => t.organization_id === orgId)
+            .map((team: any) => ({
+              id: team.id,
+              name: team.name,
+              sport: team.sport,
+              season: team.season,
+              logo_url: team.logo_url || team.avatar_url,
+              description: team.description,
+              organization_id: team.organization_id,
+              _count: { members: team._count?.members ?? 0 },
+            }));
+        } catch (err) {
+          console.error('[Organization] Failed to load teams list:', err);
+        }
+      }
+
+      const teamIds = new Set(orgTeams.map((t) => String(t.id).toLowerCase()));
+      const teamNames = orgTeams.map((t) => (t.name || '').toLowerCase()).filter(Boolean);
+
+      // Fetch games and posts scoped to this organization
       const [gamesResult, postsResult] = await Promise.all([
         (async () => {
           try {
-            const allGames = await Game.list('-date');
-            const teamNames = orgTeams.map((t: any) => t.name?.toLowerCase() || '');
-            return allGames
+            const allGames = await Game.list('-date', { limit: 100, showPending: true });
+            return (allGames || [])
               .filter((g: any) => {
-                const homeTeam = (g.home_team || '').toLowerCase();
-                const awayTeam = (g.away_team || '').toLowerCase();
-                return teamNames.some(name => 
-                  homeTeam.includes(name) || awayTeam.includes(name)
-                );
+                const homeId = String(g.home_team_id || g.team_id || '').toLowerCase();
+                const awayId = String(g.away_team_id || '').toLowerCase();
+                const homeName = (g.home_team || g.home_team_name || g.title || '').toLowerCase();
+                const awayName = (g.away_team || g.away_team_name || g.opponent || g.opponent_name || '').toLowerCase();
+                const idMatch = (homeId && teamIds.has(homeId)) || (awayId && teamIds.has(awayId));
+                const nameMatch = teamNames.some((name) => homeName.includes(name) || awayName.includes(name));
+                return idMatch || nameMatch;
               })
-              .sort((a, b) => {
-                const dateA = new Date(a.date).getTime();
-                const dateB = new Date(b.date).getTime();
+              .sort((a: any, b: any) => {
+                const dateA = new Date(a.date || a.scheduled_date || a.created_at || 0).getTime();
+                const dateB = new Date(b.date || b.scheduled_date || b.created_at || 0).getTime();
                 return dateA - dateB;
               });
           } catch (err) {
@@ -123,12 +221,19 @@ export default function OrganizationScreen() {
         })(),
         (async () => {
           try {
-            const allPosts = await Post.list('-created_at');
-            const teamHashtags = orgTeams.map((t: any) => `#${(t.name || '').toLowerCase().replace(/\\s+/g, '')}`);
-            return allPosts.filter((p: any) => {
-              const content = (p.content || '').toLowerCase();
-              const hasTeamHashtag = teamHashtags.some(tag => content.includes(tag));
-              return hasTeamHashtag;
+            const allPosts = await Post.list('-created_at', 50);
+            return (allPosts || []).filter((p: any) => {
+              const content = (p.content || p.caption || '').toLowerCase();
+              const game = p.game || {};
+              const homeId = String(game.home_team_id || '').toLowerCase();
+              const awayId = String(game.away_team_id || '').toLowerCase();
+              const homeName = (game.home_team || '').toLowerCase();
+              const awayName = (game.away_team || '').toLowerCase();
+              const idMatch = (homeId && teamIds.has(homeId)) || (awayId && teamIds.has(awayId));
+              const nameMatch = teamNames.some((name) =>
+                homeName.includes(name) || awayName.includes(name) || content.includes(`#${name.replace(/\s+/g, '')}`) || content.includes(name)
+              );
+              return idMatch || nameMatch;
             });
           } catch (err) {
             console.error('Failed to load posts:', err);
@@ -139,6 +244,18 @@ export default function OrganizationScreen() {
         console.error('Failed to load games or posts:', err);
         return [[], []];
       });
+
+      // Detect membership so the follow button reflects reality
+      const isMember = Array.isArray(orgData.memberships)
+        ? orgData.memberships.some((m: any) => {
+            const memberUserId = m.user_id || m.user?.id;
+            const status = (m.status || 'active').toLowerCase();
+            return memberUserId && memberUserId === me?.id && status === 'active';
+          })
+        : false;
+      if (typeof isMember === 'boolean') {
+        setIsFollowing(isMember);
+      }
 
       setTeams(orgTeams);
       setGames(gamesResult || []);
@@ -166,7 +283,7 @@ export default function OrganizationScreen() {
   };
 
   const handleGamePress = (gameId: string) => {
-    void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: gameId } });
+    void router.push({ pathname: '/game-detail', params: { id: gameId } });
   };
 
   const handlePostPress = (postId: string) => {
@@ -174,7 +291,16 @@ export default function OrganizationScreen() {
   };
 
   const handleFollowPress = () => {
-    setIsFollowing(!isFollowing);
+    setIsFollowing((prev) => {
+      const next = !prev;
+      Alert.alert(
+        next ? 'Following' : 'Unfollowed',
+        next
+          ? `You will see updates from ${orgName || 'this organization'}.`
+          : `You will stop receiving updates from ${orgName || 'this organization'}.`
+      );
+      return next;
+    });
   };
 
   const renderTeamCard = ({ item }: { item: LeagueTeam }) => (
@@ -306,7 +432,7 @@ export default function OrganizationScreen() {
     );
   }
 
-  if (error) {
+  if (error && !fallbackTeam) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ 
@@ -328,12 +454,73 @@ export default function OrganizationScreen() {
     );
   }
 
-  const orgName = typeof params.id === 'string' && params.id.length > 6
-    ? `Organization ${params.id.slice(0, 6)}`
-    : 'Organization';
+  if (fallbackTeam) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: fallbackTeam?.name || 'Team', headerShown: false }} />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}> 
+            <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="chevron-back" size={24} color={theme.text} />
+            </Pressable>
+            <Text style={[styles.topBarTitle, { color: theme.text }]}>Team</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <LinearGradient
+            colors={['#0ea5e9', '#2563eb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroHeader}
+          >
+            <View style={styles.heroContent}>
+              <View style={styles.heroIcon}>
+                <Ionicons name="people" size={56} color="#ffffff" />
+              </View>
+              <View style={styles.heroText}>
+                <Text style={styles.heroTitle}>{fallbackTeam?.name || 'Team'}</Text>
+                {fallbackTeam?.sport ? (
+                  <Text style={styles.heroSubtitle}>{fallbackTeam.sport}</Text>
+                ) : null}
+              </View>
+              <Pressable
+                onPress={() => handleTeamPress(fallbackTeam.id)}
+                style={[styles.followButton, { backgroundColor: '#fff', borderColor: 'rgba(255,255,255,0.35)' }]}
+              >
+                <Ionicons name="chevron-forward" size={18} color={theme.tint} />
+                <Text style={[styles.followButtonText, { color: theme.tint }]}>Open Team</Text>
+              </Pressable>
+            </View>
+          </LinearGradient>
+
+          <View style={[styles.fallbackCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            <Text style={[styles.fallbackTitle, { color: theme.text }]}>No linked organization</Text>
+            <Text style={[styles.fallbackBody, { color: theme.mutedText }]}>This team is not linked to an organization yet.</Text>
+            <Pressable onPress={() => handleTeamPress(fallbackTeam.id)} style={[styles.primaryButton, { backgroundColor: theme.tint }]}>
+              <Text style={styles.primaryButtonText}>Go to Team Page</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  const orgName = organization?.name
+    || (typeof params.id === 'string' && params.id.length > 6
+      ? `Organization ${params.id.slice(0, 6)}`
+      : 'Organization');
   const teamCount = teams.length;
   const gameCount = games.length;
   const postCount = posts.length;
+  const heroSubtitle = organization?.location
+    || (['coach', 'organizer', 'admin'].includes((currentRole || '').toLowerCase()) && organizationId
+      ? `ID: ${organizationId.substring(0, 8)}...`
+      : null);
 
   return (
     <GestureDetector gesture={swipeGesture}>
@@ -341,19 +528,23 @@ export default function OrganizationScreen() {
         <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
           <Stack.Screen options={{ 
             title: `Organization`, 
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-                <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-              </Pressable>
-            ),
+            headerShown: false,
           }} />
           
           <ScrollView
             style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           >
+            <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}> 
+              <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="chevron-back" size={24} color={theme.text} />
+              </Pressable>
+              <Text style={[styles.topBarTitle, { color: theme.text }]}>Organization</Text>
+              <View style={{ width: 40 }} />
+            </View>
+
             {/* Hero Header with Gradient */}
             <LinearGradient
               colors={['#0ea5e9', '#2563eb']}
@@ -367,9 +558,9 @@ export default function OrganizationScreen() {
                 </View>
                 <View style={styles.heroText}>
                   <Text style={styles.heroTitle}>{orgName}</Text>
-                  {['coach', 'organizer', 'admin'].includes((currentRole || '').toLowerCase()) && organizationId && (
-                    <Text style={styles.heroSubtitle}>ID: {organizationId.substring(0, 8)}...</Text>
-                  )}
+                  {heroSubtitle ? (
+                    <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
+                  ) : null}
                 </View>
                 <Pressable
                   onPress={handleFollowPress}
@@ -463,6 +654,27 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  topBar: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+  },
+  topBarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -471,8 +683,8 @@ const styles = StyleSheet.create({
   // Hero Header Styles
   heroHeader: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingTop: 10,
+    paddingBottom: 18,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
@@ -504,6 +716,33 @@ const styles = StyleSheet.create({
   },
   followButtonText: {
     fontWeight: '700',
+  },
+  fallbackCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
+  fallbackTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  fallbackBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  primaryButton: {
+    marginTop: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
   },
   heroTitle: {
     fontSize: 28,

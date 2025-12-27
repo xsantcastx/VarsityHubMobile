@@ -12,7 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { User } from '@/api/entities';
 import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { getGradientForColor } from '@/utils/theme';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 

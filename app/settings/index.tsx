@@ -2,7 +2,7 @@
             import Switch from '@/components/ui/switch';
 import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useThemePreference } from '@/hooks/useCustomColorScheme';
+import { useThemePreference } from '@/shared/hooks/useCustomColorScheme';
 import { getSentryStatus, testSentryConnection } from '@/utils/sentry';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';

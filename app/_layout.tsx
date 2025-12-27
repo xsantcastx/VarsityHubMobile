@@ -13,7 +13,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+import { ThemeProvider } from '@/shared/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
 
 const devLog = (...args: unknown[]) => {

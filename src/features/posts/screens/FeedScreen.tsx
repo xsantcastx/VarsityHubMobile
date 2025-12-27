@@ -24,10 +24,12 @@ const RSVPBadge = ({
   gameItem,
   onRSVPChange,
   emailVerified,
+  router,
 }: {
   gameItem: any;
   onRSVPChange?: () => void;
   emailVerified: boolean;
+  router: ReturnType<typeof useRouter>;
 }) => {
   const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
@@ -78,35 +80,60 @@ const RSVPBadge = ({
   };
 
   return (
-    <Pressable
-      onPress={handleRSVP}
-      style={{
-        position: 'absolute',
-        right: 14,
-        bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
-        shadowColor: colorScheme === 'dark' ? '#000' : '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 5,
-        zIndex: 1000,
-        opacity: isLoading ? 0.6 : 1,
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP'}
-    >
-      <Text style={{
-        color: 'white',
-        fontSize: 12,
-        fontWeight: '600',
-      }}>
-        {isRsvped ? `${rsvpCount} going` : '+'}
-      </Text>
-    </Pressable>
+    <View style={{ position: 'absolute', right: 14, bottom: 14, gap: 8, zIndex: 1000 }}>
+      {/* RSVP Button */}
+      <Pressable
+        onPress={handleRSVP}
+        style={{
+          backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 20,
+          shadowColor: colorScheme === 'dark' ? '#000' : '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          elevation: 5,
+          opacity: isLoading ? 0.6 : 1,
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP'}
+      >
+        <Text style={{
+          color: 'white',
+          fontSize: 12,
+          fontWeight: '600',
+        }}>
+          {isRsvped ? `${rsvpCount} going` : '+'}
+        </Text>
+      </Pressable>
+
+      {/* Pinpoint (Location) Button */}
+      {gameItem?.event_id && (
+        <Pressable
+          onPress={() => {
+            if (gameItem?.event_id) {
+              router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameItem.event_id) } });
+            }
+          }}
+          style={{
+            backgroundColor: 'rgba(59, 130, 246, 0.9)',
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            borderRadius: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 5,
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="View event location"
+        >
+          <Ionicons name="location" size={16} color="white" />
+        </Pressable>
+      )}
+    </View>
   );
 };
 
@@ -875,7 +902,7 @@ export default function FeedScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} emailVerified={emailVerified} />
+                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} emailVerified={emailVerified} router={router} />
                 </Pressable>
               );
             })}
@@ -964,7 +991,7 @@ export default function FeedScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} emailVerified={emailVerified} />
+                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} emailVerified={emailVerified} router={router} />
                   </Pressable>
                 );
               })}

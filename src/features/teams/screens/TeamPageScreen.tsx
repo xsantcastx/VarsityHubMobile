@@ -2,7 +2,7 @@ import { Game, Post, Team } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import { EmptyState } from '@/components/ui';
 import { Colors } from '@/constants/Colors';
-import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
