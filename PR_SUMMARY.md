@@ -1,8 +1,18 @@
 # Feature-First Architecture Migration - PR Summary
 
 **Branch**: `chore/deploy-checklist`  
-**Date**: December 26, 2025  
+**Date**: December 27, 2025  
 **Status**: ✅ Ready for Merge (All Checks Passed)
+
+## Today’s Updates (Commit `7bb620f0`)
+
+- Profile/Team/Org: Removed inline "Edit cover" buttons. Cover editing is now handled in dedicated edit screens for clarity and consistency.
+- Settings: Disabled iOS large title and adjusted SafeArea edges to remove duplicate "Settings" heading and close the top gap.
+- Dev reliability: Kept the dev client on `localhost` to avoid tunnel outages and simulator disconnects.
+
+### Verification
+- iOS simulator reloaded with dev client; UI changes verified live.
+- Snyk security scan: 0 issues detected.
 
 ## Overview
 

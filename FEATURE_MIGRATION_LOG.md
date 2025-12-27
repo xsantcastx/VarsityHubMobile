@@ -236,3 +236,18 @@ app/ (thin routing layer)
 4. **Add posts index.ts**: Complete posts feature structure
 5. **Migrate other features**: Gradually move admin, onboarding, settings, etc.
 
+---
+
+## December 27, 2025 - UI Consistency & Routing Polish
+
+**Commit**: `7bb620f0` on branch `chore/deploy-checklist`
+
+- Removed inline "Edit cover" buttons from Profile, Team, and Organization screens. Editing cover now centralized in the respective edit screens.
+- Settings screen: Disabled large title and adjusted SafeArea to remove redundant title and close header gap.
+- Navigation: Ensured standard back navigation and reduced header artifacts.
+- Dev workflow: Switched to `localhost` dev client for simulator reliability; avoided tunnel disconnections.
+
+**Verification**
+- Live simulator reload confirmed updated UI on profile page.
+- Snyk scan reported 0 issues for modified code.
+
