@@ -812,18 +812,17 @@ export default function FeedScreen() {
                             {String(adData.description)}
                           </Text>
                         ) : null}
+                        {/* Promote your program CTA */}
+                        <Pressable
+                          style={styles.promoteCta}
+                          onPress={() => void router.push('/submit-ad')}
+                          accessibilityRole="button"
+                        >
+                          <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
+                          <Text style={styles.promoteCtaText}>Promote your program</Text>
+                        </Pressable>
                       </View>
                     )}
-                    {/* Promote your program CTA */}
-                      <Pressable
-                        style={styles.promoteCta}
-                        onPress={() => void router.push('/submit-ad')}
-                        accessibilityRole="button"
-                      >
-                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                        <Text style={styles.promoteCtaText}>Promote your program</Text>
-                      </Pressable>
-                    </View>
                   </View>
                 );
               }
