@@ -784,17 +784,7 @@ export default function FeedScreen() {
                 
                 // Otherwise show actual ad with rotation
                 return (
-                  <View key={`ad-${index}`} style={[
-                    styles.sponsoredFeedCard,
-                    {
-                      backgroundColor: Colors[colorScheme].card,
-                      borderColor: Colors[colorScheme].border,
-                    }
-                  ]}>
-                    <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
-                      SPONSORED
-                    </Text>
-                    {/* Rotating ad display - full space for banner image, click to open link */}
+                  <View key={`ad-${index}`} style={{ width: '100%' }}>
                     <RotatingAd
                       ads={sponsoredAds}
                       rotationInterval={60000} // 1 minute
