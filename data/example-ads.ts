@@ -30,7 +30,7 @@ export const skateboardShopAd: ExampleAd = {
   description: 'Gear up & ride! Skateboards, shoes, apparel, accessories. Shop now for the latest boards and gear!',
   banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766906762/Screenshot_2025-12-28_at_2.25.32_AM_ahensv.png',
   banner_fit_mode: 'fill',
-  target_url: 'https://stamfordskate.com',
+  target_url: 'https://www.instagram.com/stamford_skate_shop/?hl=en',
   contact_name: 'Shop Owner',
   contact_email: 'info@stamfordskate.com',
   zip_code: '06901',
