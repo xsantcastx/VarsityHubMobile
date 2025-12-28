@@ -5,8 +5,8 @@ import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, S
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
-import { BannerAd } from '@/components/BannerAd';
 import { RotatingAd } from '@/components/RotatingAd';
+import { skateboardShopAd } from '@/data/example-ads';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -338,9 +338,8 @@ export default function FeedScreen() {
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
         const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
         
-        // For testing: uncomment to add example skateboard shop ad
-        // import { skateboardShopAd } from '@/data/example-ads';
-        // list.push(skateboardShopAd);
+        // For testing: add example skateboard shop ad
+        list.push(skateboardShopAd);
         
         // Shuffle order for fairness
         for (let i = list.length - 1; i > 0; i--) {
@@ -795,34 +794,13 @@ export default function FeedScreen() {
                     <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                       SPONSORED
                     </Text>
-                    {/* Rotating ad display - handles multiple ads or fallback */}
+                    {/* Rotating ad display - full space for banner image, click to open link */}
                     <RotatingAd
                       ads={sponsoredAds}
                       rotationInterval={60000} // 1 minute
                       aspectRatio={3.5}
                       onReserveAdSpace={() => void router.push('/submit-ad')}
                     />
-                    {adData.business_name && (
-                      <View style={styles.adInfo}>
-                        <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                          {adData.business_name || 'Local Sponsor'}
-                        </Text>
-                        {adData.description ? (
-                          <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                            {String(adData.description)}
-                          </Text>
-                        ) : null}
-                        {/* Promote your program CTA */}
-                        <Pressable
-                          style={styles.promoteCta}
-                          onPress={() => void router.push('/submit-ad')}
-                          accessibilityRole="button"
-                        >
-                          <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                          <Text style={styles.promoteCtaText}>Promote your program</Text>
-                        </Pressable>
-                      </View>
-                    )}
                   </View>
                 );
               }
