@@ -107,7 +107,7 @@ adsRouter.get('/', async (req: AuthedRequest, res) => {
 adsRouter.get('/for-feed', async (req, res) => {
   const dateParam = req.query.date ? String(req.query.date) : undefined; // yyyy-MM-dd
   const zip = req.query.zip ? String(req.query.zip) : undefined;
-  const limit = Math.max(1, Math.min(Number(req.query.limit || 1) || 1, 5));
+  const limit = Math.max(1, Math.min(Number(req.query.limit || 2) || 2, 5)); // Default to 2 for rotation
   // Build date range [start, next)
   const dateISO = dateParam || new Date().toISOString().slice(0, 10);
   const start = new Date(dateISO + 'T00:00:00.000Z');
@@ -117,6 +117,7 @@ adsRouter.get('/for-feed', async (req, res) => {
 
   const whereAd: any = {
     payment_status: 'paid',
+    status: 'approved', // Only show approved ads
     // Removed banner_url requirement - allow ads with or without banners
   };
   if (zip) whereAd.target_zip_code = zip;
@@ -142,6 +143,7 @@ adsRouter.get('/for-feed', async (req, res) => {
     ads: ads.map(ad => ({
       id: ad.id,
       payment_status: ad.payment_status,
+      status: ad.status,
       banner_url: !!ad.banner_url,
       reservations: ad.reservations.map(r => ({ id: r.id, date: r.date, dateISO: r.date.toISOString() }))
     }))

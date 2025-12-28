@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
 import { BannerAd } from '@/components/BannerAd';
+import { RotatingAd } from '@/components/RotatingAd';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -782,7 +783,7 @@ export default function FeedScreen() {
                   );
                 }
                 
-                // Otherwise show actual ad
+                // Otherwise show actual ad with rotation
                 return (
                   <View key={`ad-${index}`} style={[
                     styles.sponsoredFeedCard,
@@ -794,30 +795,26 @@ export default function FeedScreen() {
                     <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                       SPONSORED
                     </Text>
-                    {adData.banner_url ? (
-                      <BannerAd
-                        bannerUrl={adData.banner_url}
-                        fitMode={adData.banner_fit_mode || 'fill'}
-                        targetUrl={adData.target_url}
-                        businessName={adData.business_name}
-                        description={adData.description}
-                        aspectRatio={3.5}
-                      />
-                    ) : (
-                      <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
-                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
+                    {/* Rotating ad display - handles multiple ads or fallback */}
+                    <RotatingAd
+                      ads={sponsoredAds}
+                      rotationInterval={60000} // 1 minute
+                      aspectRatio={3.5}
+                      onReserveAdSpace={() => void router.push('/submit-ad')}
+                    />
+                    {adData.business_name && (
+                      <View style={styles.adInfo}>
+                        <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {adData.business_name || 'Local Sponsor'}
+                        </Text>
+                        {adData.description ? (
+                          <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
+                            {String(adData.description)}
+                          </Text>
+                        ) : null}
                       </View>
                     )}
-                    <View style={styles.adInfo}>
-                      <Text style={[styles.adBusinessName, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                        {adData.business_name || 'Local Sponsor'}
-                      </Text>
-                      {adData.description ? (
-                        <Text style={[styles.adDescription, { color: Colors[colorScheme].mutedText }]} numberOfLines={2}>
-                          {String(adData.description)}
-                        </Text>
-                      ) : null}
-                      {/* Promote your program CTA */}
+                    {/* Promote your program CTA */}
                       <Pressable
                         style={styles.promoteCta}
                         onPress={() => void router.push('/submit-ad')}

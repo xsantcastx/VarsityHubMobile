@@ -471,7 +471,7 @@ export const Advertisement = {
   get: (id: string) => httpGet('/ads/' + encodeURIComponent(id)),
   update: (id: string, data: any) => httpPut('/ads/' + encodeURIComponent(id), data),
   delete: (id: string) => httpDelete('/ads/' + encodeURIComponent(id)),
-  forFeed: (dateISO?: string, zip?: string, limit: number = 1) => {
+  forFeed: (dateISO?: string, zip?: string, limit: number = 2) => {
     const q: string[] = [];
     if (dateISO) q.push('date=' + encodeURIComponent(dateISO));
     if (zip) q.push('zip=' + encodeURIComponent(zip));
