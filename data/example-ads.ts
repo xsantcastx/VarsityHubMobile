@@ -28,7 +28,7 @@ export const skateboardShopAd: ExampleAd = {
   id: 'example-skateboard-1',
   business_name: 'Stamford Skate Shop',
   description: 'Gear up & ride! Skateboards, shoes, apparel, accessories. Shop now for the latest boards and gear!',
-  banner_url: 'https://example.com/ads/skateboard-shop-banner.jpg', // Replace with your CDN URL or local asset
+  banner_url: 'https://res.cloudinary.com/dxb5oq4fs/image/upload/v1766906762/Screenshot_2025-12-28_at_2.25.32_AM_ahensv.png',
   banner_fit_mode: 'fill',
   target_url: 'https://stamfordskate.com',
   contact_name: 'Shop Owner',
