@@ -336,6 +336,11 @@ export default function FeedScreen() {
       }
       if (forFeedAds && Array.isArray((forFeedAds as any).ads)) {
         const list = ((forFeedAds as any).ads as any[]).filter((a) => !!a); // Allow ads with or without banners
+        
+        // For testing: uncomment to add example skateboard shop ad
+        // import { skateboardShopAd } from '@/data/example-ads';
+        // list.push(skateboardShopAd);
+        
         // Shuffle order for fairness
         for (let i = list.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
