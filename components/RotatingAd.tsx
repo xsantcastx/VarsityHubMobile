@@ -125,8 +125,6 @@ export function RotatingAd({
         <BannerAd
           bannerUrl={currentAd.banner_url}
           targetUrl={currentAd.target_url}
-          businessName={currentAd.business_name}
-          description={currentAd.description}
           fitMode={currentAd.banner_fit_mode || 'fill'}
           aspectRatio={aspectRatio}
         />
