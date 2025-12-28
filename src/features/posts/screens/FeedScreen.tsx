@@ -788,7 +788,7 @@ export default function FeedScreen() {
                     <RotatingAd
                       ads={sponsoredAds}
                       rotationInterval={60000} // 1 minute
-                      aspectRatio={3.18}
+                      aspectRatio={2.27}
                       onReserveAdSpace={() => void router.push('/submit-ad')}
                     />
                   </View>
