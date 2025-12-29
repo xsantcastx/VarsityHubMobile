@@ -1,4 +1,4 @@
-import { Event } from '@/api/entities';
+import { pitchEvent, normalizeApiError } from '@/api/events';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Button, Input } from '@/shared/components';
@@ -32,7 +32,7 @@ export default function FanPitchScreen() {
 
     setSubmitting(true);
     try {
-      await Event.pitch({
+      await pitchEvent({
         title: title.trim(),
         date: parsedDate.toISOString(),
         location: location.trim() || undefined,
@@ -42,12 +42,7 @@ export default function FanPitchScreen() {
       Alert.alert('Pitch submitted', 'A coach will review and approve it. Thank you!');
       router.back();
     } catch (err: any) {
-      const message =
-        err?.data?.message ||
-        err?.data?.error ||
-        err?.message ||
-        'Unable to submit pitch. Please verify your email and try again.';
-      Alert.alert('Pitch failed', message);
+      Alert.alert('Pitch failed', normalizeApiError(err));
     } finally {
       setSubmitting(false);
     }

@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { httpGet, httpPut } from '@/api/http';
+import { fetchEventApprovals, approveEvent, rejectEvent, normalizeApiError } from '@/api/events';
 // @ts-ignore JS exports
 import { Game, User } from '@/api/entities';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -69,11 +69,10 @@ export default function EventApprovalsScreen() {
       }
 
       // Use events pending queue
-      const data = await httpGet('/events/pending');
-      const pendingEvents = Array.isArray(data) ? data.filter((event: any) => event && event.approval_status === 'pending') : [];
-      setEvents(pendingEvents);
+      const pendingEvents = await fetchEventApprovals();
+      setEvents(Array.isArray(pendingEvents) ? pendingEvents.filter((event: any) => event && event.approval_status === 'pending') : []);
     } catch (e: any) {
-      console.warn('Error loading pending events (backend may be deploying):', e?.message || e);
+      console.warn('Error loading pending events (backend may be deploying):', normalizeApiError(e));
       setEvents([]);
     } finally {
       setLoading(false);
@@ -93,13 +92,13 @@ export default function EventApprovalsScreen() {
   const handleApprove = async (eventId: number) => {
     setProcessingId(eventId);
     try {
-      await httpPut(`/events/${eventId}/approve`, {});
+      await approveEvent(String(eventId));
       Alert.alert('Event Approved', 'The event has been published!');
       // Remove from list
       setEvents(prev => prev.filter(e => e.id !== eventId));
     } catch (e: any) {
       console.error('Error approving event:', e);
-      Alert.alert('Error', e?.message || 'Failed to approve event.');
+      Alert.alert('Error', normalizeApiError(e));
     } finally {
       setProcessingId(null);
     }
@@ -117,13 +116,13 @@ export default function EventApprovalsScreen() {
           onPress: async () => {
             setProcessingId(eventId);
             try {
-              await httpPut(`/events/${eventId}/reject`, {});
+              await rejectEvent(String(eventId));
               Alert.alert('Event Rejected', 'The event has been rejected.');
               // Remove from list
               setEvents(prev => prev.filter(e => e.id !== eventId));
             } catch (e: any) {
               console.error('Error rejecting event:', e);
-              Alert.alert('Error', e?.message || 'Failed to reject event.');
+              Alert.alert('Error', normalizeApiError(e));
             } finally {
               setProcessingId(null);
             }

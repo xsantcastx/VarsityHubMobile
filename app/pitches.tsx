@@ -1,5 +1,5 @@
-import { Event } from '@/api/entities';
-import { Button } from '@/components/ui/button';
+import { listPitches, approvePitch, rejectPitch, normalizeApiError } from '@/api/events';
+import { Button } from '@/shared/ui';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useEffect, useState } from 'react';
@@ -26,11 +26,10 @@ export default function PitchesScreen() {
   const load = async () => {
     setLoading(true);
     try {
-      const res: PitchItem[] = await Event.listPitches();
+      const res: PitchItem[] = await listPitches();
       setPitches(Array.isArray(res) ? res : []);
     } catch (err: any) {
-      const msg = err?.data?.message || err?.message || 'Unable to load pitches. Are you a coach/admin?';
-      Alert.alert('Load failed', msg);
+      Alert.alert('Load failed', normalizeApiError(err));
     } finally {
       setLoading(false);
     }
@@ -51,23 +50,21 @@ export default function PitchesScreen() {
 
   const approve = async (id: string) => {
     try {
-      await Event.approvePitch(id);
+      await approvePitch(id);
       setPitches((prev) => prev.filter((p) => p.id !== id));
       Alert.alert('Approved', 'Pitch approved and published.');
     } catch (err: any) {
-      const msg = err?.data?.message || err?.message || 'Approval failed.';
-      Alert.alert('Approval failed', msg);
+      Alert.alert('Approval failed', normalizeApiError(err));
     }
   };
 
   const reject = async (id: string) => {
     try {
-      await Event.rejectPitch(id);
+      await rejectPitch(id);
       setPitches((prev) => prev.filter((p) => p.id !== id));
       Alert.alert('Rejected', 'Pitch rejected.');
     } catch (err: any) {
-      const msg = err?.data?.message || err?.message || 'Rejection failed.';
-      Alert.alert('Rejection failed', msg);
+      Alert.alert('Rejection failed', normalizeApiError(err));
     }
   };
 
