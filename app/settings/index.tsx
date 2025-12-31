@@ -1,95 +1,143 @@
 
-            import Switch from '@/components/ui/switch';
-import { getConfig } from '@/config/env';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { useThemePreference } from '@/shared/hooks/useCustomColorScheme';
-import { getSentryStatus, testSentryConnection } from '@/utils/sentry';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-            // @ts-ignore JS exports
-            import { User } from '@/api/entities';
+import { useRouter } from 'expo-router';
+import Switch from '@/components/ui/switch';
+// @ts-ignore JS exports
+import { User } from '@/api/entities';
+import { getConfig } from '@/config/env';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+import { useThemePreference } from '@/shared/hooks/useCustomColorScheme';
 
 const appConfig = getConfig();
 
-            type Preferences = {
-              notifications: { game_event_reminders: boolean; team_updates: boolean; comments_upvotes: boolean };
-              is_parent: boolean;
-              zip_code?: string | null;
-            };
+type Preferences = {
+  notifications: { game_event_reminders: boolean; team_updates: boolean; comments_upvotes: boolean };
+  is_parent: boolean;
+  zip_code?: string | null;
+};
 
-            function SectionCard({ title, initiallyOpen, children, style }: { title: string; initiallyOpen?: boolean; children: React.ReactNode; style?: any }) {
-              const [open, setOpen] = useState(!!initiallyOpen);
-              const colorScheme = useColorScheme();
-              return (
-                <View style={[styles.card, { 
-                  borderColor: Colors[colorScheme].border,
-                  backgroundColor: Colors[colorScheme].card
-                }, style]}> 
-                  <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: Colors[colorScheme].mutedText }]}>›</Text>
-                  </Pressable>
-                  {open ? <View style={styles.cardBody}>{children}</View> : null}
-                </View>
-              );
-            }
+function SectionCard({ title, initiallyOpen, children, style }: { title: string; initiallyOpen?: boolean; children: React.ReactNode; style?: any }) {
+  const [open, setOpen] = useState(!!initiallyOpen);
+  const colorScheme = useColorScheme();
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          borderColor: Colors[colorScheme].border,
+          backgroundColor: Colors[colorScheme].card,
+        },
+        style,
+      ]}
+    >
+      <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
+        <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+        <Text style={[styles.chev, open ? styles.chevOpen : null, { color: Colors[colorScheme].mutedText }]}>›</Text>
+      </Pressable>
+      {open ? <View style={styles.cardBody}>{children}</View> : null}
+    </View>
+  );
+}
 
-            function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
-              const colorScheme = useColorScheme();
-              return (
-                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: Colors[colorScheme].border }}>
-                  <View>
-                    <Text style={[
-                      styles.rowTitle, 
-                      destructive ? styles.destructive : null,
-                      { color: destructive ? Colors[colorScheme].danger : Colors[colorScheme].text }
-                    ]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
-                  </View>
-                  <Text style={[styles.chev, { color: Colors[colorScheme].mutedText }]}>›</Text>
-                </Pressable>
-              );
-            }
+function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
+  const colorScheme = useColorScheme();
+  return (
+    <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: Colors[colorScheme].border }}>
+      <View>
+        <Text
+          style={[
+            styles.rowTitle,
+            destructive ? styles.destructive : null,
+            { color: destructive ? Colors[colorScheme].danger : Colors[colorScheme].text },
+          ]}
+        >
+          {title}
+        </Text>
+        {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+      </View>
+      <Text style={[styles.chev, { color: Colors[colorScheme].mutedText }]}>›</Text>
+    </Pressable>
+  );
+}
 
-            function SwitchRow({
-              title,
-              subtitle,
-              value,
-              onValueChange,
-            }: {
-              title: string;
-              subtitle?: string;
-              value: boolean;
-              onValueChange: (v: boolean) => void;
-            }) {
-              const colorScheme = useColorScheme();
-              return (
-                <View style={styles.rowBetween}>
-                  <View>
-                    <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
-                  </View>
-                  <Switch value={value} onValueChange={onValueChange} />
-                </View>
-              );
-            }
+function SwitchRow({
+  title,
+  subtitle,
+  value,
+  onValueChange,
+}: {
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+}) {
+  const colorScheme = useColorScheme();
+  return (
+    <View style={styles.rowBetween}>
+      <View>
+        <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+        {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+      </View>
+      <Switch value={value} onValueChange={onValueChange} />
+    </View>
+  );
+}
 
-            function ThemeRow({
-              title,
-              subtitle,
-              selectedValue,
-              onValueChange,
-            }: {
-              title: string;
-              subtitle?: string;
-              selectedValue: 'light' | 'dark' | 'system';
-              onValueChange: (v: 'light' | 'dark' | 'system') => void;
-            }) {
-  export default function SettingsScreen() {
+function ThemeRow({
+  title,
+  subtitle,
+  selectedValue,
+  onValueChange,
+}: {
+  title: string;
+  subtitle?: string;
+  selectedValue: 'light' | 'dark' | 'system';
+  onValueChange: (v: 'light' | 'dark' | 'system') => void;
+}) {
+  const colorScheme = useColorScheme();
+  const options: Array<{ value: 'light' | 'dark' | 'system'; label: string; helper: string }> = [
+    { value: 'light', label: 'Light', helper: 'Bright backgrounds' },
+    { value: 'dark', label: 'Dark', helper: 'Low-light friendly' },
+    { value: 'system', label: 'System', helper: 'Follow device' },
+  ];
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+      {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+      <View style={styles.themeOptions}>
+        {options.map((opt) => {
+          const selected = selectedValue === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              style={[styles.themeOption, selected ? styles.themeOptionSelected : null]}
+              onPress={() => onValueChange(opt.value)}
+            >
+              <View
+                style={[
+                  styles.themeOptionIndicator,
+                  selected ? styles.themeOptionIndicatorSelected : null,
+                  { borderColor: Colors[colorScheme].border },
+                ]}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.themeOptionText, selected ? styles.themeOptionTextSelected : null]}>{opt.label}</Text>
+                <Text style={styles.themeOptionSubtext}>{opt.helper}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+export default function SettingsScreen() {
     const router = useRouter();
     // use non-throwing optional onboarding context (may be null if not within OBProvider)
     const obCtx = useOnboardingOptional();
@@ -223,6 +271,7 @@ const appConfig = getConfig();
     };
 
     return (
+
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
         <ScrollView 
           style={{ flex: 1 }}
@@ -238,128 +287,7 @@ const appConfig = getConfig();
               </Pressable>
             </View>
           )}
-                  try {
-                    const me: any = await User.me();
-                    if (!mounted) return;
-                    setEmail(me?.email || null);
-                    
-                    // Check if user is admin (email-based)
-                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
-                      .map((e) => e.toLowerCase());
-                    setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
-                    
-                    const serverPrefs = (me && me.preferences) || {};
-                    setPrefs({
-                      notifications: {
-                        game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
-                        team_updates: !!serverPrefs?.notifications?.team_updates,
-                        comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
-                      },
-                      is_parent: !!serverPrefs?.is_parent,
-                      zip_code: serverPrefs?.zip_code ?? null,
-                    });
-                    setPlan(serverPrefs?.plan ?? null);
-                    const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
-                    setRole(effectiveRole);
 
-                    setAthleteSummary({
-                      jersey: serverPrefs?.jersey_number ?? me?.jersey_number ?? null,
-                      position: serverPrefs?.position ?? me?.position ?? null,
-                      sport: serverPrefs?.primary_sport || serverPrefs?.sport || me?.primary_sport || me?.sport || null,
-                    });
-                  } catch (e: any) {
-                    if (!mounted) return;
-                    setError(e?.message || 'Failed to load settings');
-                  } finally {
-                    if (!mounted) return;
-                    setLoading(false);
-                  }
-                })();
-                return () => { mounted = false; };
-              }, []);
-
-              // Debounced PATCH updater for preferences
-              const patchPrefs = (patch: Partial<Preferences>) => {
-                const key = JSON.stringify(patch);
-                if (timers.current[key]) clearTimeout(timers.current[key]);
-                
-                // Use functional update to get the latest state
-                setPrefs(cur => {
-                  // Deep merge notifications, shallow merge the rest
-                  const newPrefs = {
-                    ...cur,
-                    ...patch,
-                    notifications: {
-                      ...cur.notifications,
-                      ...(patch.notifications || {}),
-                    },
-                  };
-
-                  // Debounce the API call
-                  timers.current[key] = setTimeout(async () => {
-                    try {
-                      await User.updatePreferences(newPrefs);
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    } catch (_e: any) {
-                      // Error handled via Alert below
-                      // Revert on failure if needed, though not implemented here
-                      Alert.alert('Update failed', 'Could not save your preference. Please try again.');
-                    }
-                  }, 300);
-
-                  return newPrefs;
-                });
-              };
-
-              const restartOnboarding = async () => {
-                try {
-                  const me: any = await User.me();
-                  const prefsFromServer = me?.preferences || {};
-                  const preload = {
-                    role: prefsFromServer.role || me?.role || 'fan',
-                    display_name: prefsFromServer.display_name ?? me?.display_name ?? '',
-                    affiliation: prefsFromServer.affiliation ?? me?.affiliation ?? '',
-                    dob: prefsFromServer.dob ?? me?.dob ?? null,
-                    zip_code: prefsFromServer.zip_code ?? me?.zip_code ?? '',
-                    plan: prefsFromServer.plan ?? null,
-                    avatar_url: me?.avatar_url ?? prefsFromServer.avatar_url ?? null,
-                    bio: me?.bio ?? prefsFromServer.bio ?? '',
-                    sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
-                    primary_intents: prefsFromServer.primary_intents ?? [],
-                    authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
-                  } as any;
-
-                  // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_e: any) { /* ignore */ }
-                  if (setOB) void setOB(preload);
-                  router.replace('/onboarding/step-1-role');
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                } catch (_e: any) {
-                  // Error in onboarding restart - try fallback
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_error: any) {}
-                  router.replace('/onboarding');
-                }
-              };
-
-              return (
-                <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-                  <ScrollView 
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 28 }}
-                    showsVerticalScrollIndicator={true}
-                  >
-                    {error ? <Text style={styles.error}>{error}</Text> : null}
-                    
-                    {/* Quick Billing CTA (coaches only) */}
-                    {role === 'coach' && (
-                      <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? (colorScheme === 'dark' ? '#1F2937' : '#F3F4F6') : '#0A84FF' }}>
-                          <Text style={{ color: plan ? (colorScheme === 'dark' ? '#ECEDEE' : '#111827') : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
-                        </Pressable>
-                      </View>
-                    )}
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
                       <NavRow title="Edit Username" onPress={() => void router.push('/settings/edit-username')} />

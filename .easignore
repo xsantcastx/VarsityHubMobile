@@ -43,3 +43,4 @@ build-*.ipa
 *.tgz
 *.tar
 *.tar.gz
+.venv

@@ -109,8 +109,8 @@ const HighlightCard = React.memo(({
   index = 0,
   currentTab = 'trending',
   nationalTop = [],
-  ranked = [],
-  userLocation,
+  ranked: _ranked = [],
+  userLocation: _userLocation,
   onPress,
   onAuthorPress,
   colorScheme 

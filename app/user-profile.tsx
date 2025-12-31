@@ -95,7 +95,7 @@ export default function UserProfileScreen() {
   }, [load]);
 
   const isOwnProfile = !!(me?.id && user?.id && me.id === user.id);
-  const role = user?.preferences?.role || user?.role;
+  const _role = user?.preferences?.role || user?.role;
   const joinedText = (() => {
     const raw =
       user?.preferences?.joined_date ||
@@ -105,14 +105,6 @@ export default function UserProfileScreen() {
     const d = new Date(raw);
     if (Number.isNaN(d.getTime())) return null;
     return `Joined ${d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
-  })();
-
-  const roleBadge = (() => {
-    const normalized = String(role || '').toLowerCase();
-    if (normalized === 'coach') return { icon: '🏆', text: 'Coach', color: '#1d4ed8' };
-    if (normalized === 'athlete' || normalized === 'player') return { icon: '⚡', text: 'Athlete', color: '#059669' };
-    if (normalized === 'staff') return { icon: '👔', text: 'Staff', color: '#7c3aed' };
-    return null;
   })();
 
   useEffect(() => {

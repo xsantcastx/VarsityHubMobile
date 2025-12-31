@@ -33,6 +33,8 @@ export default function UniversalSearchScreen() {
   const [userResults, setUserResults] = useState<SearchResult[]>([]);
   const [teamResults, setTeamResults] = useState<SearchResult[]>([]);
   const [orgResults, setOrgResults] = useState<SearchResult[]>([]);
+  const [eventResults, setEventResults] = useState<SearchResult[]>([]);
+  const [highlightResults, setHighlightResults] = useState<SearchResult[]>([]);
 
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -78,8 +80,6 @@ export default function UniversalSearchScreen() {
             avatar: t.logo_url,
             description: t.description || undefined,
           });
-  const [eventResults, setEventResults] = useState<SearchResult[]>([]);
-  const [highlightResults, setHighlightResults] = useState<SearchResult[]>([]);
         });
       }
 
@@ -286,6 +286,8 @@ export default function UniversalSearchScreen() {
           {renderSection('People', userResults)}
           {renderSection('Teams', teamResults)}
           {renderSection('Organizations', orgResults)}
+          {renderSection('Events', eventResults)}
+          {renderSection('Highlights', highlightResults)}
         </ScrollView>
       )}
 
@@ -302,8 +304,6 @@ export default function UniversalSearchScreen() {
       )}
     </SafeAreaView>
   );
-          {renderSection('Events', eventResults)}
-          {renderSection('Highlights', highlightResults)}
 }
 
 const styles = StyleSheet.create({
