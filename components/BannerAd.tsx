@@ -153,10 +153,7 @@ export function BannerAd({
         contentFit={getContentFit()}
       />
 
-      {/* "Ad" Badge */}
-      <View style={styles.adBadge}>
-        <Text style={styles.adBadgeText}>Ad</Text>
-      </View>
+
 
       {/* External Link Indicator - Only show if there's a target URL */}
       {targetUrl && (

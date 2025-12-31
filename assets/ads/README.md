@@ -1,4 +1,4 @@
-# Banner Ad Example - Skateboard Shop
+ work # Banner Ad Example - Skateboard Shop
 
 This directory contains example banner ad assets for testing and demonstration purposes.
 

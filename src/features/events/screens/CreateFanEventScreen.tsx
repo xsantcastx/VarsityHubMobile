@@ -20,12 +20,12 @@ import { httpPost } from '@/api/http';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 
 const EVENT_TYPES = [
-  { value: 'game', label: 'Game/Match', icon: 'football' },
-  { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
-  { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
-  { value: 'practice', label: 'Practice/Clinic', icon: 'barbell' },
-  { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
-  { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
+  { value: 'game', label: 'Game/Match', emoji: '⚽️' },
+  { value: 'watch_party', label: 'Watch Party', emoji: '📺' },
+  { value: 'fundraiser', label: 'Fundraiser', emoji: '🎟️' },
+  { value: 'practice', label: 'Practice/Clinic', emoji: '🏋️' },
+  { value: 'bbq', label: 'BBQ/Social', emoji: '🍔' },
+  { value: 'other', label: 'Other', emoji: '✨' },
 ];
 
 export default function CreateFanEventScreen() {
@@ -185,11 +185,9 @@ export default function CreateFanEventScreen() {
                 ]}
                 onPress={() => setEventType(type.value)}
               >
-                <Ionicons 
-                  name={type.icon as any} 
-                  size={24} 
-                  color={eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text} 
-                />
+                <Text style={[styles.typeEmoji, { color: eventType === type.value ? Colors[colorScheme].tint : Colors[colorScheme].text }]}>
+                  {type.emoji}
+                </Text>
                 <Text 
                   style={[
                     styles.typeLabel, 
@@ -463,6 +461,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  typeEmoji: {
+    fontSize: 24,
   },
   input: {
     paddingHorizontal: 12,

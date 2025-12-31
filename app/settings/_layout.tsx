@@ -5,6 +5,7 @@ export default function SettingsLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
+        headerTitle: 'Settings',
         headerTitleAlign: 'center',
         headerBackTitle: 'Back',
       }}

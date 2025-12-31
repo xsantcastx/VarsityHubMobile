@@ -3,7 +3,6 @@ import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -166,25 +165,22 @@ export default function ProfileScreen() {
               contentFit="cover"
             />
           ) : (
-            <LinearGradient
-              colors={['#667eea', '#764ba2']}
-              style={styles.bannerGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <Image
+              source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }}
+              style={styles.bannerImage}
+              contentFit="cover"
             />
           )}
-
-          {/* Edit cover moved to Edit Profile; inline button removed */}
         </View>
 
         {/* Profile Content */}
         <View style={styles.profileContent}>
-          <View style={styles.avatarSection}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 4 }}>
             <Pressable 
               style={[
                 styles.avatarWrapper,
                 hasActiveStory && styles.avatarWithStory,
-                { borderColor: hasActiveStory ? theme.tint : '#ffffff' }
+                { borderColor: '#000' }
               ]}
               testID="avatar-upload-button"
               accessibilityRole="button"
@@ -208,43 +204,37 @@ export default function ProfileScreen() {
                   contentFit="cover"
                 />
               ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint }]}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.tint }]}> 
                   <Ionicons name="person" size={40} color="#ffffff" />
                 </View>
               )}
             </Pressable>
-
-            <View style={styles.actionsColumn}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
+              <View>
+                <Text style={[styles.displayName, { color: '#fff', textShadowColor: '#000', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}>{name}</Text>
+                <Pressable 
+                  style={[styles.editButton, { borderColor: '#fff', marginTop: 4, backgroundColor: 'rgba(0,0,0,0.25)' }]}
+                  onPress={() => router.push('/edit-profile')}
+                >
+                  <Text style={[styles.editButtonText, { color: '#fff', textShadowColor: '#000', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}>Edit profile</Text>
+                </Pressable>
+              </View>
               <Pressable 
-                style={[styles.editButton, { borderColor: theme.border }]}
-                onPress={() => router.push('/edit-profile')}
-              >
-                <Text style={[styles.editButtonText, { color: theme.text }]}>Edit profile</Text>
-              </Pressable>
-
-              <Pressable 
-                style={[styles.settingsIconButton, { borderColor: theme.border }]}
+                style={[styles.settingsIconButton, { borderColor: '#fff', marginLeft: 16, backgroundColor: 'rgba(0,0,0,0.15)' }]}
                 onPress={() => router.push('/settings')}
               >
-                <Ionicons name="settings-outline" size={18} color={theme.text} />
+                <Ionicons name="settings-outline" size={18} color="#fff" />
               </Pressable>
             </View>
           </View>
 
           {/* User Info */}
           <View style={styles.userInfoSection}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.displayName, { color: theme.text }]}>{name}</Text>
-              {verified && (
-                <Ionicons name="checkmark-circle" size={20} color={theme.tint} />
-              )}
-            </View>
-            
             <Text style={[styles.usernameText, { color: theme.mutedText }]}>@{username}</Text>
 
             {/* Role Badge */}
             {roleBadge && (
-              <View style={[styles.roleBadgeContainer, { backgroundColor: roleBadge.color }]}>
+              <View style={[styles.roleBadgeContainer, { backgroundColor: roleBadge.color }]}> 
                 <Text style={styles.roleBadgeText}>{roleBadge.icon} {roleBadge.text}</Text>
               </View>
             )}
@@ -257,7 +247,7 @@ export default function ProfileScreen() {
             {/* Joined Date */}
             <View style={styles.joinedRow}>
               <Ionicons name="calendar-outline" size={16} color={theme.mutedText} />
-              <Text style={[styles.joinedText, { color: theme.mutedText }]}>
+              <Text style={[styles.joinedText, { color: theme.mutedText }]}> 
                 Joined {joinedDate}
               </Text>
             </View>
@@ -268,7 +258,7 @@ export default function ProfileScreen() {
                 onPress={() => router.push(`/following?id=${user.id}&username=${name}`)}
                 style={styles.followStatItem}
               >
-                <Text style={[styles.followNumber, { color: theme.text }]}>
+                <Text style={[styles.followNumber, { color: theme.text }]}> 
                   {user?._count?.following ?? 0}
                 </Text>
                 <Text style={[styles.followLabel, { color: theme.mutedText }]}>Following</Text>
@@ -278,7 +268,7 @@ export default function ProfileScreen() {
                 onPress={() => router.push(`/followers?id=${user.id}&username=${name}`)}
                 style={styles.followStatItem}
               >
-                <Text style={[styles.followNumber, { color: theme.text }]}>
+                <Text style={[styles.followNumber, { color: theme.text }]}> 
                   {user?._count?.followers ?? 0}
                 </Text>
                 <Text style={[styles.followLabel, { color: theme.mutedText }]}>Followers</Text>
@@ -348,6 +338,10 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+    bannerImage: {
+      width: '100%',
+      height: '100%',
+    },
   container: {
     flex: 1,
   },
@@ -377,61 +371,64 @@ const styles = StyleSheet.create({
 
   // Header Banner
   headerBanner: {
-    height: 120,
+    height: 220,
     position: 'relative',
+    backgroundColor: 'transparent',
   },
-  bannerImage: {
+  avatarWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    backgroundColor: '#ffffff',
+    padding: 2,
+  },
+  avatarImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 38,
   },
-  bannerGradient: {
+  avatarPlaceholder: {
     width: '100%',
     height: '100%',
-  },
-  bannerEditButton: {
-    position: 'absolute',
-    right: 12,
-    bottom: 12,
-    flexDirection: 'row',
+    borderRadius: 38,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  bannerEditText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-
-  // Profile Content
   profileContent: {
     paddingHorizontal: 12,
+    marginTop: -80, // Overlap avatar with banner, but show banner
   },
   avatarSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: -24,
-    marginBottom: 12,
+    alignItems: 'flex-start', // Move edit button up to top of avatar
+    marginTop: 0,
+    marginBottom: 4,
   },
   actionsColumn: {
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 32, // Move settings wheel further down, but keep avatar compact
+    marginTop: 24,
   },
   avatarWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
     borderColor: '#ffffff',
     backgroundColor: '#ffffff',
-    padding: 4,
+    padding: 2,
   },
   avatarWithStory: {
     borderWidth: 3,
+    borderColor: '#1d9bf0', // Blue ring for active story
+    shadowColor: '#1d9bf0',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
   },
   avatarImage: {
     width: '100%',

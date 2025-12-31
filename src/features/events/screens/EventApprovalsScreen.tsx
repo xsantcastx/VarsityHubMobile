@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { fetchEventApprovals, approveEvent, rejectEvent, normalizeApiError } from '@/api/events';
+import { approveEvent, fetchEventApprovals, normalizeApiError, rejectEvent } from '@/api/events';
 // @ts-ignore JS exports
 import { Game, User } from '@/api/entities';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';

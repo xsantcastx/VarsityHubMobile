@@ -1,6 +1,6 @@
 // Centralized events API wrappers and error normalization
-import { httpGet, httpPut } from '@/api/http';
 import { Event as EventEntity } from '@/api/entities';
+import { httpGet, httpPut } from '@/api/http';
 
 export interface Event {
   id: string;

@@ -38,48 +38,79 @@ export function RotatingAd({
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [showFallback, setShowFallback] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const rotationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Filter to valid ads with banners (up to 2)
   const validAds = ads.filter(ad => ad.banner_url && ad.banner_url.length > 0).slice(0, 2);
 
-  // Rotation logic
+  // Rotation logic (customized)
   useEffect(() => {
-    // Only rotate if we have multiple ads
-    if (validAds.length <= 1) return;
-
-    const rotate = () => {
-      // Fade out
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
-        // Change ad
-        setCurrentIndex(prev => (prev + 1) % validAds.length);
-        
-        // Fade in
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-    };
-
-    // Start rotation timer
-    rotationTimerRef.current = setInterval(rotate, rotationInterval);
-
+    // Cleanup timers on unmount or ads change
     return () => {
-      if (rotationTimerRef.current) {
-        clearInterval(rotationTimerRef.current);
-      }
+      if (rotationTimerRef.current) clearInterval(rotationTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    // Clear all timers on ads change
+    if (rotationTimerRef.current) clearInterval(rotationTimerRef.current);
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+
+    setShowFallback(false);
+    setCurrentIndex(0);
+
+    if (validAds.length === 0) {
+      // Always fallback, nothing to rotate
+      return;
+    }
+
+    if (validAds.length === 1) {
+      // Show ad for 2min, then fallback for 10s, repeat
+      const startCycle = () => {
+        setShowFallback(false);
+        fallbackTimerRef.current = setTimeout(() => {
+          setShowFallback(true);
+          fallbackTimerRef.current = setTimeout(() => {
+            setShowFallback(false);
+            startCycle();
+          }, 10000); // 10s fallback
+        }, 120000); // 2min ad
+      };
+      startCycle();
+      return;
+    }
+
+    if (validAds.length === 2) {
+      // Rotate each ad for 45s, every 5min show fallback for 10s
+      let adIndex = 0;
+      const rotateAds = () => {
+        setShowFallback(false);
+        setCurrentIndex(adIndex);
+        adIndex = (adIndex + 1) % 2;
+      };
+      rotateAds();
+      rotationTimerRef.current = setInterval(rotateAds, 45000); // 45s per ad
+      // Every 5min, show fallback for 10s
+      fallbackIntervalRef.current = setInterval(() => {
+        setShowFallback(true);
+        if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = setTimeout(() => {
+          setShowFallback(false);
+        }, 10000); // 10s fallback
+      }, 300000); // 5min
+      return;
+    }
   }, [validAds.length, rotationInterval, fadeAnim]);
 
-  // If no ads, show "Reserve Ad Space" button
-  if (validAds.length === 0) {
+  // Show fallback if needed (for 0 ads, or during fallback interval)
+  if (validAds.length === 0 || showFallback) {
     return (
       <View
         style={[
@@ -102,13 +133,13 @@ export function RotatingAd({
           }}
         >
           <Ionicons name="megaphone-outline" size={48} color={Colors[colorScheme].tint} />
-          <Text style={[styles.reserveTitle, { color: Colors[colorScheme].text }]}>
+          <Text style={[styles.reserveTitle, { color: Colors[colorScheme].text }]}> 
             Reserve Ad Space
           </Text>
-          <Text style={[styles.reserveSubtitle, { color: Colors[colorScheme].mutedText }]}>
+          <Text style={[styles.reserveSubtitle, { color: Colors[colorScheme].mutedText }]}> 
             Promote your business to local athletes and fans
           </Text>
-          <View style={[styles.reserveCta, { backgroundColor: Colors[colorScheme].tint }]}>
+          <View style={[styles.reserveCta, { backgroundColor: Colors[colorScheme].tint }]}> 
             <Text style={styles.reserveCtaText}>Book Now</Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </View>

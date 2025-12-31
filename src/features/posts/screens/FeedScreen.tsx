@@ -6,8 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Advertisement, Event, Game, Highlights, Notification as NotificationApi, User } from '@/api/entities';
 import { RotatingAd } from '@/components/RotatingAd';
-import { skateboardShopAd } from '@/data/example-ads';
 import { Colors } from '@/constants/Colors';
+import { skateboardShopAd } from '@/data/example-ads';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';

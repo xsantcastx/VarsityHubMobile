@@ -5,11 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-import { Game, Post, Team, User } from '@/api/entities';
+import { Game, Post, Search, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
@@ -20,6 +20,16 @@ import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVe
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
 type ZipDirectoryEntry = { zip: string; count: number };
+
+type UniversalSearchResults = {
+  users: Array<{ id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; bio?: string | null; role?: string | null }>;
+  teams: Array<{ id: string; name?: string | null; logo_url?: string | null; city?: string | null; state?: string | null; sport?: string | null; members_count?: number | null }>;
+  organizations: Array<{ id: string; name?: string | null; logo_url?: string | null; location?: string | null; sport?: string | null; org_type?: string | null; teams_count?: number | null }>;
+  games: Array<{ id: string; title?: string | null; location?: string | null; date?: string | Date | null; cover_image_url?: string | null; teams?: { home?: string | null; away?: string | null } | null }>;
+  posts: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | Date | null; upvotes_count?: number | null; type?: string | null }>;
+  highlights: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | Date | null; upvotes_count?: number | null; type?: string | null }>;
+  events: Array<{ id: string; title?: string | null; description?: string | null; location?: string | null; date?: string | Date | null; cover_image_url?: string | null; event_type?: string | null }>;
+};
 
 const ZIP_REGEX = /\b\d{5}\b/g;
 
@@ -82,6 +92,9 @@ export default function CommunityDiscoverScreen() {
   const [error, setError] = useState<string | null>(null);
   const [games, setGames] = useState<GameItem[]>([]);
   const [query, setQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<UniversalSearchResults | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
   const [zipDirectory, setZipDirectory] = useState<ZipDirectoryEntry[]>([]);
@@ -99,6 +112,7 @@ export default function CommunityDiscoverScreen() {
   const [viewerPosts, setViewerPosts] = useState<FeedPost[]>([]);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const [personalizationNotice, setPersonalizationNotice] = useState<string | null>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const showPrecisionBanner = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
 
   const toFeedPost = useCallback((p: any): FeedPost => {
@@ -231,6 +245,44 @@ export default function CommunityDiscoverScreen() {
     void load().catch(() => {});
   }, [load]);
 
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setSearchResults(null);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    searchDebounceRef.current = setTimeout(() => {
+      Search.universal(trimmed, { limit: 6 })
+        .then((res: any) => {
+          setSearchResults({
+            users: Array.isArray(res?.users) ? res.users : [],
+            teams: Array.isArray(res?.teams) ? res.teams : [],
+            organizations: Array.isArray(res?.organizations) ? res.organizations : [],
+            games: Array.isArray(res?.games) ? res.games : [],
+            posts: Array.isArray(res?.posts) ? res.posts : [],
+          });
+          setSearchError(null);
+        })
+        .catch((err: any) => {
+          setSearchResults(null);
+          setSearchError(err?.message || 'Search failed');
+        })
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [query]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try { await load({ silent: true }); } finally { setRefreshing(false); }
@@ -344,6 +396,12 @@ export default function CommunityDiscoverScreen() {
     return games.filter((g) => (g.title || '').toLowerCase().includes(q) || (g.location || '').toLowerCase().includes(q));
   }, [games, query]);
 
+  const listGames = useMemo(() => {
+    const trimmed = query.trim();
+    if (trimmed.length >= 2 && searchResults?.games) return searchResults.games;
+    return filtered;
+  }, [filtered, query, searchResults]);
+
   const zipSuggestions = useMemo(() => {
     if (!zipSuggestionsOpen) return [] as ZipDirectoryEntry[];
     const digits = query.replace(/[^0-9]/g, '');
@@ -354,6 +412,17 @@ export default function CommunityDiscoverScreen() {
   }, [zipSuggestionsOpen, query, zipDirectory]);
 
   const shouldShowZipSuggestions = zipSuggestionsOpen && zipSuggestions.length > 0;
+  const hasSearchQuery = query.trim().length >= 2;
+  const searchResultCount = useMemo(
+    () => (searchResults
+      ? (searchResults.users?.length || 0)
+        + (searchResults.teams?.length || 0)
+        + (searchResults.organizations?.length || 0)
+        + (searchResults.games?.length || 0)
+        + (searchResults.posts?.length || 0)
+      : 0),
+    [searchResults],
+  );
 
   const handleToggleViewMode = useCallback(async () => {
     const newMode: typeof viewMode = viewMode === 'list' ? 'map' : 'list';
@@ -451,6 +520,179 @@ export default function CommunityDiscoverScreen() {
               <Text style={[styles.zipSuggestionCount, { color: Colors[colorScheme].mutedText }]}>{entry.count === 1 ? '1 game' : `${entry.count} games`}</Text>
             </Pressable>
           ))}
+        </View>
+      ) : null}
+
+      {hasSearchQuery ? (
+        <View style={[styles.searchResultsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+          <View style={styles.searchResultsHeader}>
+            <Text style={[styles.searchResultsTitle, { color: Colors[colorScheme].text }]}>Search results</Text>
+            {searching ? (
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} />
+            ) : (
+              <Text style={[styles.searchResultsMeta, { color: Colors[colorScheme].mutedText }]}>
+                {searchResultCount > 0 ? `${searchResultCount} matches` : 'No matches yet'}
+              </Text>
+            )}
+          </View>
+
+          {searchError ? (
+            <Text style={[styles.searchResultsError, { color: '#b91c1c' }]}>{searchError}</Text>
+          ) : (
+            <>
+              {searchResults?.users?.length ? (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Users</Text>
+                  {searchResults.users.slice(0, 4).map((u) => (
+                    <Pressable
+                      key={u.id}
+                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => void router.push(`/user-profile?id=${u.id}`)}
+                    >
+                      <View style={styles.searchAvatar}>
+                        {u.avatar_url ? (
+                          <Image source={{ uri: String(u.avatar_url) }} style={styles.searchAvatar} contentFit="cover" />
+                        ) : (
+                          <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchAvatar} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {u.display_name || 'User'}
+                        </Text>
+                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                          {u.username ? `@${u.username}` : 'Profile'}{u.role ? ` • ${u.role}` : ''}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {searchResults?.teams?.length ? (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Teams</Text>
+                  {searchResults.teams.slice(0, 4).map((t) => (
+                    <Pressable
+                      key={t.id}
+                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => void router.push(`/team-profile?id=${t.id}`)}
+                    >
+                      <View style={styles.searchAvatar}>
+                        {t.logo_url ? (
+                          <Image source={{ uri: String(t.logo_url) }} style={styles.searchAvatar} contentFit="cover" />
+                        ) : (
+                          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.searchAvatar} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {t.name || 'Team'}
+                        </Text>
+                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                          {[t.city, t.state].filter(Boolean).join(', ') || 'Team page'}
+                          {t.members_count ? ` • ${t.members_count} members` : ''}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {searchResults?.organizations?.length ? (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Organizations</Text>
+                  {searchResults.organizations.slice(0, 4).map((o) => (
+                    <Pressable
+                      key={o.id}
+                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => void router.push(`/organization?id=${o.id}`)}
+                    >
+                      <View style={styles.searchAvatar}>
+                        {o.logo_url ? (
+                          <Image source={{ uri: String(o.logo_url) }} style={styles.searchAvatar} contentFit="cover" />
+                        ) : (
+                          <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.searchAvatar} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {o.name || 'Organization'}
+                        </Text>
+                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                          {o.location || o.org_type || 'Org page'}
+                          {o.teams_count ? ` • ${o.teams_count} teams` : ''}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {searchResults?.posts?.length ? (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Posts</Text>
+                  {searchResults.posts.slice(0, 3).map((p) => (
+                    <Pressable
+                      key={p.id}
+                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => void router.push(`/post-detail?id=${p.id}`)}
+                    >
+                      <View style={[styles.searchAvatar, { borderRadius: 8 }]}>
+                        {p.media_url ? (
+                          <Image source={{ uri: String(p.media_url) }} style={styles.searchAvatar} contentFit="cover" />
+                        ) : (
+                          <LinearGradient colors={['#1e293b', '#0f172a']} style={styles.searchAvatar} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {p.title || p.content || 'Post'}
+                        </Text>
+                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                          {p.upvotes_count ? `${p.upvotes_count} upvotes • ` : ''}{p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Post detail'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {searchResults?.games?.length ? (
+                <View style={styles.searchSection}>
+                  <Text style={[styles.searchSectionTitle, { color: Colors[colorScheme].mutedText }]}>Games</Text>
+                  {searchResults.games.slice(0, 4).map((g) => (
+                    <Pressable
+                      key={g.id}
+                      style={[styles.searchRow, { borderColor: Colors[colorScheme].border }]}
+                      onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(g.id) } })}
+                    >
+                      <View style={[styles.searchAvatar, { borderRadius: 8 }]}>
+                        {g.cover_image_url ? (
+                          <Image source={{ uri: String(g.cover_image_url) }} style={styles.searchAvatar} contentFit="cover" />
+                        ) : (
+                          <LinearGradient colors={['#111827', '#1f2937']} style={styles.searchAvatar} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.searchRowTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+                          {g.title || 'Game'}
+                        </Text>
+                        <Text style={[styles.searchRowMeta, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
+                          {g.location || 'Location TBA'}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          )}
         </View>
       ) : null}
 
@@ -586,11 +828,11 @@ export default function CommunityDiscoverScreen() {
               {/* Fan actions */}
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/create-fan-event')}
+                onPress={() => void router.push('/create-pitch-event')}
               >
-                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
+                <Text style={{ fontSize: 24, marginRight: 6 }}>🎉</Text>
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Pitch Event</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Propose an event for your team</Text>
               </Pressable>
               <Pressable 
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
@@ -832,7 +1074,7 @@ export default function CommunityDiscoverScreen() {
         /* List View */
         <FlatList
           style={{ flex: 1 }}
-          data={filtered}
+          data={listGames}
           keyExtractor={(item) => String(item.id)}
           ListHeaderComponent={ListHeader}
           renderItem={({ item }) => (
@@ -939,6 +1181,17 @@ const styles = StyleSheet.create({
   zipSuggestionItem: { paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   zipSuggestionZip: { fontWeight: '700', color: '#111827', fontSize: 15 },
   zipSuggestionCount: { color: '#6b7280', fontSize: 12 },
+  searchResultsCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, marginBottom: 12, gap: 4 },
+  searchResultsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  searchResultsTitle: { fontSize: 16, fontWeight: '800' },
+  searchResultsMeta: { fontSize: 13 },
+  searchResultsError: { fontSize: 13, fontWeight: '600' },
+  searchSection: { marginTop: 6 },
+  searchSectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  searchAvatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden' },
+  searchRowTitle: { fontSize: 15, fontWeight: '700' },
+  searchRowMeta: { fontSize: 13 },
   followingCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, marginBottom: 10 },
   followingText: { color: '#1e3a8a', fontWeight: '700' },
   followingBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#1D4ED8' },

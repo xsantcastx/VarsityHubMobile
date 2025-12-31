@@ -1,4 +1,5 @@
 import { Advertisement } from '@/api/entities';
+import { BackHeader } from '@/components/ui/BackHeader';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +8,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackHeader } from '@/components/ui/BackHeader';
 
 export default function AdConfirmationScreen() {
   const router = useRouter();
@@ -65,8 +65,8 @@ export default function AdConfirmationScreen() {
         >
           {/* Success Animation */}
           <View style={styles.animationContainer}>
-            <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? '#065F46' : '#D1FAE5' }]}>
-              <Ionicons name="checkmark-circle" size={100} color="#10B981" />
+            <View style={[styles.successCircle, { backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].success : '#D1FAE5', shadowColor: Colors[colorScheme].success }]}> 
+              <Ionicons name="checkmark-circle" size={100} color={Colors[colorScheme].success} />
             </View>
           </View>
 
@@ -167,11 +167,11 @@ export default function AdConfirmationScreen() {
         {/* Action Buttons */}
         <View style={styles.actions}>
           <Pressable
-            style={[styles.primaryButton, { backgroundColor: '#10B981' }]}
+            style={[styles.primaryButton, { backgroundColor: Colors[colorScheme].success, shadowColor: Colors[colorScheme].success }]}
             onPress={() => void router.replace('/(tabs)/my-ads')}
           >
-            <Ionicons name="briefcase" size={20} color="#ffffff" />
-            <Text style={styles.primaryButtonText}>View My Ads</Text>
+            <Ionicons name="briefcase" size={20} color={Colors[colorScheme].onTint} />
+            <Text style={[styles.primaryButtonText, { color: Colors[colorScheme].onTint }]}>View My Ads</Text>
           </Pressable>
 
           <Pressable

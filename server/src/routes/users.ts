@@ -304,13 +304,28 @@ usersRouter.get('/username-available', requireAuth as any, async (req: AuthedReq
   return res.json({ available: !exists, valid: true });
 });
 
-// Lookup user by email (for onboarding authorized users flow)
+// Lookup user by email or username (for onboarding/block/report flows)
 usersRouter.get('/lookup', async (req, res) => {
-  const email = String((req.query as any).email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
-  const u = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, display_name: true } });
-  if (!u) return res.status(404).json({ error: 'Not found' });
-  return res.json(u);
+  const rawEmail = String((req.query as any).email || '').trim();
+  const rawUsername = String((req.query as any).username || (req.query as any).q || '').trim();
+
+  if (rawEmail && rawEmail.includes('@')) {
+    const email = rawEmail.toLowerCase();
+    const u = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, display_name: true, username: true } });
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    return res.json(u);
+  }
+
+  if (rawUsername && rawUsername.length >= 2) {
+    const u = await prisma.user.findFirst({
+      where: { username: { equals: rawUsername, mode: 'insensitive' } },
+      select: { id: true, email: true, display_name: true, username: true },
+    });
+    if (!u) return res.status(404).json({ error: 'Not found' });
+    return res.json(u);
+  }
+
+  return res.status(400).json({ error: 'Provide email or username' });
 });
 
 // Follow a user
@@ -633,6 +648,7 @@ usersRouter.get('/blocked', requireAuth as any, async (req: AuthedRequest, res) 
             display_name: true,
             avatar_url: true,
             email: true,
+            username: true,
           },
         },
       },

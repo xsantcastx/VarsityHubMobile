@@ -1,12 +1,15 @@
+import * as ImagePicker from 'expo-image-picker';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Support, User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { uploadImage } from '@/utils/uploadUtils';
+import { ensureUploadableUri } from '../utils/ensureUploadableUri';
 
 export default function ReportAbuseScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -18,6 +21,9 @@ export default function ReportAbuseScreen() {
   const [accused, setAccused] = useState('');
   const [contextUrl, setContextUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [attachment, setAttachment] = useState<{ localUri: string; remoteUrl?: string } | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -46,16 +52,18 @@ export default function ReportAbuseScreen() {
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) {
-      Alert.alert('Missing information', 'Please complete the subject, details, and email fields.');
+      setError('Please complete the subject, details, and email fields.');
       return;
     }
 
+    setError(null);
     setSubmitting(true);
     try {
       const compiledMessage = [
         details.trim(),
         accused.trim() ? `Reported user: ${accused.trim()}` : null,
         contextUrl.trim() ? `Context: ${contextUrl.trim()}` : null,
+        attachment?.remoteUrl ? `Screenshot: ${attachment.remoteUrl}` : null,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -73,14 +81,45 @@ export default function ReportAbuseScreen() {
       setDetails('');
       setAccused('');
       setContextUrl('');
+      setAttachment(null);
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message.length
           ? err.message
           : 'We were unable to send your report. Please try again in a moment.';
-      Alert.alert('Submission failed', message);
+      setError(message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAttach = async () => {
+    if (uploadingAttachment) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow photo access to attach a screenshot.');
+      return;
+    }
+    const pick = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (pick.canceled || !pick.assets?.length) return;
+    const asset = pick.assets[0];
+    if (!asset?.uri) return;
+    const mimeType = asset.mimeType || 'image/jpeg';
+    const name = asset.fileName || `screenshot-${Date.now()}.jpg`;
+    setUploadingAttachment(true);
+    try {
+      const ensured = await ensureUploadableUri(asset.uri, mimeType);
+      const uploaded = await uploadImage({ uri: ensured.uri, name, type: ensured.mimeType || mimeType });
+      setAttachment({ localUri: asset.uri, remoteUrl: uploaded.url || uploaded.path });
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.message || 'Could not attach screenshot. Please try again.');
+      setAttachment(null);
+    } finally {
+      setUploadingAttachment(false);
     }
   };
 
@@ -115,6 +154,7 @@ export default function ReportAbuseScreen() {
               autoCapitalize="words"
               autoComplete="name"
               returnKeyType="next"
+              accessibilityLabel="Your name"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Email *</Text>
@@ -127,6 +167,7 @@ export default function ReportAbuseScreen() {
               autoCapitalize="none"
               autoComplete="email"
               keyboardType="email-address"
+              accessibilityLabel="Email address"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Subject *</Text>
@@ -137,6 +178,7 @@ export default function ReportAbuseScreen() {
               placeholderTextColor={palette.mutedText}
               style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
               returnKeyType="next"
+              accessibilityLabel="Subject"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Details *</Text>
@@ -152,6 +194,7 @@ export default function ReportAbuseScreen() {
               multiline
               numberOfLines={5}
               textAlignVertical="top"
+              accessibilityLabel="Details about what happened"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Who are you reporting? (email or username)</Text>
@@ -165,6 +208,7 @@ export default function ReportAbuseScreen() {
               autoComplete="off"
               keyboardType="email-address"
               returnKeyType="next"
+              accessibilityLabel="Person you are reporting"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Link or evidence (optional)</Text>
@@ -178,13 +222,29 @@ export default function ReportAbuseScreen() {
               autoComplete="off"
               keyboardType="url"
               returnKeyType="done"
+              accessibilityLabel="Link or evidence"
             />
+
+            <Text style={[styles.label, { color: palette.mutedText }]}>Screenshot (optional)</Text>
+            <View style={{ gap: 8 }}>
+              <Button onPress={handleAttach} disabled={uploadingAttachment} accessibilityLabel="Attach screenshot">
+                {uploadingAttachment ? 'Uploading…' : attachment ? 'Replace Screenshot' : 'Attach Screenshot'}
+              </Button>
+              {attachment?.localUri ? (
+                <View style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: palette.border, borderRadius: 10, overflow: 'hidden' }}>
+                  <Image source={{ uri: attachment.localUri }} style={{ width: '100%', height: 180 }} resizeMode="cover" />
+                </View>
+              ) : null}
+            </View>
 
             <Text style={[styles.helper, { color: palette.mutedText }]}>
               We keep reports confidential and only use this information to enforce community guidelines.
             </Text>
 
-            <Button onPress={handleSubmit} disabled={!canSubmit || submitting}>
+            {error ? (
+              <Text style={{ color: '#DC2626', marginBottom: 8 }}>{error}</Text>
+            ) : null}
+            <Button onPress={handleSubmit} disabled={!canSubmit || submitting} accessibilityLabel="Submit report">
               {submitting ? 'Sending...' : 'Submit report'}
             </Button>
           </View>

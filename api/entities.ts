@@ -17,6 +17,11 @@ export const User = {
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
   lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
+  lookupByIdentifier: (identifier: string) => {
+    const trimmed = identifier.trim();
+    const param = trimmed.includes('@') ? `email=${encodeURIComponent(trimmed)}` : `username=${encodeURIComponent(trimmed)}`;
+    return httpGet('/users/lookup?' + param);
+  },
   listAll: (q?: string, limit: number = 100, banned?: boolean) => {
     const qq: string[] = [];
     if (q) qq.push('q=' + encodeURIComponent(q));
@@ -59,6 +64,15 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
+};
+
+export const Search = {
+  universal: (q: string, options?: { limit?: number }) => {
+    const params: string[] = ['q=' + encodeURIComponent(q)];
+    if (typeof options?.limit === 'number') params.push('limit=' + encodeURIComponent(String(options.limit)));
+    const qs = params.length ? '?' + params.join('&') : '';
+    return httpGet('/search' + qs);
+  },
 };
 
 export const Game = {
@@ -319,6 +333,9 @@ export const Organization = {
   },
   approveJoinRequest: (requestId: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/approve`, {}),
   rejectJoinRequest: (requestId: string, reason?: string) => httpPost(`/organizations/join-requests/${encodeURIComponent(requestId)}/reject`, { reason }),
+  follow: (id: string) => httpPost(`/organizations/${encodeURIComponent(id)}/follow`, {}),
+  unfollow: (id: string) => httpDelete(`/organizations/${encodeURIComponent(id)}/follow`),
+  followers: (id: string) => httpGet(`/organizations/${encodeURIComponent(id)}/followers`),
 };
 
 export const Team = {
@@ -388,6 +405,9 @@ export const Team = {
   myInvites: () => httpGet('/teams/invites/me'),
   acceptInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/accept`, {}),
   declineInvite: (inviteId: string) => httpPost(`/teams/invites/${encodeURIComponent(inviteId)}/decline`, {}),
+  follow: (teamId: string) => httpPost(`/teams/${encodeURIComponent(teamId)}/follow`, {}),
+  unfollow: (teamId: string) => httpDelete(`/teams/${encodeURIComponent(teamId)}/follow`),
+  followers: (teamId: string) => httpGet(`/teams/${encodeURIComponent(teamId)}/followers`),
   updateMember: (
     teamId: string,
     userId: string,

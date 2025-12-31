@@ -1,4 +1,4 @@
-import { pitchEvent, normalizeApiError } from '@/api/events';
+import { normalizeApiError, pitchEvent } from '@/api/events';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Button, Input } from '@/shared/components';

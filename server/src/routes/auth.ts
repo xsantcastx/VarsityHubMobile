@@ -424,19 +424,19 @@ authRouter.post('/apple', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
 
   const { identity_token } = parsed.data;
+  const looksLikeJwt = identity_token.split('.').length === 3;
+  // Allow simulator/dev fallback tokens that are plain strings (Expo/Simulator mocks)
+  const isDevelopmentToken = identity_token.startsWith('sim-') || !looksLikeJwt;
 
   try {
-    // In development/simulator, accept tokens starting with 'sim-' for testing
-    const isDevelopmentToken = identity_token.startsWith('sim-');
-    
     let appleId: string;
     let email: string | null = null;
     
     if (isDevelopmentToken) {
-      // Extract the simulator user ID
-      appleId = identity_token.replace('sim-', '');
+      // Extract and sanitize the simulator/dev user ID (covers plain fallback strings)
+      const rawId = identity_token.replace(/^sim-/, '') || 'sim-user';
+      appleId = rawId.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120);
       email = `${appleId}@privaterelay.appleid.com`;
-      // Using development token for simulator
     } else {
       const decoded = await verifyAppleToken(identity_token);
       if (!decoded) {

@@ -78,6 +78,8 @@ export default function UniversalSearchScreen() {
             avatar: t.logo_url,
             description: t.description || undefined,
           });
+  const [eventResults, setEventResults] = useState<SearchResult[]>([]);
+  const [highlightResults, setHighlightResults] = useState<SearchResult[]>([]);
         });
       }
 
@@ -94,9 +96,15 @@ export default function UniversalSearchScreen() {
         });
       }
 
+      // If you want to keep the new backend logic, use this block instead:
+      // const res = await Search.universal(searchQuery, { limit: 20 });
+      // ...parse users, teams, orgs, events, highlights from res...
+
       setUserResults(users);
       setTeamResults(teams);
       setOrgResults(orgs);
+      setEventResults([]); // No events from old logic
+      setHighlightResults([]); // No highlights from old logic
       setResults([...users, ...teams, ...orgs]);
     } catch (error) {
       console.error('Search failed:', error);
@@ -116,17 +124,43 @@ export default function UniversalSearchScreen() {
       case 'organization':
         router.push(`/organization?id=${result.id}`);
         break;
+      case 'event':
+        router.push(`/event-detail?id=${result.id}`);
+        break;
+      case 'highlight':
+        router.push(`/post-detail?id=${result.id}`);
+        break;
     }
   }, [router]);
 
   const renderResultItem = ({ item }: { item: SearchResult }) => {
-    const badgeLabel = item.type.charAt(0).toUpperCase() + item.type.slice(1);
-    const badgeColor =
-      item.type === 'user'
-        ? '#3B82F6'
-        : item.type === 'team'
-        ? '#10B981'
-        : '#F59E0B';
+    let badgeLabel = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+    let badgeColor = '#F59E0B';
+    let iconName = 'briefcase';
+    switch (item.type) {
+      case 'user':
+        badgeColor = '#3B82F6';
+        iconName = 'person';
+        break;
+      case 'team':
+        badgeColor = '#10B981';
+        iconName = 'people';
+        break;
+      case 'organization':
+        badgeColor = '#F59E0B';
+        iconName = 'briefcase';
+        break;
+      case 'event':
+        badgeColor = '#6366F1';
+        iconName = 'calendar';
+        badgeLabel = 'Event';
+        break;
+      case 'highlight':
+        badgeColor = '#EF4444';
+        iconName = 'star';
+        badgeLabel = 'Highlight';
+        break;
+    }
 
     return (
       <Pressable
@@ -143,9 +177,9 @@ export default function UniversalSearchScreen() {
             contentFit="cover"
           />
         ) : (
-          <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+          <View style={[styles.avatarPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}> 
             <Ionicons
-              name={item.type === 'user' ? 'person' : item.type === 'team' ? 'people' : 'briefcase'}
+              name={iconName}
               size={20}
               color={Colors[colorScheme].mutedText}
             />
@@ -268,6 +302,8 @@ export default function UniversalSearchScreen() {
       )}
     </SafeAreaView>
   );
+          {renderSection('Events', eventResults)}
+          {renderSection('Highlights', highlightResults)}
 }
 
 const styles = StyleSheet.create({

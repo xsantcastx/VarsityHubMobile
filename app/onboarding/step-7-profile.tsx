@@ -8,6 +8,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 // @ts-ignore
+import { loadToken } from '@/api/auth';
 import { User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
@@ -97,6 +98,7 @@ export default function Step7Profile() {
 
     setSaving(true);
     try {
+      await loadToken();
       // Save to context
       setOB((prev) => ({ 
         ...prev, 
@@ -179,7 +181,7 @@ export default function Step7Profile() {
         <Input 
           value={username} 
           onChangeText={setUsername} 
-          placeholder="e.g., shamgod_00"
+          placeholder="e.g. @varsity.hub"
           autoCapitalize="none"
           style={styles.usernameInput}
         />

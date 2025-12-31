@@ -480,6 +480,11 @@ teamsRouter.get('/:id', async (req, res) => {
     },
   });
   if (!t) return res.status(404).json({ error: 'Not found' });
+  const meId = (req as AuthedRequest).user?.id ?? null;
+  const [followersCount, isFollowing] = await Promise.all([
+    prisma.teamFollow.count({ where: { team_id: id } }),
+    meId ? prisma.teamFollow.findUnique({ where: { team_id_user_id: { team_id: id, user_id: meId } } as any }).then(Boolean) : Promise.resolve(false),
+  ]);
   return res.json({
     id: t.id,
     name: t.name,
@@ -501,7 +506,58 @@ teamsRouter.get('/:id', async (req, res) => {
     logo_url: (t as any).logo_url || null,
     avatar_url: (t as any).avatar_url || null,
     created_at: t.created_at,
+    followers_count: followersCount,
+    is_following: isFollowing,
   });
+});
+
+// Follow a team (idempotent)
+teamsRouter.post('/:id/follow', authMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const team = await prisma.team.findUnique({ where: { id } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  try {
+    await prisma.teamFollow.create({
+      data: { team_id: id, user_id: req.user.id },
+    });
+  } catch (err: any) {
+    if (err?.code !== 'P2002') {
+      console.error('[teams] follow failed', err);
+      return res.status(500).json({ error: 'Failed to follow team' });
+    }
+  }
+  const followersCount = await prisma.teamFollow.count({ where: { team_id: id } });
+  return res.json({ ok: true, is_following: true, followers_count: followersCount });
+});
+
+// Unfollow a team (idempotent)
+teamsRouter.delete('/:id/follow', authMiddleware as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const team = await prisma.team.findUnique({ where: { id } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  await prisma.teamFollow.deleteMany({ where: { team_id: id, user_id: req.user.id } });
+  const followersCount = await prisma.teamFollow.count({ where: { team_id: id } });
+  return res.json({ ok: true, is_following: false, followers_count: followersCount });
+});
+
+// List team followers (basic info)
+teamsRouter.get('/:id/followers', async (req, res) => {
+  const id = String(req.params.id);
+  const team = await prisma.team.findUnique({ where: { id } });
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+  const followers = await prisma.teamFollow.findMany({
+    where: { team_id: id },
+    orderBy: { created_at: 'desc' },
+    include: {
+      user: { select: { id: true, display_name: true, username: true, avatar_url: true } },
+    },
+  });
+  return res.json(followers.map((f) => ({
+    user: f.user,
+    followed_at: f.created_at,
+  })));
 });
 
 // Team members list

@@ -68,6 +68,8 @@ model User {
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
+  teamFollows      TeamFollow[]
+  organizationFollows OrganizationFollow[]
 
   // Blocking
   blocking  BlockedUser[] @relation("blocker")
@@ -604,6 +606,7 @@ model Team {
   memberships  TeamMembership[]
   invites      TeamInvite[]
   groupChats   GroupChat[]
+  followers   TeamFollow[]
 
   // Game relations
   homeGames Game[] @relation("home_games")
@@ -612,6 +615,18 @@ model Team {
   @@index([name])
   @@index([city, state])
   @@index([sport])
+}
+
+model TeamFollow {
+  team_id    String
+  user_id    String
+  created_at DateTime @default(now())
+
+  team Team @relation(fields: [team_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([team_id, user_id])
+  @@index([user_id])
 }
 
 model Organization {
@@ -654,11 +669,24 @@ model Organization {
   invites      OrganizationInvite[]
   joinRequests OrganizationJoinRequest[]
   games        Game[]                    @relation("TournamentGames")
+  followers    OrganizationFollow[]
 
   @@unique([name, zip_code])
   @@index([zip_code])
   @@index([location])
   @@index([type])
+}
+
+model OrganizationFollow {
+  organization_id String
+  user_id         String
+  created_at      DateTime @default(now())
+
+  organization Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([organization_id, user_id])
+  @@index([user_id])
 }
 
 model OrganizationJoinRequest {

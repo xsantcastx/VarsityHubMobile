@@ -1,7 +1,7 @@
-import { listPitches, approvePitch, rejectPitch, normalizeApiError } from '@/api/events';
-import { Button } from '@/shared/ui';
+import { approvePitch, listPitches, normalizeApiError, rejectPitch } from '@/api/events';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { Button } from '@/shared/ui';
 import { useEffect, useState } from 'react';
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 

@@ -1,10 +1,11 @@
 
             import Switch from '@/components/ui/switch';
 import { getConfig } from '@/config/env';
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/shared/hooks/useCustomColorScheme';
 import { getSentryStatus, testSentryConnection } from '@/utils/sentry';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,17 +21,17 @@ const appConfig = getConfig();
               zip_code?: string | null;
             };
 
-            function SectionCard({ title, initiallyOpen, children }: { title: string; initiallyOpen?: boolean; children: React.ReactNode }) {
+            function SectionCard({ title, initiallyOpen, children, style }: { title: string; initiallyOpen?: boolean; children: React.ReactNode; style?: any }) {
               const [open, setOpen] = useState(!!initiallyOpen);
               const colorScheme = useColorScheme();
               return (
                 <View style={[styles.card, { 
-                  borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB'
-                }]}> 
+                  borderColor: Colors[colorScheme].border,
+                  backgroundColor: Colors[colorScheme].card
+                }, style]}> 
                   <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
-                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
+                    <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: Colors[colorScheme].mutedText }]}>›</Text>
                   </Pressable>
                   {open ? <View style={styles.cardBody}>{children}</View> : null}
                 </View>
@@ -40,16 +41,16 @@ const appConfig = getConfig();
             function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
               const colorScheme = useColorScheme();
               return (
-                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: '#e5e7eb' }}>
+                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: Colors[colorScheme].border }}>
                   <View>
                     <Text style={[
                       styles.rowTitle, 
                       destructive ? styles.destructive : null,
-                      { color: destructive ? '#DC2626' : (colorScheme === 'dark' ? '#ECEDEE' : '#11181C') }
+                      { color: destructive ? Colors[colorScheme].danger : Colors[colorScheme].text }
                     ]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
+                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
                   </View>
-                  <Text style={[styles.chev, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
+                  <Text style={[styles.chev, { color: Colors[colorScheme].mutedText }]}>›</Text>
                 </Pressable>
               );
             }
@@ -69,8 +70,8 @@ const appConfig = getConfig();
               return (
                 <View style={styles.rowBetween}>
                   <View>
-                    <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
+                    <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
+                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
                   </View>
                   <Switch value={value} onValueChange={onValueChange} />
                 </View>
@@ -88,156 +89,155 @@ const appConfig = getConfig();
               selectedValue: 'light' | 'dark' | 'system';
               onValueChange: (v: 'light' | 'dark' | 'system') => void;
             }) {
-              const colorScheme = useColorScheme();
-              const options = [
-                { value: 'system', label: 'System' },
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
-              ] as const;
+  export default function SettingsScreen() {
+    const router = useRouter();
+    // use non-throwing optional onboarding context (may be null if not within OBProvider)
+    const obCtx = useOnboardingOptional();
+    const setOB = obCtx?.setState ?? null;
+    const colorScheme = useColorScheme();
+    const { themePreference, setThemePreference } = useThemePreference();
+    const [_loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [_email, setEmail] = useState<string | null>(null);
+    const [prefs, setPrefs] = useState<Preferences>({
+      notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
+      is_parent: false,
+      zip_code: null,
+    });
+    const [plan, setPlan] = useState<string | null>(null);
+    const [role, setRole] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [athleteSummary, setAthleteSummary] = useState<{ jersey?: string | number | null; position?: string | null; sport?: string | null }>({});
 
-              return (
-                <View>
-                  <View style={styles.rowBetween}>
-                    <View>
-                      <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
-                      {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
-                    </View>
-                    <Text style={[styles.selectedValue, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6b7280' }]}>
-                      {options.find(opt => opt.value === selectedValue)?.label}
-                    </Text>
-                  </View>
-                  <View style={styles.themeOptions}>
-                    {options.map((option) => (
-                      <Pressable
-                        key={option.value}
-                        style={[
-                          styles.themeOption,
-                          selectedValue === option.value && [
-                            styles.themeOptionSelected,
-                            { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#f3f4f6' }
-                          ],
-                        ]}
-                        onPress={() => onValueChange(option.value)}
-                        android_ripple={{ color: colorScheme === 'dark' ? '#1F2937' : '#e5e7eb' }}
-                      >
-                        <View style={[
-                          styles.themeOptionIndicator,
-                          { borderColor: colorScheme === 'dark' ? '#374151' : '#d1d5db' },
-                          selectedValue === option.value && styles.themeOptionIndicatorSelected,
-                        ]} />
-                        <Text style={[
-                          styles.themeOptionText,
-                          { color: colorScheme === 'dark' ? '#D1D5DB' : '#374151' },
-                        ]}>
-                          {option.label}
-                        </Text>
-                        {option.value === 'system' && <Text style={[styles.themeOptionSubtext, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>Follow device setting</Text>}
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              );
-            }
+    // Debounce timer refs for PATCH batching
+    const timers = useRef<{ [k: string]: any }>({});
 
-            function SentryDiagnostics() {
-              const colorScheme = useColorScheme();
-              const [testResult, setTestResult] = useState<string | null>(null);
-              const [testLoading, setTestLoading] = useState(false);
-              const status = getSentryStatus();
+    useEffect(() => {
+      let mounted = true;
+      void (async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const me: any = await User.me();
+          if (!mounted) return;
+          setEmail(me?.email || null);
+        
+          // Check if user is admin (email-based)
+          const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
+            .map((e) => e.toLowerCase());
+          setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
+        
+          const serverPrefs = (me && me.preferences) || {};
+          setPrefs({
+            notifications: {
+              game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
+              team_updates: !!serverPrefs?.team_updates,
+              comments_upvotes: !!serverPrefs?.comments_upvotes,
+            },
+            is_parent: !!serverPrefs?.is_parent,
+            zip_code: serverPrefs?.zip_code ?? null,
+          });
+          setPlan(serverPrefs?.plan ?? null);
+          const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
+          setRole(effectiveRole);
 
-              const runTest = async () => {
-                setTestLoading(true);
-                try {
-                  const result = await testSentryConnection();
-                  setTestResult(result.message);
-                } catch {
-                  setTestResult('Test failed with an error');
-                } finally {
-                  setTestLoading(false);
-                }
-              };
+          setAthleteSummary({
+            jersey: serverPrefs?.jersey_number ?? me?.jersey_number ?? null,
+            position: serverPrefs?.position ?? me?.position ?? null,
+            sport: serverPrefs?.primary_sport || serverPrefs?.sport || me?.primary_sport || me?.sport || null,
+          });
+        } catch (e: any) {
+          if (!mounted) return;
+          setError(e?.message || 'Failed to load settings');
+        } finally {
+          if (!mounted) return;
+          setLoading(false);
+        }
+      })();
+      return () => { mounted = false; };
+    }, []);
 
-              return (
-                <View style={{ gap: 12 }}>
-                  <View style={[styles.diagnosticBox, { 
-                    borderColor: status.isActive ? '#10B981' : '#EF4444',
-                    backgroundColor: status.isActive ? '#ECFDF5' : '#FEF2F2',
-                  }]}>
-                    <Text style={[styles.diagnosticLabel, { color: status.isActive ? '#047857' : '#DC2626' }]}>
-                      Status: {status.isActive ? '✅ Active' : '❌ Disabled'}
-                    </Text>
-                    <Text style={[styles.diagnosticSmall, { color: status.isActive ? '#059669' : '#991B1B' }]}>
-                      {status.isDev ? 'Running in dev mode' : 'Production mode'}
-                      {status.hasDsn ? ' • DSN configured' : ' • No DSN'}
-                    </Text>
-                  </View>
+    // Debounced PATCH updater for preferences
+    const patchPrefs = (patch: Partial<Preferences>) => {
+      const key = JSON.stringify(patch);
+      if (timers.current[key]) clearTimeout(timers.current[key]);
+    
+      // Use functional update to get the latest state
+      setPrefs(cur => {
+        // Deep merge notifications, shallow merge the rest
+        const newPrefs = {
+          ...cur,
+          ...patch,
+          notifications: {
+            ...cur.notifications,
+            ...(patch.notifications || {}),
+          },
+        };
 
-                  {status.isActive && (
-                    <Pressable 
-                      onPress={runTest} 
-                      disabled={testLoading}
-                      style={({ pressed }) => [
-                        styles.testButton,
-                        { 
-                          backgroundColor: pressed ? '#0E7490' : '#0891B2',
-                          opacity: testLoading ? 0.6 : 1,
-                        }
-                      ]}
-                    >
-                      <Text style={{ color: '#fff', fontWeight: '600', textAlign: 'center' }}>
-                        {testLoading ? '🔄 Testing...' : '🔍 Send Test Event'}
-                      </Text>
-                    </Pressable>
-                  )}
+        // Debounce the API call
+        timers.current[key] = setTimeout(async () => {
+          try {
+            await User.updatePreferences(newPrefs);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          } catch (_e: any) {
+            // Error handled via Alert below
+            // Revert on failure if needed, though not implemented here
+            Alert.alert('Update failed', 'Could not save your preference. Please try again.');
+          }
+        }, 300);
 
-                  {testResult && (
-                    <View style={[styles.resultBox, { 
-                      backgroundColor: testResult.includes('successfully') ? '#ECFDF5' : '#FEF2F2',
-                      borderColor: testResult.includes('successfully') ? '#10B981' : '#EF4444',
-                    }]}>
-                      <Text style={[styles.resultText, { color: testResult.includes('successfully') ? '#047857' : '#DC2626' }]}>
-                        {testResult}
-                      </Text>
-                    </View>
-                  )}
+        return newPrefs;
+      });
+    };
 
-                  {status.dsnPreview && (
-                    <Text style={[styles.diagnosticSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280', marginTop: 4 }]}>
-                      DSN: {status.dsnPreview}
-                    </Text>
-                  )}
-                </View>
-              );
-            }
+    const restartOnboarding = async () => {
+      try {
+        const me: any = await User.me();
+        const prefsFromServer = me?.preferences || {};
+        const preload = {
+          role: prefsFromServer.role || me?.role || 'fan',
+          display_name: prefsFromServer.display_name ?? me?.display_name ?? '',
+          affiliation: prefsFromServer.affiliation ?? me?.affiliation ?? '',
+          dob: prefsFromServer.dob ?? me?.dob ?? null,
+          zip_code: prefsFromServer.zip_code ?? me?.zip_code ?? '',
+          plan: prefsFromServer.plan ?? null,
+          avatar_url: me?.avatar_url ?? prefsFromServer.avatar_url ?? null,
+          bio: me?.bio ?? prefsFromServer.bio ?? '',
+          sports_interests: prefsFromServer.sports_interests ?? prefsFromServer.sports ?? [],
+          primary_intents: prefsFromServer.primary_intents ?? [],
+          authorized_users: prefsFromServer.authorized_users ?? prefsFromServer.authorized ?? [],
+        } as any;
 
-            export default function SettingsScreen() {
-              const router = useRouter();
-              // use non-throwing optional onboarding context (may be null if not within OBProvider)
-              const obCtx = useOnboardingOptional();
-              const setOB = obCtx?.setState ?? null;
-              const colorScheme = useColorScheme();
-              const { themePreference, setThemePreference } = useThemePreference();
-              const [_loading, setLoading] = useState(true);
-              const [error, setError] = useState<string | null>(null);
-              const [_email, setEmail] = useState<string | null>(null);
-              const [prefs, setPrefs] = useState<Preferences>({
-                notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-                is_parent: false,
-                zip_code: null,
-              });
-              const [plan, setPlan] = useState<string | null>(null);
-              const [role, setRole] = useState<string | null>(null);
-              const [isAdmin, setIsAdmin] = useState(false);
-              const [athleteSummary, setAthleteSummary] = useState<{ jersey?: string | number | null; position?: string | null; sport?: string | null }>({});
+        // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_e: any) { /* ignore */ }
+        if (setOB) void setOB(preload);
+        router.replace('/onboarding/step-1-role');
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_e: any) {
+        // Error in onboarding restart - try fallback
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_error: any) {}
+        router.replace('/onboarding');
+      }
+    };
 
-              // Debounce timer refs for PATCH batching
-              const timers = useRef<{ [k: string]: any }>({});
-
-              useEffect(() => {
-                let mounted = true;
-                void (async () => {
-                  setLoading(true);
-                  setError(null);
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
+        <ScrollView 
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 28 }}
+          showsVerticalScrollIndicator={true}
+        >
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {/* Quick Billing CTA (coaches only) */}
+          {role === 'coach' && (
+            <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
+              <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? (colorScheme === 'dark' ? '#1F2937' : '#F3F4F6') : '#0A84FF' }}>
+                <Text style={{ color: plan ? (colorScheme === 'dark' ? '#ECEDEE' : '#111827') : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
+              </Pressable>
+            </View>
+          )}
                   try {
                     const me: any = await User.me();
                     if (!mounted) return;
@@ -344,13 +344,7 @@ const appConfig = getConfig();
               };
 
               return (
-                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['bottom']}>
-                  <Stack.Screen options={{ 
-                    title: 'Settings', 
-                    headerBackTitle: 'Back',
-                    headerShown: true,
-                    headerLargeTitle: false,
-                  }} />
+                <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
                   <ScrollView 
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingBottom: 28 }}
@@ -361,8 +355,8 @@ const appConfig = getConfig();
                     {/* Quick Billing CTA (coaches only) */}
                     {role === 'coach' && (
                       <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
-                          <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
+                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? (colorScheme === 'dark' ? '#1F2937' : '#F3F4F6') : '#0A84FF' }}>
+                          <Text style={{ color: plan ? (colorScheme === 'dark' ? '#ECEDEE' : '#111827') : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
                         </Pressable>
                       </View>
                     )}
@@ -380,7 +374,7 @@ const appConfig = getConfig();
 
                     {/* Athlete Profile (athletes only) */}
                     {role === 'athlete' && (athleteSummary.jersey || athleteSummary.position) && (
-                      <SectionCard title="Athlete Profile">
+                      <SectionCard title="Athlete Profile" style={styles.sectionSpacing}>
                         <NavRow
                           title="Edit Athlete Info"
                           subtitle={[
@@ -394,7 +388,7 @@ const appConfig = getConfig();
                     )}
 
                     {/* Appearance */}
-                    <SectionCard title="Appearance" initiallyOpen>
+                    <SectionCard title="Appearance" initiallyOpen style={styles.sectionSpacing}>
                       <ThemeRow
                         title="Theme"
                         subtitle="Choose your preferred color scheme"
@@ -414,7 +408,7 @@ const appConfig = getConfig();
                     )}
 
                     {/* Events */}
-                    <SectionCard title="Events">
+                    <SectionCard title="Events" style={styles.sectionSpacing}>
                       <NavRow title="Pitch an Event" onPress={() => void router.push('/fan-pitch')} />
                       <NavRow title="Request to Host Event" onPress={() => void router.push('/settings/request-host-event')} />
                       <NavRow title="My Hosting Requests" subtitle="Track approval status" onPress={() => void router.push('/settings/hosting-requests')} />
@@ -429,7 +423,7 @@ const appConfig = getConfig();
                     </SectionCard>
 
                     {/* Notifications */}
-                    <SectionCard title="Notifications" initiallyOpen>
+                    <SectionCard title="Notifications" initiallyOpen style={styles.sectionSpacing}>
                       <SwitchRow
                         title="Game/Event Reminders"
                         value={!!prefs.notifications.game_event_reminders}
@@ -448,7 +442,7 @@ const appConfig = getConfig();
                     </SectionCard>
 
                     {/* Privacy */}
-                    <SectionCard title="Privacy">
+                    <SectionCard title="Privacy" style={styles.sectionSpacing}>
                       <NavRow title="Manage Blocked Users" onPress={() => void router.push('/settings/blocked-users')} />
                       <SwitchRow
                         title="I am a parent"
@@ -459,20 +453,20 @@ const appConfig = getConfig();
                     </SectionCard>
 
                     {/* My Content */}
-                    <SectionCard title="My Content">
+                    <SectionCard title="My Content" style={styles.sectionSpacing}>
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
                       <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.push('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing (coaches only) */}
                     {role === 'coach' && (
-                      <SectionCard title="Billing">
+                      <SectionCard title="Billing" style={styles.sectionSpacing}>
                         <NavRow title="Manage Subscription" subtitle={plan ? String(plan) : 'No subscription'} onPress={() => void router.push('/settings/manage-subscription')} />
                       </SectionCard>
                     )}
 
                     {/* Legal */}
-                    <SectionCard title="Legal">
+                    <SectionCard title="Legal" style={styles.sectionSpacing}>
                       <NavRow title="Privacy Policy" subtitle="How we protect your data" onPress={() => void router.push('/settings/privacy-policy')} />
                       <NavRow title="Terms of Service" subtitle="Rules and guidelines" onPress={() => void router.push('/settings/terms-of-service')} />
                       <NavRow title="Safe Zone Policy" subtitle="Messaging safety & protection" onPress={() => void router.push('/settings/safe-zone-policy')} />
@@ -482,7 +476,7 @@ const appConfig = getConfig();
                     </SectionCard>
 
                     {/* Support & Feedback */}
-                    <SectionCard title="Support & Feedback">
+                    <SectionCard title="Support & Feedback" style={styles.sectionSpacing}>
                       <NavRow title="Contact Varsity Hub Team" onPress={() => void router.push('/settings/contact')} />
                       <NavRow title="Leave Feedback" onPress={() => void router.push('/settings/feedback')} />
                       <View style={{ marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colorScheme === 'dark' ? '#374151' : '#E5E7EB' }}>
@@ -493,7 +487,7 @@ const appConfig = getConfig();
 
                     {/* Admin Panel - Only visible to admins */}
                     {isAdmin && (
-                      <SectionCard title="🛡️ Admin Panel" initiallyOpen>
+                      <SectionCard title="🛡️ Admin Panel" initiallyOpen style={styles.sectionSpacing}>
                         <NavRow 
                           title="Admin Dashboard" 
                           subtitle="Overview and analytics" 
@@ -528,7 +522,7 @@ const appConfig = getConfig();
                     )}
 
                     {/* Session */}
-                    <SectionCard title="Session">
+                    <SectionCard title="Session" style={styles.sectionSpacing}>
                       <NavRow title="Log Out" destructive onPress={() => {
                         Alert.alert('Log out', 'Are you sure you want to log out?', [
                           { text: 'Cancel', style: 'cancel' },
@@ -600,6 +594,7 @@ const appConfig = getConfig();
             }
 
             const styles = StyleSheet.create({
+              sectionSpacing: { marginTop: 20 },
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
               error: { color: '#b91c1c', marginHorizontal: 16, marginBottom: 8 },

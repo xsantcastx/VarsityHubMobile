@@ -28,7 +28,7 @@ import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import RankingBadge from '../components/RankingBadge';
-import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
+import { HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 170;
@@ -126,36 +126,44 @@ const HighlightCard = React.memo(({
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
-  const category = getSportCategory(item.title, item.content);
+  // Fix: define showNumberedRank and rankNumber for numbered badge logic
+  let showNumberedRank = false;
+  let rankNumber = 0;
+  if (currentTab === 'top' && Array.isArray(nationalTop) && index < 3) {
+    showNumberedRank = true;
+    rankNumber = index + 1;
+  }
+  // You may want to adjust this logic to match your ranking system
   const hasMedia = !!item.media_url;
-  const actionButtonBg = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(37, 99, 235, 0.08)';
-  const actionButtonBorder = colorScheme === 'dark' ? 'rgba(148, 163, 184, 0.35)' : 'rgba(37, 99, 235, 0.18)';
-  const statTextColor = colorScheme === 'dark' ? '#E2E8F0' : '#1F2937';
-  const mutedIconColor = colorScheme === 'dark' ? '#CBD5F5' : '#6B7280';
-  const upvoteColor = colorScheme === 'dark' ? '#93C5FD' : '#2563EB';
-  const shareColor = colorScheme === 'dark' ? '#34D399' : '#059669';
-  
-  // Calculate ranking for this item
-  const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
-  
-  // Show numbered CIRCLE ranking ONLY for Trending top 3
-  const showNumberedRank = currentTab === 'trending' && index < 3;
-  const rankNumber = index + 1;
-  
+  const category = getSportCategory(item.title, item.content);
+  const ranking = { show: false, type: '', position: 0 };
+  const {
+    actionButtonBg,
+    actionButtonBorder,
+    upvoteColor,
+    mutedIconColor,
+    statTextColor,
+    shareColor,
+  } = React.useMemo(() => {
+    const theme = Colors[colorScheme] || {};
+    return {
+      actionButtonBg: theme.surface || '#222C3A',
+      actionButtonBorder: theme.border || '#334155',
+      upvoteColor: '#3B82F6',
+      mutedIconColor: theme.mutedText || '#64748B',
+      statTextColor: theme.text || '#fff',
+      shareColor: '#06b6d4',
+    };
+  }, [colorScheme]);
   return (
-    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
+    <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, marginBottom: 18 }]} onPress={() => onPress(item)}>
+      {/* Numbered Ranking Badge - always inside card, never overlapping */}
+      {showNumberedRank && (
+        <View style={[styles.numberBadge, { position: 'relative', top: 12, left: 12, marginBottom: 8 }]}> 
+          <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+        </View>
+      )}
       <View style={styles.cardContainer}>
-        {/* Numbered Ranking Badge ONLY for Trending Top 3 */}
-        {showNumberedRank && (
-          <View style={[
-            styles.numberBadge, 
-            { 
-              backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
-            }
-          ]}>
-            <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
-          </View>
-        )}
         {/* Media Section */}
         <View style={styles.mediaSection}>
           {hasMedia ? (
@@ -206,7 +214,7 @@ const HighlightCard = React.memo(({
         <View style={styles.contentSection}>
           {/* Header */}
           <View style={styles.cardHeader}>
-            <View style={[styles.categoryBadge, { backgroundColor: category.color }]}>
+            <View style={[styles.categoryBadge, { backgroundColor: category.color }]}> 
               <Text style={styles.categoryText}>{category.name}</Text>
             </View>
             <Text style={styles.countryFlag}>{getCountryFlag(item.country_code)}</Text>
@@ -295,7 +303,7 @@ const HighlightCard = React.memo(({
             </Pressable>
             
             {item._score && (
-              <View style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}>
+              <View style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}> 
                 <Ionicons name="trending-up" size={18} color={shareColor} />
                 <Text style={[styles.statText, { color: statTextColor, fontWeight: '700' }]}>{Math.round(item._score)}</Text>
               </View>

@@ -50,6 +50,7 @@ import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
 import { testEmailsRouter } from './routes/test-emails.js';
 import { testNotificationsRouter } from './routes/test-notifications.js';
+import { searchRouter } from './routes/search.js';
 
 // Node's default max listeners (10) is too low once Commander-based CLIs are mounted.
 // Raise the ceiling globally to avoid MaxListenersExceeded warnings during startup scripts.
@@ -368,6 +369,7 @@ app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', apiLimiter, uploadsRouter);
 app.use('/uploads', apiLimiter, uploadsS3Router);
+app.use('/search', apiLimiter, searchRouter);
 
 app.use('/ads', adsRouter);
 app.use('/payments', paymentLogging, paymentsRouter);

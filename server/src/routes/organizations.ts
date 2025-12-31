@@ -161,6 +161,7 @@ organizationsRouter.get('/mine', requireAuth as any, async (req: AuthedRequest, 
 // Get single organization
 organizationsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
+  const meId = (req as AuthedRequest).user?.id ?? null;
   const organization = await prisma.organization.findUnique({ 
     where: { id },
     include: {
@@ -195,7 +196,15 @@ organizationsRouter.get('/:id', async (req, res) => {
   });
   
   if (!organization) return res.status(404).json({ error: 'Organization not found' });
-  return res.json(organization);
+  const [followersCount, isFollowing] = await Promise.all([
+    prisma.organizationFollow.count({ where: { organization_id: id } }),
+    meId ? prisma.organizationFollow.findUnique({ where: { organization_id_user_id: { organization_id: id, user_id: meId } } as any }).then(Boolean) : Promise.resolve(false),
+  ]);
+  return res.json({
+    ...organization,
+    followers_count: followersCount,
+    is_following: isFollowing,
+  });
 });
 
 // Get organization members
@@ -215,6 +224,51 @@ organizationsRouter.get('/:id/members', async (req, res) => {
   });
   
   return res.json(members);
+});
+
+// Follow an organization
+organizationsRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const org = await prisma.organization.findUnique({ where: { id } });
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  try {
+    await prisma.organizationFollow.create({ data: { organization_id: id, user_id: req.user.id } });
+  } catch (err: any) {
+    if (err?.code !== 'P2002') {
+      console.error('[organizations] follow failed', err);
+      return res.status(500).json({ error: 'Failed to follow organization' });
+    }
+  }
+  const followersCount = await prisma.organizationFollow.count({ where: { organization_id: id } });
+  return res.json({ ok: true, is_following: true, followers_count: followersCount });
+});
+
+// Unfollow an organization
+organizationsRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const org = await prisma.organization.findUnique({ where: { id } });
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  await prisma.organizationFollow.deleteMany({ where: { organization_id: id, user_id: req.user.id } });
+  const followersCount = await prisma.organizationFollow.count({ where: { organization_id: id } });
+  return res.json({ ok: true, is_following: false, followers_count: followersCount });
+});
+
+// List organization followers
+organizationsRouter.get('/:id/followers', async (req, res) => {
+  const id = String(req.params.id);
+  const org = await prisma.organization.findUnique({ where: { id } });
+  if (!org) return res.status(404).json({ error: 'Organization not found' });
+  const followers = await prisma.organizationFollow.findMany({
+    where: { organization_id: id },
+    orderBy: { created_at: 'desc' },
+    include: { user: { select: { id: true, display_name: true, username: true, avatar_url: true } } },
+  });
+  return res.json(followers.map((f) => ({
+    user: f.user,
+    followed_at: f.created_at,
+  })));
 });
 
 const createOrganizationSchema = z.object({
