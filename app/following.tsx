@@ -1,5 +1,7 @@
 import { User } from '@/api/entities';
-import { Avatar, Button, Input } from '@/shared/ui';
+import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/shared/ui';
+import { Input } from '@/shared/components';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';

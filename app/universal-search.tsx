@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ComponentProps } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -18,23 +18,25 @@ import { useColorScheme } from '../hooks/useColorScheme';
 
 type SearchResult = {
   id: string;
-  type: 'user' | 'team' | 'organization';
+  type: 'user' | 'team' | 'organization' | 'event' | 'highlight';
   name: string;
   avatar?: string;
   description?: string;
 };
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export default function UniversalSearchScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<SearchResult[]>([]);
   const [userResults, setUserResults] = useState<SearchResult[]>([]);
   const [teamResults, setTeamResults] = useState<SearchResult[]>([]);
   const [orgResults, setOrgResults] = useState<SearchResult[]>([]);
   const [eventResults, setEventResults] = useState<SearchResult[]>([]);
   const [highlightResults, setHighlightResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
 
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -136,7 +138,7 @@ export default function UniversalSearchScreen() {
   const renderResultItem = ({ item }: { item: SearchResult }) => {
     let badgeLabel = item.type.charAt(0).toUpperCase() + item.type.slice(1);
     let badgeColor = '#F59E0B';
-    let iconName = 'briefcase';
+    let iconName: IconName = 'briefcase';
     switch (item.type) {
       case 'user':
         badgeColor = '#3B82F6';

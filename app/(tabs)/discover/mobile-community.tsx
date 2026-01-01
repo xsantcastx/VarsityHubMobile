@@ -17,7 +17,7 @@ import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
-type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
+type GameItem = { id: string; title?: string; date?: string | null; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };
 
 type ZipDirectoryEntry = { zip: string; count: number };
 
@@ -25,10 +25,10 @@ type UniversalSearchResults = {
   users: Array<{ id: string; display_name?: string | null; username?: string | null; avatar_url?: string | null; bio?: string | null; role?: string | null }>;
   teams: Array<{ id: string; name?: string | null; logo_url?: string | null; city?: string | null; state?: string | null; sport?: string | null; members_count?: number | null }>;
   organizations: Array<{ id: string; name?: string | null; logo_url?: string | null; location?: string | null; sport?: string | null; org_type?: string | null; teams_count?: number | null }>;
-  games: Array<{ id: string; title?: string | null; location?: string | null; date?: string | Date | null; cover_image_url?: string | null; teams?: { home?: string | null; away?: string | null } | null }>;
-  posts: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | Date | null; upvotes_count?: number | null; type?: string | null }>;
-  highlights: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | Date | null; upvotes_count?: number | null; type?: string | null }>;
-  events: Array<{ id: string; title?: string | null; description?: string | null; location?: string | null; date?: string | Date | null; cover_image_url?: string | null; event_type?: string | null }>;
+  games: Array<{ id: string; title?: string | null; location?: string | null; date?: string | null; cover_image_url?: string | null; teams?: { home?: string | null; away?: string | null } | null }>;
+  posts: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | null; upvotes_count?: number | null; type?: string | null }>;
+  highlights: Array<{ id: string; title?: string | null; content?: string | null; media_url?: string | null; created_at?: string | null; upvotes_count?: number | null; type?: string | null }>;
+  events: Array<{ id: string; title?: string | null; description?: string | null; location?: string | null; date?: string | null; cover_image_url?: string | null; event_type?: string | null }>;
 };
 
 const ZIP_REGEX = /\b\d{5}\b/g;
@@ -261,12 +261,31 @@ export default function CommunityDiscoverScreen() {
     searchDebounceRef.current = setTimeout(() => {
       Search.universal(trimmed, { limit: 6 })
         .then((res: any) => {
+          const normalizeDate = (value: string | Date | null | undefined) => {
+            if (!value) return undefined;
+            if (typeof value === 'string') return value;
+            try {
+              return value.toISOString();
+            } catch {
+              return undefined;
+            }
+          };
           setSearchResults({
             users: Array.isArray(res?.users) ? res.users : [],
             teams: Array.isArray(res?.teams) ? res.teams : [],
             organizations: Array.isArray(res?.organizations) ? res.organizations : [],
-            games: Array.isArray(res?.games) ? res.games : [],
-            posts: Array.isArray(res?.posts) ? res.posts : [],
+            games: Array.isArray(res?.games)
+              ? res.games.map((g: any) => ({ ...g, date: normalizeDate(g?.date ?? g?.created_at) }))
+              : [],
+            posts: Array.isArray(res?.posts)
+              ? res.posts.map((p: any) => ({ ...p, created_at: normalizeDate(p?.created_at) }))
+              : [],
+            highlights: Array.isArray(res?.highlights)
+              ? res.highlights.map((h: any) => ({ ...h, created_at: normalizeDate(h?.created_at) }))
+              : [],
+            events: Array.isArray(res?.events)
+              ? res.events.map((e: any) => ({ ...e, date: normalizeDate(e?.date) }))
+              : [],
           });
           setSearchError(null);
         })

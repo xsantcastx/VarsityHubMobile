@@ -34,12 +34,11 @@ export default function OrganizationScreen() {
     try {
       const currentUser = await User.me().catch(() => null);
       setMe(currentUser);
-      const o = await Organization.getPublic(String(params.id));
+      const o = await Organization.get(String(params.id));
       setOrg(o);
-      const teamsPage = await Organization.teams(String(params.id), { limit: 50 });
-      setTeams(teamsPage?.items || []);
-      const postsPage = await Organization.posts(String(params.id), { limit: 20, sort: 'newest' });
-      setPosts(postsPage?.items || []);
+      const orgTeams = Array.isArray((o as any)?.teams) ? (o as any).teams : [];
+      setTeams(orgTeams);
+      setPosts(Array.isArray((o as any)?.posts) ? (o as any).posts : []);
     } catch (e: any) {
       if (e?.status === 401) {
         setError('Sign in to view organizations');
@@ -117,7 +116,7 @@ export default function OrganizationScreen() {
           isOwnOrg
             ? {
                 label: 'Edit org',
-                onPress: () => router.push(`/org-edit?id=${org?.id}`),
+                onPress: () => router.push({ pathname: '/organizations/[id]', params: { id: String(org?.id ?? '') } }),
                 icon: 'pencil',
                 variant: 'outline',
               }

@@ -104,13 +104,12 @@ organizationsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim();
   const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
   
-  const where: any = { status: 'active' };
-  if (q) {
-    where.OR = [
+  const where: any = q ? {
+    OR: [
       { name: { contains: q, mode: 'insensitive' } },
       { description: { contains: q, mode: 'insensitive' } },
-    ];
-  }
+    ]
+  } : {};
   
   const organizations = await prisma.organization.findMany({
     where,

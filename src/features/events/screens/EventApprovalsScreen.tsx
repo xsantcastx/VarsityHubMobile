@@ -70,7 +70,18 @@ export default function EventApprovalsScreen() {
 
       // Use events pending queue
       const pendingEvents = await fetchEventApprovals();
-      setEvents(Array.isArray(pendingEvents) ? pendingEvents.filter((event: any) => event && event.approval_status === 'pending') : []);
+      const normalized = Array.isArray(pendingEvents)
+        ? pendingEvents
+            .filter((event: any) => event && event.approval_status === 'pending')
+            .map((event: any) => ({
+              ...event,
+              title: event.title ?? event.name ?? 'Event',
+              event_type: event.event_type ?? event.type ?? 'other',
+              location: event.location ?? event.address ?? '',
+              date: typeof event.date === 'string' ? event.date : (event.date ? new Date(event.date).toISOString() : ''),
+            }))
+        : [];
+      setEvents(normalized);
     } catch (e: any) {
       console.warn('Error loading pending events (backend may be deploying):', normalizeApiError(e));
       setEvents([]);
@@ -354,7 +365,6 @@ export default function EventApprovalsScreen() {
         options={{
           title: 'Approvals',
           headerShown: true,
-          headerBackTitleVisible: false,
           headerLeft: () => (
             <Pressable
               accessibilityRole="button"

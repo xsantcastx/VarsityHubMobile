@@ -243,7 +243,7 @@ export default function Step10Confirmation() {
       clearOnboarding();
       
       // Navigate to main app
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
     } catch (e: any) {
       const errorMessage = e?.message || 'Failed to complete onboarding';
       

@@ -16,9 +16,9 @@ Completed full overnight hardening pass on all critical systems. **All checks PA
 
 ### Findings:
 - 50+ console.error/log statements audited
-- Apple token verification now implemented with Apple JWKS validation (`server/src/lib/appleAuth.ts` + `/auth/apple`)
-  - **Status:** Live verification (issuer/audience enforced), simulator tokens remain dev-only
-  - **Action:** Ensure `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` + `server/.keys/AuthKey_<ID>.p8` are present before production
+- Only 1 TODO found: Apple token verification (line 303, auth.ts)
+  - **Status:** Known limitation, non-blocking (dev fallback works)
+  - **Impact:** Production fallback safely rejects unverified tokens
 - No CRITICAL or FATAL errors in core paths
 - Email verification path fully instrumented with timing logs
 - Rate limiting properly logged at 3 checkpoints (30s, 5/hour, admin bypass)

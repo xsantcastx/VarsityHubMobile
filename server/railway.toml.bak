@@ -1,0 +1,16 @@
+# Railway Deployment Configuration
+# This file is used when deploying to Railway
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "server/Dockerfile"
+
+[deploy]
+startCommand = "./start.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[env]
+NODE_ENV = "production"

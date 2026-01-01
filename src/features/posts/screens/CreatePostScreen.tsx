@@ -416,7 +416,7 @@ export default function CreatePostScreen() {
           ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
           : `Your post has been created and will appear on the ${postDestination}.`
       );
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/feed');
     } catch (e: any) {
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (issues.length) {

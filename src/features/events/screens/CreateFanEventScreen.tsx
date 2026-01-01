@@ -144,7 +144,6 @@ export default function CreateFanEventScreen() {
         options={{
           title: 'Create Event',
           headerShown: true,
-          headerBackTitleVisible: false,
           headerLeft: () => (
             <Pressable
               accessibilityRole="button"

@@ -13,6 +13,7 @@ export interface ButtonProps {
   size?: Size;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  accessibilityLabel?: string;
 }
 
 export function Button({
@@ -23,6 +24,7 @@ export function Button({
   size = 'md',
   style,
   textStyle,
+  accessibilityLabel,
 }: ButtonProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const vs = getVariantStyles(variant);
@@ -40,6 +42,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityLabel={accessibilityLabel}
       style={[styles.base, vs.container(colorScheme), ss.container, disabled && styles.disabled, style]}
     >
       {content}
@@ -94,4 +97,3 @@ function getSizeStyles(size: Size): { container: ViewStyle; text: TextStyle } {
 }
 
 export default Button;
-

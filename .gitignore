@@ -5,27 +5,16 @@ node_modules/
 node_modules.bak/
 server/node_modules/
 
-# Backup files
-*.bak
-*.swp
-*.swo
-*~
-
 # iOS
 ios/Pods/
 ios/build/
 ios/Podfile.lock
-build/CompilationCache.noindex/
-build/Build/Products/
-DerivedData/
-*.xcworkspace/xcuserdata/
 server/ios/Pods/
 server/ios/build/
 server/ios/Podfile.lock
 
 # Android
 android/build/
-android/.gradle/
 android/.gradle/
 server/android/build/
 server/android/.gradle/
@@ -109,4 +98,3 @@ playwright-report/
 test-results/
 *.coverage
 build/
-build-*/

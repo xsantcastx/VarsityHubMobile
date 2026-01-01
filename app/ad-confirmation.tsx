@@ -176,7 +176,7 @@ export default function AdConfirmationScreen() {
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}
-            onPress={() => void router.replace('/(tabs)')}
+            onPress={() => void router.replace('/(tabs)/feed')}
           >
             <Ionicons name="home" size={20} color={Colors[colorScheme].text} />
             <Text style={[styles.secondaryButtonText, { color: Colors[colorScheme].text }]}>

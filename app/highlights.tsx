@@ -27,7 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import RankingBadge from '../components/RankingBadge';
+import RankingBadge, { type RankingType } from '../components/RankingBadge';
 import { HighlightItem } from '../utils/rankingUtils';
 
 type TabType = 'trending' | 'recent' | 'top';
@@ -136,7 +136,11 @@ const HighlightCard = React.memo(({
   // You may want to adjust this logic to match your ranking system
   const hasMedia = !!item.media_url;
   const category = getSportCategory(item.title, item.content);
-  const ranking = { show: false, type: '', position: 0 };
+  const ranking: { show: boolean; type: RankingType; position: number } = {
+    show: false,
+    type: 'trending',
+    position: 0,
+  };
   const {
     actionButtonBg,
     actionButtonBorder,
@@ -145,13 +149,13 @@ const HighlightCard = React.memo(({
     statTextColor,
     shareColor,
   } = React.useMemo(() => {
-    const theme = Colors[colorScheme] || {};
+    const theme = Colors[colorScheme as keyof typeof Colors] ?? Colors.light;
     return {
-      actionButtonBg: theme.surface || '#222C3A',
-      actionButtonBorder: theme.border || '#334155',
+      actionButtonBg: theme.surface,
+      actionButtonBorder: theme.border,
       upvoteColor: '#3B82F6',
-      mutedIconColor: theme.mutedText || '#64748B',
-      statTextColor: theme.text || '#fff',
+      mutedIconColor: theme.mutedText,
+      statTextColor: theme.text,
       shareColor: '#06b6d4',
     };
   }, [colorScheme]);

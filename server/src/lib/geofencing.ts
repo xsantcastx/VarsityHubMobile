@@ -9,8 +9,8 @@
  * After 48 hours from the event, no new posts are allowed.
  */
 
-import { logRejection } from './geofence-telemetry.js';
 import { prisma } from './prisma.js';
+import { logRejection } from './geofence-telemetry.js';
 
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;

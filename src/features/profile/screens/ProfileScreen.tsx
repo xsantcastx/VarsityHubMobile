@@ -375,27 +375,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: 'transparent',
   },
-  avatarWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    backgroundColor: '#ffffff',
-    padding: 2,
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 38,
-  },
-  avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 38,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   profileContent: {
     paddingHorizontal: 12,
     marginTop: -80, // Overlap avatar with banner, but show banner

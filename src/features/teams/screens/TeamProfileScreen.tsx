@@ -33,12 +33,12 @@ export default function TeamProfileScreen() {
     try {
       const currentUser = await User.me().catch(() => null);
       setMe(currentUser);
-      const t = await TeamApi.getPublic(String(params.id));
+      const t = await TeamApi.get(String(params.id));
       setTeam(t);
-      const postsPage = await TeamApi.posts(String(params.id), { limit: 20, sort: 'newest' });
-      setPosts(postsPage?.items || []);
+      setPosts([]);
       const membersPage = await TeamApi.members(String(params.id));
-      setMembers(membersPage?.items || []);
+      const memberItems = Array.isArray((membersPage as any)?.items) ? (membersPage as any).items : (Array.isArray(membersPage) ? membersPage : []);
+      setMembers(memberItems);
     } catch (e: any) {
       if (e?.status === 401) {
         setError('Sign in to view teams');
@@ -116,7 +116,7 @@ export default function TeamProfileScreen() {
           isOwnTeam
             ? {
                 label: 'Edit team',
-                onPress: () => router.push(`/team-edit?id=${team?.id}`),
+                onPress: () => router.push({ pathname: '/team-page', params: { id: String(team?.id ?? '') } }),
                 icon: 'pencil',
                 variant: 'outline',
               }

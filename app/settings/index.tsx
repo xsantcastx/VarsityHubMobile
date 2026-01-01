@@ -11,6 +11,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
 import { useThemePreference } from '@/shared/hooks/useCustomColorScheme';
+import * as Sentry from 'sentry-expo';
 
 const appConfig = getConfig();
 
@@ -39,6 +40,47 @@ function SectionCard({ title, initiallyOpen, children, style }: { title: string;
         <Text style={[styles.chev, open ? styles.chevOpen : null, { color: Colors[colorScheme].mutedText }]}>›</Text>
       </Pressable>
       {open ? <View style={styles.cardBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+function SentryDiagnostics() {
+  const colorScheme = useColorScheme();
+  const [status, setStatus] = useState<string | null>(null);
+
+  const sendTestError = () => {
+    try {
+      throw new Error('Sentry diagnostics test error');
+    } catch (err) {
+      Sentry.Native.captureException(err);
+      setStatus('Test error sent to Sentry');
+    }
+  };
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Pressable
+        onPress={sendTestError}
+        style={{
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+          borderRadius: 10,
+          backgroundColor: Colors[colorScheme].card,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: Colors[colorScheme].border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Text style={{ color: Colors[colorScheme].text, fontWeight: '600' }}>Send test error</Text>
+        <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 12 }}>Sentry</Text>
+      </Pressable>
+      {status && (
+        <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 12 }}>
+          {status}
+        </Text>
+      )}
     </View>
   );
 }

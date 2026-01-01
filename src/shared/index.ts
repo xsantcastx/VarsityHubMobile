@@ -1,6 +1,6 @@
 // Feature-specific and cross-cutting utilities that don't belong to features
-// Export from subdirectories
-export * from './components';
+// Export from subdirectories (avoid duplicate Button/Input exports)
+export { BackHeader, ErrorBoundary, ExternalLink } from './components';
 export * from './constants';
 export * from './hooks';
 export * from './types';

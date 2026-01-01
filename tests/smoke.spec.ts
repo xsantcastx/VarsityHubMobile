@@ -3,25 +3,6 @@ import { expect, test } from '@playwright/test';
 // Smoke test for VarsityHub app
 test.describe('VarsityHub Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
-    // Seed minimal auth/session before app loads to avoid 401s during boot
-    await page.addInitScript(() => {
-      try {
-        localStorage.setItem('auth_token', 'smoke_test_token');
-        localStorage.setItem('user', JSON.stringify({
-          id: 'smoke-user',
-          email: 'smoke@example.com',
-          email_verified: true,
-          display_name: 'Smoke User',
-        }));
-      } catch {}
-    });
-
-    // Basic auth stubs to prevent unauthenticated redirects/logs
-    const fulfillJson = (route: any, body: any, status = 200) =>
-      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    await page.route('**/auth/me', (route) => fulfillJson(route, { id: 'smoke-user', email_verified: true }));
-    await page.route('**/users/me', (route) => fulfillJson(route, { id: 'smoke-user', email_verified: true }));
-
     // Navigate to the web app
     await page.goto('http://localhost:8081', { waitUntil: 'domcontentloaded' });
   });
@@ -38,9 +19,8 @@ test.describe('VarsityHub Smoke Tests', () => {
     // Wait for initial render
     await page.waitForLoadState('networkidle');
 
-    // Allow benign network noise; assert no critical errors
-    const critical = consoleErrors.filter((t) => !/401|Unauthorized|Failed to fetch|DevTools|deprecated/i.test(t));
-    expect(critical).toHaveLength(0);
+    // Check that we're not in an error state
+    expect(consoleErrors).toHaveLength(0);
   });
 
   test('should navigate through feed and highlights', async ({ page }) => {
@@ -68,9 +48,8 @@ test.describe('VarsityHub Smoke Tests', () => {
       await page.waitForLoadState('networkidle');
     }
 
-    // Verify no critical console errors occurred during navigation
-    const critical = consoleErrors.filter((t) => !/401|Unauthorized|Failed to fetch|DevTools|deprecated/i.test(t));
-    expect(critical).toHaveLength(0);
+    // Verify no console errors occurred during navigation
+    expect(consoleErrors).toHaveLength(0);
   });
 
   test('should handle errors gracefully and show error messages', async ({ page }) => {
