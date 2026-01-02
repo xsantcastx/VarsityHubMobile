@@ -1,0 +1,10 @@
+fd2c7e52 Remove unnecessary .bak backup files after rebase cleanup
+db349992 chore: finalize deployment housekeeping (test and profile screen updates)
+d0968e22 chore/deploy-checklist: batch commit of all staged changes for deployment readiness
+3af40374 docs: add Westhill search diagnostic action plan
+60c6458d docs: add comprehensive Railway deployment verification guide
+ae834ba5 fix: add error logging and no-results feedback to organization search
+6665f83c style: fix import order in stripe-service.ts
+d4e07329 fix: remove 100 athletes from Veteran plan; implement S3 presigned URL signing; fix onboarding auth error handling
+a089808c docs: add modularization status and integration guide
+ddc07e2b refactor: modularize config, logging, and stripe services

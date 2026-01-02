@@ -980,6 +980,8 @@ export default function ManageSeasonScreen() {
     }
   }, [promptModal.visible, promptModal.defaultValue]);
 
+  const nextGame = upcomingGames[0];
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}> 
       {/* Universal Action Modal */}
@@ -1123,15 +1125,31 @@ export default function ManageSeasonScreen() {
         </View>
       )}
 
-      {/* Quick Actions - SIMPLIFIED: Add Event Only */}
+      {/* Quick actions */}
       <View style={[styles.quickActionsCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Pressable 
-          style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={handleAddGame}
-        >
-          <Ionicons name="add-outline" size={20} color="#fff" />
-          <Text style={styles.quickActionText}>Add Event</Text>
-        </Pressable>
+        <View style={styles.quickActions}>
+          <Pressable 
+            style={[styles.quickActionButton, { backgroundColor: Colors[colorScheme].tint }]}
+            onPress={handleAddGame}
+          >
+            <Ionicons name="add-outline" size={18} color="#fff" />
+            <Text style={styles.quickActionText}>Quick Add</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.quickActionButton, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB' }]}
+            onPress={() => setShowAddGameModal(true)}
+          >
+            <Ionicons name="create-outline" size={18} color={colorScheme === 'dark' ? '#E5E7EB' : '#111827'} />
+            <Text style={[styles.quickActionText, { color: colorScheme === 'dark' ? '#E5E7EB' : '#111827' }]}>Full Event</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.quickActionButton, { backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#D1FAE5' }]}
+            onPress={() => setShowBulkScheduleModal(true)}
+          >
+            <Ionicons name="cloud-upload-outline" size={18} color={Colors[colorScheme].tint} />
+            <Text style={[styles.quickActionText, { color: Colors[colorScheme].tint }]}>Bulk Import</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Season snapshot */}
@@ -1156,6 +1174,8 @@ export default function ManageSeasonScreen() {
           {[
             { label: 'Wins', value: seasonStats.wins },
             { label: 'Losses', value: seasonStats.losses },
+            { label: 'Games', value: seasonStats.totalGames },
+            { label: 'Next', value: nextGame ? nextGame.opponent ?? 'TBD' : 'TBD' },
           ].map((stat) => (
             <View key={stat.label} style={styles.statItem}>
               <Text style={styles.statNumber}>{stat.value}</Text>
@@ -1163,6 +1183,14 @@ export default function ManageSeasonScreen() {
             </View>
           ))}
         </View>
+        {nextGame && (
+          <View style={styles.nextGamePill}>
+            <Ionicons name="location-outline" size={14} color="#fff" />
+            <Text style={styles.nextGameText}>
+              Next: {nextGame.opponent} • {nextGame.date} @ {nextGame.time}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Tab controls */}
@@ -1811,6 +1839,22 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textTransform: 'uppercase',
   },
+  nextGamePill: {
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+  },
+  nextGameText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   quickActionsCard: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -1819,9 +1863,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   quickActions: {
+    flexDirection: 'row',
     gap: 12,
   },
   quickActionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,

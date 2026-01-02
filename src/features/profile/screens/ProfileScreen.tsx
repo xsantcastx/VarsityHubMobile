@@ -151,6 +151,14 @@ export default function ProfileScreen() {
         }} 
       />
 
+      {/* Back Button: Always show at top left */}
+      <View style={{ position: 'absolute', top: insets.top + 8, left: 8, zIndex: 20 }}>
+        <Pressable onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', padding: 6 }} accessibilityLabel="Go back">
+          <Ionicons name="chevron-back" size={28} color={theme.tint} />
+          <Text style={{ color: theme.tint, fontSize: 17, fontWeight: '600', marginLeft: 2 }}>Back</Text>
+        </Pressable>
+      </View>
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: Math.max(24, insets.bottom + 16) }}

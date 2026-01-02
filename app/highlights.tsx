@@ -162,9 +162,27 @@ const HighlightCard = React.memo(({
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, marginBottom: 18 }]} onPress={() => onPress(item)}>
       {/* Numbered Ranking Badge - always inside card, never overlapping */}
-      {showNumberedRank && (
-        <View style={[styles.numberBadge, { position: 'relative', top: 12, left: 12, marginBottom: 8 }]}> 
-          <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+      {/* Subtle Top 10 Badge (non-invasive) */}
+      {currentTab === 'top' && index < 10 && (
+        <View style={{
+          position: 'absolute',
+          top: 10,
+          left: 10,
+          backgroundColor: 'rgba(0,0,0,0.10)',
+          borderRadius: 8,
+          paddingHorizontal: 7,
+          paddingVertical: 2,
+          zIndex: 10,
+        }}>
+          <Text style={{
+            fontWeight: '700',
+            fontSize: 13,
+            // Metallic gold gradient effect (fallback to gold if not supported)
+            color: '#FFD700', // Gold
+            textShadowColor: '#B8860B',
+            textShadowOffset: { width: 0, height: 1 },
+            textShadowRadius: 2,
+          }}>#{index + 1}</Text>
         </View>
       )}
       <View style={styles.cardContainer}>
@@ -259,10 +277,25 @@ const HighlightCard = React.memo(({
           <View style={styles.statsRow}>
             <Pressable 
               style={[styles.actionButton, { backgroundColor: actionButtonBg, borderColor: actionButtonBorder }]}
-              onPress={(e) => {
+              onPress={async (e) => {
                 e.stopPropagation();
-                // Handle upvote action
-                Alert.alert('Upvote', 'Feature coming soon!');
+                if (item.id == null) return;
+                // Optimistic UI update
+                try {
+                  // @ts-ignore legacy export shape
+                  const r = await (await import('@/api/entities')).Post.toggleUpvote(item.id);
+                  // Update upvotes_count and has_upvoted on the item
+                  if (typeof r === 'object' && (typeof r.count === 'number' || typeof r.upvotes_count === 'number')) {
+                    item.upvotes_count = typeof r.count === 'number' ? r.count : r.upvotes_count;
+                  } else {
+                    // fallback: increment/decrement
+                    item.upvotes_count = (item.upvotes_count || 0) + 1;
+                  }
+                  // Optionally, you could trigger a re-render by updating state in parent if needed
+                } catch (err) {
+                  console.error('Upvote failed', err);
+                  Alert.alert('Upvote Failed', 'Could not upvote this post. Please try again.');
+                }
               }}
             >
               <Ionicons name="arrow-up" size={20} color={upvoteColor} />
@@ -626,12 +659,20 @@ export default function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}> 
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-      
+
+      {/* Back Button */}
+      <View style={styles.backButtonContainer}>
+        <Pressable onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center' }} accessibilityLabel="Go back">
+          <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].tint} />
+          <Text style={{ color: Colors[colorScheme].tint, fontSize: 17, fontWeight: '600', marginLeft: 2 }}>Back</Text>
+        </Pressable>
+      </View>
+
       {/* Bold Title Right Under Dynamic Island */}
-      <View style={[styles.titleContainer, { backgroundColor: Colors[colorScheme].background }]}>
+      <View style={[styles.titleContainer, { backgroundColor: Colors[colorScheme].background }]}> 
         <Text style={[styles.boldTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
       </View>
       

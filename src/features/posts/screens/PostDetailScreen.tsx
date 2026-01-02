@@ -22,6 +22,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
+import PinPointIcon from '@/components/PinPointIcon';
 import { useShareLink } from '@/hooks/useShareLink';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -69,7 +70,7 @@ export default function PostDetailScreen() {
   const statMutedColor = colorScheme === 'dark' ? '#CBD5F5' : '#6B7280';
   
   // Parse params for multi-post navigation
-  const postIdsArray = params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
+  const [postIdsArray, setPostIdsArray] = useState<string[]>(params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : []);
   const initialIndex = params.index ? parseInt(params.index, 10) : 0;
   
   // State for current post in swipe sequence
@@ -205,6 +206,17 @@ export default function PostDetailScreen() {
       setLoading(false);
     }
   }, [currentPostId]);
+
+
+  // If only a single post, try to fetch adjacent post IDs for swipe
+  useEffect(() => {
+    if (postIdsArray.length === 1 && post?.id) {
+      // Example: fetch previous/next post IDs (pseudo-code, replace with real API if available)
+      // This is a placeholder. You should implement real logic to fetch adjacent post IDs.
+      // For now, just keep the single post.
+      setPostIdsArray([post.id]);
+    }
+  }, [post?.id]);
 
   useEffect(() => {
     void load();
@@ -477,7 +489,8 @@ export default function PostDetailScreen() {
         </View>
 
         {/* Primary Content Card */}
-        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+        <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}> 
+          {/* ...existing code... */}
           {post.title ? (
             <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{post.title}</Text>
           ) : null}
@@ -565,7 +578,7 @@ export default function PostDetailScreen() {
           </View>
 
           {/* Stats & Actions */}
-          <View style={[styles.compactActions, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}>
+          <View style={[styles.compactActions, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].surface }]}> 
             <Pressable
               style={[styles.compactActionButton, voting && styles.statDisabled]}
               onPress={onUpvote}
@@ -613,12 +626,19 @@ export default function PostDetailScreen() {
               />
             </Pressable>
 
-            <Pressable 
+            {/* Pin-to-Event Button (icon only, next to share) */}
+            <Pressable
               style={styles.compactActionButton}
-              onPress={onShareOptions}
+              onPress={() => {
+                if (eventId) {
+                  onOpenEvent();
+                } else {
+                  Alert.alert('No Event', 'This post is not linked to an event.');
+                }
+              }}
               hitSlop={6}
             >
-              <Ionicons name="share-outline" size={20} color={actionIconColor} />
+              <PinPointIcon size={18} />
             </Pressable>
           </View>
         </View>
@@ -771,31 +791,27 @@ export default function PostDetailScreen() {
       )}
 
       {/* Horizontal Swipe FlatList for Multiple Posts */}
-      {hasMultiplePosts ? (
-        <FlatList
-          ref={flatListRef}
-          data={postIdsArray}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item}
-          initialScrollIndex={initialIndex}
-          getItemLayout={(data, index) => ({
-            length: SCREEN_WIDTH,
-            offset: SCREEN_WIDTH * index,
-            index,
-          })}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-          renderItem={() => (
-            <View style={{ width: SCREEN_WIDTH }}>
-              {renderPostContent()}
-            </View>
-          )}
-        />
-      ) : (
-        renderPostContent()
-      )}
+      <FlatList
+        ref={flatListRef}
+        data={postIdsArray}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item}
+        initialScrollIndex={initialIndex}
+        getItemLayout={(data, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        renderItem={() => (
+          <View style={{ width: SCREEN_WIDTH }}>
+            {renderPostContent()}
+          </View>
+        )}
+      />
 
       {/* Edit Comment Modal */}
       <Modal

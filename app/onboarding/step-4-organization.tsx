@@ -658,9 +658,17 @@ export default function Step4Organization() {
                 placeholder="Start typing an address, school, or city" 
                 autoCapitalize="words"
                 autoCorrect={false}
+                testID="location-input"
               />
               {locationQuerying && (
                 <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
+              )}
+              {(locationTouched || locationQuerying) && (
+                <View style={styles.locationDebug}>
+                  <Text style={styles.locationDebugText}>
+                    {locationQuerying ? 'Fetching suggestions…' : `Suggestions: ${locationSuggestions.length}`}
+                  </Text>
+                </View>
               )}
               {locationSuggestions.length > 0 && (
                 <ScrollView 
@@ -915,6 +923,18 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginBottom: 8,
     zIndex: 100,
   },
+  locationDebug: {
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.10)',
+  },
+  locationDebugText: {
+    fontSize: 12,
+    color: colorScheme === 'dark' ? '#BFDBFE' : '#1D4ED8',
+  },
   locationSpinner: {
     position: 'absolute',
     right: 12,
@@ -934,6 +954,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     overflow: 'hidden',
     zIndex: 1000,
     maxHeight: 250,
+    elevation: 6, // ensure visibility over other content (Android)
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: colorScheme === 'dark' ? 0.4 : 0.2,
+    shadowRadius: 8,
   },
   locationSuggestionItem: {
     paddingVertical: 10,
