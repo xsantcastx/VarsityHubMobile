@@ -171,6 +171,23 @@ export default function ProfileScreen() {
               contentFit="cover"
             />
           )}
+          {/* Background Image Upload Button */}
+          <Pressable
+            testID="background-upload-button"
+            style={{
+              position: 'absolute',
+              right: 16,
+              bottom: 16,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              borderRadius: 20,
+              padding: 8,
+              zIndex: 10,
+            }}
+            accessibilityRole="button"
+            onPress={() => {/* TODO: Implement background upload logic */}}
+          >
+            <Ionicons name="image-outline" size={20} color="#fff" />
+          </Pressable>
         </View>
 
         {/* Profile Content */}

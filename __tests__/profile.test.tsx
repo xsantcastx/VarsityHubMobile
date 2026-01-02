@@ -6,7 +6,7 @@
 import { User } from '@/api/entities';
 import uploadFile from '@/api/upload';
 import ProfileScreen from '@/app/profile';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert } from 'react-native';
@@ -45,6 +45,8 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: any) => children,
   useSafeAreaInsets: () => ({ bottom: 0, top: 0, left: 0, right: 0 }),
 }));
+
+const renderProfile = () => render(<ProfileScreen />);
 
 describe('ProfileScreen', () => {
   const mockUser = {
@@ -130,14 +132,14 @@ describe('ProfileScreen', () => {
 
   describe('Profile Loading', () => {
     it('should render loading skeleton initially', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.me).toHaveBeenCalled();
       });
     });
 
     it('should load user profile data', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.me).toHaveBeenCalled();
       });
@@ -149,7 +151,7 @@ describe('ProfileScreen', () => {
         message: 'Unauthorized',
       });
 
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(screen.getByText(/unauthorized/i)).toBeTruthy();
       });
@@ -160,7 +162,7 @@ describe('ProfileScreen', () => {
         message: 'Network error',
       });
 
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(screen.getByText(/network error/i)).toBeTruthy();
       });
@@ -169,14 +171,14 @@ describe('ProfileScreen', () => {
 
   describe('Posts Tab', () => {
     it('should render posts in grid layout', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.postsForProfile).toHaveBeenCalled();
       });
     });
 
     it('should load first page of posts', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.postsForProfile).toHaveBeenCalledWith('123', expect.any(Object));
       });
@@ -195,7 +197,7 @@ describe('ProfileScreen', () => {
           counts: { posts: 10, likes: 50, comments: 20, reposts: 5, saves: 10 },
         });
 
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.postsForProfile).toHaveBeenCalledTimes(2);
       });
@@ -207,7 +209,7 @@ describe('ProfileScreen', () => {
         nextCursor: null,
       });
 
-      render(<ProfileScreen />);
+      await renderProfile();
       await waitFor(() => {
         expect(User.postsForProfile).toHaveBeenCalled();
       });
@@ -216,7 +218,7 @@ describe('ProfileScreen', () => {
 
   describe('Interactions Tab', () => {
     it('should render interactions in masonry layout', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       
       // Switch to upvotes tab
       const upvotesTab = await screen.findByText(/upvotes/i);
@@ -228,7 +230,7 @@ describe('ProfileScreen', () => {
     });
 
     it('should load first page of interactions', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       
       const upvotesTab = await screen.findByText(/upvotes/i);
       fireEvent.press(upvotesTab);
@@ -239,7 +241,7 @@ describe('ProfileScreen', () => {
     });
 
     it('should filter interactions by type', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
       
       const upvotesTab = await screen.findByText(/upvotes/i);
       fireEvent.press(upvotesTab);
@@ -263,7 +265,7 @@ describe('ProfileScreen', () => {
         nextCursor: null,
       });
 
-      render(<ProfileScreen />);
+      await renderProfile();
       
       const upvotesTab = await screen.findByText(/upvotes/i);
       fireEvent.press(upvotesTab);
@@ -276,7 +278,7 @@ describe('ProfileScreen', () => {
 
   describe('Avatar Upload', () => {
     it('should show disabled avatar button when no story', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
 
       await waitFor(() => expect(User.me).toHaveBeenCalled());
 
@@ -287,8 +289,7 @@ describe('ProfileScreen', () => {
 
   describe('Background Image Upload', () => {
     it('should render background edit button', async () => {
-      render(<ProfileScreen />);
-
+      await renderProfile();
       const bgButton = await screen.findByTestId('background-upload-button');
       expect(bgButton).toBeTruthy();
     });
@@ -296,7 +297,7 @@ describe('ProfileScreen', () => {
 
   describe('Memory Management', () => {
     it('should prevent state updates after unmount', async () => {
-      const { unmount } = render(<ProfileScreen />);
+      const { unmount } = await renderProfile();
 
       const avatarButton = await screen.findByTestId('avatar-upload-button');
       fireEvent.press(avatarButton);
@@ -316,7 +317,7 @@ describe('ProfileScreen', () => {
 
   describe('Tab Switching', () => {
     it('should load posts when switching to posts tab', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
 
       // Start on posts tab
       await waitFor(() => {
@@ -347,7 +348,7 @@ describe('ProfileScreen', () => {
     });
 
     it('should refresh data when focusing tab', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
 
       await waitFor(() => {
         expect(User.postsForProfile).toHaveBeenCalled();
@@ -360,7 +361,7 @@ describe('ProfileScreen', () => {
 
   describe('Accessibility', () => {
     it('should have accessible avatar button', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
 
       await waitFor(() => {
         const avatarButton = screen.getByTestId?.('avatar-upload-button');
@@ -369,7 +370,7 @@ describe('ProfileScreen', () => {
     });
 
     it('should have accessible tab buttons', async () => {
-      render(<ProfileScreen />);
+      await renderProfile();
 
       await waitFor(() => {
         expect(screen.getByText(/posts/i)).toBeTruthy();
