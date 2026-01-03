@@ -67,6 +67,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
+  const attemptedOnboardingSyncRef = React.useRef(false);
 
   const ONBOARDING_COMPLETE_KEY = '@onboarding_completed_once';
   
@@ -185,15 +186,27 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
-        // ALWAYS sync local flag with server truth
+        // Sync onboarding flag (prefer server true; fall back to local true if server missing/false)
         const serverComplete = me?.preferences?.onboarding_completed === true;
-        if (serverComplete && !hasCompletedOnboarding) {
+        if (serverComplete) {
+          if (!hasCompletedOnboarding) {
+            setHasCompletedOnboarding(true);
+            await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+          }
+        } else if (hasCompletedOnboarding) {
+          // Local says complete but server missing/false – trust local to avoid re-onboarding loops
+          // Best-effort patch to server once per session
+          if (!attemptedOnboardingSyncRef.current) {
+            attemptedOnboardingSyncRef.current = true;
+            try {
+              await User.updatePreferences({ onboarding_completed: true });
+              me.preferences = { ...(me.preferences || {}), onboarding_completed: true };
+            } catch (err) {
+              console.warn('[Auth] Failed to resync onboarding_completed to server:', err);
+            }
+          }
           setHasCompletedOnboarding(true);
-          await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
-        } else if (!serverComplete && hasCompletedOnboarding) {
-          // Server says incomplete but local says complete - trust server, clear local
-          setHasCompletedOnboarding(false);
-          await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
+          me.preferences = { ...(me.preferences || {}), onboarding_completed: true };
         }
 
         // Setup push notifications after successful auth
@@ -219,6 +232,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       setUser(null);
       setPendingVerificationEmail(null);
       setHasCompletedOnboarding(false);
+      attemptedOnboardingSyncRef.current = false;
       await AsyncStorage.removeItem(ONBOARDING_COMPLETE_KEY);
       lastPushRegistrationRef.current = null;
       router.replace('/sign-in');

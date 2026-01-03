@@ -14,8 +14,10 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
+
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { ThemeProvider } from '@/shared/hooks/useCustomColorScheme';
+import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+
 import { initSentry } from '@/utils/sentry';
 
 const devLog = (...args: unknown[]) => {
@@ -152,9 +154,9 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <GestureHandlerRootView style={{ flex: 1 }}>
           <AuthProvider navReady={!!navState?.key}>
             <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
               <OfflineBanner />
@@ -199,9 +201,9 @@ export default function RootLayout() {
               <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
             </NavigationThemeProvider>
           </AuthProvider>
-        </ThemeProvider>
-      </GestureHandlerRootView>
-    </ErrorBoundary>
+        </GestureHandlerRootView>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }
 

@@ -42,26 +42,54 @@ billingRouter.post('/checkout/create-session', async (req: AuthedRequest, res) =
     const email = user?.email;
     const veteranPrice = process.env.STRIPE_PRICE_VETERAN || process.env.STRIPE_VETERAN_PRICE_ID;
     const legendPrice = process.env.STRIPE_PRICE_LEGEND || process.env.STRIPE_LEGEND_PRICE_ID;
-    if (!veteranPrice || !legendPrice) {
+    if (!veteranPrice) {
       return res.status(500).json({ error: 'Missing price IDs' });
     }
 
-    let priceId = plan === 'veteran' ? veteranPrice : legendPrice;
-    let quantity = 1;
-    if (plan === 'veteran') {
-      const totalTeams = Number(team_count) || 0;
-      const billable = Math.max(0, totalTeams - 2);
-      if (billable === 0) {
-        return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
-      }
-      quantity = billable;
+    // Legend should be a one-time annual charge to avoid Stripe's monthly breakdown text
+    if (plan === 'legend') {
+      const session = await stripe.checkout.sessions.create({
+        customer_email: email || undefined,
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: 1999, // $19.99 annual (one-time)
+              product_data: {
+                name: 'Legend Plan',
+                description: 'Annual access for unlimited teams (one-time charge)',
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-cancel`,
+        metadata: {
+          user_id: req.user.id,
+          plan,
+          team_count: team_count || '0',
+          team_count_total: team_count || '0',
+        },
+      });
+      return res.json({ session_id: session.id, url: session.url });
+    }
+
+    // Veteran remains a subscription
+    const priceId = veteranPrice;
+    const totalTeams = Number(team_count) || 0;
+    const billable = Math.max(0, totalTeams - 2);
+    if (billable === 0) {
+      return res.status(400).json({ error: 'Select at least one billable team (3 total) to use Veteran plan' });
     }
 
     const session = await stripe.checkout.sessions.create({
       customer_email: email || undefined,
       mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [ { price: priceId, quantity } ],
+      line_items: [ { price: priceId, quantity: billable } ],
       success_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:8081'}/payment-cancel`,
       metadata: {

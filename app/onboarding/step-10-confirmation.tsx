@@ -66,14 +66,14 @@ export default function Step10Confirmation() {
       {
         label: 'Plan Selected',
         completed: !!ob.plan,
-        required: isCoach, // Only required for coaches
+        required: false, // No longer required for coaches
         route: '/onboarding/step-3-plan',
         description: 'Choose your subscription plan (coaches only)'
       },
       {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
-        required: isCoach, // Only required for coaches
+        required: false, // No longer required for coaches
         route: '/onboarding/step-4-organization',
         description: 'Create your team or organization page (coaches only)'
       },
@@ -134,8 +134,7 @@ export default function Step10Confirmation() {
   };
 
   const onComplete = async () => {
-    // Allow users to complete onboarding even if optional steps aren't done
-    // Just warn them about incomplete required steps
+    // Allow users to complete onboarding even if required steps aren't done
     if (!completion.allRequiredComplete) {
       const incompleteSteps = completion.checks
         .filter(check => check.required && !check.completed)
@@ -144,15 +143,14 @@ export default function Step10Confirmation() {
       
       Alert.alert(
         'Setup Incomplete', 
-        `The following required steps are incomplete: ${incompleteSteps}. You can still complete these later in settings.`,
+        `The following required steps are incomplete: ${incompleteSteps}. You can finish onboarding now and complete these later in Settings.`,
         [
-          { text: 'Complete Later', onPress: () => proceedWithCompletion(), style: 'default' },
+          { text: 'Finish Onboarding', onPress: () => proceedWithCompletion(), style: 'default' },
           { text: 'Go Back', style: 'cancel' }
         ]
       );
       return;
     }
-
     await proceedWithCompletion();
   };
 
@@ -332,11 +330,7 @@ export default function Step10Confirmation() {
                   ]}>
                     {check.label}
                   </Text>
-                  {check.required && !check.completed && (
-                    <View style={styles.requiredBadge}>
-                      <Text style={styles.requiredBadgeText}>Required</Text>
-                    </View>
-                  )}
+                  {/* No more Required badge for coaches, just show incomplete */}
                   {!check.completed && (
                     <Ionicons 
                       name="chevron-forward" 
@@ -400,7 +394,7 @@ export default function Step10Confirmation() {
           <View style={styles.warningCard}>
             <Ionicons name="warning" size={20} color={colorScheme === 'dark' ? '#ef4444' : '#DC2626'} />
             <Text style={styles.warningText}>
-              Some required setup steps are incomplete. Please finish these before completing onboarding.
+              Some required setup steps are incomplete. You can finish onboarding now and complete these later in Settings.
             </Text>
           </View>
         )}
@@ -410,11 +404,11 @@ export default function Step10Confirmation() {
           <PrimaryButton 
             label={completing ? 'Completing Setup...' : 'Complete Setup'} 
             onPress={onComplete} 
-            disabled={completing || !completion.allRequiredComplete} 
+            disabled={completing} 
             loading={completing} 
           />
           <Text style={styles.completeHelpText}>
-            You'll be taken to your dashboard after completing setup
+            You can finish any missing steps later in Settings. You'll be taken to your dashboard after completing setup.
           </Text>
         </View>
     </OnboardingLayout>

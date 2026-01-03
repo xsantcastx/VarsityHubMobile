@@ -648,7 +648,7 @@ export default function Step4Organization() {
               </>
             )}
 
-        {!showSearch && (
+        {!showSearch && !showTypePicker && (
           <>
             <Text style={styles.label}>Location</Text>
             <View style={styles.locationFieldWrapper}>
@@ -671,32 +671,28 @@ export default function Step4Organization() {
                 </View>
               )}
               {locationSuggestions.length > 0 && (
-                <ScrollView 
-                  style={styles.locationSuggestionList}
-                  scrollEnabled={true}
-                  nestedScrollEnabled={true}
-                  showsVerticalScrollIndicator={false}
-                >
+                <View style={styles.dropdownMenu}>
                   {locationSuggestions.map((suggestion, index) => (
                     <Pressable
                       key={suggestion.place_id}
                       style={[
-                        styles.locationSuggestionItem,
-                        index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
+                        styles.dropdownItem,
+                        index === 0 && styles.dropdownItemFirst,
+                        index === locationSuggestions.length - 1 && styles.dropdownItemLast,
                       ]}
                       onPress={() => handleSelectLocation(suggestion)}
                     >
-                      <Text style={styles.locationSuggestionMain}>
+                      <Text style={styles.dropdownMainText}>
                         {suggestion.structured_formatting?.main_text || suggestion.description}
                       </Text>
                       {suggestion.structured_formatting?.secondary_text ? (
-                        <Text style={styles.locationSuggestionSecondary}>
+                        <Text style={styles.dropdownSecondaryText}>
                           {suggestion.structured_formatting.secondary_text}
                         </Text>
                       ) : null}
                     </Pressable>
                   ))}
-                </ScrollView>
+                </View>
               )}
             </View>
             {!selectedPlace && locationTouched && (
@@ -941,42 +937,47 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     top: 12,
     zIndex: 10,
   },
-  locationSuggestionList: {
+  dropdownMenu: {
     position: 'absolute',
-    top: 44 + 6, // input height + marginTop
+    top: 48,
     left: 0,
     right: 0,
-    marginTop: 0,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors[colorScheme].border,
-    borderRadius: 12,
-    backgroundColor: Colors[colorScheme].surface,
-    overflow: 'hidden',
-    zIndex: 1000,
-    maxHeight: 250,
-    elevation: 6, // ensure visibility over other content (Android)
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: colorScheme === 'dark' ? 0.4 : 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
     shadowRadius: 8,
+    elevation: 4,
+    zIndex: 100,
+    maxHeight: 200,
   },
-  locationSuggestionItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors[colorScheme].border,
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  locationSuggestionItemLast: {
+  dropdownItemFirst: {
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+  },
+  dropdownItemLast: {
     borderBottomWidth: 0,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
   },
-  locationSuggestionMain: {
-    fontSize: 15,
+  dropdownMainText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: Colors[colorScheme].text,
+    color: '#222',
   },
-  locationSuggestionSecondary: {
+  dropdownSecondaryText: {
     fontSize: 13,
-    color: Colors[colorScheme].mutedText,
+    color: '#6B7280',
     marginTop: 2,
   },
   inputHelperText: {

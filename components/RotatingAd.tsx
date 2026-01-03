@@ -132,16 +132,12 @@ export function RotatingAd({
             }
           }}
         >
-          <Ionicons name="megaphone-outline" size={48} color={Colors[colorScheme].tint} />
-          <Text style={[styles.reserveTitle, { color: Colors[colorScheme].text }]}> 
-            Reserve Ad Space
-          </Text>
-          <Text style={[styles.reserveSubtitle, { color: Colors[colorScheme].mutedText }]}> 
-            Promote your business to local athletes and fans
-          </Text>
-          <View style={[styles.reserveCta, { backgroundColor: Colors[colorScheme].tint }]}> 
-            <Text style={styles.reserveCtaText}>Book Now</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+          <Ionicons name="megaphone-outline" size={56} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
+          <Text style={[styles.reserveTitle, { color: Colors[colorScheme].text, fontSize: 22, fontWeight: 'bold', marginBottom: 4 }]}>Host Your Ad Here</Text>
+          <Text style={[styles.reserveSubtitle, { color: Colors[colorScheme].mutedText, fontSize: 15, marginBottom: 12 }]}>Reach athletes, coaches, parents, and fans in your area.</Text>
+          <View style={[styles.reserveCta, { backgroundColor: Colors[colorScheme].tint, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24 }]}> 
+            <Text style={[styles.reserveCtaText, { color: '#fff', fontWeight: '600', fontSize: 16 }]}>Start Hosting</Text>
+            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 6 }} />
           </View>
         </Pressable>
       </View>

@@ -66,19 +66,16 @@ export function BannerUpload({
         );
         return;
       }
-
       // Launch picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: false, // Allow full image without cropping
+        allowsEditing: false,
         quality: 0.9,
         exif: false,
         allowsMultipleSelection: false,
       });
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        
         // Validate image size (max 5MB)
         const response = await fetch(asset.uri);
         const blob = await response.blob();
@@ -89,16 +86,17 @@ export function BannerUpload({
           );
           return;
         }
-
-        // Update with selected image
         onChange(asset.uri, fitMode, position, rotation, scale);
+      } else {
+        Alert.alert('No Image Selected', 'Please select an image to upload.');
       }
     } catch (error: any) {
-      // iOS Simulator has known issues loading PNGs - suppress on simulator
       const isSimulator = error?.message?.includes('public.png') || error?.message?.includes('Cannot load representation');
       if (!isSimulator) {
         console.error('Image picker error:', error);
-        Alert.alert('Error', 'Failed to pick image. Please try again.');
+        Alert.alert('Error', 'Failed to pick image. Please try again or use a real device.');
+      } else {
+        Alert.alert('Simulator Limitation', 'Image upload may not work on iOS Simulator. Please test on a real device.');
       }
     } finally {
       setUploading(false);

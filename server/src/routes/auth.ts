@@ -1009,17 +1009,17 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   // Validate coach-specific requirements
   if (data.role === 'coach') {
+    // Previously enforced organization/team and paid plan before completion.
+    // Allow completion to proceed even if these are missing so users are not blocked.
+    // Downstream flows (settings/billing) can require plan/teams when needed.
     if (!data.organization_id && !data.team_id) {
-      return res.status(400).json({ 
-        error: 'Coaches must create an organization or team before completing onboarding',
-        missing_fields: ['organization_id', 'team_id']
-      });
+      console.warn('[onboarding] Coach completed without org/team; allowed for now');
     }
-    if (!data.plan || data.plan === 'rookie') {
-      return res.status(400).json({ 
-        error: 'Coaches must select a paid plan (veteran or legend)',
-        current_plan: data.plan || 'none'
-      });
+    if (!data.plan) {
+      console.warn('[onboarding] Coach completed without plan; allowed for now');
+    }
+    if (data.plan === 'rookie') {
+      console.warn('[onboarding] Coach completed with rookie plan; allowed for now');
     }
     // Validate Veteran plan has team_count_total
     if (data.plan === 'veteran') {

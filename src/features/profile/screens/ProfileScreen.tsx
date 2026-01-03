@@ -151,13 +151,7 @@ export default function ProfileScreen() {
         }} 
       />
 
-      {/* Back Button: Always show at top left */}
-      <View style={{ position: 'absolute', top: insets.top + 8, left: 8, zIndex: 20 }}>
-        <Pressable onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', padding: 6 }} accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={28} color={theme.tint} />
-          <Text style={{ color: theme.tint, fontSize: 17, fontWeight: '600', marginLeft: 2 }}>Back</Text>
-        </Pressable>
-      </View>
+
 
       <ScrollView 
         style={styles.scrollView}
@@ -179,22 +173,22 @@ export default function ProfileScreen() {
               contentFit="cover"
             />
           )}
-          {/* Background Image Upload Button */}
+          {/* Settings Wheel Button (top right) */}
           <Pressable
-            testID="background-upload-button"
+            testID="settings-wheel-button"
             style={{
               position: 'absolute',
               right: 16,
-              bottom: 16,
+              top: 16,
               backgroundColor: 'rgba(0,0,0,0.5)',
               borderRadius: 20,
               padding: 8,
               zIndex: 10,
             }}
             accessibilityRole="button"
-            onPress={() => {/* TODO: Implement background upload logic */}}
+            onPress={() => router.push('/settings')}
           >
-            <Ionicons name="image-outline" size={20} color="#fff" />
+            <Ionicons name="settings-outline" size={22} color="#fff" />
           </Pressable>
         </View>
 
@@ -244,12 +238,7 @@ export default function ProfileScreen() {
                   <Text style={[styles.editButtonText, { color: '#fff', textShadowColor: '#000', textShadowOffset: {width: 0, height: 1}, textShadowRadius: 2 }]}>Edit profile</Text>
                 </Pressable>
               </View>
-              <Pressable 
-                style={[styles.settingsIconButton, { borderColor: '#fff', marginLeft: 16, backgroundColor: 'rgba(0,0,0,0.15)' }]}
-                onPress={() => router.push('/settings')}
-              >
-                <Ionicons name="settings-outline" size={18} color="#fff" />
-              </Pressable>
+              {/* Removed duplicate settings button from profile content area */}
             </View>
           </View>
 

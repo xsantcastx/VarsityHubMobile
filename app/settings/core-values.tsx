@@ -1,2 +1,3 @@
-export { default } from '../core-values';
+import TermsOfServiceScreen from './terms-of-service';
+export default TermsOfServiceScreen;
 

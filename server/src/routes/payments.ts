@@ -198,21 +198,8 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     throw membershipError(400, 'Select at least one billable team (3 total) to use Veteran plan');
   }
 
-  const legendOneTime = chosen === 'legend';
-
-  const lineItems = legendOneTime
-    ? [{
-        quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: 1999,
-          product_data: {
-            name: 'Membership - legend',
-            description: 'Legend plan - $19.99 annual charge (no auto-renew)',
-          },
-        },
-      }]
-    : hasExplicitPriceId
+  const lineItems =
+    hasExplicitPriceId
       ? [{ price: normalizedPriceId, quantity: chosen === 'veteran' ? billableQuantity : 1 }]
       : [{
           quantity: chosen === 'veteran' ? billableQuantity : 1,
@@ -224,7 +211,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
               name: 'Membership - ' + chosen,
               description: chosen === 'veteran'
                 ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-                : 'Legend plan - $20.00/year unlimited (fallback price)',
+                : 'Legend plan - $20.00/year unlimited (renews annually until canceled)',
             },
           },
         }];
@@ -244,7 +231,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
   // Create checkout session configuration
   const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-    mode: legendOneTime ? 'payment' : 'subscription',
+    mode: 'subscription', // keep Legend as recurring annual subscription
     success_url: success,
     cancel_url: cancel,
     line_items: lineItems as any,

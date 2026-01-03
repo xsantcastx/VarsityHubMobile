@@ -128,10 +128,8 @@ const HighlightCard = React.memo(({
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   // Fix: define showNumberedRank and rankNumber for numbered badge logic
   let showNumberedRank = false;
-  let rankNumber = 0;
   if (currentTab === 'top' && Array.isArray(nationalTop) && index < 3) {
     showNumberedRank = true;
-    rankNumber = index + 1;
   }
   // You may want to adjust this logic to match your ranking system
   const hasMedia = !!item.media_url;

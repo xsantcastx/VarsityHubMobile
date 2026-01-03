@@ -155,6 +155,7 @@ export default function CommunityDiscoverScreen() {
   const loadGames = useCallback(async (user: any) => {
     try {
       const gamesData = await Game.list('-date');
+      if (__DEV__) console.log('Loaded games for calendar:', gamesData);
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
       if (zip) {
@@ -169,7 +170,15 @@ export default function CommunityDiscoverScreen() {
       setGames(normalizedGames);
       setZipDirectory(buildZipDirectory(normalizedGames));
     } catch (gameError) {
-      if (__DEV__) console.error('Discover load: failed to fetch games', gameError);
+      if (__DEV__) {
+        console.error('Discover load: failed to fetch games', gameError);
+        if (gameError?.response) {
+          console.error('API response:', gameError.response);
+        }
+        if (gameError?.message) {
+          console.error('API error message:', gameError.message);
+        }
+      }
       setError('Unable to load events right now. Pull to refresh to retry.');
       setGames([]);
       setZipDirectory([]);
@@ -810,9 +819,7 @@ export default function CommunityDiscoverScreen() {
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>
-          Quick Actions {__DEV__ && me?.preferences?.role && `(${me.preferences.role})`}
-        </Text>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
           {me?.preferences?.role === 'coach' ? (

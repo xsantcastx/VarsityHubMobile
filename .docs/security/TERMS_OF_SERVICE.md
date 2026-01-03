@@ -178,7 +178,7 @@ We are not liable for delays or failures due to causes beyond our control.
 
 For questions about these Terms:
 
-**Email**: support@varsityhub.com  
+**Email**: customerservice@varsityhub.app  
 **Website**: https://varsityhub.com  
 **Mail**: [Your Business Address]
 

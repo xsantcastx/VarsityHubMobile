@@ -254,7 +254,7 @@ export default function SignInScreen() {
               />
             </View>
             <Text style={[styles.title, { color: palette.text }]}>Welcome back</Text>
-            <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to keep your community in sync.</Text>
+            <Text style={[styles.subtitle, { color: palette.mutedText }]}>Sign in to see the latest highlights nationwide.</Text>
           </View>
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 0, // Remove extra space below header
   },
   logoContainer: {
     width: 168,
@@ -417,6 +417,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     marginTop: 8,
+    marginBottom: 4, // Reduce gap below subtitle
     lineHeight: 22,
     maxWidth: 280,
   },

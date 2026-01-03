@@ -13,5 +13,9 @@ if (typeof (global as any).__extends !== 'function') {
   };
 }
 
+import { Slot } from 'expo-router';
 import './sentry';
-export { default } from 'expo-router/entry';
+
+export default function App() {
+  return <Slot />;
+}
