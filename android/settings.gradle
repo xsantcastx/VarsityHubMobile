@@ -1,9 +1,11 @@
 pluginManagement {
+  includeBuild("$rootDir/../node_modules/expo-modules-core/expo-module-gradle-plugin")
   repositories {
     gradlePluginPortal()
     google()
     mavenCentral()
   }
+
   def reactNativeGradlePlugin = new File(
     providers.exec {
       workingDir(rootDir)
@@ -11,31 +13,16 @@ pluginManagement {
     }.standardOutput.asText.get().trim()
   ).getParentFile().absolutePath
   includeBuild(reactNativeGradlePlugin)
-  
-  def expoPluginsPath = new File(
-    providers.exec {
-      workingDir(rootDir)
-      commandLine("node", "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
-    }.standardOutput.asText.get().trim(),
-    "../android/expo-gradle-plugin"
-  ).absolutePath
-  includeBuild(expoPluginsPath)
 }
 
 plugins {
   id("com.facebook.react.settings")
-  id("expo-autolinking-settings")
 }
 
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
-    ex.autolinkLibrariesFromCommand()
-  } else {
-    ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
-  }
+reactSettings {
+  // Generate autolinking config via React Native CLI
+  autolinkLibrariesFromCommand()
 }
-expoAutolinking.useExpoModules()
-expoAutolinking.useExpoVersionCatalog()
 
 dependencyResolutionManagement {
   // EAS/Expo init script injects its own Maven repo; prefer settings instead of failing on project repos.
@@ -49,4 +36,4 @@ dependencyResolutionManagement {
 rootProject.name = 'VarsityHub'
 
 include ':app'
-includeBuild(expoAutolinking.reactNativeGradlePlugin)
+// Removed problematic expoAutolinking reference for JDK 17/Expo SDK 54 compatibility

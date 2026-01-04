@@ -173,6 +173,24 @@ export default function ProfileScreen() {
               contentFit="cover"
             />
           )}
+          {/* Background (cover) upload */}
+          <Pressable
+            testID="background-upload-button"
+            style={{
+              position: 'absolute',
+              left: 16,
+              top: 16,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              borderRadius: 20,
+              padding: 8,
+              zIndex: 10,
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Change cover photo"
+            onPress={() => router.push('/edit-profile')}
+          >
+            <Ionicons name="image-outline" size={20} color="#fff" />
+          </Pressable>
           {/* Settings Wheel Button (top right) */}
           <Pressable
             testID="settings-wheel-button"

@@ -285,7 +285,7 @@ export default function SettingsScreen() {
             <NavRow
               title="Edit Organization & Team"
               subtitle="Update your organization and team info"
-              onPress={() => void router.push('/features/settings/screens/OrganizationTeamScreen')}
+              onPress={() => void router.push('/manage-teams')}
             />
           </SectionCard>
         )}
@@ -295,7 +295,7 @@ export default function SettingsScreen() {
           <NavRow
             title="Manage Subscription"
             subtitle="Manage your subscription and plan"
-            onPress={() => void router.push('/features/settings/screens/BillingScreen')}
+            onPress={() => void router.push('/settings/manage-subscription')}
           />
         </SectionCard>
 
@@ -339,6 +339,8 @@ export default function SettingsScreen() {
         {/* Appearance */}
         <SectionCard title="Appearance" initiallyOpen style={styles.sectionSpacing}>
           <ThemeRow
+            title="Theme"
+            subtitle="Light, dark, or follow system"
             selectedValue={themePreference}
             onValueChange={setThemePreference}
           />
@@ -381,7 +383,6 @@ export default function SettingsScreen() {
 
         {/* Legal - condensed */}
         <SectionCard title="Legal" style={styles.sectionSpacing}>
-          <NavRow title="Terms of Service" subtitle="Rules, privacy, and safety" onPress={() => void router.push('/settings/terms-of-service')} />
           <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
           <NavRow title="Report Abuse" onPress={() => void router.push('/report-abuse')} />
           <NavRow title="DM Restrictions Summary" onPress={() => void router.push('/dm-restrictions')} />

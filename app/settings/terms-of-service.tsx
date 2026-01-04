@@ -1,3 +1,4 @@
+// This file has been removed as per user request to eliminate Terms of Service from the app.
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/shared/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';

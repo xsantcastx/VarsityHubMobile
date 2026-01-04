@@ -15,18 +15,22 @@ export default function OrganizationTeamScreen() {
 
   useEffect(() => {
     // Load current org/team info if available
-    if (user?.organization) setOrgName(user.organization.name || '');
-    if (user?.team) setTeamName(user.team.name || '');
+    const org = (user as any)?.organization;
+    const team = (user as any)?.team;
+    if (org) setOrgName(org.name || '');
+    if (team) setTeamName(team.name || '');
   }, [user]);
 
   const onSave = async () => {
     setSaving(true);
     try {
-      if (orgName && user?.organization?.id) {
-        await Organization.update(user.organization.id, { name: orgName });
+      const org = (user as any)?.organization;
+      const team = (user as any)?.team;
+      if (orgName && org?.id) {
+        await (Organization as any).update(org.id, { name: orgName });
       }
-      if (teamName && user?.team?.id) {
-        await Team.update(user.team.id, { name: teamName });
+      if (teamName && team?.id) {
+        await (Team as any).update(team.id, { name: teamName });
       }
       Alert.alert('Saved', 'Organization and team details updated.');
       router.back();

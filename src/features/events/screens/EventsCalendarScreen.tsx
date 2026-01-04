@@ -1,4 +1,5 @@
-import { Game, User } from '@/api/entities';
+import { Game } from '@/api/entities';
+import { fetchEvents } from '@/api/events';
 import { EmptyState } from '@/components/ui';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -26,53 +27,127 @@ export default function EventsCalendarScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameEvent[]>([]);
-  const [followedTeams, setFollowedTeams] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Load followed teams and their games
   useEffect(() => {
     let mounted = true;
 
+    const sampleEvents = [
+      {
+        id: 'sample-fifa-1',
+        title: 'FIFA World Cup Final',
+        date: '2026-07-12T18:00:00Z',
+        homeTeam: 'Argentina',
+        awayTeam: 'France',
+        location: 'New York Stadium',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-fifa-2',
+        title: 'FIFA eSports Invitational',
+        date: '2026-08-05T20:00:00Z',
+        homeTeam: 'FIFA All Stars',
+        awayTeam: 'eSports United',
+        location: 'Online',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-local-1',
+        title: 'Sample Community Game',
+        date: '2026-01-10T15:00:00Z',
+        homeTeam: 'Sample Team A',
+        awayTeam: 'Sample Team B',
+        location: 'Sample Field',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-jan-1',
+        title: 'January Kickoff',
+        date: '2026-01-04T12:00:00Z',
+        homeTeam: 'New Year FC',
+        awayTeam: 'Resolution United',
+        location: 'Downtown Arena',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-jan-2',
+        title: 'Winter Classic',
+        date: '2026-01-15T18:30:00Z',
+        homeTeam: 'Snow Leopards',
+        awayTeam: 'Ice Wolves',
+        location: 'Frost Stadium',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-jan-3',
+        title: 'MLK Day Tournament',
+        date: '2026-01-20T14:00:00Z',
+        homeTeam: 'Dream Team',
+        awayTeam: 'Unity Squad',
+        location: 'Liberty Park',
+        coverImageUrl: '',
+      },
+      {
+        id: 'sample-jan-4',
+        title: 'January Finale',
+        date: '2026-01-31T19:00:00Z',
+        homeTeam: 'Finales',
+        awayTeam: 'Closers',
+        location: 'Main Field',
+        coverImageUrl: '',
+      },
+    ];
+
     const loadData = async () => {
       setLoading(true);
+      setError(null);
       try {
-        // Get current user's followed teams
-        const me = await User.me();
-        const teams = await User.following(me?.id || '');
-        const teamNames = Array.isArray(teams) ? teams.map((t: any) => t.name) : [];
-        
-        if (!mounted) return;
-        setFollowedTeams(teamNames);
-
-        // Load all games
+        // Load all games (do not filter by teams)
         const allGames = await Game.list();
         const gamesList = Array.isArray(allGames) ? allGames : allGames?.items || [];
-        
-        // Filter games that include followed teams
-        const filteredGames = gamesList
-          .filter((game: any) => {
-            const home = game.home_team || game.homeTeam;
-            const away = game.away_team || game.awayTeam;
-            return teamNames.some(team => 
-              home?.toLowerCase().includes(team.toLowerCase()) || 
-              away?.toLowerCase().includes(team.toLowerCase())
-            );
-          })
-          .map((game: any) => ({
-            id: String(game.id),
-            title: game.title || `${game.home_team || game.homeTeam || 'TBD'} vs ${game.away_team || game.awayTeam || 'TBD'}`,
-            date: game.date,
-            homeTeam: game.home_team || game.homeTeam,
-            awayTeam: game.away_team || game.awayTeam,
-            location: game.location,
-            coverImageUrl: game.cover_image_url || game.banner_url,
-          }));
+        // Map all backend games to GameEvent format
+        const mappedGames = gamesList.map((game: any) => ({
+          id: String(game.id),
+          title: game.title || `${game.home_team || game.homeTeam || 'TBD'} vs ${game.away_team || game.awayTeam || 'TBD'}`,
+          date: game.date,
+          homeTeam: game.home_team || game.homeTeam,
+          awayTeam: game.away_team || game.awayTeam,
+          location: game.location,
+          coverImageUrl: game.cover_image_url || game.banner_url,
+        }));
 
+        // Load all events
+        let mappedEvents: GameEvent[] = [];
+        try {
+          const allEvents = await fetchEvents();
+          mappedEvents = Array.isArray(allEvents)
+            ? allEvents.map((event: any) => ({
+                id: String(event.id),
+                title: event.name || event.title || 'Untitled Event',
+                date: event.date,
+                location: event.location,
+                coverImageUrl: event.coverImageUrl || event.banner_url || '',
+              }))
+            : [];
+        } catch (eventErr) {
+          // If events fail, just skip them
+          console.error('Failed to load events:', eventErr);
+        }
+
+        // Merge all real games, real events, and sample events
+        const mergedEvents = [...mappedGames, ...mappedEvents, ...sampleEvents];
         if (!mounted) return;
-        setGames(filteredGames);
+        setGames(mergedEvents);
+        // Debug: log merged events
+        // eslint-disable-next-line no-console
+        console.log('Merged games+events for calendar:', mergedEvents);
       } catch (err) {
-        console.error('Failed to load calendar data:', err);
+        setError('Could not load events from server. Showing sample events only.');
+        if (!mounted) return;
+        setGames([...sampleEvents]);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,11 +208,11 @@ export default function EventsCalendarScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-        <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
+        <Stack.Screen options={{ title: 'All Events Calendar', headerShown: true }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
-          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}>
-            Loading your team calendar...
+          <Text style={[styles.loadingText, { color: Colors[colorScheme].mutedText }]}> 
+            Loading all events...
           </Text>
         </View>
       </SafeAreaView>
@@ -146,26 +221,13 @@ export default function EventsCalendarScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
-      
+      <Stack.Screen options={{ title: 'All Events Calendar', headerShown: true }} />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Info Banner */}
-        {followedTeams.length === 0 ? (
-          <View style={[styles.infoBanner, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-            <Ionicons name="information-circle-outline" size={24} color={Colors[colorScheme].tint} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.infoTitle, { color: Colors[colorScheme].text }]}>No Teams Followed</Text>
-              <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
-                Follow teams to see their games and events in this calendar.
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <View style={[styles.infoBanner, { backgroundColor: Colors[colorScheme].surface }]}>
-            <Ionicons name="calendar" size={20} color={Colors[colorScheme].tint} />
-            <Text style={[styles.infoText, { color: Colors[colorScheme].mutedText }]}>
-              Showing events for {followedTeams.length} followed {followedTeams.length === 1 ? 'team' : 'teams'}
-            </Text>
+        {/* Error Banner */}
+        {error && (
+          <View style={[styles.infoBanner, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}> 
+            <Ionicons name="alert-circle-outline" size={24} color="#b91c1c" />
+            <Text style={[styles.infoText, { color: '#b91c1c' }]}>{error}</Text>
           </View>
         )}
 
@@ -258,14 +320,14 @@ export default function EventsCalendarScreen() {
             
             {selectedDateGames.length === 0 ? (
               <EmptyState
-                icon="calendar-outline"
-                title="No events on this day"
-                subtitle="Select another date or follow more teams to see their games."
-                style={{
-                  ...styles.emptyStateContainer,
-                  backgroundColor: Colors[colorScheme].surface,
-                } as ViewStyle}
-              />
+                  icon="calendar-outline"
+                  title="No events on this day"
+                  subtitle="Select another date to see more events."
+                  style={{
+                    ...styles.emptyStateContainer,
+                    backgroundColor: Colors[colorScheme].surface,
+                  } as ViewStyle}
+                />
             ) : (
               selectedDateGames.map(game => {
                 const gameTime = game.date ? format(parseISO(game.date), 'h:mm a') : 'TBD';
@@ -326,7 +388,7 @@ export default function EventsCalendarScreen() {
             <EmptyState
               icon="calendar-outline"
               title="No upcoming events"
-              subtitle="Events from your followed teams will appear here."
+              subtitle="No events are scheduled."
               style={{
                 ...styles.emptyStateContainer,
                 backgroundColor: Colors[colorScheme].surface,

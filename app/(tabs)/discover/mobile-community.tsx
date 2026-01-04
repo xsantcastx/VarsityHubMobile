@@ -87,6 +87,7 @@ export default function CommunityDiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const isDark = colorScheme === 'dark';
   const { location: _location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +156,6 @@ export default function CommunityDiscoverScreen() {
   const loadGames = useCallback(async (user: any) => {
     try {
       const gamesData = await Game.list('-date');
-      if (__DEV__) console.log('Loaded games for calendar:', gamesData);
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
       if (zip) {
@@ -727,6 +727,13 @@ export default function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       <View style={styles.calendarSection}>
         <Calendar
+          style={[
+            styles.calendar,
+            {
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border,
+            },
+          ]}
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
           }}
@@ -752,16 +759,16 @@ export default function CommunityDiscoverScreen() {
             return marked;
           }, [games, selectedDate, colorScheme])}
           theme={{
-            backgroundColor: Colors[colorScheme].background,
-            calendarBackground: Colors[colorScheme].background,
-            textSectionTitleColor: Colors[colorScheme].text,
+            backgroundColor: Colors[colorScheme].card,
+            calendarBackground: Colors[colorScheme].card,
+            textSectionTitleColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
             selectedDayBackgroundColor: Colors[colorScheme].tint,
             selectedDayTextColor: Colors[colorScheme].background,
             todayTextColor: Colors[colorScheme].tint,
-            dayTextColor: Colors[colorScheme].text,
-            textDisabledColor: Colors[colorScheme].mutedText,
+            dayTextColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
+            textDisabledColor: isDark ? '#475569' : Colors[colorScheme].mutedText,
             arrowColor: Colors[colorScheme].tint,
-            monthTextColor: Colors[colorScheme].text,
+            monthTextColor: isDark ? '#F8FAFC' : Colors[colorScheme].text,
             textDayFontWeight: '500',
             textMonthFontWeight: '800',
             textDayHeaderFontWeight: '600',
@@ -873,8 +880,8 @@ export default function CommunityDiscoverScreen() {
                 onPress={() => void router.push('/favorites')}
               >
                 <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Teams you follow</Text>
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Favorites</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Posts, highlights you saved</Text>
               </Pressable>
             </>
           )}
@@ -1177,6 +1184,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
+  },
+  calendar: {
+    borderWidth: StyleSheet.hairlineWidth,
   },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 48, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, borderWidth: StyleSheet.hairlineWidth },
   searchInput: { flex: 1, height: 44 },
