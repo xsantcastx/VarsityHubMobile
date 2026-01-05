@@ -8,6 +8,7 @@
     "scheme": "varsityhubmobile",
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
+    "icon": "./assets/images/icon.png",
     "experiments": {
       "typedRoutes": true
     },
@@ -15,6 +16,7 @@
       "runtimeVersion": "1.0.1"
     },
     "ios": {
+      "runtimeVersion": "1.0.1",
       "buildNumber": "11",
       "bundleIdentifier": "com.varsithub.varsityhub-ios"
     },
