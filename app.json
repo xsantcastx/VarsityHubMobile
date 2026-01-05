@@ -18,7 +18,7 @@
     "ios": {
       "runtimeVersion": "1.0.1",
       "buildNumber": "11",
-      "bundleIdentifier": "com.varsithub.varsityhub-ios"
+      "bundleIdentifier": "com.xsantcastx.varsityhub"
     },
     "extra": {
       "router": {},
