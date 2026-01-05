@@ -30,7 +30,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>varsityhubmobile</string>
-          <string>com.varsithub.varsityhub-ios</string>
+          <string>com.xsantcastx.varsityhub</string>
         </array>
       </dict>
       <dict>
@@ -50,27 +50,23 @@
     <dict>
       <key>NSAllowsArbitraryLoads</key>
       <false/>
+      <key>NSAllowsLocalNetworking</key>
+      <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Allow VarsityHub to use the camera for capturing photos and videos.</string>
-    <key>NSFaceIDUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+    <string>Allow $(PRODUCT_NAME) to access your camera</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>VarsityHub needs your location to show nearby events on the map.</string>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow VarsityHub to access the microphone for recording videos.</string>
+    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to save photos</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Allow VarsityHub to access your photos to attach images to posts.</string>
-    <key>NSUserActivityTypes</key>
-    <array>
-      <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
-    </array>
+    <string>Allow $(PRODUCT_NAME) to access your photos</string>
     <key>RCTNewArchEnabled</key>
     <true/>
     <key>UILaunchStoryboardName</key>
@@ -84,13 +80,6 @@
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
     <key>UISupportedInterfaceOrientations</key>
-    <array>
-      <string>UIInterfaceOrientationPortrait</string>
-      <string>UIInterfaceOrientationPortraitUpsideDown</string>
-      <string>UIInterfaceOrientationLandscapeLeft</string>
-      <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
       <string>UIInterfaceOrientationPortrait</string>
       <string>UIInterfaceOrientationPortraitUpsideDown</string>

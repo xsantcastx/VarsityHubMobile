@@ -1,0 +1,9 @@
+{
+  "athleteName": "Lena Harper",
+  "coachName": "Coach Ramirez",
+  "teamName": "Varsity Lions",
+  "acceptLink": "https://varsityhub.app/invite/accept?token=TEAM-12345",
+  "declineLink": "https://varsityhub.app/invite/decline?token=TEAM-12345",
+  "privacyPolicyUrl": "https://limeprod.com/VarsityHubPrivacy",
+  "communityGuidelinesUrl": "https://varsityhub.app/community-guidelines"
+}

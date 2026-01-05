@@ -1,0 +1,9 @@
+{
+  "notice_type": "payment_succeeded",
+  "plan_name": "Veteran Plan",
+  "amount": "$99.00",
+  "manage_url": "https://varsityhub.app/billing",
+  "team_name": "North Shore Tigers",
+  "org_name": "North Shore Athletics",
+  "perks": ["Unlimited staff invites", "Advanced analytics", "Season highlight packages"]
+}

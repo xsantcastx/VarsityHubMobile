@@ -18,7 +18,14 @@
     "ios": {
       "runtimeVersion": "1.0.1",
       "buildNumber": "11",
-      "bundleIdentifier": "com.xsantcastx.varsityhub"
+      "bundleIdentifier": "com.xsantcastx.varsityhub",
+      "usesAppleSignIn": true,
+      "entitlements": {
+        "aps-environment": "production",
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
+      }
     },
     "extra": {
       "router": {},
@@ -40,6 +47,9 @@
       "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
       "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsity-hub/varsityhub-ios"
+    },
+    "android": {
+      "package": "com.xsantcastx.varsityhub"
     }
   }
 }

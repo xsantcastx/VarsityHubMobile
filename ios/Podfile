@@ -1,14 +1,8 @@
 require File.join(File.dirname(`node --print "require.resolve('expo/package.json')"`), "scripts/autolinking")
 require File.join(File.dirname(`node --print "require.resolve('react-native/package.json')"`), "scripts/react_native_pods")
 
-source 'https://cdn.cocoapods.org/'
-
 require 'json'
-ENV['LANG'] ||= 'en_US.UTF-8'
-ENV['LC_ALL'] ||= 'en_US.UTF-8'
-ENV['COCOAPODS_DISABLE_STATS'] ||= 'true'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
-ENV['RCT_NEW_ARCH_ENABLED'] ||= '1'
 
 def ccache_enabled?(podfile_properties)
   # Environment variable takes precedence
@@ -32,10 +26,9 @@ target 'VarsityHub' do
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
-    expo_root = File.dirname(`node --print "require.resolve('expo/package.json')"`).strip
     config_command = [
-      'node',
-      File.join(expo_root, 'bin', 'autolinking'),
+      'npx',
+      'expo-modules-autolinking',
       'react-native-config',
       '--json',
       '--platform',
@@ -63,29 +56,5 @@ target 'VarsityHub' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
-    
-    # Fix duplicate C++ library linking issue
-    # Remove duplicate '-lc++' and other duplicate linker flags
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        config.build_settings['OTHER_LDFLAGS'] ||= "$(inherited)"
-        # Ensure OTHER_LDFLAGS is a string
-        ldflags = config.build_settings['OTHER_LDFLAGS']
-        ldflags = "$(inherited)" if ldflags.nil?
-        
-        # Convert to array, remove duplicates, and rejoin
-        if ldflags.is_a?(Array)
-          unique_flags = ldflags.uniq
-          config.build_settings['OTHER_LDFLAGS'] = unique_flags
-        elsif ldflags.is_a?(String)
-          flags = ldflags.split
-          unique_flags = flags.uniq
-          config.build_settings['OTHER_LDFLAGS'] = unique_flags.join(" ")
-        end
-
-        # Ensure modules are enabled for all pods (prevents Foundation module errors on Xcode 16+)
-        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
-      end
-    end
   end
 end

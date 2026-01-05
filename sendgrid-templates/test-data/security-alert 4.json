@@ -1,0 +1,9 @@
+{
+  "alert_type": "new_device",
+  "ip_address": "104.23.18.42",
+  "location": "Denver, CO, USA",
+  "manage_url": "https://varsityhub.app/settings/security",
+  "secure_account_link": "https://varsityhub.app/settings/security",
+  "change_password_link": "https://varsityhub.app/reset-password",
+  "contact_support_link": "https://varsityhub.app/support"
+}

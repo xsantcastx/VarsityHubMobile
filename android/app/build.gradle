@@ -1,51 +1,8 @@
-import java.io.FileInputStream
-import java.util.Properties
-
-plugins {
-    id "com.android.application"
-    id "org.jetbrains.kotlin.android"
-    id "com.facebook.react"
-}
-
-// Autolinking for React Native/Expo
-apply from: new File(["node", "--print", "require.resolve('expo/scripts/autolinking.gradle')"].execute(null, rootDir).text.trim())
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
-
-def keystoreProperties = new Properties()
-def keystorePropertiesFile = rootProject.file("keystore.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-}
-
-def envOrProp = { key ->
-    return System.getenv(key)
-        ?: (project.hasProperty(key) ? project.property(key) : null)
-        ?: (keystoreProperties.containsKey(key) ? keystoreProperties[key] : null)
-}
-
-def signingValueFor = { List<String> keys ->
-    for (key in keys) {
-        def value = envOrProp(key)
-        if (value) return value
-    }
-    return null
-}
-
-def releaseStoreFile = signingValueFor(["ANDROID_KEYSTORE_FILE", "MYAPP_UPLOAD_STORE_FILE", "storeFile"])
-def releaseStorePassword = signingValueFor(["ANDROID_KEYSTORE_PASSWORD", "MYAPP_UPLOAD_STORE_PASSWORD", "storePassword"])
-def releaseKeyAlias = signingValueFor(["ANDROID_KEY_ALIAS", "MYAPP_UPLOAD_KEY_ALIAS", "keyAlias"])
-def releaseKeyPassword = signingValueFor(["ANDROID_KEY_PASSWORD", "MYAPP_UPLOAD_KEY_PASSWORD", "keyPassword"])
-def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
-
-def resolvedVersionCodeStr = (findProperty('android.versionCode') ?: System.getenv('ANDROID_VERSION_CODE') ?: '10') as String
-def resolvedVersionCodeInt = 10
-try {
-    resolvedVersionCodeInt = Integer.parseInt(resolvedVersionCodeStr)
-} catch (Exception ignored) {
-    println("Invalid android.versionCode '${resolvedVersionCodeStr}', defaulting to 10")
-}
-def resolvedVersionName = (findProperty('android.versionName') ?: System.getenv('ANDROID_VERSION_NAME') ?: "1.0.1") as String
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -102,7 +59,8 @@ react {
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
 
-    // Autolinking handled by React Native Gradle plugin
+    /* Autolinking */
+    autolinkLibrariesWithApp()
 }
 
 /**
@@ -126,18 +84,16 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 android {
     ndkVersion rootProject.ext.ndkVersion
 
-    compileSdkVersion 34
-    buildToolsVersion '34.0.0'
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
 
     namespace 'com.xsantcastx.varsityhub'
     defaultConfig {
         applicationId 'com.xsantcastx.varsityhub'
-        minSdkVersion 24
-        targetSdkVersion 34
-            // Keep native versioning aligned with EAS app build version
-            // Drive from resolvedVersionCodeInt / resolvedVersionName or EAS env
-            versionCode resolvedVersionCodeInt
-            versionName resolvedVersionName
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -148,34 +104,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        release {
-            if (hasReleaseSigning) {
-                storeFile file(releaseStoreFile)
-                storePassword releaseStorePassword
-                keyAlias releaseKeyAlias
-                keyPassword releaseKeyPassword
-            } else {
-                println("No release keystore config found; using debug signing for release builds.")
-                initWith signingConfigs.debug
-            }
-        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Uses release keystore when configured; falls back to debug signing locally.
-            signingConfig signingConfigs.release
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+            signingConfig signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
-                if (!hasReleaseSigning && (System.getenv('CI') == '1' || System.getenv('EAS_BUILD') == '1')) {
-                    throw new GradleException("Release keystore not configured in CI/EAS environment. Set ANDROID_KEYSTORE_FILE/PASSWORD/KEY_ALIAS/KEY_PASSWORD.")
-                }
         }
     }
     packagingOptions {
@@ -216,19 +159,18 @@ dependencies {
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
-    def frescoVersion = "3.6.0"
 
     if (isGifEnabled) {
         // For animated gif support
-        implementation("com.facebook.fresco:animated-gif:${frescoVersion}")
+        implementation("com.facebook.fresco:animated-gif:${expoLibs.versions.fresco.get()}")
     }
 
     if (isWebpEnabled) {
         // For webp support
-        implementation("com.facebook.fresco:webpsupport:${frescoVersion}")
+        implementation("com.facebook.fresco:webpsupport:${expoLibs.versions.fresco.get()}")
         if (isWebpAnimatedEnabled) {
             // Animated webp support
-            implementation("com.facebook.fresco:animated-webp:${frescoVersion}")
+            implementation("com.facebook.fresco:animated-webp:${expoLibs.versions.fresco.get()}")
         }
     }
 

@@ -1,0 +1,7 @@
+{
+  "plan_name": "Veteran Plan",
+  "resource_type": "team",
+  "used_count": 2,
+  "limit": 3,
+  "upgrade_url": "https://varsityhub.app/upgrade?from=team_limit"
+}

@@ -24,7 +24,7 @@ type TestResult = {
   expected: boolean;
   result: boolean;
   passed: boolean;
-  error?: string;
+  reason?: string;
 };
 
 const mockEvents = new Map<string, MockEvent>();
@@ -100,7 +100,7 @@ async function testStoryCreation(
       expected,
       result: result.allowed,
       passed,
-      error: result.error,
+      reason: result.reason,
     });
   } catch (err) {
     testResults.push({
@@ -111,7 +111,7 @@ async function testStoryCreation(
       expected,
       result: false,
       passed: false,
-      error: err instanceof Error ? err.message : String(err),
+      reason: err instanceof Error ? err.message : String(err),
     });
   }
 }
@@ -156,7 +156,7 @@ async function testPostCreation(
       expected,
       result: result.allowed,
       passed,
-      error: result.error,
+      reason: result.reason,
     });
   } catch (err) {
     testResults.push({
@@ -167,7 +167,7 @@ async function testPostCreation(
       expected,
       result: false,
       passed: false,
-      error: err instanceof Error ? err.message : String(err),
+      reason: err instanceof Error ? err.message : String(err),
     });
   }
 }
@@ -252,7 +252,7 @@ async function runMatrixTests(): Promise<void> {
       .forEach((r) => {
         console.log(`${r.scenario}`);
         console.log(
-          `  Expected: ${r.expected} | Got: ${r.result} | Error: ${r.error || 'None'}`,
+          `  Expected: ${r.expected} | Got: ${r.result} | Reason: ${r.reason || 'None'}`,
         );
       });
     console.log('-'.repeat(80));
