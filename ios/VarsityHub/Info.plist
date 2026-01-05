@@ -30,22 +30,18 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>varsityhubmobile</string>
-          <string>com.xsantcastx.varsityhub</string>
+          <string>com.varsithub.varsityhub-ios</string>
         </array>
       </dict>
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>exp+varsityhub</string>
+          <string>exp+varsityhub-ios</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>2</string>
-    <key>GMSApiKey</key>
-    <string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
+    <string>11</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -91,6 +87,8 @@
     <array>
       <string>UIInterfaceOrientationPortrait</string>
       <string>UIInterfaceOrientationPortraitUpsideDown</string>
+      <string>UIInterfaceOrientationLandscapeLeft</string>
+      <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
@@ -100,7 +98,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Automatic</string>
+    <string>Light</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>
