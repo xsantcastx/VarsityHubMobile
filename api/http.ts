@@ -25,8 +25,8 @@ export function getApiBaseUrl(): string {
     }
   }
   const finalUrl = url.replace(/\/$/, '');
-  if (__DEV__ && !('__VH_LOGGED_API_BASE' in (global as any))) {
-    (global as any).__VH_LOGGED_API_BASE = true;
+  if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
+    (globalThis as any).__VH_LOGGED_API_BASE = true;
     // eslint-disable-next-line no-console
     console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS });
   }

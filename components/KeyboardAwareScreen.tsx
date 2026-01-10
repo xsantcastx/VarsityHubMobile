@@ -1,12 +1,10 @@
 import React from 'react';
 import {
-    Keyboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     ScrollViewProps,
     StyleSheet,
-    TouchableWithoutFeedback,
     ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,17 +27,15 @@ const KeyboardAwareScreen: React.FC<KeyboardAwareScreenProps> = ({
       style={styles.container}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -insets.top} // Adjust as needed
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          style={[styles.container, style]}
-          contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom }]}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          {...scrollViewProps}
-        >
-          {children}
-        </ScrollView>
-      </TouchableWithoutFeedback>
+      <ScrollView
+        style={[styles.container, style]}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        {...scrollViewProps}
+      >
+        {children}
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };

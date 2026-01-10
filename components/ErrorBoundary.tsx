@@ -40,9 +40,9 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     // Send to Sentry in production
-    if (process.env.NODE_ENV === 'production' && typeof (global as any).Sentry !== 'undefined') {
+    if (process.env.NODE_ENV === 'production' && typeof (globalThis as any).Sentry !== 'undefined') {
       try {
-        (global as any).Sentry.captureException(error, { 
+        (globalThis as any).Sentry.captureException(error, { 
           contexts: { react: errorInfo },
           tags: { component: 'ErrorBoundary' }
         });

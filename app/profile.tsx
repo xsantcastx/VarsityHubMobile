@@ -7,6 +7,17 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
 type ProfilePreferences = {
   role?: string | null;
@@ -22,17 +33,6 @@ type ProfilePreferences = {
   header_image_focus_y?: number | null;
   location?: string | null;
 };
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { Image } from 'expo-image';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 const uploadAvatar = uploadFile.uploadFile;
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
@@ -1206,7 +1206,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 8,
     margin: 8,
-    backdropFilter: 'blur(10px)'
   },
   gridTextOnly: { 
     textAlign: 'center', 

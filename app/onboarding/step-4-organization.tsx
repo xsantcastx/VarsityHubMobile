@@ -41,13 +41,13 @@ export default function Step4Organization() {
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
   const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [locationQuerying, setLocationQuerying] = useState(false);
   const [locationTouched, setLocationTouched] = useState(false);
-  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
