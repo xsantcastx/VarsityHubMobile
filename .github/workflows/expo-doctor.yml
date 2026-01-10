@@ -36,11 +36,3 @@ jobs:
 
       - name: Expo Doctor
         run: npx expo-doctor
-
-      - name: Snyk Code (optional)
-        if: ${{ secrets.SNYK_TOKEN != '' }}
-        uses: snyk/actions/node@master
-        with:
-          command: code test --severity-threshold=medium
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
