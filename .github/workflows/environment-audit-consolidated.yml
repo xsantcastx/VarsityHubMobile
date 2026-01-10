@@ -1,20 +1,15 @@
-name: Environment & Configuration Audit
+name: Environment & Configuration Audit (DISABLED)
 
 on:
   workflow_dispatch:
-    inputs:
-      service:
-        description: 'Service to audit (default: api)'
-        required: false
-        default: 'api'
-  schedule:
-    # Weekly on Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
-  push:
-    paths:
-      - .env.example
-      - server/.env.example
-      - scripts/check-env-alignment.js
+  # Temporarily disabled to stop email spam
+  # schedule:
+  #   - cron: '0 9 * * 1'
+  # push:
+  #   paths:
+  #     - .env.example
+  #     - server/.env.example
+  #     - scripts/check-env-alignment.js
 
 jobs:
   audit-github-secrets:

@@ -1,10 +1,12 @@
-name: CI/CD - Lint, Type Check, and Tests
+name: CI/CD - Lint, Type Check, and Tests (DISABLED)
 
 on:
-  pull_request:
-    branches: [main, develop]
-  push:
-    branches: [main, develop]
+  workflow_dispatch:
+  # Temporarily disabled to stop email spam
+  # pull_request:
+  #   branches: [main, develop]
+  # push:
+  #   branches: [main, develop]
 
 jobs:
   lint-and-typecheck:

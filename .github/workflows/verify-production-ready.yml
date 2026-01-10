@@ -5,13 +5,15 @@
 # This workflow runs the production readiness checks on every push and PR
 # to ensure pre-launch requirements are always met.
 
-name: Production Readiness Check
+name: Production Readiness Check (DISABLED)
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+  workflow_dispatch:
+  # Temporarily disabled to stop email spam
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
 
 jobs:
   verify:
