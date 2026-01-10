@@ -104,7 +104,14 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
     
-    if (!isExpectedDevError) {
+    // Suppress logging for known missing endpoints
+    const isKnownMissingEndpoint = 
+      path.includes('/geocoding/autocomplete') || 
+      path.includes('/posts/trending') ||
+      (path.includes('/users') && error.status === 403) ||
+      (path.includes('/notifications') && error.status === 401);
+    
+    if (!isExpectedDevError && !isKnownMissingEndpoint) {
       console.error('[http] Request failed:', { url: base + path, error: error.message });
     }
     
@@ -127,7 +134,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
       err.originalError = error;
       err.status = 0;
-      if (!isExpectedDevError) {
+      if (!isExpectedDevError && !isKnownMissingEndpoint) {
         captureException(err, { path, base, method: options.method || 'GET' });
       }
       if (retries > 0) {
@@ -136,7 +143,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       }
       throw err;
     }
-    if (!isExpectedDevError) {
+    if (!isExpectedDevError && !isKnownMissingEndpoint) {
       captureException(error, { path, base, method: options.method || 'GET' });
     }
     throw error;

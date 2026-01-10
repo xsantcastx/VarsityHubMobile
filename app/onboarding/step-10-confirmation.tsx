@@ -168,47 +168,57 @@ export default function Step10Confirmation() {
       
       // Send complete onboarding state - all fields
       // IMPORTANT: Fans should NOT have plans
-      const completionPayload = {
+      const completionPayload: any = {
         // Core identity fields
         role: ob.role,
         username: ob.username,
         display_name: ob.display_name,
-        affiliation: ob.affiliation,
-        dob: ob.dob,
-        zip: ob.zip,
-        zip_code: ob.zip_code,
-        
-        // Plan and subscription (ONLY for coaches)
-        plan: isCoach ? ob.plan : undefined,
-        payment_pending: isCoach ? ob.payment_pending : undefined,
-        
-        // Team/Organization (ONLY for coaches)
-        team_id: isCoach ? ob.team_id : undefined,
-        team_name: isCoach ? ob.team_name : undefined,
-        organization_id: isCoach ? ob.organization_id : undefined,
-        organization_name: isCoach ? ob.organization_name : undefined,
-        sport: isCoach ? ob.sport : undefined,
-        
-        // Authorized users (ONLY for coaches)
-        authorized: isCoach ? ob.authorized : undefined,
-        authorized_users: isCoach ? ob.authorized_users : undefined,
-        
-        // Profile (ALL users)
-        avatar_url: ob.avatar_url,
-        bio: ob.bio,
-        sports_interests: ob.sports_interests,
-        
-        // Interests/Goals (ALL users)
-        primary_intents: ob.primary_intents,
-        personalization_goals: ob.personalization_goals,
-        
-        // Features/Permissions (ALL users)
-        location_enabled: ob.location_enabled,
-        notifications_enabled: ob.notifications_enabled,
         messaging_policy_accepted: ob.messaging_policy_accepted,
       };
       
+      // Only add defined values to avoid validation issues with undefined fields
+      if (ob.affiliation) {
+        // WORKAROUND: Backend may not have 'professional' enum value yet
+        // Map it to 'independent' for compatibility
+        completionPayload.affiliation = ob.affiliation === 'professional' ? 'independent' : ob.affiliation;
+      }
+      if (ob.dob) completionPayload.dob = ob.dob;
+      if (ob.zip) completionPayload.zip = ob.zip;
+      if (ob.zip_code) completionPayload.zip_code = ob.zip_code;
+      
+      // Plan and subscription (ONLY for coaches)
+      if (isCoach) {
+        // Always set plan for coaches, default to rookie if not set
+        completionPayload.plan = ob.plan || 'rookie';
+        if (ob.payment_pending !== undefined) completionPayload.payment_pending = ob.payment_pending;
+      }
+      
+      // Team/Organization (ONLY for coaches)
+      if (isCoach) {
+        if (ob.team_id) completionPayload.team_id = ob.team_id;
+        if (ob.team_name) completionPayload.team_name = ob.team_name;
+        if (ob.organization_id) completionPayload.organization_id = ob.organization_id;
+        if (ob.organization_name) completionPayload.organization_name = ob.organization_name;
+        if (ob.sport) completionPayload.sport = ob.sport;
+        if (ob.authorized) completionPayload.authorized = ob.authorized;
+        if (ob.authorized_users) completionPayload.authorized_users = ob.authorized_users;
+      }
+      
+      // Profile (ALL users)
+      if (ob.avatar_url) completionPayload.avatar_url = ob.avatar_url;
+      if (ob.bio) completionPayload.bio = ob.bio;
+      if (ob.sports_interests) completionPayload.sports_interests = ob.sports_interests;
+      
+      // Interests/Goals (ALL users)
+      if (ob.primary_intents) completionPayload.primary_intents = ob.primary_intents;
+      if (ob.personalization_goals) completionPayload.personalization_goals = ob.personalization_goals;
+      
+      // Features/Permissions (ALL users)
+      if (ob.location_enabled !== undefined) completionPayload.location_enabled = ob.location_enabled;
+      if (ob.notifications_enabled !== undefined) completionPayload.notifications_enabled = ob.notifications_enabled;
+      
       // Log the payload before sending
+      console.log('[Step10] Completion payload:', JSON.stringify(completionPayload, null, 2));
       
       // Final submission to backend - mark onboarding as complete
       await User.completeOnboarding(completionPayload);
@@ -229,9 +239,30 @@ export default function Step10Confirmation() {
     } catch (e: any) {
       const errorMessage = e?.message || 'Failed to complete onboarding';
       
+      // Extract detailed Zod validation errors if available
+      const validationIssues = e?.data?.details?.issues;
+      
+      console.error('[Step10] Completion failed:', {
+        error: errorMessage,
+        status: e?.status,
+        data: e?.data,
+        validationIssues: validationIssues ? JSON.stringify(validationIssues, null, 2) : 'none',
+        currentPlan: ob.plan,
+        role: ob.role
+      });
+      
+      // Build user-friendly error message
+      let displayMessage = errorMessage;
+      if (validationIssues && Array.isArray(validationIssues)) {
+        const issueMessages = validationIssues.map((issue: any) => 
+          `${issue.path?.join('.') || 'unknown'}: ${issue.message}`
+        ).join('\n');
+        displayMessage = `Validation errors:\n${issueMessages}`;
+      }
+      
       Alert.alert(
         'Setup Not Complete', 
-        errorMessage,
+        displayMessage + '\n\nYour progress has been saved. Please review the steps and try again.',
         [
           { 
             text: 'Retry', 
@@ -239,12 +270,12 @@ export default function Step10Confirmation() {
             style: 'default'
           },
           { 
-            text: 'Cancel', 
+            text: 'Review Steps', 
             style: 'cancel' 
           }
         ]
       );
-      // DO NOT clear onboarding state - allow retry
+      // DO NOT clear onboarding state on error - preserve user's progress
     } finally { 
       setCompleting(false); 
     }

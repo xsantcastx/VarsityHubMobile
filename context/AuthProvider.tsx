@@ -11,14 +11,21 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 // @ts-ignore JS exports
 import auth from '@/api/auth';
 import { User } from '@/api/entities';
 import { httpGet } from '@/api/http';
+
+// Conditionally import notifications only if not in Expo Go
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+let Notifications: any = null;
+if (!isExpoGo) {
+  Notifications = require('expo-notifications');
+}
 
 interface AuthUser {
   id: string;
@@ -103,6 +110,13 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Register for push notifications
   const setupPushNotifications = useCallback(async (userId: string) => {
     if (!userId) return false;
+    
+    // Skip push notifications in Expo Go
+    if (isExpoGo || !Notifications) {
+      console.log('[PushNotifications] Skipping setup in Expo Go environment');
+      return false;
+    }
+    
     if (!Device.isDevice) {
       console.log('[PushNotifications] Skipping setup on simulator/emulator');
       return false;

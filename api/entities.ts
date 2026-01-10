@@ -17,12 +17,21 @@ export const User = {
   verifyEmail: (code: string) => auth.verifyEmail(code),
   usernameAvailable: (username: string) => httpGet('/users/username-available?username=' + encodeURIComponent(username)),
   lookupByEmail: (email: string) => httpGet('/users/lookup?email=' + encodeURIComponent(email)),
-  listAll: (q?: string, limit: number = 100, banned?: boolean) => {
-    const qq: string[] = [];
-    if (q) qq.push('q=' + encodeURIComponent(q));
-    if (banned) qq.push('banned=1');
-    qq.push('limit=' + String(limit));
-    return httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
+  listAll: async (q?: string, limit: number = 100, banned?: boolean) => {
+    try {
+      const qq: string[] = [];
+      if (q) qq.push('q=' + encodeURIComponent(q));
+      if (banned) qq.push('banned=1');
+      qq.push('limit=' + String(limit));
+      return await httpGet('/users' + (qq.length ? '?' + qq.join('&') : ''));
+    } catch (error: any) {
+      // If admin-only, return empty array instead of throwing
+      if (error?.message?.includes('Admin only') || error?.status === 403) {
+        console.log('[User.listAll] Admin-only endpoint, returning empty results');
+        return [];
+      }
+      throw error;
+    }
   },
   ban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/ban', {}),
   unban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/unban', {}),
@@ -186,12 +195,23 @@ export const Post = {
   },
   // Additional helpers used in UI
   trendingPage: async (cursor?: string | null, limit: number = 20) => {
-    const q: string[] = [];
-    if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
-    if (limit) q.push('limit=' + String(limit));
-    const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
-    // normalize to page shape
-    return normalizePostPage(res);
+    try {
+      const q: string[] = [];
+      if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
+      if (limit) q.push('limit=' + String(limit));
+      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
+      // normalize to page shape
+      return normalizePostPage(res);
+    } catch (error: any) {
+      // If trending endpoint doesn't exist, fallback to regular posts sorted by created_at
+      console.log('[Post.trendingPage] Trending endpoint not available, falling back to recent posts');
+      const q: string[] = [];
+      if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
+      if (limit) q.push('limit=' + String(limit));
+      q.push('sort=-created_at'); // Sort by most recent
+      const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+      return normalizePostPage(res);
+    }
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
@@ -403,13 +423,22 @@ export const TeamInvites = {
 };
 
 export const Notification = {
-  listPage: (cursor?: string | null, limit: number = 20, unreadOnly: boolean = false) => {
-    const params: string[] = [];
-    params.push('limit=' + encodeURIComponent(String(limit)));
-    if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
-    if (unreadOnly) params.push('unread=1');
-    const qs = params.length ? '?' + params.join('&') : '';
-    return httpGet('/notifications' + qs);
+  listPage: async (cursor?: string | null, limit: number = 20, unreadOnly: boolean = false) => {
+    try {
+      const params: string[] = [];
+      params.push('limit=' + encodeURIComponent(String(limit)));
+      if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
+      if (unreadOnly) params.push('unread=1');
+      const qs = params.length ? '?' + params.join('&') : '';
+      return await httpGet('/notifications' + qs);
+    } catch (error: any) {
+      // If unauthorized (not logged in), return empty page
+      if (error?.message?.includes('Unauthorized') || error?.status === 401) {
+        console.log('[Notification.listPage] Not authenticated, returning empty results');
+        return { items: [], cursor: null };
+      }
+      throw error;
+    }
   },
   markRead: (id: string) => httpPost(`/notifications/${encodeURIComponent(id)}/read`, {}),
   markAllRead: () => httpPost('/notifications/mark-read-all', {}),

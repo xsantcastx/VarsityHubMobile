@@ -4,18 +4,13 @@
     "slug": "varsityhub",
     "owner": "lime_prod",
     "version": "1.0.1",
-    "runtimeVersion": "1.0.1",
     "description": "The ultimate sports team management and social platform for athletes, coaches, and fans.",
     "githubUrl": "https://github.com/xsantcastx/VarsityHubMobile",
     "icon": "./assets/images/icon.png",
     "experiments": {
       "typedRoutes": true
     },
-    "updates": {
-      "runtimeVersion": "1.0.1"
-    },
     "ios": {
-      "runtimeVersion": "1.0.1",
       "bundleIdentifier": "com.varsithub.varsityhub"
     },
     "extra": {
@@ -38,6 +33,9 @@
       "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
       "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
       "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@lime_prod/varsityhub"
+    },
+    "android": {
+      "package": "com.varsithub.varsityhub"
     }
   }
 }

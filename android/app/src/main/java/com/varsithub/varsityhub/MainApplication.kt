@@ -1,4 +1,4 @@
-package com.xsantcastx.varsityhub
+package com.varsithub.varsityhub
 
 import android.app.Application
 import android.content.res.Configuration

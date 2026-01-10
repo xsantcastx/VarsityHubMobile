@@ -9,11 +9,36 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   const finalBase = computeBase(baseUrl);
   const target = `${finalBase}/uploads`;
 
+  // Improved mime type detection
+  let finalMimeType = mimeType;
+  if (!finalMimeType || finalMimeType === 'application/octet-stream') {
+    // Try to detect from filename
+    const name = filename || uri;
+    const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|mp4|mov|avi|mkv)$/)?.[1];
+    if (ext) {
+      const mimeMap: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        avi: 'video/x-msvideo',
+        mkv: 'video/x-matroska',
+      };
+      finalMimeType = mimeMap[ext] || 'image/jpeg'; // default to jpeg if image
+    } else {
+      // Default to image/jpeg for safety
+      finalMimeType = 'image/jpeg';
+    }
+  }
+
   const form = new FormData();
   form.append('file', {
     uri,
     name: filename || 'upload',
-    type: mimeType || 'application/octet-stream',
+    type: finalMimeType,
   } as any);
 
   const headers: any = {};
@@ -26,7 +51,7 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   let lastErr: any = null;
   while (attempt <= retries) {
     try {
-      console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', mimeType);
+      console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', finalMimeType);
       const res = await fetch(target, {
         method: 'POST',
         headers,

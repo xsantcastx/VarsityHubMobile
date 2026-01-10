@@ -173,8 +173,13 @@ export default function MessagesScreen() {
           // Filter out current user
           setSearchResults(users.filter((u: MiniUser) => u.id !== me?.id));
         }
-      } catch (e) {
-        console.error('User search failed', e);
+      } catch (e: any) {
+        // Silently handle admin-only restriction
+        if (e?.message?.includes('Admin only')) {
+          console.log('[messages] User search is admin-only');
+        } else {
+          console.error('User search failed', e);
+        }
       } finally {
         if (mounted) setSearchingUsers(false);
       }

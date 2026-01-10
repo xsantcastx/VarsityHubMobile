@@ -266,10 +266,21 @@ export default function Step3Plan() {
           Alert.alert('Payment', 'Unable to start checkout. You can continue and set up billing later.');
         }
         
-        // Mark payment as required and block navigation
-        setOB((prev) => ({ ...prev, payment_required: true, plan: 'rookie', payment_pending: false }));
-        Alert.alert('Payment required', 'You must complete payment to continue.');
-        // Do NOT call navigateNext(); block progression
+        // On payment failure, default to rookie plan so they can continue
+        const fallbackPlan = 'rookie';
+        setOB((prev) => ({ ...prev, plan: fallbackPlan, payment_pending: false, payment_required: false }));
+        setPlan(fallbackPlan);
+        
+        // Save rookie plan to backend so onboarding can complete
+        try {
+          await User.updatePreferences({ plan: fallbackPlan, payment_pending: false });
+        } catch (updateErr) {
+          console.warn('Failed to save fallback rookie plan:', updateErr);
+        }
+        
+        // Allow navigation to continue with rookie plan
+        setProgress(3);
+        navigateNext();
       }
     } finally {
       setSaving(false);

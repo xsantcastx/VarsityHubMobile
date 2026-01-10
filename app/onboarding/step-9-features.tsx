@@ -113,11 +113,12 @@ export default function Step9Features() {
   const onContinue = async () => {
     setSaving(true);
     try {
-      // Save to context
+      // Save to context - IMPORTANT: Also save messaging_policy_accepted
       setOB((prev) => ({ 
         ...prev, 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true
       }));
       
       // Save to backend

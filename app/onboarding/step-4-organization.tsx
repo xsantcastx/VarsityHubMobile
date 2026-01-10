@@ -176,8 +176,10 @@ export default function Step4Organization() {
     if (alreadyExists) return true;
     
     // All coaches need organization fields
-    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
+    // Allow manual location entry if autocomplete is not available (location text is filled but no selectedPlace)
+    const hasLocation = !!selectedPlace || (location.trim().length > 0 && locationTouched);
+    return orgName.trim().length > 0 && !!orgType && hasLocation;
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location, locationTouched]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -639,12 +641,12 @@ export default function Step4Organization() {
 
         {!showSearch && (
           <>
-            <Text style={styles.label}>Location</Text>
+            <Text style={styles.label}>Location *</Text>
             <View style={styles.locationFieldWrapper}>
               <Input 
                 value={location} 
                 onChangeText={handleLocationChange} 
-                placeholder="Start typing an address, school, or city" 
+                placeholder="Enter city, state, or address (e.g., New York, NY)" 
                 autoCapitalize="words"
                 autoCorrect={false}
               />
@@ -675,7 +677,12 @@ export default function Step4Organization() {
                 </View>
               )}
             </View>
-            {!selectedPlace && locationTouched && (
+            {!selectedPlace && locationTouched && locationSuggestions.length === 0 && location.trim().length > 0 && (
+              <Text style={styles.inputHelperText}>
+                {locationQuerying ? 'Searching...' : 'No suggestions found. You can continue with the entered location.'}
+              </Text>
+            )}
+            {!selectedPlace && locationTouched && locationSuggestions.length > 0 && (
               <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
             )}
             {duplicateWarning && (

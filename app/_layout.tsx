@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
-import * as Notifications from 'expo-notifications';
 import { Stack, useRootNavigationState, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
@@ -14,6 +14,13 @@ import { AuthProvider } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
+
+// Conditionally import notifications only if not in Expo Go
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+let Notifications: any = null;
+if (!isExpoGo) {
+  Notifications = require('expo-notifications');
+}
 
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
@@ -71,7 +78,7 @@ export default function RootLayout() {
   }, []);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
       importance: Notifications.AndroidImportance.MAX,
@@ -85,6 +92,8 @@ export default function RootLayout() {
 
   // Handle notification taps
   useEffect(() => {
+    if (isExpoGo || !Notifications) return;
+    
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
       
