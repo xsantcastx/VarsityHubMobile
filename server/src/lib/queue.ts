@@ -50,8 +50,9 @@ export async function initializeQueue(): Promise<void> {
     await redis.ping();
     debugLog('✅ Queue system initialized (Redis connected)');
   } catch (error) {
-    console.error('❌ Failed to connect to Redis:', error);
-    process.exit(1);
+    console.warn('⚠️  Redis not available - email queue will not work:', error.message);
+    console.warn('⚠️  Add Redis in Railway to enable email functionality');
+    // Don't exit - allow app to run without Redis
   }
 }
 
