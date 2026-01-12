@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const planDefinitions = require('../../../shared/plan-definitions.json') as Record<
+const planDefinitions = require('../../shared/plan-definitions.json') as Record<
   PlanId,
   RawPlanDefinition
 >;
