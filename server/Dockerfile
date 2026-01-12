@@ -12,6 +12,7 @@ RUN apt-get update \
 # Copy package files and Prisma schema (needed for postinstall)
 COPY ./server/package*.json ./
 COPY ./server/prisma ./prisma/
+COPY ./shared ./shared
 
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
@@ -19,11 +20,10 @@ RUN npm ci
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Copy source code, shared files, and startup script
+# Copy source code and startup script
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./
-COPY ./shared ./shared
 
 # Build TypeScript
 RUN npm run build
