@@ -19,10 +19,11 @@ RUN npm ci
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Copy source code and startup script
+# Copy source code, shared files, and startup script
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./
+COPY ./shared ./shared
 
 # Build TypeScript
 RUN npm run build
