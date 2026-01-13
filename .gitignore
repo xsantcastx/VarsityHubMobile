@@ -38,6 +38,12 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Android release signing (NEVER commit these!)
+android/keystore.properties
+android/*.keystore
+android/app/*.keystore
+!android/app/debug.keystore
+
 # Metro
 .metro-health-check*
 
@@ -91,3 +97,6 @@ test-results/
 overnight.log
 midnight-health.json
 overnight-audit.sh
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

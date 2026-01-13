@@ -84,11 +84,13 @@ authRouter.post('/register', async (req, res) => {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
   const userRole = role || 'fan';
-  
-  // Set admin flag for the main admin account
-  const isAdmin = sanitizedEmail === 'emilmancero@gmail.com';
-  const initialPreferences = { 
-    role: userRole, 
+
+  // SECURITY: Check if this email is in the admin allowlist (from environment)
+  // Import the helper to check admin status consistently
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = adminEmails.includes(sanitizedEmail);
+  const initialPreferences = {
+    role: userRole,
     onboarding_completed: false,
     ...(isAdmin && { is_admin: true })
   };
@@ -668,6 +670,7 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
       },
     },
   });
+<<<<<<< HEAD
   if (!user) return res.status(404).json({ error: 'Not found' });
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
@@ -699,6 +702,40 @@ const updateMeSchema = z.object({
   avatar_url: z.string().url().optional().nullable(),
   bio: z.string().max(1000).optional().nullable(),
   preferences: z.any().optional(),
+=======
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  // SECURITY: Always sanitize user response to exclude sensitive fields
+  res.json(sanitizeUser(user));
+});
+
+// SECURITY: Schema for user preferences update - properly typed
+const userPreferencesSchema = z.object({
+  // Notification settings
+  notifications: z.object({
+    game_event_reminders: z.boolean().optional(),
+    team_updates: z.boolean().optional(),
+    comments_upvotes: z.boolean().optional(),
+    push_enabled: z.boolean().optional(),
+  }).partial().optional(),
+  // Push token for notifications
+  push_token: z.string().max(500).optional(),
+  // Location/content settings
+  zip_code: z.string().min(2).max(20).optional().nullable(),
+  // User flags
+  is_parent: z.boolean().optional(),
+  onboarding_completed: z.boolean().optional(),
+  location_enabled: z.boolean().optional(),
+  notifications_enabled: z.boolean().optional(),
+  messaging_policy_accepted: z.boolean().optional(),
+}).passthrough(); // Allow additional properties for backward compatibility
+
+const userUpdateSchema = z.object({
+  display_name: z.string().min(1).max(120).optional(),
+  avatar_url: z.string().url().optional(),
+  bio: z.string().max(1000).optional(),
+  // SECURITY: Now uses typed schema instead of z.any()
+  preferences: userPreferencesSchema.optional(),
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 authRouter.put('/me', async (req: AuthedRequest, res) => {
@@ -729,9 +766,26 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
   }
+<<<<<<< HEAD
   const { preferences, ...rest } = patch;
   const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
   return res.json(sanitizeUser(user));
+=======
+
+  // Cast preferences to Prisma-compatible Json type
+  const updateData: any = { ...parsed.data };
+  if (updateData.preferences) {
+    updateData.preferences = updateData.preferences as Record<string, unknown>;
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: updateData,
+  });
+
+  // SECURITY: Always sanitize user response to exclude sensitive fields
+  res.json(sanitizeUser(user));
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 // Utility to deep-merge preferences, preserving nested notification keys
@@ -799,6 +853,7 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     }
   }
 
+<<<<<<< HEAD
   if ('plan' in incoming) {
     if (onboardingCompleted) {
       return res.status(403).json({ error: 'Plan changes are not allowed via this endpoint once onboarding is complete.' });
@@ -825,13 +880,38 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   const merged = mergePreferences(defaults, mergePreferences(currentPrefs, incoming));
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
+=======
+  // Merge with existing preferences instead of overwriting
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const mergedPrefs = mergePreferences(current?.preferences || {}, parsed.data);
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { preferences: mergedPrefs },
+  });
+
+  // SECURITY: Always sanitize user response to exclude sensitive fields
+  res.json(sanitizeUser(user));
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
+
+// SECURITY: Schema for authorized users - properly typed instead of z.any()
+const authorizedUserSchema = z.object({
+  email: z.string().email().optional(),
+  user_id: z.string().optional(),
+  role: z.enum(['Team Manager', 'Coach', 'Admin', 'Player', 'Parent']).optional(),
+  assign_team: z.string().optional(),
+}).refine(
+  (data) => data.email || data.user_id,
+  { message: 'Either email or user_id is required' }
+);
 
 // Complete onboarding endpoint
 const completeOnboardingSchema = z.object({
   // Core identity fields
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
+<<<<<<< HEAD
   username: z.string().min(3).max(20).optional(),
   display_name: z.string().optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent', 'professional']).optional(),
@@ -840,26 +920,38 @@ const completeOnboardingSchema = z.object({
   zip_code: z.string().optional(),
   
   // Plan and subscription
+=======
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional(),
+  display_name: z.string().min(1).max(100).optional(),
+  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
+  // SECURITY: Validate date format for dob
+  dob: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+  zip: z.string().min(3).max(20).optional(),
+  zip_code: z.string().min(3).max(20).optional(),
+
+  // Plan and subscription - SECURITY: plan can only be set during checkout, not directly
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
-  payment_pending: z.union([z.boolean(), z.string()]).optional(),
-  team_count_total: z.number().int().min(0).optional(),
-  
+  payment_pending: z.boolean().optional(), // SECURITY: Changed from union to boolean only
+  team_count_total: z.number().int().min(0).max(100).optional(), // SECURITY: Added max limit
+
   // Team/Organization
-  team_id: z.string().optional(),
-  team_name: z.string().optional(),
-  organization_id: z.string().optional(),
-  organization_name: z.string().optional(),
-  sport: z.string().optional(),
-  
-  // Season
-  season_start: z.string().optional(),
-  season_end: z.string().optional(),
-  
-  // Authorized users
-  authorized: z.array(z.any()).optional(),
-  authorized_users: z.array(z.any()).optional(),
-  
+  team_id: z.string().max(50).optional(),
+  team_name: z.string().max(100).optional(),
+  organization_id: z.string().max(50).optional(),
+  organization_name: z.string().max(100).optional(),
+  sport: z.string().max(50).optional(),
+
+  // Season - SECURITY: Validate date format
+  season_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+  season_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+
+  // SECURITY: Authorized users now properly validated instead of z.any()
+  authorized: z.array(authorizedUserSchema).max(50).optional(),
+  authorized_users: z.array(authorizedUserSchema).max(50).optional(),
+
   // Profile
+<<<<<<< HEAD
   avatar_url: z.string().optional(),
   bio: z.string().optional(),
   sports_interests: z.array(z.string()).optional(),
@@ -873,17 +965,23 @@ const completeOnboardingSchema = z.object({
   primary_team_id: z.string().optional(),
   primary_sport: z.string().optional(),
   
+=======
+  avatar_url: z.string().url().optional(),
+  bio: z.string().max(500).optional(),
+  sports_interests: z.array(z.string().max(50)).max(20).optional(),
+
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   // Interests/Goals
-  primary_intents: z.array(z.string()).optional(),
-  personalization_goals: z.array(z.string()).optional(),
-  
+  primary_intents: z.array(z.string().max(100)).max(10).optional(),
+  personalization_goals: z.array(z.string().max(100)).max(10).optional(),
+
   // Features/Permissions
   location_enabled: z.boolean().optional(),
   notifications_enabled: z.boolean().optional(),
   messaging_policy_accepted: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', async (req, res) => {
+authRouter.post('/me/complete-onboarding', async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1196,15 +1294,27 @@ authRouter.post('/verify/phone/confirm', async (req: AuthedRequest, res) => {
   }
 });
 
+/**
+ * SECURITY: Sanitize user object before returning to client.
+ * Removes all sensitive fields including passwords, verification codes, and internal flags.
+ */
 function sanitizeUser(u: any) {
+  if (!u) return null;
   const {
+    // Authentication secrets
     password_hash,
+    // Email verification
     email_verification_code,
     email_verification_expires,
+    // Phone verification
     phone_verification_code,
     phone_verification_expires,
+    sms_verification_code,
+    sms_verification_expires,
+    // Password reset
     password_reset_code,
     password_reset_expires,
+    // Internal fields that should not be exposed
     ...rest
   } = u as any;
   return rest;

@@ -129,6 +129,7 @@ app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
 app.use(helmet({ contentSecurityPolicy: false }));
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 const isProd = process.env.NODE_ENV === 'production';
 const defaultProdOrigins = [
   'https://varsityhub.app',
@@ -178,17 +179,41 @@ const corsOptions: cors.CorsOptions = {
   origin: isAllowedOrigin,
 =======
 const rawOrigins = (env.ALLOWED_ORIGINS ?? (env.NODE_ENV === 'development' ? '*' : ''))
+=======
+// SECURITY: Parse ALLOWED_ORIGINS from environment
+const rawOrigins = (env.ALLOWED_ORIGINS ?? '')
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
-const allowWildcard = rawOrigins.length === 0 || rawOrigins.includes('*');
-if (allowWildcard && env.NODE_ENV === 'production') {
-  console.warn('[security] ALLOWED_ORIGINS is not set for production. All origins will be accepted.');
+
+// SECURITY: In production, require explicit origin allowlist - fail closed
+const isProduction = env.NODE_ENV === 'production';
+const allowWildcard = !isProduction && (rawOrigins.length === 0 || rawOrigins.includes('*'));
+
+if (isProduction && rawOrigins.length === 0) {
+  console.error('[security] CRITICAL: ALLOWED_ORIGINS is not set for production. CORS will reject all cross-origin requests.');
+  console.error('[security] Set ALLOWED_ORIGINS environment variable to allow specific origins.');
 }
+
+if (isProduction && rawOrigins.includes('*')) {
+  console.error('[security] CRITICAL: ALLOWED_ORIGINS contains wildcard (*) in production. This is a security risk.');
+  console.error('[security] Remove wildcard and specify explicit origins.');
+}
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, cb) => {
-    if (!origin || allowWildcard) return cb(null, true);
+    // Allow requests with no origin (same-origin, mobile apps, server-to-server)
+    if (!origin) return cb(null, true);
+
+    // In development with no explicit config, allow all origins
+    if (allowWildcard) return cb(null, true);
+
+    // Check against explicit allowlist
     if (rawOrigins.includes(origin)) return cb(null, true);
+
+    // SECURITY: Reject unauthorized origins
+    console.warn(`[security] CORS rejected origin: ${origin}`);
     return cb(new Error('Not allowed by CORS'));
   },
 >>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
@@ -210,6 +235,7 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
 
+<<<<<<< HEAD
 // Special raw body parser for Stripe webhooks (payments + legacy billing path)
 const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
 rawBodyPaths.forEach((path) => {
@@ -221,6 +247,18 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return next();
   }
   return express.json()(req, res, next);
+=======
+// SECURITY: Special raw body parser for Stripe webhook signature verification
+// The webhook handler is at /payments/webhook - this must match!
+app.use('/payments/webhook', expressPkg.raw({ type: 'application/json' }));
+
+app.use((req, res, next) => {
+  // For Stripe webhook, skip JSON parsing (raw body needed for signature verification)
+  if (req.originalUrl === '/payments/webhook') {
+    return next();
+  }
+  return expressPkg.json()(req, res, next);
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 app.use(authMiddleware);

@@ -12,7 +12,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Game, Post, Team, User } from '@/api/entities';
 import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
-import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { Calendar } from 'react-native-calendars';
 import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
@@ -92,7 +91,6 @@ export default function CommunityDiscoverScreen() {
   const [nearbyPeople, setNearbyPeople] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -140,6 +138,16 @@ export default function CommunityDiscoverScreen() {
 
   const loadGames = useCallback(async (user: any) => {
     try {
+<<<<<<< HEAD
+=======
+      let user: any = null;
+      try {
+        user = await User.me();
+        setMe(user);
+      } catch (err) {
+        if (__DEV__) console.warn('Discover load: unable to fetch user', err);
+      }
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       const gamesData = await Game.list('-date');
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
@@ -236,6 +244,7 @@ export default function CommunityDiscoverScreen() {
     try { await load({ silent: true }); } finally { setRefreshing(false); }
   }, [load]);
 
+<<<<<<< HEAD
   const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
     try {
       // Parse date and time
@@ -334,6 +343,8 @@ export default function CommunityDiscoverScreen() {
     }
   }, [load]);
 
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   const filtered = useMemo(() => {
     if (!query) return games;
     const q = query.toLowerCase().trim();
@@ -457,30 +468,15 @@ export default function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       <View style={styles.calendarSection}>
         <Calendar
+<<<<<<< HEAD
           onDayPress={(day) => {
             setSelectedDate(day.dateString);
+=======
+          onDayPress={(day) => setSelectedDate(day.dateString)}
+          markedDates={{
+            [selectedDate]: { selected: true, selectedColor: Colors[colorScheme].tint }
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
           }}
-          markedDates={useMemo(() => {
-            const marked: Record<string, any> = {};
-            // Mark all dates with events
-            games.forEach(game => {
-              if (game.date) {
-                const dateKey = new Date(game.date).toISOString().split('T')[0];
-                if (!marked[dateKey]) {
-                  marked[dateKey] = { marked: true, dotColor: Colors[colorScheme].tint };
-                }
-              }
-            });
-            // Highlight selected date
-            if (selectedDate) {
-              marked[selectedDate] = {
-                ...marked[selectedDate],
-                selected: true,
-                selectedColor: Colors[colorScheme].tint,
-              };
-            }
-            return marked;
-          }, [games, selectedDate, colorScheme])}
           theme={{
             backgroundColor: Colors[colorScheme].background,
             calendarBackground: Colors[colorScheme].background,
@@ -499,6 +495,7 @@ export default function CommunityDiscoverScreen() {
         />
       </View>
 
+<<<<<<< HEAD
       {/* Games on Selected Date */}
       {selectedDate && (() => {
         const gamesOnDate = games.filter(g => {
@@ -545,14 +542,15 @@ export default function CommunityDiscoverScreen() {
         );
       })()}
 
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>
-          Quick Actions {__DEV__ && me?.preferences?.role && `(${me.preferences.role})`}
-        </Text>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+<<<<<<< HEAD
           {/* Role-based actions */}
           {me?.preferences?.role === 'coach' ? (
             <>
@@ -610,6 +608,24 @@ export default function CommunityDiscoverScreen() {
               </Pressable>
             </>
           )}
+=======
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
+            onPress={() => router.push('/manage-teams-simple')}
+          >
+            <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
+            onPress={() => router.push('/manage-season')}
+          >
+            <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
+            <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
+            <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
+          </Pressable>
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
         </ScrollView>
       </View>
 
@@ -790,10 +806,14 @@ export default function CommunityDiscoverScreen() {
               <Pressable
                 onPress={() => {
 <<<<<<< HEAD
+<<<<<<< HEAD
                   // In map view branch, viewMode is 'map'; toggling goes to 'list'
                   const newMode: 'list' | 'map' = 'list';
 =======
                   const newMode: 'list' | 'map' = 'list'; // we are in map view, so switch to list
+=======
+                  const newMode: 'list' | 'map' = viewMode === 'map' ? 'list' : 'map';
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
                   console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
                   console.log('📍 Filtered games count:', filtered.length);
                   console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
@@ -804,10 +824,14 @@ export default function CommunityDiscoverScreen() {
               >
                 <Ionicons 
 <<<<<<< HEAD
+<<<<<<< HEAD
                   name={'list'} 
 =======
                   name="list" 
 >>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
+=======
+                  name={viewMode === 'map' ? 'list' : 'map'} 
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
                   size={24} 
                   color={Colors[colorScheme].tint} 
                 />
@@ -894,6 +918,7 @@ export default function CommunityDiscoverScreen() {
           showHeader
         />
       </Modal>
+<<<<<<< HEAD
 
       <QuickAddGameModal
         visible={createEventModalOpen}
@@ -903,6 +928,8 @@ export default function CommunityDiscoverScreen() {
         currentTeamId={me?.team?.id}
         userRole={(me?.preferences?.role === 'coach' || me?.preferences?.role === 'admin' || me?.role === 'coach' || me?.role === 'admin') ? 'coach' : 'fan'}
       />
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     </View>
   );
 }
@@ -1020,68 +1047,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     lineHeight: 14,
-  },
-  // Section Tabs
-  sectionTabBar: {
-    borderBottomWidth: 1,
-    marginBottom: 8,
-  },
-  sectionTabContent: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-  },
-  sectionTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  sectionTabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  // Selected Date Section
-  selectedDateSection: {
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  selectedDateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  dateGameCard: {
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  dateGameTime: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 6,
-  },
-  dateGameTimeText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  dateGameTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  dateGameLocation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  dateGameLocationText: {
-    fontSize: 12,
   },
 });

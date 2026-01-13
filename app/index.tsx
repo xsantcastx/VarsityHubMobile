@@ -1,9 +1,26 @@
+<<<<<<< HEAD
 import { useAuth } from '@/context/AuthProvider';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
+=======
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { Image } from 'expo-image';
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 import { ActivityIndicator, View } from 'react-native';
 
+/**
+ * Passive splash screen - navigation is handled centrally by _layout.tsx
+ * This eliminates race conditions where both index and _layout try to navigate.
+ * 
+ * The _layout effect will:
+ * 1. Check auth status via User.me()
+ * 2. Route to sign-in (unauthenticated)
+ * 3. Route to onboarding (needs onboarding)
+ * 4. Route to tabs (authenticated)
+ */
 export default function Index() {
+<<<<<<< HEAD
   const { user } = useAuth();
   const router = useRouter();
   const e2eMode = String(process.env.EXPO_PUBLIC_E2E || '').trim() === '1';
@@ -12,6 +29,9 @@ export default function Index() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (e2eMode) return;
+=======
+  const colorScheme = useColorScheme() ?? 'light';
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
       if (!user) {
         router.replace('/sign-in');
@@ -28,8 +48,18 @@ export default function Index() {
   // AuthProvider handles all routing logic
   // This screen shows loading state while AuthProvider determines where to navigate
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-      <ActivityIndicator size="large" />
+    <View style={{ 
+      flex: 1, 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      backgroundColor: Colors[colorScheme].background,
+      gap: 24,
+    }}>
+      <Image 
+        source={require('../assets/images/logo.svg')} 
+        style={{ width: 80, height: 80, borderRadius: 16 }} 
+      />
+      <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
     </View>
   );
 }

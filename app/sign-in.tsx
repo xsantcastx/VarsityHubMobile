@@ -18,14 +18,14 @@ import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
+<<<<<<< HEAD
 import { useAuth } from '@/context/AuthProvider';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
-import * as AppleAuthentication from 'expo-apple-authentication';
-
-const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthenticationButtonStyle } = AppleAuthentication;
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -37,8 +37,11 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signInWithGoogle, loading: googleLoading, ready: googleReady } = useGoogleAuth();
+<<<<<<< HEAD
   const { signInWithApple } = useAppleAuth();
   const { checkAuth } = useAuth();
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
   const onSubmit = async () => {
     if (!email || !password) {
@@ -49,6 +52,7 @@ export default function SignInScreen() {
     setError(null);
     try {
       const res: any = await User.loginViaEmailPassword(email, password);
+<<<<<<< HEAD
       
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
@@ -67,6 +71,37 @@ export default function SignInScreen() {
 
       // Otherwise, refresh auth state - AuthProvider will handle routing
       await checkAuth();
+=======
+      if (res?.access_token) {
+        if (res?.needs_verification) {
+          // Navigate directly to email verification (no alert)
+          router.replace('/verify-email');
+        } else {
+          // Successful sign-in - everyone lands on feed
+          router.replace('/(tabs)/feed' as any);
+        }
+      } else {
+        setError('Invalid login response');
+        return;
+      }
+      if (res?.needs_verification) {
+        Alert.alert('Verify Email', 'Please verify your email to continue.');
+        router.replace('/verify-email');
+        return;
+      }
+
+      const account = res?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = res?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+
+      // Everyone lands on feed after successful login
+      Alert.alert('Signed in', 'Welcome back!');
+      router.replace('/(tabs)/feed' as any);
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
       // Capture error with context
@@ -92,6 +127,7 @@ export default function SignInScreen() {
     setError(null);
     try {
       const response: any = await signInWithGoogle();
+<<<<<<< HEAD
       
       if (!response?.user?.email && !response?.email) {
         const errMsg = `Google sign-in failed: missing email in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
@@ -103,6 +139,17 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       await checkAuth();
       // AuthProvider will detect onboarding_completed and route accordingly
+=======
+      const account = response?.user || (await User.me());
+      const prefs = account?.preferences || {};
+      const needsOnboarding = response?.needs_onboarding === true || prefs?.onboarding_completed === false;
+      if (needsOnboarding) {
+        router.replace('/onboarding/step-1-role');
+        return;
+      }
+      // Everyone lands on feed
+      router.replace('/(tabs)/feed' as any);
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
@@ -113,6 +160,7 @@ export default function SignInScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
+<<<<<<< HEAD
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'google-signin' } }
@@ -160,6 +208,8 @@ export default function SignInScreen() {
         { tags: { context: 'apple-signin' } }
       );
       
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       setError(message);
     }
   };
@@ -178,9 +228,9 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={[styles.logoContainer, { backgroundColor: 'transparent', shadowColor: 'transparent', shadowOpacity: 0, elevation: 0 }]}>
+            <View style={[styles.logoContainer, { backgroundColor: palette.card, shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a' }]}>
               <Image
-                source={require('../assets/images/no-background-logo.svg')}
+                source={require('../assets/images/logo.png')}
                 style={styles.logo}
                 contentFit="contain"
               />
@@ -194,6 +244,7 @@ export default function SignInScreen() {
               <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
             ) : null}
 
+<<<<<<< HEAD
             {Platform.OS === 'ios' ? (
               <AppleAuthenticationButton
                 onPress={handleAppleLogin}
@@ -204,6 +255,8 @@ export default function SignInScreen() {
               />
             ) : null}
 
+=======
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
             {googleReady ? (
               <Pressable
                 style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
@@ -226,16 +279,24 @@ export default function SignInScreen() {
               >
                 <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
-                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>Configure Google OAuth client IDs to enable one-tap login.</Text>
+                <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
+                  <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
+                    Configure Google OAuth client IDs to enable one-tap login.
+                  </Text>
                 </View>
               </View>
             )}
 
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+              <Text style={[styles.dividerText, { color: palette.mutedText }]}>or</Text>
+              <View style={[styles.dividerLine, { backgroundColor: palette.border }]} />
+            </View>
+
             <View style={styles.fieldSpacing}>
               <Text style={[styles.label, { color: palette.mutedText }]}>Email</Text>
               <Input
-                placeholder="you@email.com"
+                placeholder="name@school.edu"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -311,11 +372,12 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   logoContainer: {
-    width: 168,
-    height: 132,
-    borderRadius: 0,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
+<<<<<<< HEAD
     marginBottom: 16,
     paddingHorizontal: 0,
     paddingVertical: 0,
@@ -323,11 +385,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 0,
     elevation: 0,
+=======
+    marginBottom: 20,
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 16,
+    elevation: 8,
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   },
   logo: {
-    width: 168,
-    height: 120,
-    resizeMode: 'contain',
+    width: 88,
+    height: 88,
   },
   title: {
     fontSize: 24,
@@ -373,19 +441,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
-  },
-  appleFallbackButton: {
-    height: 44,
-    width: '100%',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  appleFallbackText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   googleButtonSubtext: {
     fontSize: 12,
@@ -444,3 +499,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+<<<<<<< HEAD
+=======
+
+
+
+
+
+
+
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)

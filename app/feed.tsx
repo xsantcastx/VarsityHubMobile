@@ -20,28 +20,42 @@ import GameVerticalFeedScreen from './game-details/GameVerticalFeedScreen';
 type GameItem = { id: string; title?: string; date?: string; location?: string; cover_image_url?: string; banner_url?: string | null; event_id?: string | null };
 
 // RSVP Badge Component
-const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: () => void }) => {
+const RSVPBadge = ({ gameItem, onRSVPChange, isAuthenticated, onAuthRequired }: { 
+  gameItem: any, 
+  onRSVPChange?: () => void,
+  isAuthenticated?: boolean,
+  onAuthRequired?: () => void 
+}) => {
   const colorScheme = useColorScheme();
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check initial RSVP status when component mounts
+  // Check initial RSVP status when component mounts (only if authenticated)
   useEffect(() => {
-    if (gameItem.event_id) {
+    if (gameItem.event_id && isAuthenticated) {
       Event.rsvpStatus(gameItem.event_id)
         .then((status: any) => {
           setIsRsvped(status.going || status.attending || false);
           setRsvpCount(status.count || 0);
         })
-        .catch(() => {
-          // Handle error silently, keep default states
+        .catch((err: any) => {
+          // Handle auth errors silently, keep default states
+          if (err?.status === 401 || err?.status === 403) {
+            // User not authenticated, keep defaults
+          }
         });
     }
-  }, [gameItem.event_id]);
+  }, [gameItem.event_id, isAuthenticated]);
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    
+    // Check authentication before attempting RSVP
+    if (!isAuthenticated) {
+      onAuthRequired?.();
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -57,9 +71,22 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('RSVP error:', error);
-      Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      
+      // Handle auth errors specifically
+      if (error?.status === 401 || error?.status === 403) {
+        Alert.alert(
+          'Sign In Required',
+          'Please sign in to RSVP for this event.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Sign In', onPress: () => onAuthRequired?.() }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -166,6 +193,11 @@ export default function FeedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [me, setMe] = useState<any>(null);
   const emailVerified = !!me?.email_verified;
+  const isAuthenticated = !!me?.id;
+  
+  const handleAuthRequired = useCallback(() => {
+    router.push('/sign-in');
+  }, [router]);
 
   const [verticalFeedModalVisible, setVerticalFeedModalVisible] = useState(false);
   const [activeVerticalFeedGameId, setActiveVerticalFeedGameId] = useState<string | null>(null);
@@ -221,8 +253,13 @@ export default function FeedScreen() {
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
       const [gamesData, highlightsData, forFeedAds] = await Promise.all([
+<<<<<<< HEAD
         Game.list('-date'),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
+=======
+        Game.list('-date', { limit: 20 }),
+        Highlights.fetch(countryCode ? { country: countryCode, limit: 40 } : { limit: 40 }).catch((err) => {
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
@@ -305,7 +342,8 @@ export default function FeedScreen() {
 
     setLoadingMore(true);
     try {
-      const nextData = await Game.list('-date');
+      // Pass cursor for proper pagination
+      const nextData = await Game.list('-date', { cursor: gamesCursor, limit: 20 });
       
       // Handle cursor-based response or array
       let normalizedGames = [];
@@ -317,15 +355,26 @@ export default function FeedScreen() {
         normalizedGames = Array.isArray(nextData) ? nextData : [];
       }
 
-      setGames(prev => [...prev, ...normalizedGames]);
+      // Dedupe by ID to prevent duplicates
+      const existingIds = new Set(games.map(g => String(g.id)));
+      const newGames = normalizedGames.filter((g: GameItem) => !existingIds.has(String(g.id)));
+
+      setGames(prev => [...prev, ...newGames]);
       setGamesCursor(cursor);
+<<<<<<< HEAD
       setHasMoreGames(!!cursor);
+=======
+      setHasMoreGames(!!cursor && newGames.length > 0);
+      setZipDirectory(prev => [...prev, ...buildZipDirectory(newGames)]);
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     } catch (e: any) {
       console.error('Failed to load more games', e);
+      // Stop pagination on error
+      setHasMoreGames(false);
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMoreGames, gamesCursor]);
+  }, [loadingMore, hasMoreGames, gamesCursor, games]);
 
   useEffect(() => {
     void (async () => {
@@ -529,6 +578,85 @@ export default function FeedScreen() {
     );
   }, [emailVerified, me, router]);
 
+<<<<<<< HEAD
+=======
+  const renderGameTile = useCallback(
+    ({ item, index }: { item: GameItem; index: number }) => {
+      const raw = item as any;
+      const banner = item.cover_image_url || raw?.banner_url || null;
+      const hasBanner = typeof banner === 'string' && banner.length > 0;
+      const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+      const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
+      const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
+      const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
+      const reviewsCount =
+        typeof raw?.reviews_count === 'number'
+          ? raw.reviews_count
+          : typeof raw?._count?.reviews === 'number'
+            ? raw._count.reviews
+            : 0;
+      const mediaCount =
+        typeof raw?.media_count === 'number'
+          ? raw.media_count
+          : Array.isArray(raw?.media)
+            ? raw.media.length
+            : 0;
+      const summary = voteSummaries[String(item.id)] || null;
+      const voteText = summary
+        ? `${summary.teamALabelShort} ${summary.pctA}% | ${summary.teamBLabelShort} ${summary.pctB}%`
+        : null;
+
+      return (
+        <Pressable
+          style={styles.gridItem}
+          onPress={() => router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
+          accessibilityRole="button"
+        >
+          {hasBanner ? (
+            <Image source={{ uri: banner }} style={styles.gridImage} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={gradient} style={styles.gridImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+          )}
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['transparent', 'transparent']}
+            style={styles.gridShade}
+            pointerEvents="none"
+          />
+          <View style={styles.gridContent}>
+            <View style={styles.gridDateChip}>
+              <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+              <Text style={styles.gridDateText}>{eventDate}</Text>
+            </View>
+            <Text style={styles.gridTitle} numberOfLines={2}>
+              {item.title ? String(item.title) : 'Game'}
+            </Text>
+            <Text style={styles.gridMeta} numberOfLines={1}>
+              {eventTime ? `${eventTime} • ${locationText}` : locationText}
+            </Text>
+            <View style={styles.gridStatsRow}>
+              <View style={styles.gridStat}>
+                <Ionicons name="chatbubble-ellipses-outline" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{reviewsCount}</Text>
+              </View>
+              <View style={styles.gridStat}>
+                <Ionicons name="image-outline" size={12} color="#F9FAFB" />
+                <Text style={styles.gridStatText}>{mediaCount}</Text>
+              </View>
+            </View>
+            {voteText ? (
+              <Text style={styles.gridVoteText} numberOfLines={1}>
+                {voteText}
+              </Text>
+            ) : null}
+          </View>
+          <RSVPBadge gameItem={item} onRSVPChange={onRefresh} isAuthenticated={isAuthenticated} onAuthRequired={handleAuthRequired} />
+        </Pressable>
+      );
+    },
+    [colorScheme, onRefresh, router, voteSummaries, isAuthenticated, handleAuthRequired],
+  );
+
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}
@@ -844,7 +972,7 @@ export default function FeedScreen() {
                       </Text>
                     ) : null}
                   </View>
-                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} />
+                  <RSVPBadge gameItem={gameItem} onRSVPChange={onRefresh} isAuthenticated={isAuthenticated} onAuthRequired={handleAuthRequired} />
                 </Pressable>
               );
             })}
@@ -929,7 +1057,7 @@ export default function FeedScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} />
+                    <RSVPBadge gameItem={item} onRSVPChange={onRefresh} isAuthenticated={isAuthenticated} onAuthRequired={handleAuthRequired} />
                   </Pressable>
                 );
               })}

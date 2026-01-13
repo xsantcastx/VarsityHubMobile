@@ -14,6 +14,12 @@ import { AuthProvider } from '@/context/AuthProvider';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
+<<<<<<< HEAD
+=======
+// @ts-ignore JS exports
+import { User } from '@/api/entities';
+import { registerForPushNotifications } from '@/utils/pushNotifications';
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 import { initSentry } from '@/utils/sentry';
 
 // Conditionally import notifications only if not in Expo Go
@@ -69,6 +75,7 @@ export default function RootLayout() {
   }, []);
 
   React.useEffect(() => {
+<<<<<<< HEAD
     if (Platform.OS !== 'android' || isExpoGo || !Notifications) return;
     Notifications.setNotificationChannelAsync('default', {
       name: 'General',
@@ -91,6 +98,98 @@ export default function RootLayout() {
       if (!data || !data.type) {
         devLog('[Notifications] Received notification with no data');
         return;
+=======
+    if (!navState?.key) return;
+    const first = firstSegment;
+    const publicRoutes = new Set(['sign-in', 'sign-up', 'verify-identity', 'forgot-password', 'reset-password']);
+    const isPublic = publicRoutes.has(first);
+    const isIndex = first === '' || first === 'index';
+    
+    (async () => {
+      try {
+        // Add timeout to prevent infinite loading on index
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Auth timeout')), 5000)
+        );
+        
+        const me: any = await Promise.race([User.me(), timeoutPromise]);
+        const needsOnboarding = me?.preferences && (me.preferences.onboarding_completed === false);
+
+        if (!me?.id) {
+          pushRegistrationAttemptedRef.current = false;
+        }
+
+        if (
+          me?.id &&
+          me?.preferences?.notifications_enabled !== false &&
+          !pushRegistrationAttemptedRef.current
+        ) {
+          pushRegistrationAttemptedRef.current = true;
+          registerForPushNotifications(me?.preferences?.push_token).catch((err) => {
+            if (__DEV__) console.warn('[push] registration failed', err);
+            pushRegistrationAttemptedRef.current = false;
+          });
+        }
+        
+        // Handle index route - this is the main routing decision point
+        if (isIndex && me?.id) {
+          if (needsOnboarding && lastRedirectRef.current !== '/onboarding/step-1-role') {
+            lastRedirectRef.current = '/onboarding/step-1-role';
+            router.replace('/onboarding/step-1-role');
+            return;
+          }
+          // User is authenticated and doesn't need onboarding - go to tabs
+          if (lastRedirectRef.current !== '/(tabs)') {
+            lastRedirectRef.current = '/(tabs)';
+            router.replace('/(tabs)' as any);
+          }
+          return;
+        }
+        
+        // Handle index route for unauthenticated users
+        if (isIndex && !me?.id) {
+          if (lastRedirectRef.current !== '/sign-in') {
+            lastRedirectRef.current = '/sign-in';
+            router.replace('/sign-in');
+          }
+          return;
+        }
+        
+        if (!isPublic && needsOnboarding && first !== 'onboarding' && lastRedirectRef.current !== '/onboarding/step-1-role') {
+          lastRedirectRef.current = '/onboarding/step-1-role';
+          router.replace('/onboarding/step-1-role');
+          return;
+        }
+        
+        // Role-aware login landing - only redirect if on public routes (but NOT verify-identity, user might be verifying during onboarding)
+        if (isPublic && me && first !== 'verify-identity') {
+          // Everyone lands on feed
+          const landingRoute = '/(tabs)';
+          
+          if (lastRedirectRef.current !== landingRoute) {
+            lastRedirectRef.current = landingRoute;
+            router.replace(landingRoute as any);
+          }
+        }
+      } catch (err: any) {
+        const status = err?.status;
+        const isTimeout = err?.message === 'Auth timeout';
+        
+        // On index with timeout or auth error, go to sign-in
+        if (isIndex && (isTimeout || status === 401 || status === 403)) {
+          if (lastRedirectRef.current !== '/sign-in') {
+            lastRedirectRef.current = '/sign-in';
+            router.replace('/sign-in');
+          }
+          return;
+        }
+        
+        if (!isPublic && (status === 401 || status === 403) && lastRedirectRef.current !== '/sign-in') {
+          lastRedirectRef.current = '/sign-in';
+          router.replace('/sign-in');
+        }
+        // Don't redirect on other errors - let user stay where they are
+>>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       }
 
       devLog('[Notifications] User tapped notification:', data.type);
