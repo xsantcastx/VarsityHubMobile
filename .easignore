@@ -21,6 +21,8 @@ expo-env.d.ts
 .metro-cache/
 
 # Native build outputs
+android/
+ios/
 android/.gradle/
 android/.idea/
 android/.cxx/
