@@ -30,24 +30,12 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>varsityhubmobile</string>
-          <string>com.xsantcastx.varsityhub</string>
-        </array>
-      </dict>
-      <dict>
-        <key>CFBundleURLSchemes</key>
-        <array>
-          <string>exp+varsityhub</string>
+          <string>com.varsithub.varsityhub</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>GMSApiKey</key>
-<<<<<<< HEAD
-    <string>AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY</string>
-=======
-    <string>YOUR_IOS_GOOGLE_MAPS_KEY</string>
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
@@ -57,22 +45,22 @@
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>
-      <false/>
+      <true/>
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow VarsityHub to use the camera for capturing photos and videos.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>Allow VarsityHub to use your location to show nearby events.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>VarsityHub needs your location to show nearby events on the map.</string>
+    <string>Allow VarsityHub to use your location to show nearby events on the map.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow VarsityHub to access the microphone for recording videos.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>VarsityHub needs permission to save photos and videos to your library.</string>
+    <string>Allow VarsityHub to save photos.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Allow VarsityHub to access your photos to attach images to posts.</string>
     <key>NSUserActivityTypes</key>
