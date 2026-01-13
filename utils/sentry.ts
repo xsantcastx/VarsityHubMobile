@@ -18,10 +18,6 @@ const isPlaceholderDsn = (dsn: string) => {
 };
 
 const shouldUseSentry = !__DEV__ && !!SENTRY_DSN && !isPlaceholderDsn(SENTRY_DSN);
-import { getConfig } from '@/config/env';
-import * as Sentry from '@sentry/react-native';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 
 let sentryReady = false;
 
