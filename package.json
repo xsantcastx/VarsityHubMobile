@@ -45,7 +45,7 @@
     "@prisma/client": "^7.0.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
-    "@react-native-picker/picker": "2.11.1",
+    "@react-native-picker/picker": "2.11.4",
     "@react-navigation/bottom-tabs": "^7.3.2",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
