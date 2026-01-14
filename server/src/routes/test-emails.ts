@@ -2,11 +2,13 @@ import { Router } from 'express';
 import {
     sendBillingNoticeEmail,
     sendContentModerationEmail,
+    sendJoinRequestApproved,
+    sendJoinRequestDenied,
+    sendJoinRequestToAdmin,
     sendOrganizationApprovalEmail,
     sendOrganizationDenialEmail,
     sendOrganizationInviteEmail,
     sendPasswordResetEmail,
-    sendSecurityAlertEmail,
     sendTeamInviteEmail,
     sendVerificationEmail,
 } from '../lib/email.js';
@@ -70,36 +72,25 @@ router.post('/org-invite', async (req, res) => {
 });
 
 router.post('/join-admin', async (req, res) => {
-  // PHASE 1: Minimal accurate data from current backend schema
-  // See docs/EMAIL_TEMPLATE_FUTURE_PHASE2.md for full vision requiring team/role/seat tracking
   const {
     adminEmail = 'admin@example.com',
     adminName = 'Director Johnson',
     requesterName = 'John Smith',
-    requesterEmail = 'john@example.com',
     organizationName = 'Texas Elite Sports',
     message = 'I would love to volunteer as a coach.',
-    requestId = 'req_123',
-    requestedAt = new Date().toISOString(),
-    approveUrl = 'https://varsityhub.app/org/req_123/approve',
-    denyUrl = 'https://varsityhub.app/org/req_123/deny',
+    requestId = 'req_test_123',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestToAdmin - template removed from approved list
-  // const ok = await sendJoinRequestToAdmin({
-  //   adminEmail,
-  //   adminName,
-  //   requesterName,
-  //   requesterEmail,
-  //   organizationName,
-  //   message,
-  //   requestId,
-  //   requestedAt,
-  //   approveUrl,
-  //   denyUrl,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestToAdmin({
+    adminEmail,
+    adminName,
+    requesterName,
+    organizationName,
+    message,
+    requestId,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/join-approved', async (req, res) => {
@@ -110,15 +101,14 @@ router.post('/join-approved', async (req, res) => {
     adminName = 'Director Johnson',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestApproved - template removed from approved list
-  // const ok = await sendJoinRequestApproved({
-  //   userEmail,
-  //   userName,
-  //   organizationName,
-  //   adminName,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestApproved({
+    userEmail,
+    userName,
+    organizationName,
+    adminName,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/join-denied', async (req, res) => {
@@ -129,15 +119,14 @@ router.post('/join-denied', async (req, res) => {
     reason = 'We are currently at capacity.',
     orgLogoUrl,
   } = req.body || {};
-  // DISABLED: sendJoinRequestDenied - template removed from approved list
-  // const ok = await sendJoinRequestDenied({
-  //   userEmail,
-  //   userName,
-  //   organizationName,
-  //   reason,
-  //   orgLogoUrl,
-  // });
-  return res.json({ ok: false, message: 'Template disabled' });
+  const ok = await sendJoinRequestDenied({
+    userEmail,
+    userName,
+    organizationName,
+    reason,
+    orgLogoUrl,
+  });
+  return res.json({ ok });
 });
 
 router.post('/moderation', async (req, res) => {
@@ -189,24 +178,6 @@ router.post('/org-approval', async (req, res) => {
 router.post('/org-denial', async (req, res) => {
   const { to = 'user@example.com', organizationName = 'Texas Elite Sports', reason = 'Missing docs', orgLogoUrl } = req.body || {};
   const ok = await sendOrganizationDenialEmail({ to, organizationName, reason, orgLogoUrl });
-  return res.json({ ok });
-});
-
-router.post('/security-alert', async (req, res) => {
-  const {
-    to = 'user@example.com',
-    alertType = 'password_change',
-    ipAddress = '203.0.113.42',
-    location = 'Stamford, CT',
-    manageUrl,
-  } = req.body || {};
-  const ok = await sendSecurityAlertEmail({
-    to,
-    alertType,
-    ipAddress,
-    location,
-    manageUrl,
-  });
   return res.json({ ok });
 });
 

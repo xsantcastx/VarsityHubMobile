@@ -1,12 +1,10 @@
 import { Router } from 'express';
-import { debugLog } from '../lib/debugLog.js';
 import { getZipCoordinates, haversineDistance } from '../lib/geoUtils.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { calculateAdPriceDollars } from '../utils/adPricing.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const adsRouter = Router();
 
@@ -337,32 +335,44 @@ adsRouter.post('/reservations', requireVerified as any, async (req, res) => {
     skipDuplicates: true,
   });
 
-  const totalPrice = calculateAdPriceDollars(isoDates);
-
-  // Fetch ad details for email
-  const ad = await prisma.ad.findUnique({
-    where: { id: String(ad_id) },
-  });
-
-  // Queue reservation received email
-  if (ad && ad.contact_email) {
-    const checkoutLink = `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/checkout?ad_id=${ad_id}`;
+  // Price logic: charge per week block
+  // Mon-Thu = $8 per week block, Fri-Sun = $10 per week block
+  const weekdayBlockPrice = 8.00;
+  const weekendBlockPrice = 10.00;
+  
+  // Group dates by week
+  const weekMap = new Map<string, { hasWeekday: boolean; hasWeekend: boolean }>();
+  
+  isoDates.forEach((dateStr) => {
+    const date = new Date(dateStr + 'T00:00:00.000Z');
+    const day = date.getUTCDay(); // 0 Sun .. 6 Sat
     
-    await emailQueue.add(
-      'ads.reservation_received',
-      {
-        to: ad.contact_email,
-        advertiser_name: ad.contact_name,
-        business_name: ad.business_name,
-        reserved_dates: isoDates,
-        total_cost: totalPrice,
-        target_zip: ad.target_zip_code,
-        checkout_link: checkoutLink,
-        ad_preview_url: ad.banner_url || undefined,
-      },
-      { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-    );
-    debugLog(`[ads] Queued reservation email for ${ad.contact_email}`);
+    // Find Monday of this week to use as key
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() + diff);
+    const weekKey = monday.toISOString().split('T')[0];
+    
+    if (!weekMap.has(weekKey)) {
+      weekMap.set(weekKey, { hasWeekday: false, hasWeekend: false });
+    }
+    
+    const week = weekMap.get(weekKey)!;
+    
+    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
+    // Fri=5, Sat=6, Sun=0 are weekend
+    if (day >= 1 && day <= 4) {
+      week.hasWeekday = true;
+    } else {
+      week.hasWeekend = true;
+    }
+  });
+  
+  // Calculate total: charge once per week block
+  let totalPrice = 0;
+  for (const week of weekMap.values()) {
+    if (week.hasWeekday) totalPrice += weekdayBlockPrice;
+    if (week.hasWeekend) totalPrice += weekendBlockPrice;
   }
 
   return res.status(201).json({ ok: true, reserved: createdMany.count, dates: isoDates, price: totalPrice });
