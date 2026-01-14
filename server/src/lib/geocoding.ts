@@ -17,41 +17,12 @@ import { debugLog } from './debugLog.js';
 // In-memory cache for geocoded locations (location string -> coordinates)
 const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const AUTOCOMPLETE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-const PLACE_DETAILS_CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
-
-const autocompleteCache = new Map<string, { timestamp: number; suggestions: PlaceSuggestion[] }>();
-const placeDetailsCache = new Map<string, { timestamp: number; details: PlaceDetailsResult }>();
 
 export interface GeocodingResult {
   latitude: number;
   longitude: number;
   formatted_address?: string;
 }
-
-export interface PlaceSuggestion {
-  description: string;
-  place_id: string;
-  structured_formatting?: {
-    main_text?: string;
-    secondary_text?: string;
-  };
-}
-
-export interface PlaceDetailsResult {
-  place_id: string;
-  description: string;
-  formatted_address?: string;
-  latitude?: number;
-  longitude?: number;
-  city?: string;
-  state?: string;
-  postal_code?: string;
-}
-
-const getGoogleApiKey = (): string | null => {
-  return process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || null;
-};
 
 /**
  * Geocode a location string to coordinates using Google Geocoding API
@@ -73,9 +44,9 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
   }
 
   // Check if we have Google Maps API key
-  const apiKey = getGoogleApiKey();
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    console.warn('⚠️ GOOGLE_MAPS_API_KEY / GOOGLE_PLACES_API_KEY not configured. Geocoding disabled.');
+    console.warn('⚠️ GOOGLE_MAPS_API_KEY not configured. Geocoding disabled.');
     return null;
   }
 
@@ -107,115 +78,6 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
     }
   } catch (error) {
     console.error(`Error geocoding location "${location}":`, error);
-    return null;
-  }
-}
-
-/**
- * Fetch autocomplete suggestions for a location query via Google Places API.
- */
-export async function autocompletePlaces(query: string, limit: number = 5): Promise<PlaceSuggestion[]> {
-  const trimmed = query.trim();
-  if (!trimmed || trimmed.length < 3) return [];
-
-  const cached = autocompleteCache.get(trimmed.toLowerCase());
-  if (cached && Date.now() - cached.timestamp < AUTOCOMPLETE_CACHE_DURATION_MS) {
-    return cached.suggestions.slice(0, limit);
-  }
-
-  const apiKey = getGoogleApiKey();
-  if (!apiKey) {
-    console.warn('⚠️ GOOGLE_MAPS_API_KEY / GOOGLE_PLACES_API_KEY not configured. Autocomplete disabled.');
-    return [];
-  }
-
-  try {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
-    url.searchParams.set('input', trimmed);
-    url.searchParams.set('types', 'geocode');
-    url.searchParams.set('language', 'en');
-    url.searchParams.set('key', apiKey);
-
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.status !== 'OK' || !Array.isArray(data.predictions)) {
-      debugLog(`⚠️ Places autocomplete failed for "${trimmed}": ${data.status}`);
-      return [];
-    }
-
-    const suggestions: PlaceSuggestion[] = data.predictions.map((prediction: any) => ({
-      description: prediction.description,
-      place_id: prediction.place_id,
-      structured_formatting: prediction.structured_formatting,
-    }));
-    autocompleteCache.set(trimmed.toLowerCase(), {
-      timestamp: Date.now(),
-      suggestions,
-    });
-    return suggestions.slice(0, limit);
-  } catch (error) {
-    console.error(`Error fetching autocomplete suggestions for "${trimmed}":`, error);
-    return [];
-  }
-}
-
-/**
- * Resolve a Google Place ID to coordinates and formatted address.
- */
-export async function getPlaceDetails(placeId: string): Promise<PlaceDetailsResult | null> {
-  const normalized = placeId.trim();
-  if (!normalized) return null;
-
-  const cached = placeDetailsCache.get(normalized);
-  if (cached && Date.now() - cached.timestamp < PLACE_DETAILS_CACHE_DURATION_MS) {
-    return cached.details;
-  }
-
-  const apiKey = getGoogleApiKey();
-  if (!apiKey) {
-    console.warn('⚠️ GOOGLE_MAPS_API_KEY / GOOGLE_PLACES_API_KEY not configured. Place details disabled.');
-    return null;
-  }
-
-  try {
-    const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
-    url.searchParams.set('place_id', normalized);
-    url.searchParams.set('fields', 'formatted_address,geometry,address_component,place_id');
-    url.searchParams.set('key', apiKey);
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.status !== 'OK' || !data.result) {
-      debugLog(`⚠️ Place details lookup failed for "${normalized}": ${data.status}`);
-      return null;
-    }
-
-    const details = data.result;
-    const components = Array.isArray(details.address_components) ? details.address_components : [];
-    const findComponent = (type: string) =>
-      components.find((component: any) => Array.isArray(component.types) && component.types.includes(type));
-
-    const cityComponent =
-      findComponent('locality') ||
-      findComponent('sublocality') ||
-      findComponent('administrative_area_level_2');
-    const stateComponent = findComponent('administrative_area_level_1');
-    const postalComponent = findComponent('postal_code');
-
-    const result: PlaceDetailsResult = {
-      place_id: details.place_id ?? normalized,
-      description: details.formatted_address ?? '',
-      formatted_address: details.formatted_address,
-      latitude: details.geometry?.location?.lat,
-      longitude: details.geometry?.location?.lng,
-      city: cityComponent?.long_name,
-      state: stateComponent?.short_name || stateComponent?.long_name,
-      postal_code: postalComponent?.long_name,
-    };
-
-    placeDetailsCache.set(normalized, { timestamp: Date.now(), details: result });
-    return result;
-  } catch (error) {
-    console.error(`Error fetching place details for "${normalized}":`, error);
     return null;
   }
 }

@@ -1,6 +1,5 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { jest: jestGlobals } = require('@jest/globals');
 const { config } = require('dotenv');
 
 // Mimic server/src/lib/load-env.ts without importing TS during tests.
@@ -18,10 +17,8 @@ process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/varsityhub_test';
 
 // Quiet console noise unless explicitly enabled.
-const jestRef = typeof jest !== 'undefined' ? jest : jestGlobals;
-
 if (!process.env.VERBOSE) {
-  const noop = jestRef.fn();
+  const noop = jest.fn();
   global.console = {
     ...console,
     log: noop,

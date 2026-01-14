@@ -54,45 +54,18 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
   return res.json({ items: payload, nextCursor });
 });
 
-// GET /notifications/unread-count
-notificationsRouter.get('/unread-count', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const count = await (prisma as any).notification.count({
-    where: { user_id: userId, read_at: null },
-  });
-  return res.json({ count });
-});
-
 // POST /notifications/:id/read
 notificationsRouter.post('/:id/read', requireAuth as any, async (req: AuthedRequest, res) => {
   const userId = req.user!.id;
   const id = String(req.params.id);
-  const notification = await (prisma as any).notification.findFirst({
-    where: { id, user_id: userId },
-    select: { read_at: true },
-  });
-  if (!notification) return res.status(404).json({ error: 'Not found' });
-  if (!notification.read_at) {
-    await (prisma as any).notification.update({
-      where: { id },
-      data: { read_at: new Date() },
-    });
-  }
-  const unreadCount = await (prisma as any).notification.count({
-    where: { user_id: userId, read_at: null },
-  });
-  return res.json({ ok: true, id, unread_count: unreadCount, already_read: !!notification.read_at });
+  const result = await (prisma as any).notification.updateMany({ where: { id, user_id: userId }, data: { read_at: new Date() } });
+  if (result.count === 0) return res.status(404).json({ error: 'Not found' });
+  return res.json({ ok: true, id });
 });
 
 // POST /notifications/mark-read-all
 notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: AuthedRequest, res) => {
   const userId = req.user!.id;
-  const result = await (prisma as any).notification.updateMany({
-    where: { user_id: userId, read_at: null },
-    data: { read_at: new Date() },
-  });
-  const unreadCount = await (prisma as any).notification.count({
-    where: { user_id: userId, read_at: null },
-  });
-  return res.json({ ok: true, updated: result.count, unread_count: unreadCount });
+  await (prisma as any).notification.updateMany({ where: { user_id: userId, read_at: null }, data: { read_at: new Date() } });
+  return res.json({ ok: true });
 });

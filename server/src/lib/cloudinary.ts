@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { File, FormData, fetch } from 'undici';
+import { FormData, File, fetch } from 'undici';
 
 // Check if Cloudinary is properly configured
 export const isCloudinaryConfigured = (): boolean => {
@@ -45,12 +45,6 @@ const createSignature = (params: Record<string, string>, apiSecret: string) => {
     .map((key) => `${key}=${params[key]}`)
     .join('&');
 
-  // ⚠️  SHA-1 is required by Cloudinary API for request signatures
-  // https://cloudinary.com/documentation/upload_widget#signed_uploads
-  // Although SHA-1 is cryptographically weak for general use,
-  // Cloudinary requires it for API authentication. This is not a security risk
-  // for signed upload requests.
-  // snyk:ignore=Use of Password Hash With Insufficient Computational Effort
   return crypto.createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 };
 

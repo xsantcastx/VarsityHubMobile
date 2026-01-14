@@ -7,9 +7,9 @@ async function createTestPrices() {
   try {
     console.log('Creating test prices for subscription plans...');
 
-    // Create Veteran plan price (monthly: $1.50 per team)
+    // Create Veteran plan price (monthly: $2.50 per team)
     const veteranPrice = await stripe.prices.create({
-      unit_amount: 150, // $1.50 in cents
+      unit_amount: 250, // $2.50 in cents
       currency: 'usd',
       recurring: { interval: 'month' },
       product_data: {

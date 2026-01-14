@@ -1,16 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { commentLimiter, interactionLimiter, postCreationLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
 export const postsRouter = Router();
 
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const POST_MILESTONE_THRESHOLDS = [100, 250, 500, 1000];
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const detectMediaType = (url?: string | null): 'video' | 'image' => {
@@ -19,46 +15,6 @@ const detectMediaType = (url?: string | null): 'video' | 'image' => {
   return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
 };
 
-async function enqueuePostMilestoneEmail(postId: string, milestone: number): Promise<void> {
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    select: {
-      id: true,
-      title: true,
-      content: true,
-      media_url: true,
-      author: { select: { display_name: true, email: true, username: true } },
-    },
-  });
-  if (!post?.author?.email) return;
-
-  const shareLink = `${APP_BASE_URL}/posts/${encodeURIComponent(postId)}`;
-  const reactionsLink = `${shareLink}?view=reactions`;
-  const postTitle = post.title || (post.content ? post.content.slice(0, 60) : 'Your recent highlight');
-  const postPreviewUrl = post.media_url || `${shareLink}/preview`;
-
-  try {
-    await emailQueue.add(
-      'posts.milestone_reached',
-      {
-        to: post.author.email,
-        creator_name: post.author.display_name || post.author.username || 'Athlete',
-        milestone_number: milestone,
-        post_preview_url: postPreviewUrl,
-        post_title: postTitle,
-        share_link: shareLink,
-        reactions_link: reactionsLink,
-      },
-      {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
-        jobId: `post-${postId}-milestone-${milestone}`,
-      }
-    );
-  } catch (error) {
-    console.error('[posts] Failed to enqueue milestone email:', error);
-  }
-}
 
 postsRouter.get('/', async (req: AuthedRequest, res) => {
   const sort = typeof req.query.sort === 'string' ? req.query.sort.trim() : '';
@@ -219,7 +175,7 @@ import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
 import { debugLog } from '../lib/debugLog.js';
 
-postsRouter.post('/', postCreationLimiter, requireVerified as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -247,13 +203,13 @@ postsRouter.post('/', postCreationLimiter, requireVerified as any, async (req: A
       country_code = rev.country_code || preferCountry;
       admin1 = rev.admin_area || null;
       place_name = rev.place_name || null;
-    } catch {}
+    } catch (_error) {}
   } else if (loc.zip || (prefs?.preferences as any)?.zip_code) {
     try {
       const zip = String(loc.zip || (prefs?.preferences as any)?.zip_code);
       const gg = await geocodeZip(zip, preferCountry);
       lat = gg.lat; lng = gg.lng; country_code = gg.country_code || preferCountry;
-    } catch {}
+    } catch (_error) {}
   } else {
     country_code = preferCountry || null;
   }
@@ -372,7 +328,7 @@ postsRouter.get('/:id/comments', async (req, res) => {
   res.json({ items, nextCursor });
 });
 
-postsRouter.post('/:id/comments', commentLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { id } = req.params;
   const schema = z.object({ content: z.string().min(1).max(1000) });
@@ -413,7 +369,7 @@ postsRouter.post('/:id/comments', commentLimiter, requireAuth as any, async (req
 // Reactions
 // Toggle upvote
 
-postsRouter.post('/:id/upvote', interactionLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -463,15 +419,11 @@ postsRouter.post('/:id/upvote', interactionLimiter, requireAuth as any, async (r
   } catch (e) {
     console.error('Failed to send upvote notification:', e);
   }
-  const milestone = POST_MILESTONE_THRESHOLDS.find((threshold) => upvotes_count === threshold);
-  if (milestone) {
-    await enqueuePostMilestoneEmail(postId, milestone);
-  }
   return res.json({ has_upvoted: true, upvotes_count, upvoted: true, count: upvotes_count });
 });
 
 
-postsRouter.post('/:id/bookmark', interactionLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -646,3 +598,4 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
     res.status(500).json({ error: 'Failed to update comment' });
   }
 });
+

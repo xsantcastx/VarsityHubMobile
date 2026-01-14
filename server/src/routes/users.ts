@@ -1,34 +1,11 @@
 import { Router } from 'express';
 import { notifyNewFollower } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { followLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 export const usersRouter = Router();
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-
-const MS_IN_DAY = 24 * 60 * 60 * 1000;
-function formatJoinDuration(createdAt?: Date | null): string {
-  if (!createdAt || Number.isNaN(createdAt.getTime?.())) return 'recently';
-  const diffDays = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / MS_IN_DAY));
-  if (diffDays >= 365) {
-    const years = Math.floor(diffDays / 365);
-    return `${years} year${years === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays >= 30) {
-    const months = Math.floor(diffDays / 30);
-    return `${months} month${months === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays >= 7) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
-  }
-  if (diffDays <= 1) return 'today';
-  return `${diffDays} days ago`;
-}
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
@@ -313,7 +290,7 @@ usersRouter.get('/lookup', async (req, res) => {
 });
 
 // Follow a user
-usersRouter.post('/:id/follow', followLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 
@@ -328,62 +305,32 @@ usersRouter.post('/:id/follow', followLimiter, requireAuth as any, async (req: A
         following_id,
       },
     });
-    const [followerUser, athleteUser, followerFollowingCount] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: follower_id },
-        select: { display_name: true, username: true, created_at: true },
-      }),
-      prisma.user.findUnique({
-        where: { id: following_id },
-        select: { display_name: true, username: true, email: true },
-      }),
-      prisma.follows.count({ where: { follower_id } }),
-    ]);
     // Create follow notification for the recipient
     try {
-      await (prisma as any).notification.create({
-        data: {
-          user_id: following_id,
-          actor_id: follower_id,
-          type: 'FOLLOW' as any,
-        },
-      });
-      
-      // Send push notification
-      if (followerUser) {
-        await notifyNewFollower(
-          following_id,
-          follower_id,
-          followerUser.display_name || followerUser.username || 'Someone'
-        );
+      if (follower_id !== following_id) {
+        await (prisma as any).notification.create({
+          data: {
+            user_id: following_id,
+            actor_id: follower_id,
+            type: 'FOLLOW' as any,
+          },
+        });
+        
+        // Send push notification
+        const follower = await prisma.user.findUnique({ 
+          where: { id: follower_id }, 
+          select: { display_name: true } 
+        });
+        if (follower) {
+          await notifyNewFollower(
+            following_id,
+            follower_id,
+            follower.display_name || 'Someone'
+          );
+        }
       }
     } catch (e) {
       console.error('Failed to send follow notification:', e);
-    }
-    if (athleteUser?.email) {
-      const profileUrl = `${APP_BASE_URL}/user-profile?id=${encodeURIComponent(follower_id)}`;
-      const followBackLink = `${profileUrl}&follow_back=1`;
-      const dmLink = `${APP_BASE_URL}/messages/new?to=${encodeURIComponent(follower_id)}`;
-      const followerStats = `Joined ${formatJoinDuration(
-        followerUser?.created_at || null
-      )}, follows ${followerFollowingCount} athlete${followerFollowingCount === 1 ? '' : 's'}`;
-      try {
-        await emailQueue.add(
-          'follows.athlete_followed',
-          {
-            to: athleteUser.email,
-            athlete_name: athleteUser.display_name || athleteUser.username || 'Athlete',
-            follower_name: followerUser?.display_name || followerUser?.username || 'New supporter',
-            follower_profile_url: profileUrl,
-            follow_back_link: followBackLink,
-            dm_link: dmLink,
-            follower_stats: followerStats,
-          },
-          { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-        );
-      } catch (error) {
-        console.error('[users] Failed to enqueue follower email:', error);
-      }
     }
     // Return is_following_author for caller
     res.status(201).json({ is_following_author: true });
