@@ -50,9 +50,9 @@ ios/*.xcworkspace/xcuserdata/
 .env.railway*
 server/.env*
 
-# Backend + tooling not required in the client bundle
+# Backend not required in the client bundle
 server/
-tools/
+# Note: tools/ is needed for postinstall scripts
 
 # Misc system clutter
 .DS_Store
