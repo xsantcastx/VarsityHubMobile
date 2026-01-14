@@ -320,12 +320,7 @@ teamsRouter.get('/', async (req, res) => {
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
   const directory = String((req.query as any).directory || '') === '1'; // Team directory search
-<<<<<<< HEAD
-  const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
-=======
   const limit = Math.min(Math.max(parseInt(String((req.query as any).limit || '0'), 10) || 0, 0), 100);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
@@ -450,11 +445,7 @@ teamsRouter.get('/:id/members', async (req, res) => {
     id: m.id,
     role: m.role,
     status: m.status,
-<<<<<<< HEAD
-    custom_position: m.custom_position || null,
-=======
     custom_position: (m as any).custom_position || null,
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     user: {
       id: m.user_id,
       email: (m as any).user?.email || null,

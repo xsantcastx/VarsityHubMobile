@@ -42,14 +42,11 @@ export default function Step10Confirmation() {
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
-<<<<<<< HEAD
-=======
     const isFan = ob.role === 'fan';
     const isCoach = ob.role === 'coach';
     const paymentRequired = isCoach && (ob.plan === 'veteran' || ob.plan === 'legend');
     const paymentCompleted = !paymentRequired || ob.payment_pending === false;
 
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     const checks = [
       {
         label: 'Role Selected',
@@ -243,32 +240,26 @@ export default function Step10Confirmation() {
       
       // Final submission to backend - mark onboarding as complete
       await User.completeOnboarding(completionPayload);
-      
-<<<<<<< HEAD
+
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
-      
+
       if (updatedUser?.preferences?.onboarding_completed !== true) {
         throw new Error('Server did not confirm onboarding completion. Please try again.');
       }
-      
+
       // Server confirmed success - now safe to clear local state
       await markOnboardingCompleteLocally();
       clearOnboarding();
-=======
-      // Clear onboarding state
-      await clearOnboarding();
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
-      
+
       // Navigate to main app
       router.replace('/(tabs)');
     } catch (e: any) {
-<<<<<<< HEAD
       const errorMessage = e?.message || 'Failed to complete onboarding';
-      
+
       // Extract detailed Zod validation errors if available
       const validationIssues = e?.data?.details?.issues;
-      
+
       console.error('[Step10] Completion failed:', {
         error: errorMessage,
         status: e?.status,
@@ -277,37 +268,32 @@ export default function Step10Confirmation() {
         currentPlan: ob.plan,
         role: ob.role
       });
-      
+
       // Build user-friendly error message
       let displayMessage = errorMessage;
       if (validationIssues && Array.isArray(validationIssues)) {
-        const issueMessages = validationIssues.map((issue: any) => 
+        const issueMessages = validationIssues.map((issue: any) =>
           `${issue.path?.join('.') || 'unknown'}: ${issue.message}`
         ).join('\n');
         displayMessage = `Validation errors:\n${issueMessages}`;
       }
-      
+
       Alert.alert(
-        'Setup Not Complete', 
+        'Setup Not Complete',
         displayMessage + '\n\nYour progress has been saved. Please review the steps and try again.',
         [
-          { 
-            text: 'Retry', 
+          {
+            text: 'Retry',
             onPress: () => void onComplete(),
             style: 'default'
           },
-          { 
-            text: 'Review Steps', 
-            style: 'cancel' 
+          {
+            text: 'Review Steps',
+            style: 'cancel'
           }
         ]
       );
       // DO NOT clear onboarding state on error - preserve user's progress
-=======
-      console.error('Onboarding completion error:', e);
-      Alert.alert('Setup Failed', e?.message || 'Please try again or contact support.');
-      setErrorMessage(e?.message || 'Unable to complete setup. Please try again.');
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     } finally { 
       setCompleting(false); 
     }

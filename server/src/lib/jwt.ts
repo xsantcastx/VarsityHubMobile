@@ -50,9 +50,6 @@ export function verifyJwtDetailed<T = any>(token: string): JwtVerifyResult<T> {
   }
 }
 
-<<<<<<< HEAD
-export { DEFAULT_ACCESS_TOKEN_EXPIRY };
-=======
 /**
  * Simple JWT verification - returns payload or null.
  * SECURITY: Now logs verification failures for security monitoring.
@@ -76,4 +73,5 @@ export function verifyJwt<T = any>(token: string): T | null {
 
   return null;
 }
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
+
+export { DEFAULT_ACCESS_TOKEN_EXPIRY };

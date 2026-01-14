@@ -670,39 +670,6 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
       },
     },
   });
-<<<<<<< HEAD
-  if (!user) return res.status(404).json({ error: 'Not found' });
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = user.email ? adminEmails.includes(user.email.toLowerCase()) : false;
-  
-  // IMPORTANT: Admin accounts bypass onboarding requirement
-  // They always have onboarding_completed = true regardless of actual preference
-  const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-    is_parent: false,
-    zip_code: null,
-  };
-
-  const mergedPrefs = mergePreferences(defaults, (user as any).preferences || {});
-
-  if (is_admin) {
-    mergedPrefs.onboarding_completed = true;
-  } else if (typeof mergedPrefs.onboarding_completed === 'undefined') {
-    mergedPrefs.onboarding_completed = false;
-  }
-
-  const prefs = mergedPrefs;
-  const { password_hash, ...rest } = user as any;
-  return res.json({ ...rest, preferences: prefs, is_admin });
-});
-
-const updateMeSchema = z.object({
-  display_name: z.string().min(1).max(120).optional(),
-  username: z.string().min(1).max(50).optional(),
-  avatar_url: z.string().url().optional().nullable(),
-  bio: z.string().max(1000).optional().nullable(),
-  preferences: z.any().optional(),
-=======
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   // SECURITY: Always sanitize user response to exclude sensitive fields
   res.json(sanitizeUser(user));
@@ -735,7 +702,6 @@ const userUpdateSchema = z.object({
   bio: z.string().max(1000).optional(),
   // SECURITY: Now uses typed schema instead of z.any()
   preferences: userPreferencesSchema.optional(),
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 authRouter.put('/me', async (req: AuthedRequest, res) => {
@@ -766,11 +732,6 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
     patch.preferences = mergedPrefs;
   }
-<<<<<<< HEAD
-  const { preferences, ...rest } = patch;
-  const user = await prisma.user.update({ where: { id: req.user.id }, data: { ...rest, ...(preferences ? { preferences } : {}) } });
-  return res.json(sanitizeUser(user));
-=======
 
   // Cast preferences to Prisma-compatible Json type
   const updateData: any = { ...parsed.data };
@@ -785,7 +746,6 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
 
   // SECURITY: Always sanitize user response to exclude sensitive fields
   res.json(sanitizeUser(user));
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 // Utility to deep-merge preferences, preserving nested notification keys
@@ -853,34 +813,6 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     }
   }
 
-<<<<<<< HEAD
-  if ('plan' in incoming) {
-    if (onboardingCompleted) {
-      return res.status(403).json({ error: 'Plan changes are not allowed via this endpoint once onboarding is complete.' });
-    }
-    // Only allow rookie plan to be set directly; paid plans must go through checkout
-    if (incoming.plan && incoming.plan !== 'rookie') {
-      return res.status(403).json({ error: 'Paid plans must be purchased through the subscription flow.' });
-    }
-  }
-
-  const defaults = {
-    notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-    is_parent: false,
-    zip_code: null,
-    onboarding_completed: true,
-    // plan and role intentionally omitted from PATCH
-    sports_interests: [],
-    personalization_goals: [],
-    primary_intents: [],
-    location_enabled: false,
-    notifications_enabled: true,
-    messaging_policy_accepted: false,
-  };
-  const merged = mergePreferences(defaults, mergePreferences(currentPrefs, incoming));
-  const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
-  return res.json({ preferences: updated.preferences });
-=======
   // Merge with existing preferences instead of overwriting
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   const mergedPrefs = mergePreferences(current?.preferences || {}, parsed.data);
@@ -892,7 +824,6 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
 
   // SECURITY: Always sanitize user response to exclude sensitive fields
   res.json(sanitizeUser(user));
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 // SECURITY: Schema for authorized users - properly typed instead of z.any()
@@ -911,16 +842,6 @@ const completeOnboardingSchema = z.object({
   // Core identity fields
   // Rookie is not a role
   role: z.enum(['fan', 'coach']).optional(),
-<<<<<<< HEAD
-  username: z.string().min(3).max(20).optional(),
-  display_name: z.string().optional(),
-  affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent', 'professional']).optional(),
-  dob: z.string().optional(),
-  zip: z.string().optional(),
-  zip_code: z.string().optional(),
-  
-  // Plan and subscription
-=======
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional(),
   display_name: z.string().min(1).max(100).optional(),
   affiliation: z.enum(['none', 'university', 'high_school', 'club', 'youth', 'school', 'independent']).optional(),
@@ -930,7 +851,6 @@ const completeOnboardingSchema = z.object({
   zip_code: z.string().min(3).max(20).optional(),
 
   // Plan and subscription - SECURITY: plan can only be set during checkout, not directly
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   plan: z.enum(['rookie', 'veteran', 'legend']).optional(),
   payment_pending: z.boolean().optional(), // SECURITY: Changed from union to boolean only
   team_count_total: z.number().int().min(0).max(100).optional(), // SECURITY: Added max limit
@@ -951,26 +871,10 @@ const completeOnboardingSchema = z.object({
   authorized_users: z.array(authorizedUserSchema).max(50).optional(),
 
   // Profile
-<<<<<<< HEAD
-  avatar_url: z.string().optional(),
-  bio: z.string().optional(),
-  sports_interests: z.array(z.string()).optional(),
-  
-  // Athlete-specific fields
-  position: z.string().optional(),
-  jersey_number: z.union([z.string(), z.number()]).optional(),
-  grade_level: z.enum(['Freshman', 'Sophomore', 'Junior', 'Senior']).optional(),
-  graduation_year: z.number().int().min(2020).max(2040).optional(),
-  accolades: z.array(z.string()).optional(),
-  primary_team_id: z.string().optional(),
-  primary_sport: z.string().optional(),
-  
-=======
   avatar_url: z.string().url().optional(),
   bio: z.string().max(500).optional(),
   sports_interests: z.array(z.string().max(50)).max(20).optional(),
 
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   // Interests/Goals
   primary_intents: z.array(z.string().max(100)).max(10).optional(),
   personalization_goals: z.array(z.string().max(100)).max(10).optional(),

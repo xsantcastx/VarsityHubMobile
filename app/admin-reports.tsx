@@ -351,13 +351,8 @@ export default function AdminReportsScreen() {
         }
       >
         {/* Header */}
-<<<<<<< HEAD
-        <View style={[styles.header, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : 'white' }]}>
-          <Pressable onPress={() => void router.back()} style={styles.backButton}>
-=======
         <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
             <Ionicons 
               name="arrow-back" 
               size={24} 

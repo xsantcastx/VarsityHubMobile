@@ -222,11 +222,7 @@ export default function Step1Role() {
       showBackButton={true}
       onBackPress={handleBack}
       emailVerified={emailVerified === null ? undefined : emailVerified}
-<<<<<<< HEAD
       onVerifyEmail={() => void router.push('/verify-email')}
-=======
-      onVerifyEmail={() => router.push('/verify-identity?method=email')}
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     >
       <Stack.Screen options={{ title: 'Step 1/10', headerShown: false }} />
       
@@ -358,8 +354,5 @@ const styles = StyleSheet.create({
 });
 
 
-<<<<<<< HEAD
-=======
 
 
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

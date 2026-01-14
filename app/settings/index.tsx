@@ -1,10 +1,6 @@
 
             import Switch from '@/components/ui/switch';
-<<<<<<< HEAD
-import { getConfig } from '@/config/env';
-=======
 import { Colors } from '@/constants/Colors';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import { Stack, useRouter } from 'expo-router';
@@ -285,13 +281,8 @@ const appConfig = getConfig();
                     {/* Quick Billing CTA (coaches only) */}
                     {role === 'coach' && (
                       <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-<<<<<<< HEAD
-                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
-                          <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
-=======
                         <Pressable onPress={() => router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? Colors[colorScheme].card : Colors.light.tint }}>
                           <Text style={{ color: plan ? Colors[colorScheme].text : Colors.dark.text, fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                         </Pressable>
                       </View>
                     )}

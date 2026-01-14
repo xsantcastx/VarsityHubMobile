@@ -4,12 +4,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
-<<<<<<< HEAD
-import { Subscriptions, User } from '@/api/entities';
-import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
-=======
 import { Payments, Subscriptions, User } from '@/api/entities';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
+import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 

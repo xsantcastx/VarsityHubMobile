@@ -13,12 +13,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-<<<<<<< HEAD
 import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-=======
-import { AccessibilityInfo, ActivityIndicator, Alert, Animated, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
@@ -159,16 +156,11 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
     );
   }, [items, current, gameId, deleting, onDelete, onClose, goPrev, goNext]);
 
-  // Reset progress when current changes
+  // Reset progress when current changes and autoplay videos
   useEffect(() => {
     progress.stopAnimation();
     progress.setValue(0);
-<<<<<<< HEAD
   }, [current, progress, items]);
-=======
-    setPlaying(false);
-  }, [current, progress]);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
   // Auto-advance for photos every 5s (pausable). Also mark seen on enter.
   useEffect(() => {
@@ -286,18 +278,17 @@ function StoriesViewer({ visible, items, index, onClose, onSeen, onDelete, gameI
           collapsable={false}
         >
             {isVideo ? (
-              // start videos paused to avoid unexpected audio/looping; user can tap to play
+              // Videos autoplay when story opens - no controls, just video
               <View style={{ width: w, aspectRatio: 9 / 16, backgroundColor: Colors[colorScheme].surface, alignItems: 'center', justifyContent: 'center' }}>
-                <VideoPlayer uri={item.url} autoPlay={false} onEnd={goNext} nativeControls paused={!playing} style={{ width: '100%', height: '100%' }} />
-                {!playing ? (
-                  <Pressable onPress={() => setPlaying(true)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Play video">
-                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="play" size={28} color={Colors[colorScheme].text} />
-                    </View>
-                  </Pressable>
-                ) : (
-                  <Pressable onPress={() => setPlaying(false)} style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} accessibilityLabel="Pause video" />
-                )}
+                <VideoPlayer 
+                  key={item.id} 
+                  uri={item.url} 
+                  autoPlay={!paused} 
+                  onEnd={goNext} 
+                  nativeControls={false} 
+                  paused={paused} 
+                  style={{ width: '100%', height: '100%' }} 
+                />
               </View>
             ) : (
               <Image
@@ -469,22 +460,13 @@ const finalsBannerForTeams = (home?: string | null, away?: string | null, title?
 };
 
 const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
-<<<<<<< HEAD
   const finalsBanner = finalsBannerForTeams(vm.homeTeam, vm.awayTeam, vm.title as any);
   const result = vm.bannerUrl || vm.coverImageUrl || finalsBanner || media[0]?.url || null;
-=======
-  const result = vm.bannerUrl || vm.coverImageUrl || media[0]?.url || null;
-  console.log('pickBannerFromArrays:', { bannerUrl: vm.bannerUrl, coverImageUrl: vm.coverImageUrl, firstMediaUrl: media[0]?.url, result });
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   return result;
 };
 
 const GameDetailsScreen = () => {
-<<<<<<< HEAD
   const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
-=======
-  const { id, eventId } = useLocalSearchParams<{ id?: string; eventId?: string }>();
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
@@ -571,7 +553,7 @@ const GameDetailsScreen = () => {
       try { numAnimA.removeListener(idA); } catch {}
       try { numAnimB.removeListener(idB); } catch {}
     };
-  }, [numAnimA, numAnimB]);
+  }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
   // Track if the stories viewer is open to avoid unnecessary re-renders that can cause flicker on some devices
   useEffect(() => {
@@ -752,7 +734,6 @@ const GameDetailsScreen = () => {
 
   const loadGameById = useCallback(
     async (gameIdValue: string) => {
-<<<<<<< HEAD
       // Handle sample slugs locally to avoid noisy 404s
       if (/^sample-/i.test(gameIdValue)) {
         const parts = gameIdValue.replace(/^sample-/i, '').split(/[-_]+/).filter(Boolean);
@@ -874,19 +855,6 @@ const GameDetailsScreen = () => {
             postsData = (postsData as any)?.items || [];
           }
         }
-=======
-      const summary: any = await Game.summary(gameIdValue).catch(() => null);
-      let gameRecord: any = null;
-      if (!summary) {
-        console.log('Loading game details for ID:', gameIdValue);
-        gameRecord = await Game.get(gameIdValue);
-        console.log('Loaded game record:', gameRecord);
-      }
-      const [postsData, mediaData] = await Promise.all([
-        Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
-        Game.media(gameIdValue).catch(() => summary?.media || []),
-      ]);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -919,7 +887,6 @@ const GameDetailsScreen = () => {
         teams = mapTeams(summary.teams);
         dateIso = ensureIso(summary.date);
         title = summary.title ?? '';
-<<<<<<< HEAD
         // Extract team names - handle both string and object formats
         const summaryHome = summary.homeTeam ?? summary.home_team ?? null;
         const summaryAway = summary.awayTeam ?? summary.away_team ?? null;
@@ -927,10 +894,6 @@ const GameDetailsScreen = () => {
         awayTeam = typeof summaryAway === 'string' ? summaryAway : (summaryAway as any)?.name || null;
         // Appearance field surfaced from backend
         appearance = (summary as any)?.appearance ?? (summary.event as any)?.appearance ?? null;
-=======
-        homeTeam = summary.homeTeam ?? summary.home_team ?? null;
-        awayTeam = summary.awayTeam ?? summary.away_team ?? null;
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       }
 
       if (!summary && gameRecord) {
@@ -942,7 +905,6 @@ const GameDetailsScreen = () => {
         dateIso = ensureIso(gameRecord.date) ?? null;
         title = gameRecord.title || '';
         isPast = computeIsPast(dateIso);
-<<<<<<< HEAD
         // Extract team names - handle both string and object formats
         homeTeam = typeof gameRecord.home_team === 'string' 
           ? gameRecord.home_team 
@@ -970,10 +932,6 @@ const GameDetailsScreen = () => {
         teams = teamsArray;
         // Appearance from game record if present
         appearance = (gameRecord as any)?.appearance ?? null;
-=======
-        homeTeam = gameRecord.home_team || null;
-        awayTeam = gameRecord.away_team || null;
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       }
 
       if (!title) title = 'Game';
@@ -1031,17 +989,11 @@ const GameDetailsScreen = () => {
         isPast,
       };
 
-      console.log('Final game view model banner URL:', bannerCandidate);
-      console.log('Final game view model created');
       setVm(vmPayload);
-<<<<<<< HEAD
       } catch (error) {
         console.error('Error in loadGameById:', error);
         throw error; // Re-throw to be caught by outer try-catch
       }
-=======
-      setActiveSection('overview');
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     },
     [],
   );
@@ -1083,7 +1035,6 @@ const GameDetailsScreen = () => {
 
   const handleAddStory = useCallback(async () => {
     if (!vm?.gameId || storyBusy) return;
-<<<<<<< HEAD
 
     // Request permissions first
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
@@ -1123,8 +1074,6 @@ const GameDetailsScreen = () => {
         );
       }
     }
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     
     // Show action sheet with camera first, then gallery
     Alert.alert(
@@ -1149,7 +1098,6 @@ const GameDetailsScreen = () => {
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
               
               const asset = result.assets[0];
-<<<<<<< HEAD
               const base = getApiBaseUrl();
               let uri = asset.uri;
               const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
@@ -1158,14 +1106,6 @@ const GameDetailsScreen = () => {
               uri = ensured.uri; // use uploadable local file path when available
 
               const uploaded = await uploadFile(base, uri, fileName, mimeType);
-=======
-              const base =
-                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
-              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
-              const uploaded = await uploadFile(base, asset.uri, name, mime);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
@@ -1192,6 +1132,7 @@ const GameDetailsScreen = () => {
                 }
               }
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -1216,7 +1157,6 @@ const GameDetailsScreen = () => {
               if (!result || result.canceled || !result.assets || !result.assets.length) return;
               
               const asset = result.assets[0];
-<<<<<<< HEAD
               const base = getApiBaseUrl();
               let uri = asset.uri;
               const mimeType = asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
@@ -1225,14 +1165,6 @@ const GameDetailsScreen = () => {
               uri = ensured.uri;
               
               const uploaded = await uploadFile(base, uri, fileName, mimeType);
-=======
-              const base =
-                (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) ||
-                (Platform.OS === 'android' ? 'http://10.0.2.2:4000' : 'http://localhost:4000');
-              const name = (asset as any).fileName || ((asset as any).duration ? 'story.mp4' : 'story.jpg');
-              const mime = asset.mimeType || ((asset as any).duration ? 'video/mp4' : 'image/jpeg');
-              const uploaded = await uploadFile(base, asset.uri, name, mime);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
               const mediaUrl = uploaded?.path || uploaded?.url;
               if (!mediaUrl) {
                 throw new Error('Upload failed');
@@ -1258,6 +1190,7 @@ const GameDetailsScreen = () => {
                 }
               }
             } catch (err: any) {
+              console.error('Story upload error:', err);
               Alert.alert('Unable to add story', err?.message || 'Please try again.');
             } finally {
               setStoryBusy(false);
@@ -1371,11 +1304,7 @@ const GameDetailsScreen = () => {
       Animated.timing(numAnimA, { toValue: targetA, duration: dur, useNativeDriver: false }),
       Animated.timing(numAnimB, { toValue: targetB, duration: dur, useNativeDriver: false }),
     ]).start();
-<<<<<<< HEAD
   }, [numAnimA, numAnimB, pctAnimA, pctAnimB, prefersReducedMotion, voteAnimated.A, voteAnimated.B, _voteSummary?.pctA, _voteSummary?.pctB, _voteSummary?.total]);
-=======
-  }, [voteSummary?.pctA, voteSummary?.pctB, voteSummary?.total, prefersReducedMotion]);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
   const onRefresh = useCallback(() => {
     void load(true);
@@ -1428,7 +1357,6 @@ const GameDetailsScreen = () => {
     }
   }, [vm, rsvpBusy]);
 
-<<<<<<< HEAD
   const shareContextLines = useMemo(() => {
     if (!vm) return [];
     const lines: string[] = [];
@@ -1456,14 +1384,6 @@ const GameDetailsScreen = () => {
   const onShare = useCallback(() => {
     void shareGameLink();
   }, [shareGameLink]);
-=======
-  const onShare = useCallback(async () => {
-    if (!vm) return;
-    try {
-      await Share.share({ message: `${vm.title} on VarsityHub`, url: bannerUrl ?? undefined });
-    } catch {}
-  }, [vm, bannerUrl]);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
   const onPressLocation = useCallback(() => {
     if (vm?.location) openMaps(vm.location);
@@ -1471,7 +1391,6 @@ const GameDetailsScreen = () => {
 
   const handleVote = useCallback(
     async (team: VoteOption) => {
-<<<<<<< HEAD
       if (vm?.isPast) return;
       // Event-only pages (no gameId) only update local state
       const isEventOnly = !vm?.gameId && vm?.eventId;
@@ -1510,26 +1429,8 @@ const GameDetailsScreen = () => {
         setVoteSummary(parseVoteSummary(res));
         // We can also refresh votes as a secondary measure if needed
         // _refreshVotes(); 
-=======
-      if (!vm?.gameId || vm.isPast || voteBusy) return;
-      const previous = voteSummary ? { ...voteSummary } : null;
-      const baseline = voteSummary ?? buildVoteSummary(0, 0, null);
-      if (baseline.userVote === team) {
-        return;
-      }
-      let nextA = baseline.teamA;
-      let nextB = baseline.teamB;
-      if (baseline.userVote === 'A') nextA = Math.max(0, nextA - 1);
-      if (baseline.userVote === 'B') nextB = Math.max(0, nextB - 1);
-      if (team === 'A') nextA += 1; else nextB += 1;
-      setVoteSummary(buildVoteSummary(nextA, nextB, team));
-      setVoteBusy(true);
-      try {
-        const res: any = await Game.castVote(vm.gameId, team);
-        setVoteSummary(parseVoteSummary(res));
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       } catch (err: any) {
-        if (previous) setVoteSummary(previous); else setVoteSummary(null);
+        if (rollback) setVoteSummary(rollback); else setVoteSummary(null);
         if (err?.status === 401) {
           void router.push('/sign-in');
         } else {
@@ -1540,7 +1441,6 @@ const GameDetailsScreen = () => {
         setVoteBusy(false);
       }
     },
-<<<<<<< HEAD
     [vm?.gameId, vm?.eventId, vm?.isPast, router],
   );
 
@@ -1566,17 +1466,6 @@ const GameDetailsScreen = () => {
 
     if (!vm?.gameId) return; // Safety check
 
-=======
-    [vm?.gameId, vm?.isPast, voteBusy, voteSummary, router],
-  );
-
-  const handleClearVote = useCallback(async () => {
-    if (!vm?.gameId || vm.isPast || voteBusy || !voteSummary?.userVote) return;
-    const previous = { ...voteSummary };
-    const nextA = voteSummary.userVote === 'A' ? Math.max(0, voteSummary.teamA - 1) : voteSummary.teamA;
-    const nextB = voteSummary.userVote === 'B' ? Math.max(0, voteSummary.teamB - 1) : voteSummary.teamB;
-    setVoteSummary(buildVoteSummary(nextA, nextB, null));
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     setVoteBusy(true);
     try {
       const res: any = await retryWithBackoff(() => Game.clearVote(vm.gameId!), {
@@ -1586,7 +1475,7 @@ const GameDetailsScreen = () => {
       });
       setVoteSummary(parseVoteSummary(res));
     } catch (err: any) {
-      setVoteSummary(previous);
+      if (rollback) setVoteSummary(rollback);
       if (err?.status === 401) {
         void router.push('/sign-in');
       } else {
@@ -1650,23 +1539,13 @@ const GameDetailsScreen = () => {
 
 
 const renderVoteSection = () => {
-<<<<<<< HEAD
   // Show poll if we have a gameId OR an eventId
   if (!vm?.gameId && !vm?.eventId) return null;
   const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
-=======
-  if (!vm?.gameId) return null;
-  const summary = voteSummary ?? buildVoteSummary(0, 0, null);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const total = summary.total ?? 0;
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
   const pctB = hasVotes ? Math.max(0, Math.min(100, summary.pctB ?? 0)) : 50;
-<<<<<<< HEAD
-=======
-  const leftLabel = `${teamALabel} � ${Math.round(pctA)}%`;
-  const rightLabel = `${teamBLabel} � ${Math.round(pctB)}%`;
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   const pressDisabled = Boolean(vm?.isPast) || voteBusy;
   const selectedTeam = summary.userVote ?? null;
   const votesWord = total === 1 ? 'vote' : 'votes';
@@ -1677,13 +1556,8 @@ const renderVoteSection = () => {
       ? teamBLabel
       : null
   );
-<<<<<<< HEAD
   const caption = _voteSummary
     ? `${total} ${votesWord} ${pickLabel ? `• Your pick: ${pickLabel}` : "• You haven't voted"}`
-=======
-  const caption = voteSummary
-    ? `${total} ${votesWord} � ${pickLabel ? `Your pick: ${pickLabel}` : "You haven't voted"}`
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     : 'Loading votes...';
 
   return (
@@ -1754,10 +1628,7 @@ const renderVoteSection = () => {
   );
 };
 
-
-
-
-  const renderBanner = () => {
+const renderBanner = () => {
   // Prefer a full MatchBanner hero if both teams have logos available
   const leftLogo = vm?.homeTeam ? getTeamLogo(vm.homeTeam) : null;
   const rightLogo = vm?.awayTeam ? getTeamLogo(vm.awayTeam) : null;
@@ -1791,7 +1662,6 @@ const renderVoteSection = () => {
         appearance={(vm as any)?.appearance || 'classic'}
         headerFade={headerOpacity}
         onVsPress={() => setVsModalOpen(true)}
-<<<<<<< HEAD
         onLeftPress={() => {
           // Navigate to home team profile if team object exists
           if (homeTeamObj?.id) {
@@ -1804,29 +1674,13 @@ const renderVoteSection = () => {
             void router.push(`/team-profile?id=${awayTeamObj.id}`);
           }
         }}
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
         onGoingPress={onToggleRsvp}
       />
     ) : (
-<<<<<<< HEAD
       <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-=======
-      bannerUrl ? (
-        <>
-          {console.log('Rendering banner image with URL:', bannerUrl)}
-          <Image source={{ uri: bannerUrl }} style={styles.bannerImage} contentFit="cover" />
-        </>
-      ) : (
-        <>
-          {console.log('No banner URL found, showing gradient placeholder')}
-          <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-        </>
-      )
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     );
 
       return (
@@ -1922,7 +1776,6 @@ const renderVoteSection = () => {
   };
 
   const renderTeams = () => {
-<<<<<<< HEAD
     // Extract organization name from team name (e.g., "SHS Men's Soccer" -> "SHS")
     const _getOrganizationFromTeamName = (teamName: string) => {
       const parts = teamName.split(/\s+/);
@@ -1962,23 +1815,27 @@ const renderVoteSection = () => {
               <Text style={styles.teamLinkName} numberOfLines={1}>{team.name}</Text>
               <Ionicons name="chevron-forward" size={16} color={Colors[colorScheme].mutedText} />
             </Pressable>
-=======
-    if (!vm?.teams?.length) {
-      return (
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
-          {[0, 1].map((i) => (
-            <View key={i} style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, opacity: 0.7 }}>
-              <Ionicons name="people" size={32} color={Colors[colorScheme].mutedText} style={{ marginBottom: 8 }} />
-              <Text style={{ color: Colors[colorScheme].mutedText, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>Team {i === 0 ? 'A' : 'B'}</Text>
-              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>No team linked</Text>
-            </View>
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
           ))}
         </View>
       );
     }
+
+    // Otherwise use homeTeam and awayTeam strings if available
+    const homeTeam = vm?.homeTeam?.trim();
+    const awayTeam = vm?.awayTeam?.trim();
+    
+    if (!homeTeam && !awayTeam) {
+      return (
+        <View style={{ paddingVertical: 12 }}>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center' }}>No teams linked to this game yet.</Text>
+          <Text style={{ color: Colors[colorScheme].mutedText, textAlign: 'center', fontSize: 12, marginTop: 4 }}>Teams can be added when editing the game.</Text>
+        </View>
+      );
+    }
+
+    const teams = [homeTeam, awayTeam].filter(Boolean);
+    
     return (
-<<<<<<< HEAD
       <View style={{ flexDirection: 'row', justifyContent: 'space-around', gap: 12, marginVertical: 16, paddingHorizontal: 12 }}>
         {teams.map((teamName, index) => {
           const teamLogo = getTeamLogo(teamName!);
@@ -2030,26 +1887,6 @@ const renderVoteSection = () => {
             </Pressable>
           );
         })}
-=======
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginVertical: 12 }}>
-        {vm.teams.slice(0, 2).map((team) => (
-          <Pressable
-            key={team.id}
-            style={{ flex: 1, alignItems: 'center', backgroundColor: Colors[colorScheme].surface, borderRadius: 18, padding: 18, minHeight: 120, elevation: 2 }}
-            onPress={() => router.push({ pathname: '/team-viewer', params: { id: team.id } })}
-            accessibilityRole="button"
-            accessibilityLabel={`View team ${team.name}`}
-          >
-            {team.avatarUrl ? (
-              <Image source={{ uri: team.avatarUrl }} style={{ width: 48, height: 48, borderRadius: 24, marginBottom: 8 }} contentFit="cover" />
-            ) : (
-              <Ionicons name="people" size={32} color={Colors[colorScheme].tint} style={{ marginBottom: 8 }} />
-            )}
-            <Text style={{ color: Colors[colorScheme].text, fontWeight: '700', fontSize: 16, marginBottom: 4 }}>{team.name}</Text>
-            <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Tap for details</Text>
-          </Pressable>
-        ))}
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       </View>
     );
   };
@@ -2133,20 +1970,8 @@ const renderVoteSection = () => {
           ) : null}
           {vm && !loading ? (
             <>
-<<<<<<< HEAD
-<<<<<<< HEAD
               {/* Tabs removed - keeping Overview only as default view */}
               <Text style={styles.title}>{vm.title}</Text>
-=======
-              <View style={styles.titleContainer}>
-                <Text style={styles.title}>{vm.title}</Text>
-              </View>
-=======
-              {/* Tabs removed - keeping Overview only as default view */}
-              <Text style={styles.title}>{vm.title}</Text>
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
-              {renderVoteSection()}
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
               {vm.location ? (
                 <Pressable style={styles.locationRow} onPress={onPressLocation}>
                   <Ionicons name="location" size={16} color={Colors[colorScheme].tint} />
@@ -2171,7 +1996,6 @@ const renderVoteSection = () => {
                   </Text>
                 </Pressable>
               </View>
-<<<<<<< HEAD
               {showPreciseBanner ? (
                 <View style={[styles.preciseBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15' }]}>
                   <Ionicons name="navigate" size={16} color="#B45309" />
@@ -2199,9 +2023,6 @@ const renderVoteSection = () => {
                 </View>
               ) : null}
               {/* Stories carousel (only stories section). Also anchor the Stories tab to this position */}
-=======
-              {/* Stories carousel (only stories section). Also anchor the Stories tab to this position. */}
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
               <View
                 onLayout={(e) => {
                   sectionOffsets.current.media = e.nativeEvent.layout.y;
@@ -2214,11 +2035,7 @@ const renderVoteSection = () => {
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
 
-<<<<<<< HEAD
               {renderVoteSection()}
-=======
-              {/* Removed the secondary stories grid section to avoid duplication. */}
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 
               {/* Posts Section */}
               <View
@@ -2249,7 +2066,6 @@ const renderVoteSection = () => {
                     <Ionicons name="add-circle" size={28} color={Colors[colorScheme].tint} />
                   </Pressable>
                 </View>
-<<<<<<< HEAD
                 {postsCount > 0 ? (
                    <View style={styles.postsGridContainer}>
                    <View style={styles.postsMasonryGrid}>
@@ -2394,99 +2210,15 @@ const renderVoteSection = () => {
                           <Ionicons name="image-outline" size={32} color={Colors[colorScheme].border} />
                         </View>
                       </View>
-=======
-                {postsCount ? null : (
-                  <Text style={[styles.muted, styles.sectionHelper]}>Be the first to share a highlight for this game.</Text>
-                )}
-
-                {/* Posts Grid View */}
-                {postsCount > 0 && (
-                  <View style={styles.postsGridContainer}>
-                    <View style={styles.postsGrid}>
-                      {(vm?.posts || []).slice(0, 6).map((post: any, index: number) => {
-                        const thumb = post.media_url;
-                        const isVideo = !!thumb && VIDEO_EXT.test(thumb);
-                        const likes = post.upvotes_count ?? 0;
-                        const comments = post.comments_count ?? post._count?.comments ?? 0;
-                        return (
-                          <Pressable
-                            key={post.id || index}
-                            style={styles.gridItem}
-                            onPress={() => {
-                              router.push(`/post-detail?id=${post.id}`);
-                            }}
-                          >
-                            {thumb ? (
-                              <View style={styles.gridImageContainer}>
-                                <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                                <View style={styles.gridImageOverlay} />
-                              </View>
-                            ) : (
-                              <View style={[styles.gridImage, styles.gridImageFallback]}>
-                                <LinearGradient 
-                                  colors={["#667eea", "#764ba2", "#f093fb"]} 
-                                  style={StyleSheet.absoluteFillObject as any} 
-                                  start={{ x: 0, y: 0 }} 
-                                  end={{ x: 1, y: 1 }}
-                                />
-                                <View style={styles.textPostOverlay}>
-                                  <Text numberOfLines={4} style={styles.gridTextOnly}>
-                                    {String(post.caption || post.content || '').trim() || 'Post'}
-                                  </Text>
-                                </View>
-                              </View>
-                            )}
-                            {/* Counts overlay */}
-                            <View style={styles.gridCounts}>
-                              <View style={styles.gridCountItem}>
-                                <Ionicons name="arrow-up" size={12} color="#fff" />
-                                <Text style={styles.gridCountText}>{likes}</Text>
-                              </View>
-                              <View style={styles.gridCountItem}>
-                                <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                                <Text style={styles.gridCountText}>{comments}</Text>
-                              </View>
-                            </View>
-                            {/* Media type badge */}
-                            <View style={styles.gridIconBadge}>
-                              <Ionicons name={thumb ? (isVideo ? 'videocam' : 'camera-outline') : 'text'} size={14} color="#fff" />
-                            </View>
-                          </Pressable>
-                        );
-                      })}
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
                     </View>
-                    {postsCount > 6 && (
-                      <Pressable
-                        style={styles.viewAllPostsBtn}
-                        onPress={() => setVerticalFeedOpen(true)}
-                      >
-                        <Text style={styles.viewAllPostsText}>View All {postsCount} Posts</Text>
-                        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tint} />
-                      </Pressable>
-                    )}
                   </View>
                 )}
-<<<<<<< HEAD
                 {postsCount > 0 && (
                   <Pressable style={styles.viewAllButton} onPress={() => setVerticalFeedOpen(true)}>
                     <Text style={styles.viewAllButtonText}>View All Posts</Text>
                     <Ionicons name="arrow-forward" size={14} color={Colors[colorScheme].text} />
-=======
-
-                <View style={styles.verticalFeedActions}>
-                  <Pressable
-                    style={[styles.postCtaBtn, !vm?.gameId ? styles.postCtaBtnDisabled : null]}
-                    onPress={handleCreatePost}
-                    disabled={!vm?.gameId}
-                    accessibilityRole="button"
-                    accessibilityLabel="Create a new post for this game"
-                  >
-                    <Ionicons name="create-outline" size={16} color="#fff" />
-                    <Text style={styles.postCtaText}>Share a post</Text>
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
                   </Pressable>
-                </View>
+                )}
               </View>
 
               {/* Teams Section (moved after Posts) */}
@@ -2771,50 +2503,11 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
 
 
   voteWrapper: {
-<<<<<<< HEAD
-<<<<<<< HEAD
     marginTop: -16,
     paddingHorizontal: 16,
     paddingTop: 2,
     paddingBottom: 0,
     marginBottom: 24,
-=======
-    marginTop: 12,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(15,23,42,0.8)' : '#fff',
-    shadowColor: '#000',
-    shadowOpacity: colorScheme === 'dark' ? 0.25 : 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
-  },
-  voteEmptyState: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  voteEmptyCopy: { flex: 1 },
-  voteEmptyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors[colorScheme].text,
-    marginBottom: 2,
-  },
-  voteEmptySubtitle: {
-    fontSize: 13,
-    color: Colors[colorScheme].mutedText,
-    lineHeight: 18,
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
-=======
-    marginTop: -2,
-    paddingHorizontal: 16,
-    paddingTop: 2,
-    paddingBottom: 8,
-    marginBottom: 12,
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   },
   voteBar: {
     position: 'relative',
@@ -2997,7 +2690,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteFloatRight: { right: 28 },
   voteFloatText: { color: '#0f172a', fontWeight: '700', fontSize: 12, textAlign: 'center' },
 
-<<<<<<< HEAD
   teamLinkButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3066,8 +2758,6 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '600',
   },
 
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   bannerTopRow: {
     position: 'absolute',
     left: 16,
@@ -3169,18 +2859,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: 'white', fontWeight: '700' },
-<<<<<<< HEAD
-<<<<<<< HEAD
   title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginTop: 8, marginBottom: 6 },
-=======
-  titleContainer: {
-    paddingTop: 16,
-    marginBottom: 12,
-  },
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
-  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginBottom: 6 },
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
@@ -3514,20 +3193,25 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     flexWrap: 'wrap',
     marginHorizontal: -1.5,
   },
-  gridItem: { 
+  gridItem: {
     width: '32%',
-    aspectRatio: 1, 
-    margin: '0.5%', 
-    borderRadius: 12, 
-    overflow: 'hidden', 
+    aspectRatio: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: Colors[colorScheme].surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
+    marginBottom: '2%',
   },
-  gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
+  gridItemEmpty: {
+    backgroundColor: Colors[colorScheme].surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors[colorScheme].border,
+  },
+  gridImageContainer: {
+    width: '100%',
+    height: '100%',
+  },
   gridImage: { width: '100%', height: '100%' },
   gridImageOverlay: {
     position: 'absolute',
@@ -3596,29 +3280,14 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors[colorScheme].surface,
     borderRadius: 12,
-    paddingVertical: 16,
-    marginTop: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: Colors[colorScheme].border,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
   },
   viewAllPostsText: {
-    color: Colors[colorScheme].tint,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: Colors[colorScheme].text,
+    marginRight: 8,
   },
 });
-<<<<<<< HEAD
-=======
-
-
-
-
-<<<<<<< HEAD
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
-=======
-
-
-
-
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)

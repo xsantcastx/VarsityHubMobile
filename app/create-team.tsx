@@ -5,44 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-<<<<<<< HEAD
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-=======
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { getApiBaseUrl } from '../api/http';
-<<<<<<< HEAD
-
-type TeamLimitSummary = {
-  owned_teams: number;
-  max_teams: number | null;
-  can_create_more: boolean;
-  remaining?: number;
-  subscription_tier?: string;
-  upgrade_required?: boolean;
-};
-
-const normalizePlanTier = (tier?: string | null) => {
-  const value = String(tier ?? 'rookie').toLowerCase();
-  if (value === 'free') return 'rookie';
-  if (['rookie', 'veteran', 'legend'].includes(value)) return value;
-  return value;
-};
-
-const formatPlanBadge = (tier?: string | null) => normalizePlanTier(tier).toUpperCase();
-const formatPlanDisplay = (tier?: string | null) => {
-  const normalized = normalizePlanTier(tier);
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-};
-=======
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
 export default function CreateTeamScreen() {
   const router = useRouter();

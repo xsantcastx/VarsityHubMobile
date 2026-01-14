@@ -5,17 +5,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
-<<<<<<< HEAD
-import { Event, User } from '@/api/entities';
-import { useShareLink } from '@/hooks/useShareLink';
-import MatchBanner from './components/MatchBanner';
-import RsvpSheet from './components/RsvpSheet';
-=======
 import { Event, Post, User } from '@/api/entities';
 import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import * as WebBrowser from 'expo-web-browser';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 
@@ -34,12 +27,8 @@ export default function EventDetailScreen() {
   const [me, setMe] = useState<any>(null);
   const [rsvped, setRsvped] = useState<boolean>(false);
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
-<<<<<<< HEAD
-  const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
-=======
   const [posts, setPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
   useEffect(() => {
     let mounted = true;
@@ -62,25 +51,6 @@ export default function EventDetailScreen() {
 
         if (!mounted) return;
         setEvent(data ?? null);
-<<<<<<< HEAD
-
-        // Load user and RSVP status in parallel (best-effort, don't block)
-        try {
-          const [user, status]: any = await Promise.all([
-            User.me().catch(() => null),
-            Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
-          ]);
-          if (!mounted) return;
-          setMe(user);
-          setRsvped(!!status?.attending);
-          setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
-        } catch (e: any) {
-          if (!mounted) return;
-          console.warn('Failed to load user/RSVP status (continuing with event data)', e);
-          // Don't set error; event is loaded and that's what matters
-          setAttendeesCount(Number(data?.attendees_count || 0));
-        }
-=======
         setMe(user);
         setRsvped(!!status?.attending);
         setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
@@ -91,7 +61,6 @@ export default function EventDetailScreen() {
         if (!mounted) return;
         console.error('Failed to load event detail', e);
         setError('Unable to load event.');
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       } finally {
         if (mounted) setLoading(false);
       }
@@ -315,67 +284,11 @@ export default function EventDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-<<<<<<< HEAD
-        {!id && <Text style={styles.error}>Missing event id.</Text>}
-        {loading && (
-          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <ActivityIndicator />
-          </View>
-        )}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
-        {event && !loading && (
-          <View style={{ gap: 8 }}>
-            {/* Match banner with persistent RSVP badge */}
-            <MatchBanner
-              leftImage={(event as any)?.homeLogo ?? null}
-              rightImage={(event as any)?.awayLogo ?? null}
-              leftName={(event as any)?.homeName ?? ''}
-              rightName={(event as any)?.awayName ?? ''}
-              height={220}
-              appearance="classic"
-              hero={false}
-              goingCount={attendeeCount}
-              onGoingPress={() => setRsvpSheetVisible(true)}
-            />
-
-            <Text style={styles.title}>{event.title || 'Event'}</Text>
-            
-            {/* Location with Map Pin */}
-            {event.location && (
-              <Pressable 
-                style={styles.locationCard}
-                onPress={openInMaps}
-              >
-                <View style={styles.locationIconContainer}>
-                  <Ionicons name="location" size={24} color="#EF4444" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.locationLabel}>Location</Text>
-                  <Text style={styles.locationText}>{event.location}</Text>
-                  <Text style={styles.locationHint}>Tap to open in Maps</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-              </Pressable>
-            )}
-            
-            <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
-            <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
-            {event.description ? <Text>{event.description}</Text> : null}
-
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
-                <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
-              </Pressable>
-              <Pressable style={styles.outlineBtn} onPress={shareEvent}>
-                <Text style={styles.outlineBtnText}>Share</Text>
-              </Pressable>
-=======
         <View style={{ padding: 16, paddingBottom: 8 }}>
           {!id && <Text style={styles.error}>Missing event id.</Text>}
           {loading && (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <ActivityIndicator />
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
             </View>
           )}
           {error && !loading && <Text style={styles.error}>{error}</Text>}

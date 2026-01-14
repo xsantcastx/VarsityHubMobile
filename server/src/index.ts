@@ -1,9 +1,3 @@
-<<<<<<< HEAD
-// Load .env only in development (not in production where Railway provides vars)
-import './lib/load-env.js';
-
-=======
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
@@ -12,15 +6,8 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
-<<<<<<< HEAD
-import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
-import { debugLog } from './lib/debugLog.js';
-import { initEmailService } from './lib/email.js';
-import { initializeQueue } from './lib/queue.js';
-=======
 import './lib/load-env.js';
 import { env } from './lib/env.js';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -54,11 +41,7 @@ import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
 import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
-<<<<<<< HEAD
-import { testEmailsRouter } from './routes/test-emails.js';
-=======
 import { reportsRouter } from './routes/reports.js';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { testNotificationsRouter } from './routes/test-notifications.js';
 
 // Node's default max listeners (10) is too low once Commander-based CLIs are mounted.
@@ -128,61 +111,10 @@ app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin
 app.use(helmet({ contentSecurityPolicy: false }));
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-const isProd = process.env.NODE_ENV === 'production';
-const defaultProdOrigins = [
-  'https://varsityhub.app',
-  'https://app.varsityhub.app',
-  'https://lime.varsityhub.app',
-  'https://lime-productions.varsityhub.app',
-];
-const defaultDevOrigins = [
-  'http://localhost:3000',
-  'http://localhost:8081',
-  'http://localhost:19006',
-  'http://127.0.0.1:3000',
-];
-const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-const hasWildcardOrigin = envAllowedOrigins.some((origin) => origin === '*');
-if (hasWildcardOrigin) {
-  const message = '[cors] ALLOWED_ORIGINS includes "*"; configure explicit origins instead.';
-  if (isProd) {
-    throw new Error(`${message} Wildcards are not permitted in production.`);
-  }
-  console.warn(`${message} Wildcards are only allowed during development.`);
-}
-const wildcardOriginMatchers = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https:\/\/([a-z0-9-]+\.)*varsityhub\.app$/,
-];
-const allowedOrigins = Array.from(
-  new Set([
-    ...defaultProdOrigins,
-    ...(isProd ? [] : defaultDevOrigins),
-    ...envAllowedOrigins.filter((origin) => origin !== '*'),
-  ])
-).filter(Boolean);
-if (isProd && allowedOrigins.length === 0) {
-  throw new Error('[cors] No allowed origins configured for production environment.');
-}
-const isAllowedOrigin = (origin?: string | null) => {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
-};
-const corsOptions: cors.CorsOptions = {
-  origin: isAllowedOrigin,
-=======
 const rawOrigins = (env.ALLOWED_ORIGINS ?? (env.NODE_ENV === 'development' ? '*' : ''))
 =======
 // SECURITY: Parse ALLOWED_ORIGINS from environment
 const rawOrigins = (env.ALLOWED_ORIGINS ?? '')
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
@@ -235,19 +167,6 @@ const noStore = (_req: Request, res: Response, next: NextFunction) => {
 
 // Stripe webhook must be registered before body parsing so we can verify signatures
 
-<<<<<<< HEAD
-// Special raw body parser for Stripe webhooks (payments + legacy billing path)
-const rawBodyPaths = ['/payments/webhook', '/billing/webhooks/stripe'];
-rawBodyPaths.forEach((path) => {
-  app.use(path, express.raw({ type: 'application/json' }));
-});
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (rawBodyPaths.some((path) => req.originalUrl.startsWith(path))) {
-    return next();
-  }
-  return express.json()(req, res, next);
-=======
 // SECURITY: Special raw body parser for Stripe webhook signature verification
 // The webhook handler is at /payments/webhook - this must match!
 app.use('/payments/webhook', expressPkg.raw({ type: 'application/json' }));
@@ -258,7 +177,6 @@ app.use((req, res, next) => {
     return next();
   }
   return expressPkg.json()(req, res, next);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
 });
 
 app.use(authMiddleware);
@@ -315,13 +233,8 @@ app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
-<<<<<<< HEAD
-app.use('/ads', adsRouter);
-app.use('/payments', paymentLogging, paymentsRouter);
-=======
 app.use('/ads', apiLimiter, adsRouter);
 app.use('/payments', noStore, apiLimiter, paymentsRouter);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 app.use('/admin', noStore, apiLimiter, adminRouter);
 app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
 app.use('/teams', apiLimiter, teamsRouter);
@@ -357,12 +270,3 @@ addSentryErrorHandler(app);
 app.listen(PORT, HOST, () => {
   debugLog(`API listening on http://${HOST}:${PORT}`);
 });
-<<<<<<< HEAD
-
-// Schedule subscription expiry checker (runs daily at 9 AM UTC)
-cron.schedule('0 9 * * *', async () => {
-  console.log('[cron] Running subscription expiry check...');
-  await checkExpiringSubscriptions();
-});
-=======
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

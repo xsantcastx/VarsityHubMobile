@@ -2,7 +2,7 @@
 /**
  * @deprecated Use email.ts instead - this file is maintained for backward compatibility with push notifications
  * All email functionality has been consolidated into server/src/lib/email.ts
- * 
+ *
  * Re-export email functions for backward compatibility
  */
 export {
@@ -12,14 +12,14 @@ export {
 
 /**
  * Push Notification System
- * 
+ *
  * Notification triggers:
  * 1. New direct message
  * 2. Someone interacts with user's post (like, comment, share)
  * 3. Someone follows the user
  * 4. 12 hours before RSVP'd game
  * 5. 1 hour before RSVP'd game
- * 
+ *
  * Enhanced with:
  * - Delivery tracking via Expo receipts
  * - Token invalidation on DeviceNotRegistered
@@ -89,44 +89,29 @@ export async function sendPushNotification(
     // Get user's push token
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { 
+      select: {
         preferences: true,
       },
     });
 
     if (!user) {
-<<<<<<< HEAD
-      debugLog(`User ${userId} not found`);
-      return;
-=======
       console.log(`[Notifications] User ${userId} not found`);
       return { success: false, error: 'User not found' };
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
 
     // Check if notifications are enabled
     const prefs = user.preferences as any;
     if (prefs && prefs.notifications_enabled === false) {
-<<<<<<< HEAD
-      debugLog(`Notifications disabled for user ${userId}`);
-      return;
-=======
       console.log(`[Notifications] Disabled for user ${userId}`);
       return { success: false, error: 'Notifications disabled' };
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
 
     // Get push token from preferences
     const pushToken = prefs?.push_token as string;
-    
+
     if (!pushToken || !Expo.isExpoPushToken(pushToken)) {
-<<<<<<< HEAD
-      debugLog(`Invalid or missing push token for user ${userId}`);
-      return;
-=======
       console.log(`[Notifications] Invalid or missing push token for user ${userId}`);
       return { success: false, error: 'Invalid push token' };
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
 
     // Create message with enhanced data
@@ -146,11 +131,11 @@ export async function sendPushNotification(
 
     // Send notification
     const chunks = expo.chunkPushNotifications([message]);
-    
+
     for (const chunk of chunks) {
       try {
         const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        
+
         for (const ticket of ticketChunk) {
           if (ticket.status === 'ok' && ticket.id) {
             // Track for receipt verification
@@ -160,26 +145,26 @@ export async function sendPushNotification(
               sentAt: new Date(),
               type: data?.type || 'unknown',
             });
-            
+
             stats.sent++;
             console.log(`[Notifications] ✓ Sent to ${userId}: ${title} (ticket: ${ticket.id})`);
             return { success: true, ticketId: ticket.id };
           } else if (ticket.status === 'error') {
             stats.failed++;
             const error = ticket.message || 'Unknown error';
-            
+
             // Handle token issues
             if (ticket.details?.error === 'DeviceNotRegistered') {
               await invalidatePushToken(userId, prefs);
               stats.invalidTokens++;
             }
-            
+
             console.error(`[Notifications] ✗ Failed for ${userId}: ${error}`);
             Sentry.captureMessage(`Push notification failed: ${error}`, {
               level: 'warning',
               tags: { userId, notificationType: data?.type },
             });
-            
+
             return { success: false, error };
           }
         }
@@ -191,11 +176,7 @@ export async function sendPushNotification(
       }
     }
 
-<<<<<<< HEAD
-    debugLog(`Sent notification to user ${userId}: ${title}`);
-=======
     return { success: false, error: 'No tickets returned' };
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   } catch (error) {
     stats.failed++;
     console.error(`[Notifications] Failed for ${userId}:`, error);
@@ -215,13 +196,13 @@ export async function checkDeliveryReceipts(): Promise<{
   invalidated: number;
 }> {
   const ticketIds = Array.from(pendingTickets.keys());
-  
+
   if (ticketIds.length === 0) {
     return { checked: 0, delivered: 0, failed: 0, invalidated: 0 };
   }
 
   console.log(`[Notifications] Checking ${ticketIds.length} delivery receipts...`);
-  
+
   let delivered = 0;
   let failed = 0;
   let invalidated = 0;
@@ -244,20 +225,20 @@ export async function checkDeliveryReceipts(): Promise<{
           } else if (receipt.status === 'error') {
             failed++;
             console.error(`[Notifications] ✗ Delivery failed: ${ticketId} - ${receipt.message}`);
-            
+
             // Handle DeviceNotRegistered
             if (receipt.details?.error === 'DeviceNotRegistered') {
               const user = await prisma.user.findUnique({
                 where: { id: pending.userId },
                 select: { preferences: true },
               });
-              
+
               if (user) {
                 await invalidatePushToken(pending.userId, user.preferences);
                 invalidated++;
               }
             }
-            
+
             Sentry.captureMessage(`Push delivery failed: ${receipt.message}`, {
               level: 'warning',
               tags: { ticketId, userId: pending.userId },
@@ -367,7 +348,7 @@ export async function notifyNewFollower(
 export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void> {
   const now = new Date();
   const targetTime = new Date(now.getTime() + hoursBeforeGame * 60 * 60 * 1000);
-  
+
   // Find all events happening at the target time (with 5 minute window)
   const windowStart = new Date(targetTime.getTime() - 5 * 60 * 1000);
   const windowEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);
@@ -404,10 +385,10 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
   for (const event of upcomingEvents) {
     for (const rsvp of event.rsvps) {
       const user = rsvp.user;
-      const title = hoursBeforeGame === 12 
-        ? `Game reminder: ${event.title}` 
+      const title = hoursBeforeGame === 12
+        ? `Game reminder: ${event.title}`
         : `Game starting soon: ${event.title}`;
-      
+
       const body = hoursBeforeGame === 12
         ? `Your game starts in 12 hours at ${event.location || 'the venue'}`
         : `Your game starts in 1 hour! Get ready!`;

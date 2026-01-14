@@ -847,28 +847,16 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
-<<<<<<< HEAD
                     <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Advanced features</Text></View>
-=======
-                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>$2.50/month per team</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Advanced features</Text></View>
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   </>
                 )}
                 {(ob.plan === 'legend') && (
                   <>
-<<<<<<< HEAD
                     <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
-=======
-                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>$19.99/year unlimited teams</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
-                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Premium features</Text></View>
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   </>
                 )}
               </View>

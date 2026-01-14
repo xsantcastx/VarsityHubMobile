@@ -138,8 +138,6 @@ export default function CommunityDiscoverScreen() {
 
   const loadGames = useCallback(async (user: any) => {
     try {
-<<<<<<< HEAD
-=======
       let user: any = null;
       try {
         user = await User.me();
@@ -147,7 +145,6 @@ export default function CommunityDiscoverScreen() {
       } catch (err) {
         if (__DEV__) console.warn('Discover load: unable to fetch user', err);
       }
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       const gamesData = await Game.list('-date');
       let normalizedGames = Array.isArray(gamesData) ? gamesData : [];
       const zip = user?.preferences?.zip_code ? String(user.preferences.zip_code) : '';
@@ -244,107 +241,6 @@ export default function CommunityDiscoverScreen() {
     try { await load({ silent: true }); } finally { setRefreshing(false); }
   }, [load]);
 
-<<<<<<< HEAD
-  const handleQuickGameSave = useCallback(async (data: QuickGameData) => {
-    try {
-      // Parse date and time
-      const [year, month, day] = data.date.split('-').map(Number);
-      const timeParts = data.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (!timeParts) throw new Error('Invalid time format');
-      let hours = parseInt(timeParts[1], 10);
-      const minutes = parseInt(timeParts[2], 10);
-      const isPM = timeParts[3].toUpperCase() === 'PM';
-      if (isPM && hours !== 12) hours += 12;
-      if (!isPM && hours === 12) hours = 0;
-      
-      const gameDateTime = new Date(Date.UTC(year, month - 1, day, hours, minutes));
-
-      // Create game payload
-      const gamePayload: Record<string, any> = {
-        title: data.isCompetitive 
-          ? `${data.currentTeam} vs ${data.opponent}`
-          : `${data.currentTeam} Event`,
-        date: gameDateTime.toISOString(),
-        description: data.description || (data.isCompetitive
-          ? `${data.type === 'home' ? 'Home' : 'Away'} game: ${data.currentTeam} vs ${data.opponent}`
-          : `Event for ${data.currentTeam}`),
-      };
-
-      // Only add team fields if this is a competitive game
-      if (data.isCompetitive) {
-        gamePayload.home_team = data.type === 'home' ? data.currentTeam : data.opponent;
-        gamePayload.away_team = data.type === 'home' ? data.opponent : data.currentTeam;
-        
-        if (data.currentTeamId) gamePayload.home_team_id = data.type === 'home' ? data.currentTeamId : null;
-        if (data.opponentTeamId) {
-          gamePayload.away_team_id = data.type === 'home' ? data.opponentTeamId : data.currentTeamId;
-        } else if (data.opponent) {
-          gamePayload.away_team_name = data.opponent;
-        }
-      } else {
-        // For non-competitive events, still send home_team_id for approval workflow
-        if (data.currentTeamId) {
-          gamePayload.home_team_id = data.currentTeamId;
-        }
-      }
-
-      // Add expected attendance if provided
-      if (data.expectedAttendance) {
-        gamePayload.expected_attendance = data.expectedAttendance;
-      }
-
-      // Add event type
-      if (data.eventType) {
-        gamePayload.event_type = data.eventType;
-      }
-      
-      // Add event type-specific fields
-      if (data.donationGoal) {
-        gamePayload.donation_goal = data.donationGoal;
-      }
-      if (data.watchLocation) {
-        gamePayload.watch_location = data.watchLocation;
-        if (data.watchLocationLat) gamePayload.watch_location_lat = data.watchLocationLat;
-        if (data.watchLocationLng) gamePayload.watch_location_lng = data.watchLocationLng;
-        if (data.watchLocationPlaceId) gamePayload.watch_location_place_id = data.watchLocationPlaceId;
-      }
-      if (data.destination) {
-        gamePayload.destination = data.destination;
-      }
-
-      if (data.banner_url) {
-        gamePayload.banner_url = data.banner_url;
-        gamePayload.cover_image_url = data.banner_url;
-      } else if (data.cover_image_url) {
-        gamePayload.cover_image_url = data.cover_image_url;
-      }
-
-      if (data.appearance) {
-        gamePayload.appearance = data.appearance;
-      }
-
-      // Create game using the API
-      await Game.create(gamePayload);
-
-      setCreateEventModalOpen(false);
-      
-      // Refresh the games list
-      await load({ silent: true });
-      
-      // Show success message - use native alert
-      if (typeof alert !== 'undefined') {
-        alert(data.isCompetitive ? 'Game added successfully!' : 'Event added successfully!');
-      }
-    } catch (error) {
-      if (__DEV__) console.error('Error adding quick game:', error);
-      if (typeof alert !== 'undefined') {
-        alert(`Failed to add event: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-  }, [load]);
-
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   const filtered = useMemo(() => {
     if (!query) return games;
     const q = query.toLowerCase().trim();
@@ -468,14 +364,9 @@ export default function CommunityDiscoverScreen() {
       {/* Calendar - Right below search */}
       <View style={styles.calendarSection}>
         <Calendar
-<<<<<<< HEAD
-          onDayPress={(day) => {
-            setSelectedDate(day.dateString);
-=======
           onDayPress={(day) => setSelectedDate(day.dateString)}
           markedDates={{
             [selectedDate]: { selected: true, selectedColor: Colors[colorScheme].tint }
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
           }}
           theme={{
             backgroundColor: Colors[colorScheme].background,
@@ -495,120 +386,12 @@ export default function CommunityDiscoverScreen() {
         />
       </View>
 
-<<<<<<< HEAD
-      {/* Games on Selected Date */}
-      {selectedDate && (() => {
-        const gamesOnDate = games.filter(g => {
-          if (!g.date) return false;
-          const gameDate = new Date(g.date).toISOString().split('T')[0];
-          return gameDate === selectedDate;
-        });
-        
-        if (gamesOnDate.length === 0) return null;
-
-        return (
-          <View style={[styles.selectedDateSection, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-            <Text style={[styles.selectedDateTitle, { color: Colors[colorScheme].text }]}>
-              Events on {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </Text>
-            {gamesOnDate.map((game) => {
-              const labels = deriveTeamLabels(game);
-              const time = game.date ? new Date(game.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'TBD';
-              return (
-                <Pressable
-                  key={game.id}
-                  style={[styles.dateGameCard, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}
-                  onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(game.id) } })}
-                >
-                  <View style={styles.dateGameTime}>
-                    <Ionicons name="time-outline" size={16} color={Colors[colorScheme].tint} />
-                    <Text style={[styles.dateGameTimeText, { color: Colors[colorScheme].tint }]}>{time}</Text>
-                  </View>
-                  <Text style={[styles.dateGameTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
-                    {game.title || `${labels.teamA} vs ${labels.teamB}`}
-                  </Text>
-                  {game.location && (
-                    <View style={styles.dateGameLocation}>
-                      <Ionicons name="location-outline" size={14} color={Colors[colorScheme].mutedText} />
-                      <Text style={[styles.dateGameLocationText, { color: Colors[colorScheme].mutedText }]} numberOfLines={1}>
-                        {game.location}
-                      </Text>
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        );
-      })()}
-
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Discover</Text>
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
         <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-<<<<<<< HEAD
-          {/* Role-based actions */}
-          {me?.preferences?.role === 'coach' ? (
-            <>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/manage-teams')}
-              >
-                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Manage Teams</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create and manage your teams</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/manage-season')}
-              >
-                <Ionicons name="calendar" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Team Schedule</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Manage games and season</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/event-approvals')}
-              >
-                <Ionicons name="checkmark-done" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Approvals</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Review pending events</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              {/* Fan actions */}
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
-                onPress={() => void router.push('/create-fan-event')}
-              >
-                <Ionicons name="people" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Fan Event</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Watch parties & meetups</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/create-post')}
-              >
-                <Ionicons name="camera" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Share Moment</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Post photos and videos</Text>
-              </Pressable>
-              <Pressable 
-                style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
-                onPress={() => void router.push('/favorites')}
-              >
-                <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Teams you follow</Text>
-              </Pressable>
-            </>
-          )}
-=======
           <Pressable 
             style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30' }]}
             onPress={() => router.push('/manage-teams-simple')}
@@ -625,7 +408,6 @@ export default function CommunityDiscoverScreen() {
             <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Add Event</Text>
             <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Create a new game or event</Text>
           </Pressable>
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
         </ScrollView>
       </View>
 
@@ -805,15 +587,9 @@ export default function CommunityDiscoverScreen() {
               {/* Map/List Toggle */}
               <Pressable
                 onPress={() => {
-<<<<<<< HEAD
-<<<<<<< HEAD
-                  // In map view branch, viewMode is 'map'; toggling goes to 'list'
-                  const newMode: 'list' | 'map' = 'list';
-=======
                   const newMode: 'list' | 'map' = 'list'; // we are in map view, so switch to list
 =======
                   const newMode: 'list' | 'map' = viewMode === 'map' ? 'list' : 'map';
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
                   console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
                   console.log('📍 Filtered games count:', filtered.length);
                   console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
@@ -823,12 +599,7 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               >
                 <Ionicons 
-<<<<<<< HEAD
-<<<<<<< HEAD
-                  name={'list'} 
-=======
                   name="list" 
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 =======
                   name={viewMode === 'map' ? 'list' : 'map'} 
 >>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
@@ -918,18 +689,6 @@ export default function CommunityDiscoverScreen() {
           showHeader
         />
       </Modal>
-<<<<<<< HEAD
-
-      <QuickAddGameModal
-        visible={createEventModalOpen}
-        onClose={() => setCreateEventModalOpen(false)}
-        onSave={handleQuickGameSave}
-        currentTeamName={me?.team?.name}
-        currentTeamId={me?.team?.id}
-        userRole={(me?.preferences?.role === 'coach' || me?.preferences?.role === 'admin' || me?.role === 'coach' || me?.role === 'admin') ? 'coach' : 'fan'}
-      />
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     </View>
   );
 }

@@ -72,16 +72,12 @@ export default function TeamProfileScreen() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteRole, setInviteRole] = useState('player');
   const [sendingInvite, setSendingInvite] = useState(false);
-<<<<<<< HEAD
-  const [customRoles] = useState<CustomRole[]>([]);
-=======
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   // Inline team edit modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [savingInlineEdit, setSavingInlineEdit] = useState(false);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
   // Modal state for universal action modal
   // (Removed duplicate actionModal declaration)
@@ -262,52 +258,6 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberPosition = async (memberId: string, position: string) => {
-<<<<<<< HEAD
-    if (!team?.id) {
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: 'Team details not loaded yet.',
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
-      return;
-    }
-    const member = members.find(m => m.id === memberId);
-    if (!member?.user?.id) {
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: 'Unable to identify this member. Please refresh and try again.',
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
-      return;
-    }
-    const trimmed = position.trim();
-    const previous = member.customPosition || undefined;
-    setMembers(prev => prev.map(m => 
-      m.id === memberId 
-        ? { ...m, customPosition: trimmed || undefined }
-        : m
-    ));
-    try {
-      await TeamApi.updateMember(team.id, member.user.id, { custom_position: trimmed || null });
-      setActionModal({
-        visible: true,
-        title: 'Updated!',
-        message: trimmed
-          ? `${member.user.display_name || 'Member'} is now listed as ${trimmed}`
-          : 'Custom position cleared.',
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
-    } catch (error: any) {
-      console.error('Failed to update custom position:', error);
-      setMembers(prev => prev.map(m => 
-        m.id === memberId ? { ...m, customPosition: previous } : m
-      ));
-      setActionModal({
-        visible: true,
-        title: 'Error',
-=======
     const trimmed = position.trim();
     const previousMembers = members;
     setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, customPosition: trimmed || undefined } : m)));
@@ -319,7 +269,6 @@ export default function TeamProfileScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         message: error?.message || 'Failed to update member position',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
@@ -514,36 +463,10 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberRole = async (memberId: string, newRole: string) => {
-<<<<<<< HEAD
-    if (!team?.id) {
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: 'Team details not loaded yet.',
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
-      return;
-    }
-    const member = members.find(m => m.id === memberId);
-    if (!member?.user?.id) {
-      setActionModal({
-        visible: true,
-        title: 'Error',
-        message: 'Unable to identify this member. Please refresh and try again.',
-        options: [{ label: 'OK', onPress: () => {}, color: undefined }],
-      });
-      return;
-    }
-    const previousRole = member.role;
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
-    try {
-      await TeamApi.updateMember(team.id, member.user.id, { role: newRole });
-=======
     const previousMembers = members;
     setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, role: newRole as any } : m)));
     try {
       await TeamMemberships.update(memberId, { role: newRole });
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       setActionModal({
         visible: true,
         title: 'Updated!',
@@ -551,13 +474,8 @@ export default function TeamProfileScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error: any) {
-<<<<<<< HEAD
-      console.error('Failed to update member role:', error);
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: previousRole } : m));
-=======
       console.error('Failed to update member role', error);
       setMembers(previousMembers);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       setActionModal({
         visible: true,
         title: 'Error',
@@ -790,15 +708,11 @@ export default function TeamProfileScreen() {
           </Pressable>
           <Pressable 
             style={styles.actionButton}
-<<<<<<< HEAD
-            onPress={() => void router.push(`/edit-team?id=${team.id}`)}
-=======
             onPress={() => {
               setEditName(team.name || '');
               setEditDescription(team.description || '');
               setEditModalVisible(true);
             }}
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
           >
             <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>

@@ -13,13 +13,8 @@ export default function CreateScreen() {
   const verified = !!me?.email_verified;
   useEffect(() => { void (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
   const go = (path: string) => {
-<<<<<<< HEAD
-    if (!verified) return void router.push('/verify-email');
-    void router.push(path as any);
-=======
     if (!verified) return router.push('/verify-identity?method=email');
     router.push(path as any);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   };
 
   const safeBack = () => {

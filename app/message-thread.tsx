@@ -23,11 +23,7 @@ type Msg = {
 };
 
 export default function MessageThreadScreen() {
-<<<<<<< HEAD
   const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
-=======
-  const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string, prefill?: string }>();
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -88,7 +84,7 @@ export default function MessageThreadScreen() {
     }
   }, [prefill, prefillApplied, router]);
 
-  // ✨ INSTANT MESSAGING: Poll every 3 seconds while in conversation
+  // INSTANT MESSAGING: Poll every 3 seconds while in conversation
   useEffect(() => {
     let mounted = true;
     const interval = setInterval(async () => {
@@ -124,7 +120,7 @@ export default function MessageThreadScreen() {
   const send = async () => {
     const content = text.trim();
     if (!content) return;
-    
+
     // Check DM restrictions before sending
     if (me && otherParticipant) {
       const restriction = checkDMRestriction(me, otherParticipant);
@@ -133,7 +129,7 @@ export default function MessageThreadScreen() {
         return;
       }
     }
-    
+
     setText('');
     try {
       // Determine recipient. If `with` was an email, send by email; if it was an id, send by id.
@@ -167,7 +163,7 @@ export default function MessageThreadScreen() {
   // Determine the other participant from loaded messages
   const otherParticipant = useMemo((): MiniUser | null => {
     if (!me) return null;
-    
+
     for (const msg of msgs) {
       const sender = msg.sender || (msg.sender_id ? { id: msg.sender_id } : null);
       const recipient = msg.recipient || (msg.recipient_id ? { id: msg.recipient_id } : null);
@@ -196,12 +192,12 @@ export default function MessageThreadScreen() {
   const renderItem = ({ item, index }: { item: Msg; index: number }) => {
     const mine = me?.id && (String(item.sender_id || item.sender?.id || '') === String(me.id));
     const sender = mine ? me : otherParticipant;
-    
+
     // Check if we should show avatar (show for first message in a sequence from same sender)
     const prevMsg = index > 0 ? msgs[index - 1] : null;
     const prevMine = prevMsg && me?.id && (String(prevMsg.sender_id || prevMsg.sender?.id || '') === String(me.id));
     const showAvatar = !mine && (prevMine === true || !prevMsg);
-    
+
     return (
       <View style={[styles.messageRow, mine && styles.messageRowMine]}>
         {!mine && (
@@ -220,14 +216,14 @@ export default function MessageThreadScreen() {
           </View>
         )}
         <View style={[
-          styles.bubble, 
-          mine ? styles.bubbleMine : [styles.bubbleTheirs, { 
+          styles.bubble,
+          mine ? styles.bubbleMine : [styles.bubbleTheirs, {
             backgroundColor: Colors[colorScheme].card,
             borderColor: Colors[colorScheme].border,
           }]
         ]}>
           <Text style={[
-            styles.bubbleText, 
+            styles.bubbleText,
             { color: mine ? '#FFFFFF' : Colors[colorScheme].text }
           ]}>{item.content}</Text>
         </View>
@@ -245,18 +241,18 @@ export default function MessageThreadScreen() {
               headerShown: false,
             }}
           />
-        
+
         {/* Custom WhatsApp-style header with safe area */}
-        <View style={[styles.customHeader, { 
-          paddingTop: insets.top + 8, 
+        <View style={[styles.customHeader, {
+          paddingTop: insets.top + 8,
           backgroundColor: Colors[colorScheme].card,
           borderBottomColor: Colors[colorScheme].border,
         }]}>
           <Pressable onPress={() => void router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={Colors[colorScheme].text} />
           </Pressable>
-          
-          <Pressable 
+
+          <Pressable
             style={styles.headerProfile}
             onPress={() => { if (otherParticipant?.id) { void void router.push(`/user-profile?id=${encodeURIComponent(otherParticipant.id)}`);
               }
@@ -298,12 +294,12 @@ export default function MessageThreadScreen() {
         </View>
 
         {/* Composer */}
-        <View style={[styles.composer, { 
+        <View style={[styles.composer, {
           backgroundColor: Colors[colorScheme].card,
           borderTopColor: Colors[colorScheme].border,
         }]}>
           <TextInput
-            style={[styles.input, { 
+            style={[styles.input, {
               backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#F3F4F6',
               color: Colors[colorScheme].text,
             }]}
@@ -314,9 +310,9 @@ export default function MessageThreadScreen() {
             multiline
             maxLength={1000}
           />
-          <Pressable 
-            onPress={send} 
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]} 
+          <Pressable
+            onPress={send}
+            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
             disabled={!text.trim()}
           >
             <Ionicons name="send" size={18} color="white" />
@@ -328,9 +324,9 @@ export default function MessageThreadScreen() {
           <Pressable style={styles.sheetBackdrop} onPress={() => setSafetyOpen(false)}>
             <Pressable style={[styles.sheet, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
               <Text style={[styles.sheetTitle, { color: Colors[colorScheme].text }]}>Safety & Settings</Text>
-              <Pressable 
-                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
-                onPress={() => { setSafetyOpen(false); 
+              <Pressable
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
+                onPress={() => { setSafetyOpen(false);
                   if (otherParticipant?.id) { void void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
                   } else {
                     router.push('/report-abuse');
@@ -340,12 +336,12 @@ export default function MessageThreadScreen() {
                 <Ionicons name="flag-outline" size={20} color={Colors[colorScheme].text} />
                 <Text style={[styles.sheetText, { color: Colors[colorScheme].text }]}>Report user</Text>
               </Pressable>
-              <Pressable 
-                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]} 
+              <Pressable
+                style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={async () => {
                   setSafetyOpen(false);
                   if (!otherParticipant?.id) return;
-                  
+
                   Alert.alert(
                     'Block User',
                     `Are you sure you want to block ${otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
@@ -381,14 +377,14 @@ export default function MessageThreadScreen() {
         </Modal>
 
         {/* DM Restriction Warning Modal */}
-        <Modal 
-          visible={restrictionModal.show} 
-          transparent 
-          animationType="fade" 
+        <Modal
+          visible={restrictionModal.show}
+          transparent
+          animationType="fade"
           onRequestClose={() => setRestrictionModal({ show: false, message: '' })}
         >
-          <Pressable 
-            style={styles.modalBackdrop} 
+          <Pressable
+            style={styles.modalBackdrop}
             onPress={() => setRestrictionModal({ show: false, message: '' })}
           >
             <Pressable style={[styles.modalContent, { backgroundColor: Colors[colorScheme].card }]} onPress={() => {}}>
@@ -398,19 +394,19 @@ export default function MessageThreadScreen() {
                   Safe Zone Policy
                 </Text>
               </View>
-              
+
               <Text style={[styles.modalMessage, { color: Colors[colorScheme].mutedText }]}>
                 {restrictionModal.message}
               </Text>
-              
-              <Pressable 
+
+              <Pressable
                 style={[styles.modalButton, { backgroundColor: Colors[colorScheme].tint }]}
                 onPress={() => setRestrictionModal({ show: false, message: '' })}
               >
                 <Text style={styles.modalButtonText}>I Understand</Text>
               </Pressable>
-              
-              <Pressable 
+
+              <Pressable
                 style={styles.modalLinkButton}
                 onPress={() => {
                   setRestrictionModal({ show: false, message: '' });
@@ -423,7 +419,7 @@ export default function MessageThreadScreen() {
               </Pressable>
 
               {me?.role === 'coach' && !me?.is_verified && (
-                <Pressable 
+                <Pressable
                   style={[styles.modalVerifyButton, { borderColor: Colors[colorScheme].tint }]}
                   onPress={() => {
                     setRestrictionModal({ show: false, message: '' });

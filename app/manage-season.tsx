@@ -177,43 +177,7 @@ export default function ManageSeasonScreen() {
         : [];
       
       // Convert backend games to local Game format
-<<<<<<< HEAD
-      const convertedGames: Game[] = relevantGames.map((game: any) => {
-        const resolvedType: Game['type'] =
-          game.game_type === 'neutral' || game.type === 'neutral'
-            ? 'neutral'
-            : game.home_team && game.home_team !== 'Away Team'
-              ? 'home'
-              : 'away';
-
-        const rawStatus = String(game.status || game.game_status || game.event_status || '').toLowerCase();
-        let normalizedStatus: Game['status'] = 'upcoming';
-        switch (rawStatus) {
-          case 'completed':
-          case 'final':
-            normalizedStatus = 'completed';
-            break;
-          case 'cancelled':
-          case 'canceled':
-            normalizedStatus = 'cancelled';
-            break;
-          case 'pending':
-            normalizedStatus = 'pending';
-            break;
-          case 'in-progress':
-          case 'in_progress':
-            normalizedStatus = 'in-progress';
-            break;
-          case 'live':
-            normalizedStatus = 'live';
-            break;
-          default:
-            normalizedStatus = 'upcoming';
-        }
-
-=======
       const convertedGames = relevantGames.map((game: any) => {
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         const converted: Game = {
           id: game.id,
           homeTeam: game.home_team || null,
@@ -226,13 +190,8 @@ export default function ManageSeasonScreen() {
             hour12: true
           }) : '7:00 PM',
           location: game.location || 'TBD',
-<<<<<<< HEAD
-          type: resolvedType,
-          status: normalizedStatus,
-=======
           type: (game.home_team && game.home_team !== 'Away Team' ? 'home' : 'away'),
           status: 'upcoming',
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
           banner_url: game.banner_url || undefined, // Include banner URL from backend
           cover_image_url: game.cover_image_url || undefined, // Include cover image URL from backend
         };

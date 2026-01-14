@@ -514,34 +514,6 @@ export default function AdCalendarScreen() {
               text: 'Continue to Payment',
               onPress: async () => {
                 try {
-<<<<<<< HEAD
-                  await WebBrowser.openBrowserAsync(String(data.url));
-                  
-                  // Reset submitting state
-                  setSubmitting(false);
-                  
-                  // Get ad details for confirmation screen
-                  const adData = await Advertisement.get(adId).catch(() => null);
-                  const businessName = adData?.business_name || 'Your Business';
-                  const datesText = sortedDates.length > 0 
-                    ? `${sortedDates.length} ${sortedDates.length === 1 ? 'day' : 'days'}`
-                    : 'selected dates';
-                  
-                  // Redirect to confirmation screen with ad details
-                  router.replace({
-                    pathname: '/ad-confirmation',
-                    params: {
-                      ad_id: adId,
-                      businessName,
-                      selectedDates: datesText,
-                      totalAmount: `$${effective.toFixed(2)}`,
-                    }
-                  } as any);
-                  
-                } catch (browserErr) {
-                  if (__DEV__) console.error('Browser error:', browserErr);
-                  setSubmitting(false);
-=======
                   setSubmitting(true);
                   const result = await WebBrowser.openBrowserAsync(String(data.url));
                   console.log('[ad-calendar] Browser closed:', result.type);
@@ -551,7 +523,6 @@ export default function AdCalendarScreen() {
                   );
                 } catch (browserErr) {
                   console.error('Browser error:', browserErr);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   Alert.alert('Error', 'Could not open payment page. Please try again.');
                 } finally {
                   setSubmitting(false);

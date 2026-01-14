@@ -116,9 +116,6 @@ async function sendSubscriptionEmail({
 
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
-<<<<<<< HEAD
-  return calculateAdPriceCents(isoDates).totalCents;
-=======
 
   const weekdayPrice = 800; // $8.00 per Mon-Thu slot (charge once per week)
   const weekendPrice = 1000; // $10.00 per Fri-Sun slot
@@ -155,7 +152,6 @@ function calculatePriceCents(isoDates: string[]): number {
     if (entry.weekend) total += weekendPrice;
   }
   return total;
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 }
 
 const membershipPlans = ['veteran', 'legend'] as const;
@@ -381,20 +377,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     discount = preview.discount_cents;
     appliedCode = preview.code;
   }
-<<<<<<< HEAD
-  const total = Math.max(0, subtotal - discount + taxCents);
-  if (total === 0) {
-    if (appliedCode) {
-      await redeemPromo({ code: appliedCode, subtotalCents: subtotal, userId: req.user!.id, service: 'booking', orderId: `FREE-${Date.now()}` });
-    }
-    try {
-      await prisma.$transaction([
-        prisma.ad.update({ where: { id: String(ad_id) }, data: { payment_status: 'paid' } }),
-        prisma.adReservation.createMany({ data: isoDates.map((s) => ({ ad_id: String(ad_id), date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
-    } catch (e) {}
-    return res.json({ free: true });
-=======
 
   // Total = (subtotal - discount) + tax
   const total = Math.max(0, subtotal - discount + taxCents);
@@ -402,7 +384,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     return res.status(400).json({
       error: 'Total must be greater than $0. All ad reservations must be processed via Stripe.',
     });
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   }
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
@@ -426,9 +407,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
     },
-<<<<<<< HEAD
-  });
-=======
   } as Stripe.Checkout.SessionCreateParams));
 
   // Create PENDING reservations with 30-minute expiration
@@ -452,7 +430,6 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   }
 
   // Log transaction
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
@@ -1043,12 +1020,6 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
             payment_status: 'paid',
             status: 'active'
           } 
-<<<<<<< HEAD
-        }),
-        prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
-      ]);
-      debugLog('[payments] Ad reservation payment completed successfully', {
-=======
         });
         
         // Confirm existing PENDING reservations OR create new ones
@@ -1082,7 +1053,6 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       });
       
       console.log('[payments] Ad reservation payment completed successfully', {
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         ad_id,
         dates,
         session_id: session.id,
@@ -1154,18 +1124,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
-<<<<<<< HEAD
-        const prefs: any = { ...existingPrefs, plan };
-        
-        // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
-        // This is required for Step 4 (organization creation) and allows coaches to manage orgs
-        if (plan === 'veteran' || plan === 'legend') {
-          prefs.role = 'coach';
-        }
-        
-=======
         const prefs: any = { ...existingPrefs, plan, payment_pending: false }; // ✅ Clear payment_pending flag
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));

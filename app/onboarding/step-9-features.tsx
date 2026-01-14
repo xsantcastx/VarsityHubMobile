@@ -113,12 +113,11 @@ export default function Step9Features() {
   const onContinue = async () => {
     setSaving(true);
     try {
-      // Save to context - IMPORTANT: Also save messaging_policy_accepted
+      // Save to context
       setOB((prev) => ({ 
         ...prev, 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled,
-        messaging_policy_accepted: true
+        notifications_enabled: notificationsEnabled
       }));
       
       // Save to backend
@@ -136,7 +135,6 @@ export default function Step9Features() {
           notifications_enabled: notificationsEnabled,
         };
         
-<<<<<<< HEAD
         // Only add fields that exist in onboarding state
         if (ob.role) payload.role = ob.role;
         if (ob.username) payload.username = ob.username;
@@ -161,11 +159,6 @@ export default function Step9Features() {
         // Success - navigate to feed
         router.replace('/(tabs)/feed');
         return; // Fans are done; skip coach-only confirmation screen
-=======
-        await clearOnboarding();
-        router.replace('/(tabs)');
-        return;
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       }
       
       // For coaches, go to confirmation page
@@ -399,8 +392,3 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
 });
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

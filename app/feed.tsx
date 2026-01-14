@@ -253,13 +253,8 @@ export default function FeedScreen() {
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
       const [gamesData, highlightsData, forFeedAds] = await Promise.all([
-<<<<<<< HEAD
-        Game.list('-date'),
-        Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
-=======
         Game.list('-date', { limit: 20 }),
         Highlights.fetch(countryCode ? { country: countryCode, limit: 40 } : { limit: 40 }).catch((err) => {
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
         }),
@@ -361,12 +356,8 @@ export default function FeedScreen() {
 
       setGames(prev => [...prev, ...newGames]);
       setGamesCursor(cursor);
-<<<<<<< HEAD
-      setHasMoreGames(!!cursor);
-=======
       setHasMoreGames(!!cursor && newGames.length > 0);
       setZipDirectory(prev => [...prev, ...buildZipDirectory(newGames)]);
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     } catch (e: any) {
       console.error('Failed to load more games', e);
       // Stop pagination on error
@@ -578,8 +569,6 @@ export default function FeedScreen() {
     );
   }, [emailVerified, me, router]);
 
-<<<<<<< HEAD
-=======
   const renderGameTile = useCallback(
     ({ item, index }: { item: GameItem; index: number }) => {
       const raw = item as any;
@@ -656,7 +645,6 @@ export default function FeedScreen() {
     [colorScheme, onRefresh, router, voteSummaries, isAuthenticated, handleAuthRequired],
   );
 
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
       {/* Navbar title intentionally swapped to show Feed in the stack and VarsityHub in the UI header */}

@@ -106,18 +106,18 @@ export default function MessagesScreen() {
   // Group messages into conversations
   const conversations = useMemo((): Conversation[] => {
     if (!me) return [];
-    
+
     const convMap = new Map<string, Conversation>();
-    
+
     messages.forEach(msg => {
       const mine = msg.sender_id === me.id;
       const other = mine ? msg.recipient : msg.sender;
-      
+
       if (!other || !other.id) return;
-      
+
       // Use conversation_id or create key from other user's id
       const convKey = msg.conversation_id || `user-${other.id}`;
-      
+
       if (!convMap.has(convKey)) {
         convMap.set(convKey, {
           id: convKey,
@@ -138,9 +138,9 @@ export default function MessagesScreen() {
         }
       }
     });
-    
+
     // Sort by last message date
-    return Array.from(convMap.values()).sort((a, b) => 
+    return Array.from(convMap.values()).sort((a, b) =>
       new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
     );
   }, [messages, me]);
@@ -215,20 +215,9 @@ export default function MessagesScreen() {
     setComposeOpen(false);
     setSearchUserQuery('');
     setSearchResults([]);
-<<<<<<< HEAD
     const base = `/message-thread?with=${encodeURIComponent(user.id)}`;
     router.push(buildThreadPath(base) as any);
     if (prefillMessage) setPrefillMessage(null);
-=======
-
-    const params: Record<string, string> = { with: user.id };
-    // Pass the pre-filled message to the thread screen
-    if (prefillMessage) {
-      params.prefill = prefillMessage;
-      setPrefillMessage(null);
-    }
-    router.push({ pathname: '/message-thread', params });
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   };
 
   const formatTime = (dateStr: string) => {
@@ -252,12 +241,12 @@ export default function MessagesScreen() {
     const hasUnread = item.unreadCount > 0;
 
     return (
-      <Pressable 
+      <Pressable
         style={[
-          styles.conversationRow, 
+          styles.conversationRow,
           hasUnread && styles.conversationUnread,
           { borderBottomColor: Colors[colorScheme].border }
-        ]} 
+        ]}
         onPress={() => openThread(item)}
       >
         <View style={styles.avatarContainer}>
@@ -270,15 +259,15 @@ export default function MessagesScreen() {
           )}
           {hasUnread && <View style={styles.unreadDot} />}
         </View>
-        
+
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text 
+            <Text
               style={[
-                styles.conversationName, 
+                styles.conversationName,
                 { color: Colors[colorScheme].text },
                 hasUnread && styles.conversationNameBold
-              ]} 
+              ]}
               numberOfLines={1}
             >
               {name}
@@ -287,14 +276,14 @@ export default function MessagesScreen() {
               {formatTime(item.lastMessage.created_at)}
             </Text>
           </View>
-          
+
           <View style={styles.messagePreviewRow}>
-            <Text 
+            <Text
               style={[
-                styles.messagePreview, 
+                styles.messagePreview,
                 { color: Colors[colorScheme].tabIconDefault },
                 hasUnread && styles.messagePreviewBold
-              ]} 
+              ]}
               numberOfLines={2}
             >
               {item.lastMessage.content || 'No message content'}
@@ -315,8 +304,8 @@ export default function MessagesScreen() {
     const avatar = item.avatar_url;
 
     return (
-      <Pressable 
-        style={[styles.userSearchRow, { borderBottomColor: Colors[colorScheme].border }]} 
+      <Pressable
+        style={[styles.userSearchRow, { borderBottomColor: Colors[colorScheme].border }]}
         onPress={() => startConversation(item)}
       >
         {avatar ? (
@@ -342,7 +331,7 @@ export default function MessagesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       {/* Enhanced header with gradient and safe area */}
       <LinearGradient
         colors={colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : ['#ffffff', '#f8fafc']}
@@ -379,7 +368,7 @@ export default function MessagesScreen() {
       <View style={styles.contentContainer}>
         {loading && <View style={styles.center}><ActivityIndicator /></View>}
         {error && !loading && <Text style={styles.error}>{error}</Text>}
-        
+
         {!loading && filtered.length === 0 && !error && (
           <View style={styles.emptyState}>
             <Ionicons name="chatbubbles-outline" size={64} color={Colors[colorScheme].tabIconDefault} />
@@ -390,8 +379,8 @@ export default function MessagesScreen() {
               {query ? 'Try a different search term' : 'Start a conversation to get connected'}
             </Text>
             {!query && (
-              <Pressable 
-                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
+              <Pressable
+                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]}
                 onPress={() => setComposeOpen(true)}
               >
                 <Text style={styles.emptyButtonText}>Start Messaging</Text>
@@ -412,8 +401,8 @@ export default function MessagesScreen() {
 
       {/* Floating compose button */}
       {!loading && (
-        <Pressable 
-          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]} 
+        <Pressable
+          style={[styles.fab, { backgroundColor: Colors[colorScheme].tint, bottom: insets.bottom + 16 }]}
           onPress={() => setComposeOpen(true)}
         >
           <Ionicons name="create-outline" size={24} color="white" />

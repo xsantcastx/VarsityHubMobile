@@ -5,43 +5,28 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-<<<<<<< HEAD
     "build": "npx prisma generate && npx tsc -p .",
     "start": "npx prisma migrate resolve --rolled-back add_severity_to_reports || true && node dist/index.js",
     "postinstall": "npx prisma generate",
-=======
-    "build": "tsc -p .",
-    "start": "node dist/index.js",
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     "railway:deploy": "npx prisma generate && npm run build",
     "postdeploy": "npx prisma migrate deploy && npm run seed",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:studio": "prisma studio",
-<<<<<<< HEAD
     "seed": "tsx prisma/seed.ts",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
     "android": "expo run:android",
     "ios": "expo run:ios"
-=======
-    "seed": "tsx prisma/seed.ts"
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   },
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@prisma/client": "^5.22.0",
-<<<<<<< HEAD
-<<<<<<< HEAD
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@sendgrid/mail": "^8.1.6",
-=======
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     "@sentry/node": "^7.91.0",
     "@sentry/profiling-node": "^7.91.0",
-=======
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     "bcrypt": "^5.1.1",
     "bull": "^4.16.5",
     "cors": "^2.8.5",
@@ -51,23 +36,16 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
-<<<<<<< HEAD
     "jwk-to-pem": "^2.0.7",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.11",
-=======
-    "multer": "^1.4.5-lts.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "nodemailer": "^6.9.13",
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.1",
     "prisma": "^5.16.1",
     "react-native-maps": "1.20.1",
     "stripe": "^16.6.0",
-<<<<<<< HEAD
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "twilio": "^4.10.1",
@@ -84,38 +62,17 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.25",
     "@types/jest": "^29.5.11",
-=======
-    "zod": "^3.23.8",
-    "typescript": "^5.6.3",
-    "tsx": "^4.19.0",
-    "ts-node": "^10.9.2",
-    "@types/bcrypt": "^5.0.2",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
     "@types/jsonwebtoken": "^9.0.6",
     "@types/multer": "^2.0.0",
-<<<<<<< HEAD
     "@types/node": "^20.19.26",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.1",
-<<<<<<< HEAD
     "@types/swagger-ui-express": "^4.1.8",
     "babel-plugin-istanbul": "^6.1.1",
-=======
-    "@types/swagger-ui-express": "^4.1.6",
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.2"
-=======
-    "@types/node": "^20.11.30",
-    "@types/nodemailer": "^7.0.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
->>>>>>> f6efb4f (fix: force commit regenerated package-lock.json and package.json for EAS build integrity)
   },
   "prisma": {
     "schema": "prisma/schema.prisma",

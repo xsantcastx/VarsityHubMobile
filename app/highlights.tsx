@@ -1,10 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-<<<<<<< HEAD
-import AppLinks from '@/utils/links';
-=======
 import { shareText } from '@/utils/share';
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -284,22 +280,6 @@ const HighlightCard = ({
               onPress={async (e) => {
                 stopPressPropagation(e);
                 try {
-<<<<<<< HEAD
-                  const link = AppLinks.post(String(item.id), item.caption || item.title);
-                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
-                } catch {
-                  try {
-                    const mod = await import('expo-clipboard').catch(() => null);
-                    const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
-                    if (typeof setStringAsync === 'function') {
-                      const fallback = AppLinks.post(String(item.id), item.caption).webUrl;
-                      await setStringAsync(fallback);
-                      Alert.alert('Link Copied', 'Share link copied to clipboard!');
-                    } else {
-                      Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
-                    }
-                  } catch {}
-=======
                   const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
                   const shareUrl = `${base}/highlights/${item.id}`;
                   const caption = item.caption?.trim();
@@ -317,7 +297,6 @@ const HighlightCard = ({
                   }
                 } catch (shareError) {
                   console.error('Failed to share highlight', shareError);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                 }
               }}
             >
@@ -446,18 +425,6 @@ export default function HighlightsScreen() {
       const trimmedQuery = query.trim();
       const limit = 5;
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-<<<<<<< HEAD
-        Team.list(query, false, { limit: 5 }).catch(() => []),
-        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
-        User.listAll(query, 5).catch(() => []),
-        Organization.list(query, 5).catch(() => []),
-      ]);
-
-      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
-      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
-      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
-      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
-=======
         Team.list(trimmedQuery, { limit }).catch(() => []),
         Event.filter({ q: trimmedQuery, approval_status: 'approved' }, 'date', limit).catch(() => []),
         User.listAll(trimmedQuery, limit).catch(() => []),
@@ -469,7 +436,6 @@ export default function HighlightsScreen() {
       const events = normalizeList(eventsRes).slice(0, limit);
       const users = normalizeList(usersRes).slice(0, limit);
       const organizations = normalizeList(orgsRes).slice(0, limit);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
       // Filter posts
       const posts = highlights.filter(item => {

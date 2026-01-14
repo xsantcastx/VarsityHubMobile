@@ -151,13 +151,8 @@ eventsRouter.get('/', async (req, res) => {
   const eventType = String(req.query.event_type || '').trim();
   const search = String(req.query.q || '').trim();
   const sort = String(req.query.sort || '').trim();
-<<<<<<< HEAD
-  const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
-=======
   const search = String(req.query.q || '').trim();
   const limit = Math.min(Math.max(parseInt(String(req.query.limit || '0'), 10) || 0, 0), 100);
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   
   const where: any = {};
   if (status) where.status = status;
@@ -172,10 +167,7 @@ eventsRouter.get('/', async (req, res) => {
       { title: { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
       { location: { contains: search, mode: 'insensitive' } },
-<<<<<<< HEAD
-=======
       { linked_league: { contains: search, mode: 'insensitive' } },
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     ];
   }
   
@@ -183,11 +175,7 @@ eventsRouter.get('/', async (req, res) => {
   const events = await prisma.event.findMany({
     where,
     orderBy,
-<<<<<<< HEAD
-    take,
-=======
     take: limit || undefined,
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     include: { 
       game: { select: { id: true, title: true, cover_image_url: true, date: true, location: true } }
     },

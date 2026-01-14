@@ -38,40 +38,23 @@ export default function EventsCalendarScreen() {
       try {
         // Get current user's followed teams
         const me = await User.me();
-<<<<<<< HEAD
         const teams = await User.following(me?.id || '');
-=======
-        // Support both legacy and nested groups API shapes
-        let teams: any[] = [];
-        try {
-          const groups: any = (Team as any).groups;
-          if (groups && typeof groups.listFollowed === 'function') {
-            teams = await groups.listFollowed();
-          } else if (groups && typeof groups.list === 'function') {
-            teams = await groups.list();
-          } else if (typeof (Team as any).listFollowed === 'function') {
-            teams = await (Team as any).listFollowed();
-          } else if (typeof (Team as any).list === 'function') {
-            teams = await (Team as any).list();
-          }
-        } catch {}
->>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         const teamNames = Array.isArray(teams) ? teams.map((t: any) => t.name) : [];
-        
+
         if (!mounted) return;
         setFollowedTeams(teamNames);
 
         // Load all games
         const allGames = await Game.list();
         const gamesList = Array.isArray(allGames) ? allGames : allGames?.items || [];
-        
+
         // Filter games that include followed teams
         const filteredGames = gamesList
           .filter((game: any) => {
             const home = game.home_team || game.homeTeam;
             const away = game.away_team || game.awayTeam;
-            return teamNames.some(team => 
-              home?.toLowerCase().includes(team.toLowerCase()) || 
+            return teamNames.some(team =>
+              home?.toLowerCase().includes(team.toLowerCase()) ||
               away?.toLowerCase().includes(team.toLowerCase())
             );
           })
@@ -163,7 +146,7 @@ export default function EventsCalendarScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Team Calendar', headerShown: true }} />
-      
+
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Info Banner */}
         {followedTeams.length === 0 ? (
@@ -215,7 +198,7 @@ export default function EventsCalendarScreen() {
             {Array.from({ length: calendarDays[0].getDay() }).map((_, i) => (
               <View key={`empty-${i}`} style={styles.dayCell} />
             ))}
-            
+
             {/* Actual days */}
             {calendarDays.map(day => {
               const dateKey = format(day, 'yyyy-MM-dd');
@@ -271,7 +254,7 @@ export default function EventsCalendarScreen() {
             <Text style={[styles.eventsTitle, { color: Colors[colorScheme].text }]}>
               {format(selectedDate, 'EEEE, MMMM d, yyyy')}
             </Text>
-            
+
             {selectedDateGames.length === 0 ? (
               <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
                 <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
@@ -282,7 +265,7 @@ export default function EventsCalendarScreen() {
             ) : (
               selectedDateGames.map(game => {
                 const gameTime = game.date ? format(parseISO(game.date), 'h:mm a') : 'TBD';
-                
+
                 return (
                   <Pressable
                     key={game.id}
@@ -303,7 +286,7 @@ export default function EventsCalendarScreen() {
                         end={{ x: 1, y: 1 }}
                       />
                     )}
-                    
+
                     <View style={styles.gameInfo}>
                       <Text style={[styles.gameTime, { color: Colors[colorScheme].tint }]}>
                         {gameTime}
@@ -320,7 +303,7 @@ export default function EventsCalendarScreen() {
                         </View>
                       )}
                     </View>
-                    
+
                     <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
                   </Pressable>
                 );
@@ -334,7 +317,7 @@ export default function EventsCalendarScreen() {
           <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
             All Upcoming Events
           </Text>
-          
+
           {games.filter(g => g.date && isFuture(parseISO(g.date))).length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].surface }]}>
               <Ionicons name="calendar-outline" size={48} color={Colors[colorScheme].mutedText} />
@@ -354,7 +337,7 @@ export default function EventsCalendarScreen() {
                 const gameDate = parseISO(game.date);
                 const dateStr = format(gameDate, 'EEE, MMM d');
                 const timeStr = format(gameDate, 'h:mm a');
-                
+
                 return (
                   <Pressable
                     key={game.id}
@@ -365,7 +348,7 @@ export default function EventsCalendarScreen() {
                       <Text style={styles.dateTagText}>{format(gameDate, 'MMM')}</Text>
                       <Text style={styles.dateTagDay}>{format(gameDate, 'd')}</Text>
                     </View>
-                    
+
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.upcomingGameTitle, { color: Colors[colorScheme].text }]} numberOfLines={1}>
                         {game.title}
@@ -385,7 +368,7 @@ export default function EventsCalendarScreen() {
                         </View>
                       )}
                     </View>
-                    
+
                     <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
                   </Pressable>
                 );
