@@ -2,7 +2,7 @@
   "expo": {
     "name": "VarsityHub",
     "slug": "varsityhub",
-    "owner": "varsityhub",
+    "owner": "varsity-hub",
     "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -52,7 +52,12 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.VIBRATE",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -117,7 +122,7 @@
       "router": {},
       "googleMapsApiKey": "",
       "eas": {
-        "projectId": "59119cec-ef48-47fc-a540-e1aa87d882a9"
+        "projectId": "64489ed7-a8c0-41de-91ec-5846ea79a27f"
       },
       "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
       "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
