@@ -1,220 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { debugLog } from '../lib/debugLog.js';
-import {
-    sendAthleteInvitationEmail,
-    sendInvitationDeclinedEmail,
-    sendMemberRemovedEmail,
-    sendPlanLimitWarningEmail,
-    sendRoleAssignmentEmail,
-    sendRosterThresholdEmail,
-    sendStaffMemberJoinedEmail,
-    sendTeamInvitationEmail,
-    sendTeamRosterUpdateEmail
-} from '../lib/email.js';
-import {
-    getAuthorizedUsersOrgLimit,
-    getAuthorizedUsersPerTeam,
-    getMaxTeamsForPlan,
-    getPlanDisplayName,
-    planSupportsExtracurricular,
-    resolvePlan,
-} from '../lib/planLimits.js';
+import { sendTeamInviteEmail } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
-import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
+import { debugLog } from '../lib/debugLog.js';
 
 export const teamsRouter = Router();
-
-const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
-const MANAGE_BILLING_URL = process.env.MANAGE_BILLING_URL || `${APP_BASE_URL}/billing`;
-const STAFF_ONBOARDING_URL = process.env.STAFF_ONBOARDING_URL || `${APP_BASE_URL}/onboarding/staff`;
-const STAFF_MANAGE_URL_BASE = (process.env.MANAGE_STAFF_URL || `${APP_BASE_URL}/teams`).replace(/\/$/, '');
-const STAFF_INVITE_EXPIRY_DAYS =
-  Number.parseInt(process.env.STAFF_INVITE_EXPIRY_DAYS ?? '', 10) || 7;
-const ROSTER_THRESHOLD = Number.parseInt(process.env.ROSTER_ALERT_THRESHOLD ?? '', 10) || 15;
-const ROSTER_THRESHOLD_COST =
-  Number.isFinite(Number.parseFloat(process.env.ROSTER_THRESHOLD_COST ?? ''))
-    ? Number.parseFloat(process.env.ROSTER_THRESHOLD_COST ?? '99.99')
-    : 99.99;
-
-async function notifyTeamPlanLimitEmail({
-  email,
-  plan,
-  used,
-  limit,
-}: {
-  email?: string | null;
-  plan?: string | null;
-  used: number;
-  limit: number | null;
-}) {
-  if (!email) return;
-  try {
-    await sendPlanLimitWarningEmail({
-      to: email,
-      planName: getPlanDisplayName(plan),
-      resourceType: 'team',
-      used,
-      limit,
-    });
-  } catch (err) {
-    console.warn('[teams] Failed to send plan limit warning email:', (err as any)?.message || err);
-  }
-}
-
-async function queueStaffInviteEmails({
-  teamId,
-  teamName,
-  inviteId,
-  inviteeEmail,
-  inviteeName,
-  inviterName,
-  coachEmail,
-}: {
-  teamId: string;
-  teamName: string;
-  inviteId: string;
-  inviteeEmail: string;
-  inviteeName?: string | null;
-  inviterName?: string | null;
-  coachEmail?: string | null;
-}): Promise<void> {
-  if (!inviteeEmail) return;
-  const inviteLink = `${APP_BASE_URL}/team-invites?invite=${encodeURIComponent(inviteId)}`;
-  try {
-    await emailQueue.add(
-      'staff.invited_to_team',
-      {
-        to: inviteeEmail,
-        invitee_name: inviteeName || inviteeEmail,
-        inviter_name: inviterName || 'Coach',
-        team_name: teamName,
-        invite_link: inviteLink,
-        expiry_days: STAFF_INVITE_EXPIRY_DAYS,
-        onboarding_url: STAFF_ONBOARDING_URL,
-      },
-      { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-    );
-  } catch (error) {
-    console.error('[teams] Failed to enqueue staff invitation email:', error);
-  }
-
-  if (!coachEmail) return;
-
-  try {
-    await emailQueue.add(
-      'staff.invitation_sent',
-      {
-        to: coachEmail,
-        coach_name: inviterName || 'Coach',
-        invitee_name: inviteeName || inviteeEmail,
-        invitee_email: inviteeEmail,
-        team_name: teamName,
-        manage_staff_url: `${STAFF_MANAGE_URL_BASE}/${encodeURIComponent(teamId)}/staff`,
-      },
-      { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-    );
-  } catch (error) {
-    console.error('[teams] Failed to enqueue staff invitation confirmation:', error);
-  }
-}
-
-async function maybeQueueRosterThresholdAlert({
-  teamId,
-  teamName,
-  previousCount,
-  newCount,
-}: {
-  teamId: string;
-  teamName: string;
-  previousCount: number;
-  newCount: number;
-}): Promise<void> {
-  if (ROSTER_THRESHOLD <= 0) return;
-  if (previousCount >= ROSTER_THRESHOLD || newCount < ROSTER_THRESHOLD) return;
-
-  const owners = await prisma.teamMembership.findMany({
-    where: { team_id: teamId, role: 'owner', status: 'active' },
-    include: {
-      user: { select: { email: true, display_name: true } },
-    },
-  });
-
-  await Promise.all(
-    owners.map((membership) => {
-      const email = membership.user?.email;
-      if (!email) return Promise.resolve();
-      
-      // Send roster threshold email directly
-      return sendRosterThresholdEmail({
-        to: email,
-        coachName: membership.user?.display_name || 'Coach',
-        teamName: teamName,
-        currentRosterCount: newCount,
-        maxRosterCount: ROSTER_THRESHOLD,
-        upgradeLink: MANAGE_BILLING_URL,
-      }).catch((err: Error) => {
-        console.error('[teams] Failed to send roster threshold email:', err);
-      });
-    })
-  ).catch((error) => {
-    console.error('[teams] Failed to send roster threshold alert:', error);
-  });
-}
-
-async function queueSeasonWrapUpEmails(team: {
-  id: string;
-  name: string;
-  season_start: Date | null;
-  season_end: Date | null;
-}): Promise<void> {
-  const owners = await prisma.teamMembership.findMany({
-    where: { team_id: team.id, role: 'owner', status: 'active' },
-    include: { user: { select: { email: true, display_name: true } } },
-  });
-  if (!owners.length) return;
-
-  const anchorDate = team.season_end || team.season_start || new Date();
-  const seasonYear = anchorDate.getUTCFullYear();
-  const gamesPlayed = await prisma.game.count({
-    where: {
-      OR: [
-        { home_team_id: team.id },
-        { away_team_id: team.id },
-      ],
-    },
-  });
-
-  const seasonHighlightsUrl = `${APP_BASE_URL}/teams/${encodeURIComponent(team.id)}?tab=highlights`;
-  const nextSeasonUrl = `${APP_BASE_URL}/teams/${encodeURIComponent(team.id)}/season-setup`;
-
-  await Promise.all(
-    owners.map((membership) => {
-      const email = membership.user?.email;
-      if (!email) return Promise.resolve();
-      return emailQueue.add(
-        'seasons.wrap_up',
-        {
-          to: email,
-          coach_name: membership.user?.display_name || 'Coach',
-          team_name: team.name,
-          season_year: seasonYear,
-          games_played: gamesPlayed,
-          win_loss_record: 'N/A',
-          season_highlights_url: seasonHighlightsUrl,
-          next_season_signup_url: nextSeasonUrl,
-        },
-        { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-      );
-    })
-  ).catch((error) => {
-    console.error('[teams] Failed to enqueue season wrap-up email:', error);
-  });
-}
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {
@@ -298,17 +92,15 @@ teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res
     }
   });
   
-  const prefs = ((user as any).preferences ?? {}) as Record<string, unknown>;
-  const subscriptionTier = resolvePlan((prefs as any).plan || (user as any).subscription_tier);
-  const maxTeams = getMaxTeamsForPlan(subscriptionTier);
-  const canCreateMore = maxTeams === null ? true : ownedTeamsCount < maxTeams;
-  const remaining = maxTeams === null ? null : Math.max(0, maxTeams - ownedTeamsCount);
+  const maxTeams = (user as any).max_teams ?? 2;
+  const canCreateMore = ownedTeamsCount < maxTeams;
+  const subscriptionTier = (user as any).subscription_tier ?? 'free';
   
   return res.json({
     owned_teams: ownedTeamsCount,
     max_teams: maxTeams,
     can_create_more: canCreateMore,
-    remaining,
+    remaining: Math.max(0, maxTeams - ownedTeamsCount),
     subscription_tier: subscriptionTier,
     upgrade_required: !canCreateMore
   });
@@ -320,7 +112,8 @@ teamsRouter.get('/', async (req, res) => {
   const all = String((req.query as any).all || '') === '1';
   const mine = String((req.query as any).mine || '') === '1';
   const directory = String((req.query as any).directory || '') === '1'; // Team directory search
-  const limit = Math.min(Math.max(parseInt(String((req.query as any).limit || '0'), 10) || 0, 0), 100);
+  const limitRaw = Number.parseInt(String((req.query as any).limit ?? ''), 10);
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
   
   if (all) {
     // Admin-only view flag; otherwise fall back to normal list
@@ -367,7 +160,6 @@ teamsRouter.get('/', async (req, res) => {
     orderBy: { created_at: 'desc' },
     take,
     include: { _count: { select: { memberships: true } } },
-    take: limit || undefined,
   });
   
   const list = rows.map((t) => ({ 
@@ -441,17 +233,7 @@ teamsRouter.get('/:id/members', async (req, res) => {
     orderBy: { created_at: 'asc' },
     include: { user: true },
   });
-  const list = mems.map((m) => ({
-    id: m.id,
-    role: m.role,
-    status: m.status,
-    custom_position: (m as any).custom_position || null,
-    user: {
-      id: m.user_id,
-      email: (m as any).user?.email || null,
-      display_name: (m as any).user?.display_name || null,
-    },
-  }));
+  const list = mems.map((m) => ({ id: m.id, role: m.role, status: m.status, user: { id: m.user_id, email: (m as any).user?.email || null, display_name: (m as any).user?.display_name || null } }));
   return res.json(list);
 });
 
@@ -467,7 +249,6 @@ teamsRouter.get('/members/all', async (req, res) => {
     role: m.role,
     status: m.status,
     user: { id: m.user_id, email: (m as any).user?.email || '', display_name: (m as any).user?.display_name || '' },
-    custom_position: (m as any).custom_position || null,
     team: { id: m.team_id, name: (m as any).team?.name || '' },
   }));
   const filtered = q
@@ -486,7 +267,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // SECURITY: Enforce coach role requirement
@@ -501,7 +282,7 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     });
   }
   
-  // Check team ownership limit based on plan
+  // Check team ownership limit
   const ownedTeamsCount = await prisma.teamMembership.count({
     where: {
       user_id: me.id,
@@ -510,24 +291,15 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     }
   });
   
-  const plan = resolvePlan(prefs.plan);
-  const maxTeams = getMaxTeamsForPlan(plan);
+  const maxTeams = (me as any).max_teams ?? 2; // Default to 2 for free users
   
-  if (maxTeams !== null && ownedTeamsCount >= maxTeams) {
-    await notifyTeamPlanLimitEmail({
-      email: me.email,
-      plan,
-      used: ownedTeamsCount,
-      limit: maxTeams,
-    });
+  if (ownedTeamsCount >= maxTeams) {
     return res.status(403).json({ 
       error: 'Team limit reached',
-      message: `You've reached your ${plan} plan limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade your plan to create more teams.`,
+      message: `You've reached your limit of ${maxTeams} team${maxTeams > 1 ? 's' : ''}. Upgrade to create more teams.`,
       owned_teams: ownedTeamsCount,
       max_teams: maxTeams,
-      current_plan: plan,
-      upgrade_required: true,
-      upgrade_url: `${process.env.APP_BASE_URL}/upgrade?from=team_limit`
+      upgrade_required: true
     });
   }
   
@@ -544,7 +316,6 @@ const updateSchema = z.object({
   description: z.string().optional(),
   sport: z.string().optional(),
   season: z.string().optional(),
-  status: z.enum(['active', 'locked', 'archived']).optional(),
   organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
   city: z.string().max(100).optional(),
@@ -567,7 +338,6 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
-  const previousStatus = team.status;
   
   // Check if user is owner or admin
   const membership = await prisma.teamMembership.findUnique({
@@ -583,7 +353,6 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.sport !== undefined) updateData.sport = parsed.data.sport;
   if (parsed.data.season !== undefined) updateData.season = parsed.data.season;
-  if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
   if (parsed.data.organization_id !== undefined) {
     updateData.organization_id = parsed.data.organization_id === null ? null : parsed.data.organization_id;
   }
@@ -619,16 +388,6 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
       },
     });
     debugLog('[Teams PUT] Update successful');
-    if (parsed.data.status === 'locked' && previousStatus !== 'locked') {
-      queueSeasonWrapUpEmails({
-        id: updatedTeam.id,
-        name: updatedTeam.name,
-        season_start: updatedTeam.season_start,
-        season_end: updatedTeam.season_end,
-      }).catch((error) => {
-        console.error('[teams] Failed to queue season wrap-up email:', error);
-      });
-    }
     // Return a compact team object including organization and logo/avatar fields for client convenience
     return res.json({
       id: updatedTeam.id,
@@ -740,12 +499,12 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, email: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check team limit for free tier (Rookie plan)
   const prefs = (me.preferences && typeof me.preferences === 'object') ? (me.preferences as any) : {};
-  const userPlan = resolvePlan(prefs.plan);
+  const userPlan = prefs.plan || 'rookie';
   const userRole = prefs.role || 'fan';
 
   // Enforce coach role requirement for team creation
@@ -757,45 +516,48 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     });
   }
   
-  const ownedTeamsCount = await prisma.teamMembership.count({
-    where: {
-      user_id: me.id,
-      role: 'owner',
-      status: 'active',
-    },
-  });
-
   // Legend tier restriction: Only Legend users can create extracurricular clubs
   const clubType = data.club_type || 'sport';
-  if (clubType === 'extracurricular' && !planSupportsExtracurricular(userPlan)) {
+  if (clubType === 'extracurricular' && userPlan !== 'legend') {
     return res.status(403).json({
       error: 'Extracurricular clubs require Legend tier',
-      message: 'Upgrade to Legend ($20/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
+      message: 'Upgrade to Legend ($19.99/year) to create extracurricular clubs like Theater, Chess, Debate, etc.',
       code: 'LEGEND_TIER_REQUIRED',
       feature: 'extracurricular_clubs',
     });
   }
-
-  // Enforce max teams for current plan (null means unlimited)
-  const planTeamCap = getMaxTeamsForPlan(userPlan);
-  if (planTeamCap !== null && ownedTeamsCount >= planTeamCap) {
-    await notifyTeamPlanLimitEmail({
-      email: me.email,
-      plan: userPlan,
-      used: ownedTeamsCount,
-      limit: planTeamCap,
+  
+  // Rookie plan: max 2 teams as owner
+  if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+    const ownedTeamsCount = await prisma.teamMembership.count({
+      where: {
+        user_id: me.id,
+        role: 'owner',
+        status: 'active',
+      },
     });
-    return res.status(403).json({
-      error: 'Team limit reached',
-      message: `Your ${userPlan} plan allows ${planTeamCap} team${planTeamCap === 1 ? '' : 's'}. Upgrade to create more.`,
-      code: 'TEAM_LIMIT_EXCEEDED',
-      limit: planTeamCap,
-      current: ownedTeamsCount,
-    });
+    
+    if (ownedTeamsCount >= 2) {
+      return res.status(403).json({ 
+        error: 'Team limit reached',
+        message: "You've reached your free limit (2 teams). Upgrade to add more.",
+        code: 'TEAM_LIMIT_EXCEEDED',
+        limit: 2,
+        current: ownedTeamsCount,
+      });
+    }
   }
   
   // Veteran plan: verify subscription quantity matches team count
   if (userPlan === 'veteran') {
+    const ownedTeamsCount = await prisma.teamMembership.count({
+      where: {
+        user_id: me.id,
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    
     const subscriptionId = prefs.subscription_id;
     if (!subscriptionId) {
       return res.status(403).json({
@@ -811,7 +573,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       const stripeClient = new stripe.default(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
       const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
       
-      if (subscription.status !== 'active') {
+      if (subscription.status !== 'active' && subscription.status !== 'trialing') {
         return res.status(403).json({
           error: 'Subscription not active',
           message: 'Your Veteran subscription is not active. Please update your billing settings.',
@@ -825,12 +587,6 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       // User is trying to create team number (ownedTeamsCount + 1)
       // They should have paid for at least that many teams
       if (ownedTeamsCount >= paidQuantity) {
-        await notifyTeamPlanLimitEmail({
-          email: me.email,
-          plan: userPlan,
-          used: ownedTeamsCount,
-          limit: paidQuantity,
-        });
         return res.status(403).json({
           error: 'Team limit reached',
           message: `You've paid for ${paidQuantity} team${paidQuantity > 1 ? 's' : ''} but are trying to create team #${ownedTeamsCount + 1}. Please update your subscription first.`,
@@ -849,6 +605,26 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   }
   
   // Create team
+  // PLAN LIMITS: Enforce Rookie 2-team maximum (owned teams only)
+  try {
+    const userPrefs = me.preferences as any;
+    const userPlan = (userPrefs?.plan || userPrefs?.role === 'coach' && 'rookie') || 'rookie';
+    if (userPlan === 'rookie') {
+      const ownedCount = await prisma.teamMembership.count({
+        where: { user_id: me.id, role: 'owner' }
+      });
+      if (ownedCount >= 2) {
+        return res.status(403).json({
+          error: 'TEAM_LIMIT_REACHED',
+          message: 'Rookie plan allows a maximum of 2 teams. Upgrade to Veteran or Legend for more.',
+          limit: 2,
+          current: ownedCount
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('[teams][rookie-limit] check failed', e);
+  }
   const team = await prisma.team.create({ 
     data: {
       name: data.name,
@@ -882,20 +658,6 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   
   // Send invites to authorized users
   if (data.authorized_users && data.authorized_users.length > 0) {
-    const perTeamLimit = getAuthorizedUsersPerTeam(userPlan);
-    
-    if (perTeamLimit !== null && data.authorized_users.length > perTeamLimit) {
-      return res.status(403).json({
-        error: 'Authorized users limit exceeded',
-        message: `Your ${userPlan} plan allows ${perTeamLimit} authorized user${perTeamLimit > 1 ? 's' : ''} per team. You attempted to add ${data.authorized_users.length}.`,
-        code: 'AUTH_USERS_LIMIT_EXCEEDED',
-        limit: perTeamLimit,
-        attempted: data.authorized_users.length,
-        current_plan: userPlan,
-        upgrade_required: true
-      });
-    }
-
     const invites = data.authorized_users
       .filter(user => user.email)
       .map(user => ({
@@ -912,16 +674,16 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
         await Promise.all(invites.map(async (inv) => {
           try {
-            await sendTeamInvitationEmail({
+            await sendTeamInviteEmail({
               to: inv.email,
-              recipientName: inv.email.split('@')[0],
-              inviterName: inviter?.display_name || 'Team Owner',
               teamName: team.name,
+              organizationName: null,
               role: inv.role,
-              acceptLink: `${APP_BASE_URL}/team-invites?invite=${team.id}`,
-              declineLink: `${APP_BASE_URL}/team-invites/${team.id}/decline`,
+              inviterName: inviter?.display_name || 'Team Owner',
+              teamHeroUrl: team.logo_url || undefined,
+              teamLogoUrl: team.avatar_url || undefined,
             });
-          } catch {
+          } catch (_error) {
             /* ignore */
           }
         }));
@@ -941,24 +703,18 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
-  
-  // Check if user is owner or admin (authorization)
-  const membership = await prisma.teamMembership.findUnique({
-    where: { team_id_user_id: { team_id: id, user_id: req.user.id } }
-  });
-  const isAdmin = await getIsAdmin(req as any);
-  if (!isAdmin && (!membership || membership.role !== 'owner')) {
-    return res.status(403).json({ error: 'Only team owners can invite members' });
-  }
   // PLAN LIMITS: Enforce authorized user caps
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const prefs = (user?.preferences || {}) as any;
-    const plan = resolvePlan(prefs.plan);
-    const teamCountTotal =
-      prefs.team_count_total ||
-      (await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } }));
-    const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
+    const plan = prefs.plan || 'rookie';
+    let limit: number | null = null;
+    if (plan === 'rookie') limit = 1;
+    else if (plan === 'veteran') {
+      const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } });
+      limit = (teamCountTotal * 2) || 12; // fallback 12
+    }
+    // legend => unlimited
     if (limit !== null) {
       const inviteCount = await prisma.teamInvite.count({ where: { team_id: id, status: 'pending' } });
       const memberCount = await prisma.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
@@ -966,7 +722,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       if (totalAuthorized >= limit) {
         return res.status(403).json({
           error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. The ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} across your staff.`,
+          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} (${plan === 'veteran' ? '2 per team' : 'Rookie max'}).`,
           limit,
           current: totalAuthorized
         });
@@ -978,56 +734,22 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   
   // Create the invite
   const invite = await prisma.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
-  const invitedUser = await prisma.user.findUnique({ where: { email } });
   // Send invite email (best effort)
-  const inviter = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: { display_name: true, email: true },
-  });
-  const teamWithOrg = await prisma.team.findUnique({
-    where: { id },
-    include: { organization: { select: { name: true } } }
-  });
-  
-  // Determine if this is an athlete invitation
-  const isAthleteRole = ['athlete', 'player'].includes((role || 'member').toLowerCase());
-  
+  const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
   try {
-    if (isAthleteRole) {
-      // Send athlete-specific invitation
-      await sendAthleteInvitationEmail({
-        to: email,
-        athleteName: invitedUser?.display_name || email.split('@')[0],
-        coachName: inviter?.display_name || 'Team Owner',
-        teamName: team.name,
-        sport: team.sport || 'athletics',
-        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
-        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
-      });
-    } else {
-      // Send standard team invitation
-      await sendTeamInvitationEmail({
-        to: email,
-        recipientName: invitedUser?.display_name || email.split('@')[0],
-        inviterName: inviter?.display_name || 'Team Owner',
-        teamName: team.name,
-        role: role || 'member',
-        acceptLink: `${APP_BASE_URL}/team-invites?invite=${invite.id}`,
-        declineLink: `${APP_BASE_URL}/team-invites/${invite.id}/decline`,
-      });
-    }
-  } catch {}
-  await queueStaffInviteEmails({
-    teamId: id,
-    teamName: team.name,
-    inviteId: invite.id,
-    inviteeEmail: email,
-    inviteeName: invitedUser?.display_name,
-    inviterName: inviter?.display_name || 'Team Owner',
-    coachEmail: inviter?.email || undefined,
-  });
+    await sendTeamInviteEmail({
+      to: email,
+      teamName: team.name,
+      organizationName: null,
+      role: role || 'member',
+      teamHeroUrl: team.logo_url || undefined,
+      teamLogoUrl: team.avatar_url || undefined,
+      inviterName: inviter?.display_name || 'Team Owner',
+    });
+  } catch (_error) {}
   
   // Find the invited user by email and create notification if they exist
+  const invitedUser = await prisma.user.findUnique({ where: { email } });
   if (invitedUser) {
     try {
       await (prisma as any).notification.create({
@@ -1068,11 +790,6 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
   const inviteId = String(req.params.inviteId);
   const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
   if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
-  const team = await prisma.team.findUnique({
-    where: { id: invite.team_id },
-    select: { id: true, name: true, season_start: true, season_end: true },
-  });
-  if (!team) return res.status(404).json({ error: 'Team not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
   const existingMembership = await prisma.teamMembership.findUnique({
@@ -1084,7 +801,6 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     },
   });
   const roleToApply = existingMembership?.role || invite.role;
-  const wasActiveMember = existingMembership?.status === 'active';
   await prisma.$transaction([
     prisma.teamMembership.upsert({
       where: { team_id_user_id: { team_id: invite.team_id, user_id: user.id } } as any,
@@ -1093,62 +809,6 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     }),
     prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'accepted' } }),
   ]);
-  
-  // Send staff member joined notification to team owner/managers
-  if (!wasActiveMember) {
-    const teamDetails = await prisma.team.findUnique({
-      where: { id: invite.team_id },
-      include: {
-        organization: { select: { name: true } },
-        memberships: {
-          where: { 
-            role: { in: ['owner', 'manager'] },
-            status: 'active',
-            user_id: { not: user.id } // Don't notify the person who just joined
-          },
-          include: { user: true }
-        }
-      }
-    });
-    
-    const joinedDate = new Date().toLocaleString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: 'America/Chicago',
-    });
-    
-    await Promise.all(
-      (teamDetails?.memberships || []).map(manager => 
-        sendStaffMemberJoinedEmail({
-          to: manager.user.email!,
-          recipientName: manager.user.display_name || manager.user.email!,
-          newMemberName: user.display_name || user.email,
-          memberRole: roleToApply,
-          teamName: team.name,
-          organizationName: teamDetails?.organization?.name || 'your organization',
-          joinedDate: joinedDate,
-          viewTeamLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/roster`,
-          manageStaffLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team_id}/settings`,
-        }).catch((err: Error) => {
-          console.error('[teams] Failed to send staff member joined email:', err);
-        })
-      )
-    );
-  }
-  
-  if (!wasActiveMember) {
-    const newCount = await prisma.teamMembership.count({
-      where: { team_id: invite.team_id, status: 'active' },
-    });
-    const previousCount = Math.max(0, newCount - 1);
-    await maybeQueueRosterThresholdAlert({
-      teamId: invite.team_id,
-      teamName: team.name,
-      previousCount,
-      newCount,
-    });
-  }
 
   // Check if team group chat exists, if not create it
   try {
@@ -1157,6 +817,9 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
     });
 
     if (!groupChat) {
+      // Get team info
+      const team = await prisma.team.findUnique({ where: { id: invite.team_id } });
+      
       // Get all active team members
       const allMembers = await prisma.teamMembership.findMany({
         where: { 
@@ -1206,281 +869,11 @@ teamsRouter.post('/invites/:inviteId/accept', async (req: AuthedRequest, res) =>
 // Decline invite
 teamsRouter.post('/invites/:inviteId/decline', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
   const inviteId = String(req.params.inviteId);
-  const { reason } = req.body;
-  
-  const invite = await prisma.teamInvite.findUnique({ 
-    where: { id: inviteId },
-    include: { team: true }
-  });
-  
-  if (!invite || invite.status !== 'pending') {
-    return res.status(404).json({ error: 'Invite not found' });
-  }
-  
+  const invite = await prisma.teamInvite.findUnique({ where: { id: inviteId } });
+  if (!invite || invite.status !== 'pending') return res.status(404).json({ error: 'Invite not found' });
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) {
-    return res.status(403).json({ error: 'Invite not for this user' });
-  }
-  
-  // Update invite with declined status and optional reason
-  await prisma.teamInvite.update({ 
-    where: { id: invite.id }, 
-    data: { 
-      status: 'declined',
-      declined_reason: reason ? String(reason).trim() : null
-    } 
-  });
-  
-  // Get team owner to send notification
-  const teamOwner = await prisma.teamMembership.findFirst({
-    where: { team_id: invite.team.id, role: 'owner', status: 'active' },
-    include: { user: true }
-  });
-  
-  if (teamOwner?.user.email) {
-    const declinedDate = new Date().toLocaleString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: 'America/Chicago',
-      timeZoneName: 'short'
-    });
-    
-    // Send invitation declined email to team owner
-    await sendInvitationDeclinedEmail({
-      to: teamOwner.user.email,
-      senderName: teamOwner.user.display_name || 'Team Owner',
-      declinedByName: user.display_name || user.email || 'User',
-      teamName: invite.team.name,
-      role: invite.role,
-      declinedDate: declinedDate,
-      reasonProvided: reason ? String(reason).trim() : undefined,
-      viewTeamUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}`,
-      resendInvitationUrl: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${invite.team.id}/invite`,
-    }).catch((err: Error) => {
-      console.error('[teams] Failed to send invitation declined email:', err);
-    });
-  }
-  
+  if (!user?.email || user.email.toLowerCase() !== invite.email.toLowerCase()) return res.status(403).json({ error: 'Invite not for this user' });
+  await prisma.teamInvite.update({ where: { id: invite.id }, data: { status: 'declined' } });
   return res.json({ ok: true });
-});
-
-// ✅ Update team member role (owners/managers only)
-const memberUpdateSchema = z.object({
-  role: z.string().min(1).max(64).optional(),
-  custom_position: z
-    .union([z.string().max(60), z.literal('')])
-    .optional()
-    .nullable(),
-}).refine(
-  (value) => typeof value.role === 'string' || value.custom_position !== undefined,
-  { message: 'No changes provided' }
-);
-
-teamsRouter.patch('/:id/members/:userId', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const teamId = String(req.params.id);
-  const userIdToUpdate = String(req.params.userId);
-  const parsedBody = memberUpdateSchema.safeParse(req.body);
-  if (!parsedBody.success) {
-    return res.status(400).json({ error: parsedBody.error.issues?.[0]?.message || 'Invalid payload' });
-  }
-  const { role: newRole, custom_position: rawCustomPosition } = parsedBody.data;
-  const trimmedPosition =
-    rawCustomPosition === undefined || rawCustomPosition === null
-      ? undefined
-      : rawCustomPosition.trim().length
-        ? rawCustomPosition.trim()
-        : null;
-  
-  // Verify team exists
-  const team = await prisma.team.findUnique({ 
-    where: { id: teamId },
-    include: { 
-      memberships: {
-        where: { status: 'active' },
-        include: { user: true }
-      }
-    }
-  });
-  
-  if (!team) {
-    return res.status(404).json({ error: 'Team not found' });
-  }
-  
-  // Check if requester is owner or manager
-  const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
-  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
-    return res.status(403).json({ error: 'Only team owners and managers can update member roles' });
-  }
-  
-  // Find the member to update
-  const memberToUpdate = team.memberships.find(m => m.user_id === userIdToUpdate);
-  if (!memberToUpdate) {
-    return res.status(404).json({ error: 'Member not found' });
-  }
-  
-  // Prevent changing the owner role
-  if (newRole && memberToUpdate.role === 'owner') {
-    return res.status(403).json({ error: 'Cannot change owner role' });
-  }
-  
-  const oldRole = memberToUpdate.role;
-  const updateData: Record<string, unknown> = {};
-  if (newRole) updateData.role = newRole;
-  if (trimmedPosition !== undefined) updateData.custom_position = trimmedPosition;
-  if (!Object.keys(updateData).length) {
-    return res.status(400).json({ error: 'No changes provided' });
-  }
-  
-  const updated = await prisma.teamMembership.update({
-    where: { id: memberToUpdate.id },
-    data: updateData,
-    select: { role: true, custom_position: true },
-  });
-  
-  // Send role assignment notification to member
-  if (newRole && memberToUpdate.user.email && oldRole !== newRole) {
-    const assignmentDate = new Date().toLocaleString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      timeZone: 'America/Chicago',
-    });
-    
-    const requester = await prisma.user.findUnique({ where: { id: req.user.id } });
-    
-    await sendRoleAssignmentEmail({
-      to: memberToUpdate.user.email,
-      userName: memberToUpdate.user.display_name || memberToUpdate.user.email,
-      teamName: team.name,
-      newRole: newRole,
-      assignedBy: requester?.display_name || 'Team Manager',
-      assignedDate: assignmentDate,
-      dashboardLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}`,
-    }).catch((err: Error) => {
-      console.error('[teams] Failed to send role assignment email:', err);
-    });
-  }
-  
-  return res.json({ ok: true, role: updated.role, custom_position: updated.custom_position || null });
-});
-
-// ✅ Remove team member (owners/managers only)
-teamsRouter.delete('/:id/members/:userId', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const teamId = String(req.params.id);
-  const userIdToRemove = String(req.params.userId);
-  const { reason } = req.body;
-  
-  // Verify team exists
-  const team = await prisma.team.findUnique({ 
-    where: { id: teamId },
-    include: { 
-      organization: true,
-      memberships: {
-        where: { status: 'active' },
-        include: { user: true }
-      }
-    }
-  });
-  
-  if (!team) {
-    return res.status(404).json({ error: 'Team not found' });
-  }
-  
-  // Check if requester is owner or manager
-  const requesterMembership = team.memberships.find(m => m.user_id === req.user!.id);
-  if (!requesterMembership || !['owner', 'manager'].includes(requesterMembership.role)) {
-    return res.status(403).json({ error: 'Only team owners and managers can remove members' });
-  }
-  
-  // Find the member to remove
-  const memberToRemove = team.memberships.find(m => m.user_id === userIdToRemove);
-  if (!memberToRemove) {
-    return res.status(404).json({ error: 'Member not found or already removed' });
-  }
-  
-  // Prevent removing the owner
-  if (memberToRemove.role === 'owner') {
-    return res.status(403).json({ error: 'Cannot remove team owner' });
-  }
-  
-  // Prevent managers from removing other managers
-  if (requesterMembership.role === 'manager' && memberToRemove.role === 'manager') {
-    return res.status(403).json({ error: 'Managers cannot remove other managers' });
-  }
-  
-  // Get requester details for email
-  const requester = await prisma.user.findUnique({ where: { id: req.user.id } });
-  
-  // Update membership with removal details
-  const removalDate = new Date();
-  await prisma.teamMembership.update({
-    where: { id: memberToRemove.id },
-    data: {
-      status: 'archived',
-      removed_by: req.user.id,
-      removal_reason: reason ? String(reason).trim() : null,
-      removal_date: removalDate,
-    }
-  });
-  
-  // Send notification email to removed member
-  if (memberToRemove.user.email) {
-    const formattedRemovalDate = removalDate.toLocaleString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: 'America/Chicago',
-      timeZoneName: 'short'
-    });
-    
-    await sendMemberRemovedEmail({
-      to: memberToRemove.user.email,
-      userName: memberToRemove.user.display_name || memberToRemove.user.email || 'User',
-      teamName: team.name,
-      organizationName: team.organization?.name || 'your organization',
-      removedBy: requester?.display_name || 'Team Manager',
-      removalDate: formattedRemovalDate,
-      removalReason: reason ? String(reason).trim() : 'No reason provided',
-      contactEmail: process.env.SUPPORT_EMAIL || 'support@varsityhub.app',
-    }).catch((err: Error) => {
-      console.error('[teams] Failed to send member removed email:', err);
-    });
-    
-    // Send roster update notification to team owner/managers
-    const managementMembers = team.memberships.filter(m => 
-      ['owner', 'manager'].includes(m.role) && 
-      m.user_id !== req.user!.id && 
-      m.user.email
-    );
-    
-    await Promise.all(managementMembers.map(manager => 
-      sendTeamRosterUpdateEmail({
-        to: manager.user.email!,
-        coachName: manager.user.display_name || manager.user.email!,
-        teamName: team.name,
-        updateType: 'member_removed',
-        playerName: memberToRemove.user.display_name || memberToRemove.user.email || 'User',
-        updateDate: formattedRemovalDate,
-        viewRosterLink: `${process.env.APP_BASE_URL || 'https://varsityhub.app'}/teams/${team.id}/roster`,
-      }).catch((err: Error) => {
-        console.error('[teams] Failed to send roster update email:', err);
-      })
-    ));
-  }
-  
-  return res.json({ 
-    success: true, 
-    message: 'Member removed successfully' 
-  });
 });

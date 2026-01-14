@@ -3,9 +3,7 @@ import { z } from 'zod';
 import { notifyNewMessage } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { messageLimiter } from '../middleware/rateLimiters.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
-import { buildConversationId } from '../lib/messageHelpers.js';
 
 export const messagesRouter = Router();
 
@@ -102,7 +100,7 @@ recipient_id: z.string().min(1).optional(),
 recipient_email: z.string().email().optional(),
 });
 
-messagesRouter.post('/', messageLimiter, async (req: AuthedRequest, res) => {
+messagesRouter.post('/', async (req: AuthedRequest, res) => {
 if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 const parsed = sendSchema.safeParse(req.body);
 if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', issues: parsed.error.issues });
@@ -123,7 +121,8 @@ toId = u.id;
 
 let convId = conversation_id;
 if (!convId && toId) {
-convId = buildConversationId(meId, toId);
+const pair = [meId, toId].sort();
+convId = `dm:${pair[0]}__${pair[1]}`;
 }
 
 // Prevent messaging if either user has blocked the other
