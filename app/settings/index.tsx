@@ -1,6 +1,6 @@
 
             import Switch from '@/components/ui/switch';
-import { Colors } from '@/constants/Colors';
+import { getConfig } from '@/config/env';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import { Stack, useRouter } from 'expo-router';
@@ -24,12 +24,12 @@ const appConfig = getConfig();
               const colorScheme = useColorScheme();
               return (
                 <View style={[styles.card, { 
-                  borderColor: Colors[colorScheme].border,
-                  backgroundColor: Colors[colorScheme].card
+                  borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
+                  backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB'
                 }]}> 
                   <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: Colors[colorScheme].icon }]}>›</Text>
+                    <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
+                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
                   </Pressable>
                   {open ? <View style={styles.cardBody}>{children}</View> : null}
                 </View>
@@ -39,16 +39,16 @@ const appConfig = getConfig();
             function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
               const colorScheme = useColorScheme();
               return (
-                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: Colors[colorScheme].border }}>
+                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: '#e5e7eb' }}>
                   <View>
                     <Text style={[
                       styles.rowTitle, 
                       destructive ? styles.destructive : null,
-                      { color: destructive ? Colors.light.destructive : Colors[colorScheme].text }
+                      { color: destructive ? '#DC2626' : (colorScheme === 'dark' ? '#ECEDEE' : '#11181C') }
                     ]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
                   </View>
-                  <Text style={[styles.chev, { color: Colors[colorScheme].icon }]}>›</Text>
+                  <Text style={[styles.chev, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
                 </Pressable>
               );
             }
@@ -68,8 +68,8 @@ const appConfig = getConfig();
               return (
                 <View style={styles.rowBetween}>
                   <View>
-                    <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+                    <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
+                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
                   </View>
                   <Switch value={value} onValueChange={onValueChange} />
                 </View>
@@ -98,10 +98,10 @@ const appConfig = getConfig();
                 <View>
                   <View style={styles.rowBetween}>
                     <View>
-                      <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                      {subtitle ? <Text style={[styles.mutedSmall, { color: Colors[colorScheme].mutedText }]}>{subtitle}</Text> : null}
+                      <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
+                      {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
                     </View>
-                    <Text style={[styles.selectedValue, { color: Colors[colorScheme].mutedText }]}>
+                    <Text style={[styles.selectedValue, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6b7280' }]}>
                       {options.find(opt => opt.value === selectedValue)?.label}
                     </Text>
                   </View>
@@ -113,24 +113,24 @@ const appConfig = getConfig();
                           styles.themeOption,
                           selectedValue === option.value && [
                             styles.themeOptionSelected,
-                            { backgroundColor: Colors[colorScheme].card }
+                            { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#f3f4f6' }
                           ],
                         ]}
                         onPress={() => onValueChange(option.value)}
-                        android_ripple={{ color: Colors[colorScheme].border }}
+                        android_ripple={{ color: colorScheme === 'dark' ? '#1F2937' : '#e5e7eb' }}
                       >
                         <View style={[
                           styles.themeOptionIndicator,
-                          { borderColor: Colors[colorScheme].border },
+                          { borderColor: colorScheme === 'dark' ? '#374151' : '#d1d5db' },
                           selectedValue === option.value && styles.themeOptionIndicatorSelected,
                         ]} />
                         <Text style={[
                           styles.themeOptionText,
-                          { color: Colors[colorScheme].text },
+                          { color: colorScheme === 'dark' ? '#D1D5DB' : '#374151' },
                         ]}>
                           {option.label}
                         </Text>
-                        {option.value === 'system' && <Text style={[styles.themeOptionSubtext, { color: Colors[colorScheme].mutedText }]}>Follow device setting</Text>}
+                        {option.value === 'system' && <Text style={[styles.themeOptionSubtext, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>Follow device setting</Text>}
                       </Pressable>
                     ))}
                   </View>
@@ -265,7 +265,7 @@ const appConfig = getConfig();
               };
 
               return (
-                <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
                   <Stack.Screen options={{ 
                     title: 'Settings', 
                     headerBackTitle: 'Back',
@@ -281,8 +281,8 @@ const appConfig = getConfig();
                     {/* Quick Billing CTA (coaches only) */}
                     {role === 'coach' && (
                       <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-                        <Pressable onPress={() => router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? Colors[colorScheme].card : Colors.light.tint }}>
-                          <Text style={{ color: plan ? Colors[colorScheme].text : Colors.dark.text, fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
+                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
+                          <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
                         </Pressable>
                       </View>
                     )}
@@ -472,7 +472,7 @@ const appConfig = getConfig();
 
                     {/* Copyright Footer */}
                     <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: Colors[colorScheme].mutedText, textAlign: 'center' }}>
+                      <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
                         © 2025 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
@@ -484,18 +484,18 @@ const appConfig = getConfig();
             const styles = StyleSheet.create({
               container: { flex: 1 },
               title: { fontSize: 24, fontWeight: '700', marginBottom: 8, paddingHorizontal: 16 },
-              error: { color: Colors.light.destructive, marginHorizontal: 16, marginBottom: 8 },
-              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+              error: { color: '#b91c1c', marginHorizontal: 16, marginBottom: 8 },
+              card: { marginHorizontal: 16, marginBottom: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { padding: 12, gap: 12 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
               rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
               rowTitle: { fontWeight: '600' },
-              mutedSmall: { fontSize: 12 },
-              chev: { fontSize: 20, transform: [{ rotate: '0deg' }] },
+              mutedSmall: { color: '#9CA3AF', fontSize: 12 },
+              chev: { fontSize: 20, color: '#6b7280', transform: [{ rotate: '0deg' }] },
               chevOpen: { transform: [{ rotate: '90deg' }] },
-              destructive: { color: Colors.light.destructive },
-              selectedValue: { fontSize: 14 },
+              destructive: { color: '#DC2626' },
+              selectedValue: { color: '#6b7280', fontSize: 14 },
               themeOptions: { marginTop: 8, gap: 8 },
               themeOption: {
                 flexDirection: 'row',
@@ -505,29 +505,35 @@ const appConfig = getConfig();
                 borderRadius: 8,
                 backgroundColor: 'transparent',
               },
-              themeOptionSelected: {},
+              themeOptionSelected: {
+                backgroundColor: '#f3f4f6',
+              },
               themeOptionIndicator: {
                 width: 16,
                 height: 16,
                 borderRadius: 8,
                 borderWidth: 2,
+                borderColor: '#d1d5db',
                 marginRight: 12,
                 backgroundColor: 'transparent',
               },
               themeOptionIndicatorSelected: {
-                borderColor: Colors.light.tint,
-                backgroundColor: Colors.light.tint,
+                borderColor: '#0a7ea4',
+                backgroundColor: '#0a7ea4',
               },
               themeOptionText: {
                 fontSize: 16,
                 fontWeight: '500',
+                color: '#374151',
                 flex: 1,
               },
               themeOptionTextSelected: {
+                color: '#0a7ea4',
                 fontWeight: '600',
               },
               themeOptionSubtext: {
                 fontSize: 12,
+                color: '#9CA3AF',
                 marginLeft: 'auto',
               },
             });

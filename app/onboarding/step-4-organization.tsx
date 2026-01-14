@@ -41,13 +41,13 @@ export default function Step4Organization() {
   const [joinMessage, setJoinMessage] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showTypePicker, setShowTypePicker] = useState(false);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
   const [selectedPlaceZip, setSelectedPlaceZip] = useState<string | null>(null);
   const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
   const [locationQuerying, setLocationQuerying] = useState(false);
   const [locationTouched, setLocationTouched] = useState(false);
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
@@ -176,10 +176,8 @@ export default function Step4Organization() {
     if (alreadyExists) return true;
     
     // All coaches need organization fields
-    // Allow manual location entry if autocomplete is not available (location text is filled but no selectedPlace)
-    const hasLocation = !!selectedPlace || (location.trim().length > 0 && locationTouched);
-    return orgName.trim().length > 0 && !!orgType && hasLocation;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location, locationTouched]);
+    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -641,12 +639,12 @@ export default function Step4Organization() {
 
         {!showSearch && (
           <>
-            <Text style={styles.label}>Location *</Text>
+            <Text style={styles.label}>Location</Text>
             <View style={styles.locationFieldWrapper}>
               <Input 
                 value={location} 
                 onChangeText={handleLocationChange} 
-                placeholder="Enter city, state, or address (e.g., New York, NY)" 
+                placeholder="Start typing an address, school, or city" 
                 autoCapitalize="words"
                 autoCorrect={false}
               />
@@ -677,12 +675,7 @@ export default function Step4Organization() {
                 </View>
               )}
             </View>
-            {!selectedPlace && locationTouched && locationSuggestions.length === 0 && location.trim().length > 0 && (
-              <Text style={styles.inputHelperText}>
-                {locationQuerying ? 'Searching...' : 'No suggestions found. You can continue with the entered location.'}
-              </Text>
-            )}
-            {!selectedPlace && locationTouched && locationSuggestions.length > 0 && (
+            {!selectedPlace && locationTouched && (
               <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
             )}
             {duplicateWarning && (
@@ -808,10 +801,11 @@ export default function Step4Organization() {
         {!showSearch && (
           ob.plan === 'rookie' ? (
             <LinearGradient
+              // Deeper metallic silver (cooler dark edges -> bright center -> soft falloff)
               colors={colorScheme === 'dark'
-                ? [Colors.dark.surface, Colors.dark.elevated]
-                : [Colors.light.surface, Colors.light.background]}
-              locations={[0, 1]}
+                ? ['#3F4751','#707B85','#3F4751']
+                : ['#9FA2A5','#ECEEEF','#9FA2A5']}
+              locations={[0,0.52,1]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.planReminderRookie}
             >
@@ -829,13 +823,13 @@ export default function Step4Organization() {
               />
               <View style={styles.planReminderRookieInner}>
                 <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color={Colors[colorScheme].text} /></View>
+                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#F3F4F6' : '#374151'} /></View>
                   <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
                 </View>
                 <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
                 </View>
               </View>
             </LinearGradient>
@@ -1134,8 +1128,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   howItWorksCard: {
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
+    borderColor: colorScheme === 'dark' ? '#1E3A8A' : '#93C5FD',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.15)' : '#F1F8FF',
     borderRadius: 14,
     padding: 16,
     marginBottom: 20,
@@ -1148,10 +1142,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   howItWorksTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors[colorScheme].tint
+    color: colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'
   },
   howItWorksTreeBox: {
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(29,78,216,0.25)' : '#DBEAFE',
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
@@ -1159,12 +1153,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   howItWorksTreeLine: {
     fontSize: 13,
     fontFamily: 'Courier',
-    color: colorScheme === 'dark' ? Colors.dark.mutedText : Colors.light.mutedText,
+    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
   },
   howItWorksDescLine: {
     fontSize: 14,
     lineHeight: 20,
-    color: colorScheme === 'dark' ? Colors.dark.mutedText : Colors.light.mutedText,
+    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
     marginBottom: 4,
   },
   howItWorksDescStrong: {
@@ -1178,12 +1172,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   orgPageTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colorScheme === 'dark' ? Colors.dark.tint : Colors.light.text
+    color: colorScheme === 'dark' ? '#1D4ED8' : '#0F172A'
   },
   orgPageSubtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: Colors[colorScheme].mutedText
+    color: colorScheme === 'dark' ? '#CBD5E1' : '#475569'
   },
   infoIcon: { marginRight: 16 },
   infoContent: { flex: 1 },
@@ -1202,10 +1196,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginTop: 24,
     marginBottom: 24,
     padding: 20,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.18)' : '#DBEAFE',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
+    borderColor: colorScheme === 'dark' ? 'rgba(96,165,250,0.3)' : '#93C5FD'
   },
   planReminderRookie: {
     marginTop: 24,
@@ -1213,7 +1207,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
+    borderColor: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF',
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1239,10 +1233,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     bottom: 0,
   },
   rookieTitle: {
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#F3F4F6' : '#374151'
   },
   rookieBenefitItem: {
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#E5E7EB' : '#374151'
   },
   planReminderHeaderRow: {
     flexDirection: 'row',
@@ -1253,7 +1247,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -1266,14 +1260,14 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   planReminderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors[colorScheme].tint,
+    color: colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A',
     marginBottom: 12
   },
   benefitsList: { marginTop: 4 },
   benefitItem: {
     fontSize: 14,
     lineHeight: 20,
-    color: Colors[colorScheme].mutedText,
+    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
     marginBottom: 4
   },
   benefitRow: {
@@ -1294,7 +1288,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   selectFieldText: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
   },
   typeModalOverlay: {
     position: 'absolute',
@@ -1308,17 +1302,17 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   typeModalCard: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
+    backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
+    borderColor: colorScheme === 'dark' ? '#1E293B' : '#E2E8F0'
   },
   typeModalTitle: {
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#F1F5F9' : '#0F172A'
   },
   typeOption: {
     flexDirection: 'row',
@@ -1327,19 +1321,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 6,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F8FAFC',
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
+    borderColor: colorScheme === 'dark' ? '#334155' : '#E2E8F0'
   },
   typeOptionActive: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(96, 165, 250, 0.25)' : 'rgba(96, 165, 250, 0.25)',
-    borderColor: Colors[colorScheme].tint
+    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.25)' : '#DBEAFE',
+    borderColor: colorScheme === 'dark' ? '#3B82F6' : '#3B82F6'
   },
   typeOptionText: {
     fontSize: 15,
     fontWeight: '500',
     marginLeft: 8,
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
   },
   typeModalActions: {
     flexDirection: 'row',
@@ -1350,18 +1344,18 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 12,
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface
+    backgroundColor: colorScheme === 'dark' ? '#334155' : '#F1F5F9'
   },
   typeCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors[colorScheme].text
+    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
   },
   typeConfirm: {
     paddingVertical: 10,
     paddingHorizontal: 22,
     borderRadius: 12,
-    backgroundColor: Colors[colorScheme].tint
+    backgroundColor: colorScheme === 'dark' ? '#0284C7' : '#0369A1'
   },
   typeConfirmText: {
     fontSize: 15,
@@ -1369,7 +1363,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: '#fff'
   },
   searchPrompt: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(96, 165, 250, 0.1)',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.1)' : '#EFF6FF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1382,10 +1376,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   modeToggleBracket: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
+    borderColor: colorScheme === 'dark' ? '#1E3A8A' : '#93C5FD',
     borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.25)' : '#DBEAFE',
   },
   modeToggleOption: {
     flexDirection: 'row',
@@ -1395,12 +1389,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     gap: 6,
   },
   modeToggleOptionActive: {
-    backgroundColor: Colors[colorScheme].tint,
+    backgroundColor: colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8',
   },
   modeToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors[colorScheme].text,
+    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A',
   },
   modeToggleTextActive: {
     color: '#FFFFFF',
@@ -1471,12 +1465,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     height: 50,
   },
   orgCard: {
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
+    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
   },
   orgCardContent: {
     marginBottom: 12,
@@ -1551,7 +1545,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#F3F4F6',
   },
   modalButtonSubmit: {
     backgroundColor: Colors[colorScheme].tint,

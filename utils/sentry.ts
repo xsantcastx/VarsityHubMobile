@@ -46,7 +46,7 @@ export function initSentry() {
   }
 
   try {
-    const tracesSampleRate = Number(process.env.EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? appConfig.sentryTracesSampleRate ?? 0.2);
+    const tracesSampleRate = Number(process.env.EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE ?? 0.2);
     Sentry.init({
       dsn: SENTRY_DSN,
       environment: appConfig.nodeEnv || 'development',

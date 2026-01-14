@@ -8,9 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { copyToClipboard } from '../utils/share';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../utils/uploadUtils';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -661,8 +660,8 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (error) {
-  showModal('Error', 'Failed to pick image');
+    } catch {
+      showModal('Error', 'Failed to pick image');
     }
   }, [sendImageMessage, showModal]);
 
@@ -676,8 +675,8 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
-    } catch (error) {
-  showModal('Error', 'Failed to take photo');
+    } catch {
+      showModal('Error', 'Failed to take photo');
     }
   }, [sendImageMessage, showModal]);
 
@@ -776,15 +775,14 @@ export default function TeamChatScreen() {
       const uri = recording.getURI();
       
       if (uri) {
-        setRecordingUri(uri);
         const status = await recording.getStatusAsync();
         await sendVoiceMessage(uri, status.durationMillis || 0);
       }
       
       setRecording(null);
       setRecordingDuration(0);
-    } catch (error) {
-  showModal('Error', 'Failed to stop recording');
+    } catch {
+      showModal('Error', 'Failed to stop recording');
       setRecording(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -855,7 +853,6 @@ export default function TeamChatScreen() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
 
-  // Document picking functions
   const sendFileMessage = useCallback(async (fileAsset: any) => {
     try {
       // Create initial message with uploading status
@@ -966,10 +963,11 @@ export default function TeamChatScreen() {
         return updated;
       });
       
-  showModal('Error', 'Failed to upload file to server');
+      showModal('Error', 'Failed to upload file to server');
     }
   }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
+  // Document picking functions
   const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -980,8 +978,8 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendFileMessage(result.assets[0]);
       }
-    } catch (error) {
-  showModal('Error', 'Failed to pick document');
+    } catch {
+      showModal('Error', 'Failed to pick document');
     }
   }, [sendFileMessage, showModal]);
 
@@ -1142,9 +1140,10 @@ export default function TeamChatScreen() {
       messageAnimations.set(item.id, messageAnim);
     }
     
-    const handleLongPress = async () => {
+    const handleLongPress = () => {
       // Copy to clipboard immediately
-      await copyToClipboard(item.content);
+      Clipboard.setString(item.content);
+    showModal('Copied', 'Message copied to clipboard');
     };
 
     const handleQuickReaction = () => {

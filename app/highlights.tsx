@@ -1,6 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { shareText } from '@/utils/share';
+import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,6 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    GestureResponderEvent,
     Platform,
     Pressable,
     RefreshControl,
@@ -86,12 +85,6 @@ const formatCount = (value?: number | null) => {
   return String(value);
 };
 
-const normalizeList = <T = any>(input: any): T[] => {
-  if (Array.isArray(input)) return input;
-  if (input && Array.isArray(input.items)) return input.items;
-  return [];
-};
-
 const getCountryFlag = (countryCode?: string | null) => {
   const flags: { [key: string]: string } = {
     'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
@@ -109,12 +102,6 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
-};
-
-const stopPressPropagation = (event?: GestureResponderEvent) => {
-  if (event && typeof (event as any).stopPropagation === 'function') {
-    (event as any).stopPropagation();
-  }
 };
 
 const HighlightCard = ({ 
@@ -228,7 +215,7 @@ const HighlightCard = ({
           <Pressable 
             style={styles.authorRow}
             onPress={(e) => {
-              stopPressPropagation(e);
+              e.stopPropagation();
               if (item.author_id && onAuthorPress) {
                 onAuthorPress(item.author_id);
               }
@@ -255,7 +242,7 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={(e) => {
-                stopPressPropagation(e);
+                e.stopPropagation();
                 // Handle upvote action
                 Alert.alert('Upvote', 'Feature coming soon!');
               }}
@@ -267,7 +254,7 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={(e) => {
-                stopPressPropagation(e);
+                e.stopPropagation();
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
@@ -278,25 +265,22 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={async (e) => {
-                stopPressPropagation(e);
+                e.stopPropagation();
                 try {
-                  const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
-                  const shareUrl = `${base}/highlights/${item.id}`;
-                  const caption = item.caption?.trim();
-                  const message = caption ? `${caption}\n${shareUrl}` : shareUrl;
-                  const result = await shareText(
-                    message,
-                    Platform.OS === 'android' ? { dialogTitle: item.title || 'VarsityHub Highlight' } : undefined
-                  );
-                  if (__DEV__) {
-                    const actionLabel =
-                      result?.action === Share.dismissedAction
-                        ? 'dismissed'
-                        : result?.action ?? 'fallback';
-                    console.log('Highlight share action', actionLabel);
-                  }
-                } catch (shareError) {
-                  console.error('Failed to share highlight', shareError);
+                  const link = AppLinks.post(String(item.id), item.caption || item.title);
+                  await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
+                } catch {
+                  try {
+                    const mod = await import('expo-clipboard').catch(() => null);
+                    const setStringAsync = mod?.setStringAsync || (mod && (mod as any).default?.setStringAsync);
+                    if (typeof setStringAsync === 'function') {
+                      const fallback = AppLinks.post(String(item.id), item.caption).webUrl;
+                      await setStringAsync(fallback);
+                      Alert.alert('Link Copied', 'Share link copied to clipboard!');
+                    } else {
+                      Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
+                    }
+                  } catch {}
                 }
               }}
             >
@@ -422,20 +406,17 @@ export default function HighlightsScreen() {
 
     setSearching(true);
     try {
-      const trimmedQuery = query.trim();
-      const limit = 5;
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list(trimmedQuery, { limit }).catch(() => []),
-        Event.filter({ q: trimmedQuery, approval_status: 'approved' }, 'date', limit).catch(() => []),
-        User.listAll(trimmedQuery, limit).catch(() => []),
-        Organization.list(trimmedQuery, limit).catch(() => []),
+        Team.list(query, false, { limit: 5 }).catch(() => []),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
+        User.listAll(query, 5).catch(() => []),
+        Organization.list(query, 5).catch(() => []),
       ]);
 
-      const queryLower = trimmedQuery.toLowerCase();
-      const teams = normalizeList(teamsRes).slice(0, limit);
-      const events = normalizeList(eventsRes).slice(0, limit);
-      const users = normalizeList(usersRes).slice(0, limit);
-      const organizations = normalizeList(orgsRes).slice(0, limit);
+      const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
+      const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
+      const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
+      const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
 
       // Filter posts
       const posts = highlights.filter(item => {
