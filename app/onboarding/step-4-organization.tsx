@@ -808,11 +808,10 @@ export default function Step4Organization() {
         {!showSearch && (
           ob.plan === 'rookie' ? (
             <LinearGradient
-              // Deeper metallic silver (cooler dark edges -> bright center -> soft falloff)
               colors={colorScheme === 'dark'
-                ? ['#3F4751','#707B85','#3F4751']
-                : ['#9FA2A5','#ECEEEF','#9FA2A5']}
-              locations={[0,0.52,1]}
+                ? [Colors.dark.surface, Colors.dark.elevated]
+                : [Colors.light.surface, Colors.light.background]}
+              locations={[0, 1]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.planReminderRookie}
             >
@@ -830,13 +829,13 @@ export default function Step4Organization() {
               />
               <View style={styles.planReminderRookieInner}>
                 <View style={styles.planReminderHeaderRow}>
-                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#F3F4F6' : '#374151'} /></View>
+                  <View style={styles.planBadge}><Ionicons name="sparkles" size={16} color={Colors[colorScheme].text} /></View>
                   <Text style={[styles.planReminderTitle, styles.rookieTitle]}>Rookie Plan Benefits</Text>
                 </View>
                 <View style={styles.benefitsList}>
-                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
-                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color={colorScheme === 'dark' ? '#E5E7EB' : '#374151'} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="sparkles" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>First two teams free</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="people" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>Invite athletes</Text></View>
+                  <View style={styles.benefitRow}><Ionicons name="shield-checkmark" size={16} color={Colors[colorScheme].text} /><Text style={[styles.benefitItem, styles.rookieBenefitItem]}>One administrator per team</Text></View>
                 </View>
               </View>
             </LinearGradient>
@@ -848,16 +847,28 @@ export default function Step4Organization() {
               <View style={styles.benefitsList}>
                 {(ob.plan === 'veteran') && (
                   <>
+<<<<<<< HEAD
                     <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$1.50/month per team</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Advanced features</Text></View>
+=======
+                    <View style={styles.benefitRow}><Ionicons name="cash" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>$2.50/month per team</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="people-circle" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Up to 12 authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="settings" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Advanced features</Text></View>
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   </>
                 )}
                 {(ob.plan === 'legend') && (
                   <>
+<<<<<<< HEAD
                     <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>$20/year unlimited teams</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
                     <View style={styles.benefitRow}><Ionicons name="star" size={14} color={colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A'} /><Text style={styles.benefitItem}>Premium features</Text></View>
+=======
+                    <View style={styles.benefitRow}><Ionicons name="trophy" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>$19.99/year unlimited teams</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="infinite" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Unlimited authorized users</Text></View>
+                    <View style={styles.benefitRow}><Ionicons name="star" size={14} color={Colors[colorScheme].tint} /><Text style={styles.benefitItem}>Premium features</Text></View>
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   </>
                 )}
               </View>
@@ -1135,8 +1146,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   howItWorksCard: {
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#1E3A8A' : '#93C5FD',
-    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.15)' : '#F1F8FF',
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
     borderRadius: 14,
     padding: 16,
     marginBottom: 20,
@@ -1149,10 +1160,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   howItWorksTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8'
+    color: Colors[colorScheme].tint
   },
   howItWorksTreeBox: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(29,78,216,0.25)' : '#DBEAFE',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
@@ -1160,12 +1171,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   howItWorksTreeLine: {
     fontSize: 13,
     fontFamily: 'Courier',
-    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
+    color: colorScheme === 'dark' ? Colors.dark.mutedText : Colors.light.mutedText,
   },
   howItWorksDescLine: {
     fontSize: 14,
     lineHeight: 20,
-    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
+    color: colorScheme === 'dark' ? Colors.dark.mutedText : Colors.light.mutedText,
     marginBottom: 4,
   },
   howItWorksDescStrong: {
@@ -1179,12 +1190,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   orgPageTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: colorScheme === 'dark' ? '#1D4ED8' : '#0F172A'
+    color: colorScheme === 'dark' ? Colors.dark.tint : Colors.light.text
   },
   orgPageSubtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: colorScheme === 'dark' ? '#CBD5E1' : '#475569'
+    color: Colors[colorScheme].mutedText
   },
   infoIcon: { marginRight: 16 },
   infoContent: { flex: 1 },
@@ -1203,10 +1214,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginTop: 24,
     marginBottom: 24,
     padding: 20,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.18)' : '#DBEAFE',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(96,165,250,0.3)' : '#93C5FD'
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
   },
   planReminderRookie: {
     marginTop: 24,
@@ -1214,7 +1225,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF',
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
     shadowColor: '#000',
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1240,10 +1251,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     bottom: 0,
   },
   rookieTitle: {
-    color: colorScheme === 'dark' ? '#F3F4F6' : '#374151'
+    color: Colors[colorScheme].text
   },
   rookieBenefitItem: {
-    color: colorScheme === 'dark' ? '#E5E7EB' : '#374151'
+    color: Colors[colorScheme].text
   },
   planReminderHeaderRow: {
     flexDirection: 'row',
@@ -1254,7 +1265,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -1267,14 +1278,14 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   planReminderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colorScheme === 'dark' ? '#93C5FD' : '#1E3A8A',
+    color: Colors[colorScheme].tint,
     marginBottom: 12
   },
   benefitsList: { marginTop: 4 },
   benefitItem: {
     fontSize: 14,
     lineHeight: 20,
-    color: colorScheme === 'dark' ? '#BFDBFE' : '#1E3A8A',
+    color: Colors[colorScheme].mutedText,
     marginBottom: 4
   },
   benefitRow: {
@@ -1295,7 +1306,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   selectFieldText: {
     fontSize: 15,
     fontWeight: '500',
-    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
+    color: Colors[colorScheme].text
   },
   typeModalOverlay: {
     position: 'absolute',
@@ -1309,17 +1320,17 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   typeModalCard: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#FFFFFF',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#1E293B' : '#E2E8F0'
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
   },
   typeModalTitle: {
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
-    color: colorScheme === 'dark' ? '#F1F5F9' : '#0F172A'
+    color: Colors[colorScheme].text
   },
   typeOption: {
     flexDirection: 'row',
@@ -1328,19 +1339,19 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 6,
-    backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F8FAFC',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#334155' : '#E2E8F0'
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border
   },
   typeOptionActive: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.25)' : '#DBEAFE',
-    borderColor: colorScheme === 'dark' ? '#3B82F6' : '#3B82F6'
+    backgroundColor: colorScheme === 'dark' ? 'rgba(96, 165, 250, 0.25)' : 'rgba(96, 165, 250, 0.25)',
+    borderColor: Colors[colorScheme].tint
   },
   typeOptionText: {
     fontSize: 15,
     fontWeight: '500',
     marginLeft: 8,
-    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
+    color: Colors[colorScheme].text
   },
   typeModalActions: {
     flexDirection: 'row',
@@ -1351,18 +1362,18 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 12,
-    backgroundColor: colorScheme === 'dark' ? '#334155' : '#F1F5F9'
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface
   },
   typeCancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A'
+    color: Colors[colorScheme].text
   },
   typeConfirm: {
     paddingVertical: 10,
     paddingHorizontal: 22,
     borderRadius: 12,
-    backgroundColor: colorScheme === 'dark' ? '#0284C7' : '#0369A1'
+    backgroundColor: Colors[colorScheme].tint
   },
   typeConfirmText: {
     fontSize: 15,
@@ -1370,7 +1381,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     color: '#fff'
   },
   searchPrompt: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(59,130,246,0.1)' : '#EFF6FF',
+    backgroundColor: colorScheme === 'dark' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(96, 165, 250, 0.1)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1383,10 +1394,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   modeToggleBracket: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? '#1E3A8A' : '#93C5FD',
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
     borderRadius: 14,
     overflow: 'hidden',
-    backgroundColor: colorScheme === 'dark' ? 'rgba(30,64,175,0.25)' : '#DBEAFE',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
   },
   modeToggleOption: {
     flexDirection: 'row',
@@ -1396,12 +1407,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     gap: 6,
   },
   modeToggleOptionActive: {
-    backgroundColor: colorScheme === 'dark' ? '#1D4ED8' : '#1D4ED8',
+    backgroundColor: Colors[colorScheme].tint,
   },
   modeToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: colorScheme === 'dark' ? '#E2E8F0' : '#0F172A',
+    color: Colors[colorScheme].text,
   },
   modeToggleTextActive: {
     color: '#FFFFFF',
@@ -1472,12 +1483,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     height: 50,
   },
   orgCard: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.card : Colors.light.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E5E7EB',
+    borderColor: colorScheme === 'dark' ? Colors.dark.border : Colors.light.border,
   },
   orgCardContent: {
     marginBottom: 12,
@@ -1552,7 +1563,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     justifyContent: 'center',
   },
   modalButtonCancel: {
-    backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : '#F3F4F6',
+    backgroundColor: colorScheme === 'dark' ? Colors.dark.surface : Colors.light.surface,
   },
   modalButtonSubmit: {
     backgroundColor: Colors[colorScheme].tint,

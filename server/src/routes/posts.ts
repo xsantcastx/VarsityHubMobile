@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { commentLimiter, interactionLimiter, postCreationLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
@@ -218,7 +219,7 @@ import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
 import { debugLog } from '../lib/debugLog.js';
 
-postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/', postCreationLimiter, requireVerified as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -371,7 +372,7 @@ postsRouter.get('/:id/comments', async (req, res) => {
   res.json({ items, nextCursor });
 });
 
-postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/comments', commentLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { id } = req.params;
   const schema = z.object({ content: z.string().min(1).max(1000) });
@@ -412,7 +413,7 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
 // Reactions
 // Toggle upvote
 
-postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/upvote', interactionLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 
@@ -470,7 +471,7 @@ postsRouter.post('/:id/upvote', requireAuth as any, async (req: AuthedRequest, r
 });
 
 
-postsRouter.post('/:id/bookmark', requireAuth as any, async (req: AuthedRequest, res) => {
+postsRouter.post('/:id/bookmark', interactionLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   const postId = String(req.params.id);
   const userId = req.user!.id;
 

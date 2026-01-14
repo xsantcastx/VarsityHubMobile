@@ -1,6 +1,9 @@
+<<<<<<< HEAD
 // Load .env only in development (not in production where Railway provides vars)
 import './lib/load-env.js';
 
+=======
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
@@ -9,10 +12,15 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import pinoHttp from 'pino-http';
 import swaggerUi from 'swagger-ui-express';
+<<<<<<< HEAD
 import { checkExpiringSubscriptions } from './jobs/subscriptionExpiryChecker.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueue } from './lib/queue.js';
+=======
+import './lib/load-env.js';
+import { env } from './lib/env.js';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -46,7 +54,11 @@ import { adsRouter } from './routes/ads.js';
 import geocodingRouter from './routes/geocoding.js';
 import { healthRouter } from './routes/health.js';
 import { paymentsRouter } from './routes/payments.js';
+<<<<<<< HEAD
 import { testEmailsRouter } from './routes/test-emails.js';
+=======
+import { reportsRouter } from './routes/reports.js';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { testNotificationsRouter } from './routes/test-notifications.js';
 
 // Node's default max listeners (10) is too low once Commander-based CLIs are mounted.
@@ -116,6 +128,7 @@ app.use(pinoMiddleware({ transport: { target: 'pino-pretty' } }));
 // In dev, disable CSP to allow loading media from API when app runs on a different origin
 app.use(helmet({ contentSecurityPolicy: false }));
 
+<<<<<<< HEAD
 const isProd = process.env.NODE_ENV === 'production';
 const defaultProdOrigins = [
   'https://varsityhub.app',
@@ -163,6 +176,22 @@ const isAllowedOrigin = (origin?: string | null) => {
 };
 const corsOptions: cors.CorsOptions = {
   origin: isAllowedOrigin,
+=======
+const rawOrigins = (env.ALLOWED_ORIGINS ?? (env.NODE_ENV === 'development' ? '*' : ''))
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowWildcard = rawOrigins.length === 0 || rawOrigins.includes('*');
+if (allowWildcard && env.NODE_ENV === 'production') {
+  console.warn('[security] ALLOWED_ORIGINS is not set for production. All origins will be accepted.');
+}
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, cb) => {
+    if (!origin || allowWildcard) return cb(null, true);
+    if (rawOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   credentials: false,
 };
 console.log(`[cors] Configured with ${allowedOrigins.length} allowed origin(s)`);
@@ -209,7 +238,7 @@ app.use(
   express.static(path.resolve(process.cwd(), 'uploads'))
 );
 
-const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
+const isDev = env.NODE_ENV !== 'production' || env.RATE_LIMIT_DISABLE === '1';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 100000 : 50,
@@ -248,8 +277,13 @@ app.use('/messages', noStore, apiLimiter, messagesRouter);
 app.use('/group-chats', noStore, apiLimiter, groupChatsRouter);
 app.use('/uploads', uploadsRouter);
 
+<<<<<<< HEAD
 app.use('/ads', adsRouter);
 app.use('/payments', paymentLogging, paymentsRouter);
+=======
+app.use('/ads', apiLimiter, adsRouter);
+app.use('/payments', noStore, apiLimiter, paymentsRouter);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 app.use('/admin', noStore, apiLimiter, adminRouter);
 app.use('/geocoding', noStore, apiLimiter, geocodingRouter);
 app.use('/teams', apiLimiter, teamsRouter);
@@ -265,18 +299,19 @@ app.use('/team-invites', noStore, apiLimiter, teamInvitesRouter);
 app.use('/upload', noStore, apiLimiter, uploadRouter);
 app.use('/highlights', noStore, apiLimiter, highlightsRouter);
 app.use('/promos', noStore, apiLimiter, promosRouter);
+app.use('/reports', noStore, apiLimiter, reportsRouter);
 
 // Test endpoints (consider removing in production or adding auth)
-if (process.env.NODE_ENV !== 'production') {
+if (env.NODE_ENV !== 'production') {
   app.use('/test-notifications', testNotificationsRouter);
   app.use('/test-emails', testEmailsRouter);
   debugLog('📱 Test notification endpoints available at /test-notifications/*');
   debugLog('📧 Test email endpoints available at /test-emails/*');
 }
 
-const PORT = Number(process.env.PORT || 4000);
+const PORT = env.PORT ? Number(env.PORT) : 4000;
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
-const HOST: string = process.env.HOST || '0.0.0.0';
+const HOST: string = env.HOST || '0.0.0.0';
 
 // Add Sentry error handler (must be last)
 addSentryErrorHandler(app);
@@ -284,9 +319,12 @@ addSentryErrorHandler(app);
 app.listen(PORT, HOST, () => {
   debugLog(`API listening on http://${HOST}:${PORT}`);
 });
+<<<<<<< HEAD
 
 // Schedule subscription expiry checker (runs daily at 9 AM UTC)
 cron.schedule('0 9 * * *', async () => {
   console.log('[cron] Running subscription expiry check...');
   await checkExpiringSubscriptions();
 });
+=======
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

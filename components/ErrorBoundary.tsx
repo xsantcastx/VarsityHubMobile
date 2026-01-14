@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-native';
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -32,19 +33,21 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // [ErrorBoundary] Caught error: error, errorInfo
-    
     // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
 
-    // Send to Sentry in production
-    if (process.env.NODE_ENV === 'production' && typeof (globalThis as any).Sentry !== 'undefined') {
+    // Send to Sentry for production error tracking
+    if (process.env.NODE_ENV === 'production') {
       try {
-        (globalThis as any).Sentry.captureException(error, { 
-          contexts: { react: errorInfo },
-          tags: { component: 'ErrorBoundary' }
+        Sentry.captureException(error, {
+          contexts: {
+            react: {
+              componentStack: errorInfo.componentStack,
+            },
+          },
+          tags: { component: 'ErrorBoundary' },
         });
       } catch (sentryError) {
         if (__DEV__) {

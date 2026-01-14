@@ -789,14 +789,25 @@ export default function CommunityDiscoverScreen() {
               {/* Map/List Toggle */}
               <Pressable
                 onPress={() => {
+<<<<<<< HEAD
                   // In map view branch, viewMode is 'map'; toggling goes to 'list'
                   const newMode: 'list' | 'map' = 'list';
+=======
+                  const newMode: 'list' | 'map' = 'list'; // we are in map view, so switch to list
+                  console.log('🗺️ Switching view mode from', viewMode, 'to', newMode);
+                  console.log('📍 Filtered games count:', filtered.length);
+                  console.log('📍 Games with coordinates:', filtered.filter(g => g.latitude && g.longitude).length);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   setViewMode(newMode);
                 }}
                 style={[styles.viewToggle, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               >
                 <Ionicons 
+<<<<<<< HEAD
                   name={'list'} 
+=======
+                  name="list" 
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   size={24} 
                   color={Colors[colorScheme].tint} 
                 />

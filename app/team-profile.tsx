@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Team as TeamApi, User } from '@/api/entities';
+import { Team as TeamApi, TeamMemberships, User } from '@/api/entities';
 import { SectionHeader, SettingItem } from '@/components/ui';
 
 interface AppUser {
@@ -72,7 +72,16 @@ export default function TeamProfileScreen() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteRole, setInviteRole] = useState('player');
   const [sendingInvite, setSendingInvite] = useState(false);
+<<<<<<< HEAD
   const [customRoles] = useState<CustomRole[]>([]);
+=======
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  // Inline team edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [savingInlineEdit, setSavingInlineEdit] = useState(false);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
   // Modal state for universal action modal
   // (Removed duplicate actionModal declaration)
@@ -253,6 +262,7 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberPosition = async (memberId: string, position: string) => {
+<<<<<<< HEAD
     if (!team?.id) {
       setActionModal({
         visible: true,
@@ -297,6 +307,19 @@ export default function TeamProfileScreen() {
       setActionModal({
         visible: true,
         title: 'Error',
+=======
+    const trimmed = position.trim();
+    const previousMembers = members;
+    setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, customPosition: trimmed || undefined } : m)));
+    try {
+      await TeamMemberships.update(memberId, { custom_position: trimmed || null });
+    } catch (error: any) {
+      console.error('Failed to update member position', error);
+      setMembers(previousMembers);
+      setActionModal({
+        visible: true,
+        title: 'Error',
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         message: error?.message || 'Failed to update member position',
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
@@ -395,6 +418,7 @@ export default function TeamProfileScreen() {
           customPosition: typeof m.custom_position === 'string' && m.custom_position.length ? m.custom_position : undefined,
           role: m.role || 'player',
           status: m.status || 'active',
+          customPosition: m.custom_position || undefined,
           joined_date: m.joined_date || m.created_at,
           stats: m.stats || { games_played: 0, points: 0 }
         };
@@ -490,6 +514,7 @@ export default function TeamProfileScreen() {
   };
 
   const updateMemberRole = async (memberId: string, newRole: string) => {
+<<<<<<< HEAD
     if (!team?.id) {
       setActionModal({
         visible: true,
@@ -513,6 +538,12 @@ export default function TeamProfileScreen() {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole as any } : m));
     try {
       await TeamApi.updateMember(team.id, member.user.id, { role: newRole });
+=======
+    const previousMembers = members;
+    setMembers(prev => prev.map(m => (m.id === memberId ? { ...m, role: newRole as any } : m)));
+    try {
+      await TeamMemberships.update(memberId, { role: newRole });
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       setActionModal({
         visible: true,
         title: 'Updated!',
@@ -520,8 +551,13 @@ export default function TeamProfileScreen() {
         options: [{ label: 'OK', onPress: () => {}, color: undefined }],
       });
     } catch (error: any) {
+<<<<<<< HEAD
       console.error('Failed to update member role:', error);
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: previousRole } : m));
+=======
+      console.error('Failed to update member role', error);
+      setMembers(previousMembers);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       setActionModal({
         visible: true,
         title: 'Error',
@@ -668,6 +704,76 @@ export default function TeamProfileScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Team Management', headerShown: false }} />
+      {/* Inline Edit Modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !savingInlineEdit && setEditModalVisible(false)}
+      >
+        <View style={styles.inlineEditOverlay}>
+          <View style={[styles.inlineEditContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>            
+            <Text style={[styles.inlineEditTitle, { color: Colors[colorScheme].text }]}>Edit Team</Text>
+            <Text style={[styles.inlineEditLabel, { color: Colors[colorScheme].mutedText }]}>Name</Text>
+            <TextInput
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Team name"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              style={[styles.inlineEditInput, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].background }]}
+              editable={!savingInlineEdit}
+            />
+            <Text style={[styles.inlineEditLabel, { color: Colors[colorScheme].mutedText }]}>Description</Text>
+            <TextInput
+              value={editDescription}
+              onChangeText={setEditDescription}
+              placeholder="Short description"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              style={[styles.inlineEditMultiline, { color: Colors[colorScheme].text, borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].background }]}
+              editable={!savingInlineEdit}
+              multiline
+            />
+            <View style={styles.inlineEditButtons}>
+              <Pressable
+                style={[styles.inlineEditButton, { backgroundColor: Colors[colorScheme].destructive, opacity: savingInlineEdit ? 0.6 : 1 }]}
+                disabled={savingInlineEdit}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.inlineEditButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.inlineEditButton, { backgroundColor: Colors[colorScheme].tint, opacity: savingInlineEdit ? 0.6 : 1 }]}
+                disabled={savingInlineEdit}
+                onPress={async () => {
+                  const trimmedName = editName.trim();
+                  if (!trimmedName) {
+                    Alert.alert('Name required', 'Please enter a team name.');
+                    return;
+                  }
+                  const prevTeam = team;
+                  setSavingInlineEdit(true);
+                  setTeam((t: any) => ({ ...t, name: trimmedName, description: editDescription.trim() }));
+                  try {
+                    await TeamApi.update(team.id, {
+                      name: trimmedName,
+                      description: editDescription.trim() || undefined,
+                    });
+                    setEditModalVisible(false);
+                  } catch (err: any) {
+                    console.error('Inline team update failed', err);
+                    setTeam(prevTeam);
+                    Alert.alert('Update Failed', err?.data?.error || err?.message || 'Could not save changes.');
+                  } finally {
+                    setSavingInlineEdit(false);
+                  }
+                }}
+              >
+                <Text style={styles.inlineEditButtonText}>{savingInlineEdit ? 'Saving...' : 'Save'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       
       {/* Custom Header */}
       <View style={[styles.header, { paddingTop: 12 + insets.top }]}>
@@ -684,7 +790,15 @@ export default function TeamProfileScreen() {
           </Pressable>
           <Pressable 
             style={styles.actionButton}
+<<<<<<< HEAD
             onPress={() => void router.push(`/edit-team?id=${team.id}`)}
+=======
+            onPress={() => {
+              setEditName(team.name || '');
+              setEditDescription(team.description || '');
+              setEditModalVisible(true);
+            }}
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
           >
             <Ionicons name="create-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>
@@ -1605,5 +1719,60 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     backgroundColor: '#fff',
+  },
+  // Inline edit styles
+  inlineEditOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  inlineEditContainer: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+  },
+  inlineEditTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  inlineEditLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  inlineEditInput: {
+    height: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+  },
+  inlineEditMultiline: {
+    minHeight: 90,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  inlineEditButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  inlineEditButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineEditButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

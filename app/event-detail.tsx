@@ -5,15 +5,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
+<<<<<<< HEAD
 import { Event, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
 import MatchBanner from './components/MatchBanner';
 import RsvpSheet from './components/RsvpSheet';
+=======
+import { Event, Post, User } from '@/api/entities';
+import MasonryGrid from '@/components/MasonryGrid';
+import MasonryPostCard from '@/components/MasonryPostCard';
+import * as WebBrowser from 'expo-web-browser';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -26,7 +34,12 @@ export default function EventDetailScreen() {
   const [me, setMe] = useState<any>(null);
   const [rsvped, setRsvped] = useState<boolean>(false);
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
+<<<<<<< HEAD
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
+=======
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +62,7 @@ export default function EventDetailScreen() {
 
         if (!mounted) return;
         setEvent(data ?? null);
+<<<<<<< HEAD
 
         // Load user and RSVP status in parallel (best-effort, don't block)
         try {
@@ -66,6 +80,18 @@ export default function EventDetailScreen() {
           // Don't set error; event is loaded and that's what matters
           setAttendeesCount(Number(data?.attendees_count || 0));
         }
+=======
+        setMe(user);
+        setRsvped(!!status?.attending);
+        setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
+        
+        // Load event posts
+        loadEventPosts();
+      } catch (e: any) {
+        if (!mounted) return;
+        console.error('Failed to load event detail', e);
+        setError('Unable to load event.');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       } finally {
         if (mounted) setLoading(false);
       }
@@ -73,6 +99,101 @@ export default function EventDetailScreen() {
     void load();
     return () => { mounted = false; };
   }, [id]);
+
+  const loadEventPosts = async () => {
+    if (!id) return;
+    setLoadingPosts(true);
+    try {
+      // Try to fetch event-specific posts
+      const eventPosts = await Post.getByEvent?.(String(id)).catch(() => null);
+      if (eventPosts && Array.isArray(eventPosts)) {
+        // Add sample polls to some posts for demonstration
+        const postsWithPolls = eventPosts.map((post: any, index: number) => {
+          // Add a poll to every 4th post for variety
+          if (index % 4 === 0) {
+            return {
+              ...post,
+              poll: generateSamplePoll(post.id || index),
+            };
+          }
+          return post;
+        });
+        setPosts(postsWithPolls);
+      } else {
+        // Generate sample posts if no API available
+        setPosts(generateSamplePosts());
+      }
+    } catch (error) {
+      console.error('Failed to load event posts', error);
+      // Fallback to sample posts
+      setPosts(generateSamplePosts());
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const generateSamplePosts = () => {
+    const samplePosts = [];
+    const mediaUrls = [
+      'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400',
+      'https://images.unsplash.com/photo-1519861531473-9200262188bf?w=400',
+      'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
+      'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=400',
+      'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=400',
+      'https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=400',
+    ];
+    
+    for (let i = 0; i < 12; i++) {
+      const hasMedia = i % 3 !== 0; // 2 out of 3 have media
+      const hasPoll = i % 5 === 0; // Every 5th post has a poll
+      
+      samplePosts.push({
+        id: `sample-${i}`,
+        content: hasMedia 
+          ? `Amazing moment from the game! #${i + 1}` 
+          : `Great team spirit and energy today. This is what sports is all about! Let's keep the momentum going. #TeamWork #Victory #${i + 1}`,
+        caption: hasMedia ? `Game highlight #${i + 1}` : null,
+        media_url: hasMedia ? mediaUrls[i % mediaUrls.length] : null,
+        upvotes_count: Math.floor(Math.random() * 100),
+        comments_count: Math.floor(Math.random() * 50),
+        bookmarks_count: Math.floor(Math.random() * 30),
+        has_bookmarked: false,
+        author: {
+          id: `author-${i}`,
+          display_name: ['Alex Johnson', 'Sam Smith', 'Jordan Lee', 'Taylor Brown'][i % 4],
+          avatar_url: `https://i.pravatar.cc/150?img=${i + 1}`,
+        },
+        poll: hasPoll ? generateSamplePoll(i) : null,
+      });
+    }
+    
+    return samplePosts;
+  };
+
+  const generateSamplePoll = (id: number | string) => {
+    const pollQuestions = [
+      { question: "Who was the MVP of the game?", options: ["Player #10", "Player #23", "Player #7", "Player #15"] },
+      { question: "Best play of the night?", options: ["The amazing dunk", "The 3-pointer", "The steal", "The assist"] },
+      { question: "What should we improve?", options: ["Defense", "Offense", "Team chemistry", "Conditioning"] },
+      { question: "Next game prediction?", options: ["Easy win", "Close game", "Tough battle", "Upset victory"] },
+      { question: "Favorite moment?", options: ["Opening play", "Halftime show", "Final minutes", "Post-game celebration"] },
+    ];
+    
+    const poll = pollQuestions[Number(id) % pollQuestions.length];
+    
+    return {
+      id: `poll-${id}`,
+      question: poll.question,
+      options: poll.options.map((text, idx) => ({
+        id: `option-${id}-${idx}`,
+        text,
+        votes: Math.floor(Math.random() * 50),
+      })),
+      totalVotes: Math.floor(Math.random() * 200),
+      endsAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+      userVote: null,
+    };
+  };
 
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
 
@@ -191,10 +312,10 @@ export default function EventDetailScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ 
           paddingBottom: Math.max(insets.bottom, 16),
-          padding: 16,
         }}
         showsVerticalScrollIndicator={false}
       >
+<<<<<<< HEAD
         {!id && <Text style={styles.error}>Missing event id.</Text>}
         {loading && (
           <View style={{ paddingVertical: 24, alignItems: 'center' }}>
@@ -248,7 +369,91 @@ export default function EventDetailScreen() {
               <Pressable style={styles.outlineBtn} onPress={shareEvent}>
                 <Text style={styles.outlineBtnText}>Share</Text>
               </Pressable>
+=======
+        <View style={{ padding: 16, paddingBottom: 8 }}>
+          {!id && <Text style={styles.error}>Missing event id.</Text>}
+          {loading && (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator />
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
             </View>
+          )}
+          {error && !loading && <Text style={styles.error}>{error}</Text>}
+          {event && !loading && (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.title}>{event.title || 'Event'}</Text>
+              
+              {/* Location with Map Pin */}
+              {event.location && (
+                <Pressable 
+                  style={styles.locationCard}
+                  onPress={openInMaps}
+                >
+                  <View style={styles.locationIconContainer}>
+                    <Ionicons name="location" size={24} color="#EF4444" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.locationLabel}>Location</Text>
+                    <Text style={styles.locationText}>{event.location}</Text>
+                    <Text style={styles.locationHint}>Tap to open in Maps</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                </Pressable>
+              )}
+              
+              <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
+              <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
+              {event.description ? <Text>{event.description}</Text> : null}
+
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <Pressable style={styles.primaryBtn} onPress={toggleRsvp}>
+                  <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
+                </Pressable>
+                <Pressable style={styles.outlineBtn} onPress={onShare}>
+                  <Text style={styles.outlineBtnText}>Share</Text>
+                </Pressable>
+                {(event as any)?.slug ? (
+                  <Pressable style={styles.outlineBtn} onPress={openPublic}>
+                    <Text style={styles.outlineBtnText}>Open Public</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Event Posts in Masonry Layout */}
+        {!loading && event && (
+          <View style={styles.postsSection}>
+            <Text style={styles.sectionTitle}>Event Feed</Text>
+            {loadingPosts ? (
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <ActivityIndicator />
+              </View>
+            ) : posts.length > 0 ? (
+              <MasonryGrid
+                data={posts}
+                numColumns={2}
+                gap={12}
+                renderItem={(post) => (
+                  <MasonryPostCard
+                    post={post}
+                    onPress={() => {
+                      // Navigate to post detail if available
+                      router.push({ pathname: '/post-detail', params: { id: post.id } });
+                    }}
+                    onDeleted={(postId) => {
+                      setPosts(prev => prev.filter(p => p.id !== postId));
+                    }}
+                    onUpdated={(updatedPost) => {
+                      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p));
+                    }}
+                  />
+                )}
+              />
+            ) : (
+              <Text style={styles.emptyText}>No posts yet for this event</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -312,4 +517,20 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   outlineBtnText: { color: '#111827', fontWeight: '700' },
+  postsSection: {
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#6B7280',
+    fontSize: 14,
+    paddingVertical: 32,
+  },
 });

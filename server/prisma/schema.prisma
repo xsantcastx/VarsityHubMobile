@@ -17,6 +17,10 @@ model User {
   password_hash              String
   google_id                  String?   @unique
   apple_id                   String?   @unique
+  phone_number               String?   @unique
+  phone_verified             Boolean   @default(false)
+  sms_verification_code      String?
+  sms_verification_expires   DateTime?
   display_name               String?
   username                   String? // Will add unique constraint later after data migration
   avatar_url                 String?
@@ -883,3 +887,10 @@ model AbuseReport {
   @@index([status])
   @@index([created_at])
 }
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

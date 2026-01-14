@@ -84,6 +84,14 @@ export const auth = {
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
   },
+  async requestPhoneVerification(phone: string) {
+    await loadToken();
+    return httpPost('/auth/verify/phone/request', { phone });
+  },
+  async verifyPhone(phone: string, code: string) {
+    await loadToken();
+    return httpPost('/auth/verify/phone/confirm', { phone, code });
+  },
   async requestPasswordReset(email: string) {
     return httpPost('/auth/password/forgot', { email });
   },

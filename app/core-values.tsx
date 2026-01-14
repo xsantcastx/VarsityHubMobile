@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
@@ -18,7 +19,7 @@ export default function CoreValuesScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: isDark ? '#0B1120' : '#FFFFFF' }]}
+      style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
       edges={['top']}
     >
       <Stack.Screen
@@ -263,4 +264,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

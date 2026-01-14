@@ -2,11 +2,12 @@ import { Router } from 'express';
 import { sendAbuseReportNotification } from '../lib/email.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { reportLimiter } from '../middleware/rateLimiters.js';
 
 export const supportRouter = Router();
 
 // POST /support/contact
-supportRouter.post('/contact', async (req: AuthedRequest, res) => {
+supportRouter.post('/contact', reportLimiter, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const { name, email, subject, message, reported_user_id, reported_user_email, reported_user_name, context_url } =
     (req.body || {}) as any;

@@ -1539,9 +1539,28 @@ const GameDetailsScreen = () => {
 
 
 const renderVoteSection = () => {
+<<<<<<< HEAD
   // Show poll if we have a gameId OR an eventId
   if (!vm?.gameId && !vm?.eventId) return null;
   const summary = _voteSummary ?? buildVoteSummary(0, 0, null);
+=======
+  if (!vm?.gameId) return null;
+
+  const usingPlaceholderLabels = teamALabel === 'Team A' && teamBLabel === 'Team B';
+  if (usingPlaceholderLabels) {
+    return (
+      <View style={[styles.voteWrapper, styles.voteEmptyState]}>
+        <Ionicons name="alert-circle-outline" size={18} color={Colors[colorScheme].mutedText} />
+        <View style={styles.voteEmptyCopy}>
+          <Text style={styles.voteEmptyTitle}>Link teams to enable fan voting</Text>
+          <Text style={styles.voteEmptySubtitle}>Add home and away teams when editing this game so supporters see real matchup names.</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const summary = voteSummary ?? buildVoteSummary(0, 0, null);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const total = summary.total ?? 0;
   const hasVotes = total > 0;
   const pctA = hasVotes ? Math.max(0, Math.min(100, summary.pctA ?? 0)) : 50;
@@ -1571,8 +1590,9 @@ const renderVoteSection = () => {
         <Animated.View
           style={[styles.voteFill, styles.voteFillA, { width: `${pctA}%` }]}
         >
+          {/* Removed white gradient overlay to avoid washout */}
           <LinearGradient
-            colors={['rgba(255,255,255,0.32)', 'rgba(255,255,255,0)']}
+            colors={['transparent', 'transparent']}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={styles.voteFillHighlight}
@@ -1586,8 +1606,9 @@ const renderVoteSection = () => {
         <Animated.View
           style={[styles.voteFill, styles.voteFillB, { width: `${pctB}%` }]}
         >
+          {/* Removed white gradient overlay to avoid washout */}
           <LinearGradient
-            colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
+            colors={['transparent', 'transparent']}
             start={{ x: 0, y: 0 }}
             end={{ x: 0, y: 1 }}
             style={styles.voteFillHighlight}
@@ -1931,6 +1952,19 @@ const renderBanner = () => {
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
       
+      <LinearGradient
+        colors={['rgba(0,0,0,0.2)', 'transparent']}
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          height: insets.top + 20,
+          zIndex: 100,
+        }}
+        pointerEvents="none"
+      />
+
       <Animated.View
         style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
         onLayout={(e) => {
@@ -1970,8 +2004,15 @@ const renderBanner = () => {
           ) : null}
           {vm && !loading ? (
             <>
+<<<<<<< HEAD
               {/* Tabs removed - keeping Overview only as default view */}
               <Text style={styles.title}>{vm.title}</Text>
+=======
+              <View style={styles.titleContainer}>
+                <Text style={styles.title}>{vm.title}</Text>
+              </View>
+              {renderVoteSection()}
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
               {vm.location ? (
                 <Pressable style={styles.locationRow} onPress={onPressLocation}>
                   <Ionicons name="location" size={16} color={Colors[colorScheme].tint} />
@@ -2503,11 +2544,42 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
 
 
   voteWrapper: {
+<<<<<<< HEAD
     marginTop: -16,
     paddingHorizontal: 16,
     paddingTop: 2,
     paddingBottom: 0,
     marginBottom: 24,
+=======
+    marginTop: 12,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: colorScheme === 'dark' ? 'rgba(15,23,42,0.8)' : '#fff',
+    shadowColor: '#000',
+    shadowOpacity: colorScheme === 'dark' ? 0.25 : 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  voteEmptyState: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  voteEmptyCopy: { flex: 1 },
+  voteEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors[colorScheme].text,
+    marginBottom: 2,
+  },
+  voteEmptySubtitle: {
+    fontSize: 13,
+    color: Colors[colorScheme].mutedText,
+    lineHeight: 18,
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   },
   voteBar: {
     position: 'relative',
@@ -2859,7 +2931,15 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     borderRadius: 8,
   },
   retryText: { color: 'white', fontWeight: '700' },
+<<<<<<< HEAD
   title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginTop: 8, marginBottom: 6 },
+=======
+  titleContainer: {
+    paddingTop: 16,
+    marginBottom: 12,
+  },
+  title: { fontSize: 28, fontWeight: '900', color: Colors[colorScheme].text, marginBottom: 6 },
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { color: Colors[colorScheme].text, fontWeight: '600', textDecorationLine: 'underline' },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
@@ -3291,3 +3371,10 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginRight: 8,
   },
 });
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)

@@ -11,18 +11,6 @@ import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 const { makeRedirectUri } = AuthSession;
 
-let sessionUrlProvider: {
-  getRedirectUrl: (options?: Record<string, any>) => string;
-  getStartUrl?: (authUrl: string, returnUrl: string, projectNameForProxy?: string) => string;
-} | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  sessionUrlProvider = require('expo-auth-session/build/SessionUrlProvider').default;
-} catch {
-  sessionUrlProvider = null;
-}
-
 type GoogleAuthResult = Awaited<ReturnType<typeof User.loginViaGoogle>>;
 
 const appConfig = getConfig();
@@ -55,11 +43,10 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
       iosClientId: webClientId,
       webClientId,
       expoClientId: webClientId,
-      forceWebClient: true,
     } as const;
   }
 
-  return { androidClientId, iosClientId, webClientId, expoClientId, forceWebClient: false } as const;
+  return { androidClientId, iosClientId, webClientId, expoClientId } as const;
 };
 
 const FORCE_PROXY_FLAG = appConfig.google.forceProxy;
@@ -76,17 +63,6 @@ const derivedProjectFullName =
       : undefined;
 const PROJECT_FULL_NAME = appConfig.expoProjectFullName || derivedProjectFullName || FALLBACK_PROJECT_FULL_NAME;
 
-if (PROJECT_FULL_NAME && sessionUrlProvider?.getRedirectUrl) {
-  const originalGetRedirectUrl = sessionUrlProvider.getRedirectUrl.bind(sessionUrlProvider);
-  sessionUrlProvider.getRedirectUrl = (options?: Record<string, any>) =>
-    originalGetRedirectUrl({ projectNameForProxy: PROJECT_FULL_NAME, ...(options || {}) });
-  if (sessionUrlProvider.getStartUrl) {
-    const originalGetStartUrl = sessionUrlProvider.getStartUrl.bind(sessionUrlProvider);
-    sessionUrlProvider.getStartUrl = (authUrl: string, returnUrl: string, projectNameForProxy?: string) =>
-      originalGetStartUrl(authUrl, returnUrl, projectNameForProxy ?? PROJECT_FULL_NAME);
-  }
-}
-
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,7 +77,7 @@ export function useGoogleAuth() {
 
   const redirectUri = useMemo(() => {
     let uri = '';
-    
+
     // For web platform, ALWAYS use localhost (highest priority)
     if (Platform.OS === 'web') {
       // Use window.location.origin if available (works for any port), fallback to 8081
@@ -109,7 +85,7 @@ export function useGoogleAuth() {
       console.log('[google-auth] Using web redirect:', uri);
       return uri;
     }
-    
+
     try {
       if (shouldUseProxy && PROJECT_FULL_NAME) {
         uri = AuthSession.getRedirectUrl();
@@ -119,7 +95,7 @@ export function useGoogleAuth() {
     } catch (err) {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
-    
+
     // For production iOS with web client, use web redirect
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
     if (isStandaloneIOS) {
@@ -127,19 +103,14 @@ export function useGoogleAuth() {
       console.log('[google-auth] Using production web redirect (standalone):', uri);
       return uri;
     }
-    
+
     uri = makeRedirectUri({
       native: `${Application.applicationId}:/oauthredirect`,
       scheme: appConfig.appScheme,
     });
     console.log('[google-auth] Using custom scheme redirect:', uri, '(app scheme:', appConfig.appScheme, ')');
     return uri;
-  }, []);
-
-  const redirectOptions = useMemo(() => {
-    // Use default redirect behavior
-    return {} as const;
-  }, []);
+  }, [shouldUseProxy]);
 
   useEffect(() => {
     if (proxyRequested && !PROJECT_FULL_NAME) {
@@ -147,7 +118,7 @@ export function useGoogleAuth() {
         '[google-auth] Proxy requested but project full name could not be resolved. Falling back to custom scheme.',
       );
     }
-  }, [redirectUri, shouldUseProxy, proxyRequested]);
+  }, [proxyRequested]);
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
@@ -163,7 +134,7 @@ export function useGoogleAuth() {
         clientId: clients.expoClientId || undefined,
       };
     }
-    
+
     // If not configured, provide placeholder values that satisfy the hook
     // We won't actually use this to sign in (isConfigured check prevents it)
     return {
@@ -178,7 +149,7 @@ export function useGoogleAuth() {
   }, [isConfigured, clients, redirectUri]);
 
   // Always call useAuthRequest (React rules of hooks)
-  const [request, , promptAsync] = Google.useAuthRequest(requestConfig, redirectOptions);
+  const [request, , promptAsync] = Google.useAuthRequest(requestConfig);
 
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     if (!isConfigured) {
@@ -193,10 +164,10 @@ export function useGoogleAuth() {
       console.log('[google-auth] Starting Google sign-in...');
       console.log('[google-auth] Using redirect URI:', redirectUri);
       console.log('[google-auth] Request config:', requestConfig);
-      
+
       const response = await promptAsync();
       console.log('[google-auth] Response from Google:', response);
-      
+
       // Handle user cancellation gracefully - don't throw
       if (response.type === 'cancel' || response.type === 'dismiss') {
         console.log('[google-auth] User cancelled sign-in');
@@ -206,14 +177,14 @@ export function useGoogleAuth() {
         err.code = 'CANCELLED';
         throw err;
       }
-      
+
       // Handle other non-success responses
       if (response.type !== 'success' || !response.authentication?.idToken) {
         const errorMsg = `Google sign-in failed: ${response.type}`;
         console.error('[google-auth]', errorMsg, response);
         throw new Error(errorMsg);
       }
-      
+
       console.log('[google-auth] Got idToken, sending to server...');
       const serverResponse = await User.loginViaGoogle(response.authentication.idToken);
       console.log('[google-auth] Server accepted token, logged in as:', serverResponse);
@@ -223,7 +194,7 @@ export function useGoogleAuth() {
       if (err?.code === 'CANCELLED' || err?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
         throw err;
       }
-      
+
       const message = err?.message || 'Unable to sign in with Google';
       console.error('[google-auth] Error:', message, err);
       setError(message);

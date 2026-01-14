@@ -19,6 +19,15 @@ import { calculateAdPriceCents } from '../utils/adPricing.js';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
 export const paymentsRouter = Router();
+// Config status endpoint to allow client to detect Stripe readiness
+paymentsRouter.get('/config-status', (_req, res) => {
+  const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
+  const hasWebhookSecret = !!process.env.STRIPE_WEBHOOK_SECRET;
+  return res.json({
+    stripe_configured: stripeConfigured,
+    has_webhook_secret: hasWebhookSecret,
+  });
+});
 
 const formatUsd = (cents?: number | null) => {
   if (typeof cents !== 'number' || Number.isNaN(cents)) return '';
@@ -107,7 +116,46 @@ async function sendSubscriptionEmail({
 
 function calculatePriceCents(isoDates: string[]): number {
   if (!isoDates.length) return 0;
+<<<<<<< HEAD
   return calculateAdPriceCents(isoDates).totalCents;
+=======
+
+  const weekdayPrice = 800; // $8.00 per Mon-Thu slot (charge once per week)
+  const weekendPrice = 1000; // $10.00 per Fri-Sun slot
+
+  type WeekSlotFlags = { weekday: boolean; weekend: boolean };
+  const weekMap = new Map<string, WeekSlotFlags>();
+
+  for (const s of isoDates) {
+    const date = new Date(`${s}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) {
+      console.warn('[payments] Ignoring invalid ad date while calculating price', s);
+      continue;
+    }
+    const day = date.getUTCDay(); // 0 (Sun) .. 6 (Sat)
+
+    // Find Monday of this ISO week to use as the grouping key
+    const monday = new Date(date);
+    const diff = day === 0 ? -6 : 1 - day; // Sunday should roll back to previous Monday
+    monday.setUTCDate(date.getUTCDate() + diff);
+    const weekKey = monday.toISOString().slice(0, 10);
+
+    const entry = weekMap.get(weekKey) ?? { weekday: false, weekend: false };
+    if (day >= 1 && day <= 4) {
+      entry.weekday = true;
+    } else {
+      entry.weekend = true;
+    }
+    weekMap.set(weekKey, entry);
+  }
+
+  let total = 0;
+  for (const entry of weekMap.values()) {
+    if (entry.weekday) total += weekdayPrice;
+    if (entry.weekend) total += weekendPrice;
+  }
+  return total;
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 }
 
 const membershipPlans = ['veteran', 'legend'] as const;
@@ -286,7 +334,14 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
 
 // Create a Stripe Checkout Session for ad reservations
 paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) return res.status(500).json({ error: 'Stripe not configured' });
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return res.status(400).json({
+      error: 'Stripe secret key missing',
+      code: 'STRIPE_NOT_CONFIGURED',
+      message: 'Server is missing STRIPE_SECRET_KEY; checkout is disabled until configured.',
+      stripe_configured: false,
+    });
+  }
   const { ad_id, dates, promo_code, plan, team_count } = req.body || {};
   if (typeof plan === 'string' && plan.trim()) {
     try {
@@ -326,6 +381,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
     discount = preview.discount_cents;
     appliedCode = preview.code;
   }
+<<<<<<< HEAD
   const total = Math.max(0, subtotal - discount + taxCents);
   if (total === 0) {
     if (appliedCode) {
@@ -338,6 +394,15 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       ]);
     } catch (e) {}
     return res.json({ free: true });
+=======
+
+  // Total = (subtotal - discount) + tax
+  const total = Math.max(0, subtotal - discount + taxCents);
+  if (total <= 0) {
+    return res.status(400).json({
+      error: 'Total must be greater than $0. All ad reservations must be processed via Stripe.',
+    });
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   }
   const appScheme = 'varsityhubmobile';
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
@@ -361,7 +426,33 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
     },
+<<<<<<< HEAD
   });
+=======
+  } as Stripe.Checkout.SessionCreateParams));
+
+  // Create PENDING reservations with 30-minute expiration
+  // These will be confirmed by webhook or expired by cleanup job
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  try {
+    await prisma.adReservation.createMany({
+      data: isoDates.map((s) => ({
+        ad_id: String(ad_id),
+        date: new Date(s + 'T00:00:00.000Z'),
+        status: 'PENDING',
+        stripe_session_id: session.id,
+        expires_at: expiresAt,
+      })),
+      skipDuplicates: true,
+    });
+    console.log(`[payments] Created ${isoDates.length} PENDING reservations for session ${session.id}`);
+  } catch (e) {
+    console.error('[payments] Failed to create pending reservations:', e);
+    // Don't fail checkout - webhook can still create them
+  }
+
+  // Log transaction
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const currentUser = await prisma.user.findUnique({ 
     where: { id: req.user!.id },
     select: { email: true }
@@ -418,6 +509,9 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 // Stripe webhook to finalize reservations on successful payment.
 // IMPORTANT: The raw body parser is registered at the app level (server/src/index.ts)
 // for route /payments/webhook BEFORE express.json(). Do not add parsers here.
+// In-memory idempotency tracking for webhook deduplication
+const processedWebhookEvents = new Set<string>();
+
 paymentsRouter.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -434,13 +528,31 @@ paymentsRouter.post('/webhook', async (req, res) => {
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
+  // Idempotency check: skip if already processed
+  if (processedWebhookEvents.has(event.id)) {
+    console.log(`[payments] Webhook ${event.id} already processed (idempotent skip)`);
+    return res.json({ received: true, already_processed: true });
+  }
+
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     try {
       await finalizeFromSession(session);
+      // Mark as processed only after successful finalization
+      processedWebhookEvents.add(event.id);
+      console.log(`[payments] Webhook ${event.id} processed successfully`);
     } catch (e) {
-      console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      console.error('[payments] Error finalizing session in webhook (will retry):', {
+        event_id: event.id,
+        session_id: session.id,
+        error: (e as any)?.message || e
+      });
+      // Return 500 to trigger Stripe automatic retry
+      return res.status(500).json({ error: 'Finalization failed', event_id: event.id });
     }
+  } else {
+    // Mark non-critical events as processed immediately
+    processedWebhookEvents.add(event.id);
   }
   
   // Send billing notification emails for subscription events
@@ -912,6 +1024,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
   const ad_id = meta.ad_id || '';
   let dates: string[] = [];
   try { dates = JSON.parse(String(meta.dates || '[]')); } catch {}
+  
   if (ad_id && Array.isArray(dates) && dates.length) {
     debugLog('[payments] Processing ad reservation payment', {
       ad_id,
@@ -919,18 +1032,57 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       session_id: session.id,
       payment_status: session.payment_status
     });
+    
     try {
-      const result = await prisma.$transaction([
-        prisma.ad.update({ 
+      // Use transaction to atomically update ad AND confirm reservations
+      await prisma.$transaction(async (tx) => {
+        // Update ad to paid/active
+        await tx.ad.update({ 
           where: { id: ad_id }, 
           data: { 
             payment_status: 'paid',
-            status: 'active' // Mark ad as active when payment is completed
+            status: 'active'
           } 
+<<<<<<< HEAD
         }),
         prisma.adReservation.createMany({ data: dates.map((s) => ({ ad_id, date: new Date(s + 'T00:00:00.000Z') })), skipDuplicates: true }),
       ]);
       debugLog('[payments] Ad reservation payment completed successfully', {
+=======
+        });
+        
+        // Confirm existing PENDING reservations OR create new ones
+        // First, try to update PENDING reservations to CONFIRMED
+        const updated = await tx.adReservation.updateMany({
+          where: {
+            stripe_session_id: session.id,
+            status: 'PENDING'
+          },
+          data: {
+            status: 'CONFIRMED',
+            expires_at: null // Clear expiration
+          }
+        });
+        
+        console.log(`[payments] Confirmed ${updated.count} PENDING reservations for session ${session.id}`);
+        
+        // If some dates don't have PENDING reservations (e.g., webhook fired before checkout created them),
+        // create CONFIRMED reservations directly
+        if (updated.count < dates.length) {
+          await tx.adReservation.createMany({ 
+            data: dates.map((s) => ({ 
+              ad_id, 
+              date: new Date(s + 'T00:00:00.000Z'),
+              status: 'CONFIRMED',
+              stripe_session_id: session.id
+            })), 
+            skipDuplicates: true 
+          });
+        }
+      });
+      
+      console.log('[payments] Ad reservation payment completed successfully', {
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         ad_id,
         dates,
         session_id: session.id,
@@ -965,7 +1117,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         session_id: session.id,
         error: e
       });
-      // Don't ignore the error silently anymore
+      // Throw error to trigger webhook retry
       throw e;
     }
   }
@@ -1002,6 +1154,7 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
       try {
         const current = await prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } });
         const existingPrefs = (current?.preferences && typeof current.preferences === 'object') ? (current.preferences as any) : {};
+<<<<<<< HEAD
         const prefs: any = { ...existingPrefs, plan };
         
         // CRITICAL: Set role='coach' for any membership purchase (veteran/legend)
@@ -1010,6 +1163,9 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
           prefs.role = 'coach';
         }
         
+=======
+        const prefs: any = { ...existingPrefs, plan, payment_pending: false }; // ✅ Clear payment_pending flag
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         if (session.subscription) {
           try {
             const sub = await stripe.subscriptions.retrieve(String(session.subscription));

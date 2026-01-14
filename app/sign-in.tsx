@@ -113,12 +113,11 @@ export default function SignInScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
-      
       captureException(
         typeof e === 'string' ? new Error(e) : e,
         { tags: { context: 'google-signin' } }
       );
-      
+
       setError(message);
     }
   };
@@ -445,7 +444,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-
-
-
-

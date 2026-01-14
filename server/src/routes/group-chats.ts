@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { Router } from 'express';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { groupMessageLimiter } from '../middleware/rateLimiters.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
 const prisma = new PrismaClient();
@@ -113,7 +114,7 @@ groupChatsRouter.get('/:chatId/messages', requireAuth as any, async (req: Authed
 });
 
 // Send a message to a group chat
-groupChatsRouter.post('/:chatId/messages', requireAuth as any, async (req: AuthedRequest, res) => {
+groupChatsRouter.post('/:chatId/messages', groupMessageLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 

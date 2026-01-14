@@ -4,7 +4,6 @@
   "version": "1.0.1",
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
@@ -14,12 +13,12 @@
     "start:ci": "set CI=1&& expo start --port 19001",
     "web:ci": "set CI=1&& expo start --web --port 9500",
     "android:ci": "set CI=1&& expo start --android --port 19002",
-    "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/patches/patch-router-sitemap.js && node ./tools/ensure-is-arrayish.js && node ./tools/patches/patch-logbox-button.js",
+    "postinstall": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js && ([ -z \"$EAS_BUILD\" ] && node ./tools/patches/patch-router-sitemap.js || true) && ([ -z \"$EAS_BUILD\" ] && node ./tools/patches/patch-logbox-button.js || true)",
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
     "lint": "expo lint",
     "lint:strict": "expo lint --fix && npm run typecheck",
     "doctor": "npx expo-doctor",
-    "validate:pre-launch": "scripts/validate-pre-launch.bat",
+    "validate:pre-launch": "bash scripts/validate-pre-launch.sh",
     "build:production": "bash scripts/build-production.sh",
     "build:ios": "eas build --platform ios --profile production",
     "build:android": "eas build --platform android --profile production",
@@ -120,12 +119,12 @@
     "react-test-renderer": "19.1.0"
   },
   "private": true,
-  "prisma": {
-    "schema": "server/prisma/schema.prisma"
-  },
   "overrides": {
     "react-native-calendars": {
       "react-native-safe-area-context": "5.6.2"
     }
+  },
+  "prisma": {
+    "schema": "server/prisma/schema.prisma"
   }
 }

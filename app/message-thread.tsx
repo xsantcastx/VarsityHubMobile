@@ -23,7 +23,11 @@ type Msg = {
 };
 
 export default function MessageThreadScreen() {
+<<<<<<< HEAD
   const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string; prefill?: string }>();
+=======
+  const { conversation_id, with: withParam, prefill } = useLocalSearchParams<{ conversation_id?: string; with?: string, prefill?: string }>();
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -31,11 +35,18 @@ export default function MessageThreadScreen() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<any>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(prefill || '');
   const flatRef = useRef<FlatList<Msg>>(null);
   const [safetyOpen, setSafetyOpen] = useState(false);
   const [restrictionModal, setRestrictionModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [prefillApplied, setPrefillApplied] = useState(false);
+
+  // Clear the prefill param once we've used it
+  useEffect(() => {
+    if (prefill) {
+      router.setParams({ prefill: '' });
+    }
+  }, [prefill]);
 
   const load = useCallback(async () => {
     setLoading(true);

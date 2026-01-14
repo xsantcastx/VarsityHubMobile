@@ -4,7 +4,8 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Circle, Marker } from 'react-native-maps';
+import { getMapProvider } from '@/utils/maps';
 
 interface ReachMapPreviewProps {
   zipCode: string;
@@ -149,7 +150,7 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
 
         {location && !loading && (
           <MapView
-            provider={PROVIDER_GOOGLE}
+            provider={getMapProvider()}
             style={styles.map}
             initialRegion={{
               latitude: location.latitude,

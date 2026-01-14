@@ -1,6 +1,7 @@
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
+import { env } from './env.js';
 
-const JWT_SECRET: Secret = process.env.JWT_SECRET as Secret;
+const JWT_SECRET: Secret = env.JWT_SECRET;
 
 // Validate JWT_SECRET on startup
 const jwtSecretString = typeof JWT_SECRET === 'string' ? JWT_SECRET : '';
@@ -28,4 +29,3 @@ export function verifyJwt<T = any>(token: string): T | null {
 }
 
 export { DEFAULT_ACCESS_TOKEN_EXPIRY };
-

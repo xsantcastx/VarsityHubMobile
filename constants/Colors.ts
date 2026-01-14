@@ -5,6 +5,8 @@
 
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#60a5fa';
+const darkBackground = '#0B1120';
+const darkSurface = '#111827';
 
 export const Colors = {
   light: {
@@ -19,6 +21,7 @@ export const Colors = {
     icon: '#687076',
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
+    destructive: '#DC2626',
   },
   dark: {
     text: '#F5F5F5',
@@ -32,5 +35,6 @@ export const Colors = {
     icon: '#cbd5e1',        // Slate-300
     tabIconDefault: '#94a3b8',
     tabIconSelected: tintColorDark,
+    destructive: '#EF4444',
   },
 };

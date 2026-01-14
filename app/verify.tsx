@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { captureException } from '@/utils/sentry';
 
-export default function VerifyEmailScreen() {
+export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ devCode?: string }>();
@@ -42,23 +42,23 @@ export default function VerifyEmailScreen() {
   const onVerify = async () => {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
-    
+
     const startTime = Date.now();
     const email = pendingVerificationEmail || user?.email;
-    
+
     try {
       await User.verifyEmail(code.trim());
       const verifyDuration = Date.now() - startTime;
-      
+
       captureException(new Error(`[TELEMETRY] Email verified in ${verifyDuration}ms`), {
         tags: { context: 'verify-email-success', duration_ms: String(verifyDuration) },
         extra: { email },
       });
-      
-      setInfo('✅ Email verified successfully!');
+
+      setInfo('Email verified successfully!');
       setCode('');
       setIsVerified(true);
-      
+
       // After successful verification, refresh auth state and navigate
       try {
         await checkAuth();
@@ -106,19 +106,19 @@ export default function VerifyEmailScreen() {
 
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
-    
+
     const startTime = Date.now();
     const email = pendingVerificationEmail || user?.email;
-    
+
     try {
       const res: any = await User.requestVerification();
       const resendDuration = Date.now() - startTime;
-      
+
       captureException(new Error(`[TELEMETRY] Resend requested in ${resendDuration}ms`), {
         tags: { context: 'verify-email-resend-success', duration_ms: String(resendDuration) },
         extra: { email, sendgrid_ready: res?.dev_verification_code ? 'dev-mode' : 'production' },
       });
-      
+
       if (res?.dev_verification_code) {
         setDevCode(res.dev_verification_code);
         setInfo(`Code sent (dev: ${res.dev_verification_code})`);
@@ -190,36 +190,36 @@ export default function VerifyEmailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen 
-        options={{ 
-          title: 'Verify Email',
+      <Stack.Screen
+        options={{
+          title: 'Verify Your Account',
           headerShown: false,
-        }} 
+        }}
       />
-      
+
       {/* Back Button */}
-      <Pressable 
-        onPress={() => void router.back()} 
+      <Pressable
+        onPress={() => void router.back()}
         style={styles.backButton}
         hitSlop={8}
       >
         <Ionicons name="arrow-back" size={24} color={Colors[colorScheme].text} />
       </Pressable>
-      
+
       {/* Header Icon */}
       <View style={styles.iconContainer}>
         <Ionicons name="mail-outline" size={64} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
       </View>
-      
+
       <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Check Your Email</Text>
       <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-        We sent a 6-digit verification code to {pendingVerificationEmail || user?.email || 'your email address'}. 
+        We sent a 6-digit verification code to {pendingVerificationEmail || user?.email || 'your email address'}.
         Enter the code below to complete your registration.
       </Text>
-      
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {info ? <Text style={styles.info}>{info}</Text> : null}
-      
+
       {/* Dev Code Display */}
       {devCode ? (
         <View style={styles.devCodeContainer}>
@@ -227,14 +227,14 @@ export default function VerifyEmailScreen() {
           <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
         </View>
       ) : null}
-      
+
       <View style={styles.codeSection}>
         <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
-        <Input 
-          placeholder="123456" 
-          value={code} 
-          onChangeText={setCode} 
-          keyboardType="number-pad" 
+        <Input
+          placeholder="123456"
+          value={code}
+          onChangeText={setCode}
+          keyboardType="number-pad"
           maxLength={6}
           style={styles.codeInput}
         />
@@ -252,21 +252,21 @@ export default function VerifyEmailScreen() {
           </Text>
         </Pressable>
       )}
-      
+
       {isVerified ? (
         <Button onPress={onContinue} style={styles.verifyButton}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Continue to App</Text>
         </Button>
       ) : (
-        <Button 
+        <Button
           onPress={onVerify}
-          disabled={loading || code.trim().length < 4} 
+          disabled={loading || code.trim().length < 4}
           style={styles.verifyButton}
         >
           {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
         </Button>
       )}
-      
+
       {!isVerified && (
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: Colors[colorScheme].mutedText }]}>Didn't receive the code?</Text>
@@ -275,13 +275,13 @@ export default function VerifyEmailScreen() {
           </Pressable>
         </View>
       )}
-      
+
       {!isVerified && (
         <Pressable style={styles.skipButton} onPress={() => void router.replace('/onboarding/step-1-role')}>
           <Text style={[styles.skipText, { color: Colors[colorScheme].mutedText }]}>Skip for now</Text>
         </Pressable>
       )}
-      
+
       {isVerified && (
         <Text style={[styles.autoRedirectText, { color: Colors[colorScheme].mutedText }]}>
           Automatically continuing in a few seconds...
@@ -293,10 +293,10 @@ export default function VerifyEmailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, justifyContent: 'center' },
-  backButton: { 
-    position: 'absolute', 
-    top: 60, 
-    left: 20, 
+  backButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
     zIndex: 10,
     padding: 8,
     backgroundColor: 'rgba(0,0,0,0.05)',
@@ -305,20 +305,6 @@ const styles = StyleSheet.create({
   iconContainer: { alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
   subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  emailButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 8, 
-    backgroundColor: '#EFF6FF', 
-    borderWidth: 1,
-    borderColor: '#2563EB',
-    borderRadius: 12, 
-    paddingVertical: 14, 
-    paddingHorizontal: 20,
-    marginBottom: 24
-  },
-  emailButtonText: { fontSize: 16, fontWeight: '700' },
   codeSection: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   codeInput: { fontSize: 24, textAlign: 'center', letterSpacing: 8 },
@@ -331,16 +317,16 @@ const styles = StyleSheet.create({
   skipText: { fontSize: 14 },
   error: { color: '#DC2626', marginBottom: 12, textAlign: 'center', fontSize: 14 },
   info: { color: '#059669', marginBottom: 12, textAlign: 'center', fontSize: 14 },
-  devCodeContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 8, 
-    backgroundColor: '#D1FAE5', 
-    paddingVertical: 10, 
-    paddingHorizontal: 16, 
-    borderRadius: 8, 
-    marginBottom: 16 
+  devCodeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16
   },
   devCodeText: { color: '#059669', fontSize: 14, fontWeight: '600' },
   autoRedirectText: { fontSize: 14, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },

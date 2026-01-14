@@ -68,6 +68,9 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
+  // Phone verification
+  requestPhoneVerification: (phone: string) => auth.requestPhoneVerification(phone),
+  verifyPhone: (phone: string, code: string) => auth.verifyPhone(phone, code),
 };
 
 export const Game = {
@@ -223,6 +226,7 @@ export const Post = {
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
+  getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
 };
 
 export const Event = {
@@ -233,7 +237,7 @@ export const Event = {
     if (where.event_type) q.push('event_type=' + encodeURIComponent(where.event_type));
     if (where.q) q.push('q=' + encodeURIComponent(where.q));
     if (sort) q.push('sort=' + encodeURIComponent(sort));
-    if (typeof limit === 'number') q.push('limit=' + encodeURIComponent(String(limit)));
+    if (typeof limit === 'number') q.push('limit=' + String(limit));
     return httpGet('/events' + (q.length ? '?' + q.join('&') : ''));
   },
   get: (id: string) => httpGet('/events/' + encodeURIComponent(id)),
@@ -328,7 +332,7 @@ export const Team = {
     if (q) params.push(`q=${encodeURIComponent(q)}`);
     if (mine) params.push('mine=1');
     if (options?.directory) params.push('directory=1');
-    if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
+    if (typeof options?.limit === 'number') params.push(`limit=${String(options.limit)}`);
     const qs = params.length ? '?' + params.join('&') : '';
     return httpGet('/teams' + qs);
   },
@@ -416,6 +420,8 @@ export const Subscriptions = {
 
 export const TeamMemberships = {
   create: (data: { team_id: string; user_id: string; role?: string }) => httpPost('/team-memberships', data),
+  update: (membershipId: string, data: { role?: string; custom_position?: string }) => httpPatch(`/team-memberships/${encodeURIComponent(membershipId)}`, data),
+  delete: (membershipId: string) => httpDelete(`/team-memberships/${encodeURIComponent(membershipId)}`),
 };
 
 export const TeamInvites = {

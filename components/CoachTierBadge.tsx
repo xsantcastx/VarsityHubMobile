@@ -97,25 +97,6 @@ function getSizeStyles(size: 'small' | 'medium' | 'large') {
   }
 }
 
-/**
- * Inline badge (icon only, smaller)
- */
-export function CoachTierBadgeInline({ tier }: { tier: CoachTier }) {
-  const config = getTierConfig(tier);
-
-  return (
-    <View
-      style={[
-        styles.inlineBadge,
-        {
-          backgroundColor: config.backgroundColor,
-        },
-      ]}
-    >
-      <Ionicons name={config.icon} size={12} color={config.iconColor} />
-    </View>
-  );
-}
 
 /**
  * Tier benefits description component
@@ -223,13 +204,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontWeight: '600',
-  },
-  inlineBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   benefitsContainer: {
     padding: 16,

@@ -70,12 +70,14 @@ export default function NotificationsScreen() {
     if (!hasUnread || markingAll) return;
     setMarkingAll(true);
     const now = new Date().toISOString();
-    // Optimistic
-    setItems((prev) => prev.map((n) => n.read_at ? n : { ...n, read_at: now }));
+    const previousItems = items;
+    const updatedItems = items.map((n) => (n.read_at ? n : { ...n, read_at: now }));
+    setItems(updatedItems);
     try {
       await Notification.markAllRead();
-    } catch {
-      // non-fatal; keep optimistic state for now
+    } catch (err) {
+      console.error('Failed to mark all notifications as read', err);
+      setItems(previousItems);
     } finally {
       setMarkingAll(false);
     }
@@ -97,8 +99,14 @@ export default function NotificationsScreen() {
       }
       // Mark read optimistically
       if (!item.read_at) {
-        setItems((prev) => prev.map((n) => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n));
-        Notification.markRead(item.id).catch(() => {});
+        const previousItems = items;
+        const now = new Date().toISOString();
+        const updated = items.map((n) => (n.id === item.id ? { ...n, read_at: now } : n));
+        setItems(updated);
+        Notification.markRead(item.id).catch((err) => {
+          console.error('Failed to mark notification as read', err);
+          setItems(previousItems);
+        });
       }
     };
     return (

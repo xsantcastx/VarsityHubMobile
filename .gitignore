@@ -86,3 +86,8 @@ coverage-*/
 playwright-report/
 test-results/
 *.coverage
+
+# Local audit artifacts
+overnight.log
+midnight-health.json
+overnight-audit.sh

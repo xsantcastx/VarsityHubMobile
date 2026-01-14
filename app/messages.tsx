@@ -207,12 +207,28 @@ export default function MessagesScreen() {
   };
 
   const startConversation = (user: MiniUser) => {
+    // When starting a conversation, immediately clear the sharePost param
+    // so the compose modal doesn't re-open on its own.
+    if (sharePostId) {
+      router.setParams({ sharePost: '' });
+    }
     setComposeOpen(false);
     setSearchUserQuery('');
     setSearchResults([]);
+<<<<<<< HEAD
     const base = `/message-thread?with=${encodeURIComponent(user.id)}`;
     router.push(buildThreadPath(base) as any);
     if (prefillMessage) setPrefillMessage(null);
+=======
+
+    const params: Record<string, string> = { with: user.id };
+    // Pass the pre-filled message to the thread screen
+    if (prefillMessage) {
+      params.prefill = prefillMessage;
+      setPrefillMessage(null);
+    }
+    router.push({ pathname: '/message-thread', params });
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   };
 
   const formatTime = (dateStr: string) => {

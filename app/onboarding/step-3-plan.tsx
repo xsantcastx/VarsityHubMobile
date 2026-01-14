@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 // @ts-ignore
+<<<<<<< HEAD
 import { Subscriptions, User } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan } from '@/constants/plans';
+=======
+import { Payments, Subscriptions, User } from '@/api/entities';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { useOnboarding } from '@/context/OnboardingContext';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -30,9 +34,26 @@ const PLAN_OPTIONS: PlanOption[] = Object.values(PLAN_DEFINITIONS).map((plan) =>
   features: plan.features,
 }));
 
-function PlanCard({ option, selected, onPress, onContinue, saving }: { option: PlanOption; selected: boolean; onPress: () => void; onContinue?: () => void; saving?: boolean }) {
+function PlanCard({
+  option,
+  selected,
+  onPress,
+  onContinue,
+  saving,
+  disabled,
+  disabledReason,
+}: {
+  option: PlanOption;
+  selected: boolean;
+  onPress: () => void;
+  onContinue?: () => void;
+  saving?: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
+}) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const continueDisabled = saving || disabled;
   
   // Icon mapping - using Ionicons
   const getIconName = (): any => {
@@ -74,19 +95,22 @@ function PlanCard({ option, selected, onPress, onContinue, saving }: { option: P
       {selected && onContinue && (
         <Pressable 
           onPress={onContinue}
-          disabled={saving}
+          disabled={continueDisabled}
           style={styles.sideButton}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
             <>
-              <Text style={styles.sideButtonText}>Continue</Text>
+              <Text style={styles.sideButtonText}>{continueDisabled && disabledReason ? 'Unavailable' : 'Continue'}</Text>
               <Text style={styles.sideButtonArrow}>→</Text>
             </>
           )}
         </Pressable>
       )}
+      {selected && continueDisabled && disabledReason ? (
+        <Text style={styles.sideButtonDisabledText}>{disabledReason}</Text>
+      ) : null}
     </View>
   );
 }
@@ -112,6 +136,36 @@ export default function Step3Plan() {
   const [resending, setResending] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
+  const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
+  const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
+  const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning =
+    (!paymentsStatusLoading && paymentsTemporarilyDisabled) ||
+    (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const paymentsWarningMessage = paymentsTemporarilyDisabled
+    ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
+    : paymentsStatusError;
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const status = await Payments.configStatus();
+        if (!mounted) return;
+        setPaymentsStatus(status);
+        setPaymentsStatusError(null);
+      } catch (err) {
+        if (!mounted) return;
+        setPaymentsStatusError('Unable to confirm payment readiness right now.');
+      } finally {
+        if (mounted) setPaymentsStatusLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const navigateNext = () => {
     if (returnToConfirmation) {
@@ -163,6 +217,13 @@ export default function Step3Plan() {
 
   const onContinue = async () => {
     if (!plan) return;
+    if (plan !== 'rookie' && paymentsTemporarilyDisabled) {
+      Alert.alert(
+        'Payments unavailable',
+        'Coach plans cannot be purchased until payments are configured. Please try again later or continue with the Rookie plan.'
+      );
+      return;
+    }
     
     // If Veteran plan and haven't confirmed team count yet, show modal
     if (plan === 'veteran' && !showTeamCountModal) {
@@ -300,13 +361,34 @@ export default function Step3Plan() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.content}>
+        {showPaymentsWarning && paymentsWarningMessage ? (
+          <View
+            style={[
+              styles.paymentBanner,
+              paymentsTemporarilyDisabled ? styles.paymentBannerError : styles.paymentBannerInfo,
+            ]}
+          >
+            <Text
+              style={[
+                styles.paymentBannerText,
+                paymentsTemporarilyDisabled
+                  ? { color: '#92400E' }
+                  : { color: colorScheme === 'dark' ? '#E0F2FE' : '#1F2937' },
+              ]}
+            >
+              {paymentsWarningMessage}
+            </Text>
+          </View>
+        ) : null}
         {PLAN_OPTIONS.map((option) => (
           <PlanCard
             key={option.id}
-            option={option}
+            option={option as PlanOption}
             selected={plan === option.id}
-            onPress={() => handleSelectPlan(option.id)}
+            onPress={() => handleSelectPlan(option.id as Plan)}
             onContinue={plan === option.id ? onContinue : undefined}
+            disabled={option.id !== 'rookie' && paymentsTemporarilyDisabled}
+            disabledReason={option.id !== 'rookie' && paymentsTemporarilyDisabled ? 'Checkout unavailable' : undefined}
             saving={saving}
           />
         ))}
@@ -481,6 +563,25 @@ export default function Step3Plan() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
+  paymentBanner: {
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  paymentBannerError: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  paymentBannerInfo: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#3B82F6',
+  },
+  paymentBannerText: {
+    fontSize: 13,
+    color: '#1F2937',
+    lineHeight: 18,
+  },
   cardWrapper: {
     flexDirection: 'row',
     marginBottom: 12,
@@ -546,6 +647,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '700',
+  },
+  sideButtonDisabledText: {
+    color: '#DC2626',
+    fontSize: 12,
+    marginLeft: 12,
+    marginTop: 4,
+    maxWidth: 140,
   },
   
   // Modal styles

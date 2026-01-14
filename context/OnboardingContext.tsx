@@ -48,7 +48,7 @@ export type OnboardingState = {
 type Ctx = { 
   state: OnboardingState; 
   setState: (newState: React.SetStateAction<OnboardingState>) => void;
-  clearOnboarding: () => void;
+  clearOnboarding: () => Promise<void>;
   progress: number;
   setProgress: (progress: number) => void;
   isLoaded: boolean;

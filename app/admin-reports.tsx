@@ -1,3 +1,4 @@
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useRequireAdmin } from '@/hooks/useRequireAdmin';
 import { Ionicons } from '@expo/vector-icons';
@@ -338,7 +339,7 @@ export default function AdminReportsScreen() {
   return (
     <SafeAreaView 
       edges={['top']}
-      style={{ flex: 1, backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
+      style={{ flex: 1, backgroundColor: Colors[colorScheme].background }}
     >
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -350,34 +351,39 @@ export default function AdminReportsScreen() {
         }
       >
         {/* Header */}
+<<<<<<< HEAD
         <View style={[styles.header, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : 'white' }]}>
           <Pressable onPress={() => void router.back()} style={styles.backButton}>
+=======
+        <View style={[styles.header, { backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
             <Ionicons 
               name="arrow-back" 
               size={24} 
-              color={colorScheme === 'dark' ? '#ECEDEE' : '#111827'} 
+              color={Colors[colorScheme].text} 
             />
           </Pressable>
-          <Text style={[styles.headerTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>
             Abuse Reports
           </Text>
           <View style={styles.headerRight}>
             <Ionicons 
               name="alert-circle-outline" 
               size={24} 
-              color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} 
+              color={Colors[colorScheme].mutedText} 
             />
           </View>
         </View>
 
         {loading && !refreshing ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color={Colors[colorScheme].tint} />
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
-            <Ionicons name="alert-circle" size={48} color="#EF4444" />
-            <Text style={[styles.errorText, { color: colorScheme === 'dark' ? '#F87171' : '#EF4444' }]}>
+            <Ionicons name="alert-circle" size={48} color={Colors.light.destructive} />
+            <Text style={[styles.errorText, { color: Colors[colorScheme].destructive }]}>
               {error}
             </Text>
             <Pressable style={styles.retryButton} onPress={() => void loadReports()}>
@@ -389,27 +395,27 @@ export default function AdminReportsScreen() {
             {/* Stats */}
             {stats && (
               <View style={styles.statsContainer}>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Pending
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#10B981' }]}>{stats.resolved}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Resolved
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
                   <Text style={[styles.statNumber, { color: '#6B7280' }]}>{stats.dismissed}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Dismissed
                   </Text>
                 </View>
-                <View style={[styles.statBox, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-                  <Text style={[styles.statNumber, { color: '#3B82F6' }]}>{stats.total}</Text>
-                  <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                <View style={[styles.statBox, { backgroundColor: Colors[colorScheme].card }]}>
+                  <Text style={[styles.statNumber, { color: Colors[colorScheme].tint }]}>{stats.total}</Text>
+                  <Text style={[styles.statLabel, { color: Colors[colorScheme].mutedText }]}>
                     Total
                   </Text>
                 </View>
@@ -425,8 +431,8 @@ export default function AdminReportsScreen() {
                     styles.filterTab,
                     {
                       backgroundColor: filterStatus === status
-                        ? '#3B82F6'
-                        : (colorScheme === 'dark' ? '#1F2937' : 'white'),
+                        ? Colors[colorScheme].tint
+                        : Colors[colorScheme].card,
                     },
                   ]}
                   onPress={() => setFilterStatus(status)}
@@ -436,8 +442,8 @@ export default function AdminReportsScreen() {
                       styles.filterTabText,
                       {
                         color: filterStatus === status
-                          ? 'white'
-                          : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'),
+                          ? Colors.dark.text
+                          : Colors[colorScheme].mutedText,
                       },
                     ]}
                   >
@@ -449,8 +455,8 @@ export default function AdminReportsScreen() {
 
             {/* Bulk Actions */}
             {selectedReports.size > 0 && (
-              <View style={[styles.bulkActionsBar, { backgroundColor: colorScheme === 'dark' ? '#1F2937' : 'white' }]}>
-                <Text style={[styles.bulkActionsText, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+              <View style={[styles.bulkActionsBar, { backgroundColor: Colors[colorScheme].card }]}>
+                <Text style={[styles.bulkActionsText, { color: Colors[colorScheme].text }]}>
                   {selectedReports.size} selected
                 </Text>
                 <View style={styles.bulkActionsButtons}>
@@ -489,9 +495,9 @@ export default function AdminReportsScreen() {
                   <Ionicons 
                     name="document-text-outline" 
                     size={64} 
-                    color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+                    color={Colors[colorScheme].mutedText} 
                   />
-                  <Text style={[styles.emptyStateText, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                  <Text style={[styles.emptyStateText, { color: Colors[colorScheme].mutedText }]}>
                     No reports found
                   </Text>
                 </View>

@@ -8,9 +8,13 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import PrimaryButton from '@/components/ui/PrimaryButton';
+<<<<<<< HEAD
 import { Radius, Type } from '@/components/ui/tokens';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+=======
+import { Color, Radius, Type } from '@/components/ui/tokens';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 // @ts-ignore api exports
 import { Event } from '@/api/entities';
 
@@ -112,6 +116,7 @@ export default function TeamHubScreen() {
 
   return (
     <SafeAreaView style={S.page} edges={['top']}>
+<<<<<<< HEAD
       <Stack.Screen options={{ 
         title: 'Team Hub',
         headerLeft: () => (
@@ -125,11 +130,23 @@ export default function TeamHubScreen() {
       {/* Search */}
       <View style={S.searchWrap}>
         <Ionicons name="search" size={18} color={palette.placeholder} style={{ marginRight: 8 }} />
+=======
+      <Stack.Screen options={{ title: 'Team Hub' }} />
+      <Text style={[Type.h1 as any, { color: Color.text, marginHorizontal: 16, marginTop: 8, marginBottom: 12 }]}>Team Hub</Text>
+
+      {/* Search */}
+      <View style={S.searchWrap}>
+        <Ionicons name="search" size={18} color={Color.textMuted} style={{ marginRight: 8 }} />
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Search for teams, players, or events."
+<<<<<<< HEAD
           placeholderTextColor={palette.placeholder}
+=======
+          placeholderTextColor={Color.textMuted}
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
           style={S.searchInput}
         />
       </View>
@@ -141,18 +158,29 @@ export default function TeamHubScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={S.iconTile}><Ionicons name="shield-checkmark" size={24} color={palette.primary} /></View>
           <View style={{ flex: 1 }}>
+<<<<<<< HEAD
             <Text style={[Type.h1 as any, { color: palette.text }]}>Team Management</Text>
             <Text style={[Type.sub as any]}>Create new teams and manage existing ones.</Text>
+=======
+            <Text style={[Type.h1 as any, { color: Color.text }]}>Team Management</Text>
+            <Text style={[Type.caption as any, { color: Color.textMuted }]}>Create new teams and manage existing ones.</Text>
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
           </View>
         </View>
 
         <View style={S.dashedBox}>
+<<<<<<< HEAD
           <Text style={{ fontWeight: '800', color: palette.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
           <Text style={[Type.sub as any, { textAlign: 'center', marginBottom: 12 }]}>Create a team to get started.</Text>
           <PrimaryButton
             label="Create New Team"
             onPress={() => void router.push('/create-team')}
           />
+=======
+          <Text style={{ fontWeight: '800', color: Color.text, marginBottom: 4 }}>You are not managing any teams yet.</Text>
+          <Text style={[Type.caption as any, { textAlign: 'center', marginBottom: 12, color: Color.textMuted }]}>Create a team to get started.</Text>
+          <PrimaryButton label="Create New Team" onPress={() => router.push('/onboarding/step-4-organization')} />
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         </View>
       </View>
 
@@ -205,7 +233,7 @@ export default function TeamHubScreen() {
         {eventsLoading ? (
           <ActivityIndicator color={palette.primary} />
         ) : eventsError ? (
-          <Text style={[Type.sub as any, { color: '#b91c1c' }]}>{eventsError}</Text>
+          <Text style={[Type.caption as any, { color: '#b91c1c' }]}>{eventsError}</Text>
         ) : upcomingEvents.length === 0 ? (
           <Text style={S.eventsEmpty}>No upcoming events yet.</Text>
         ) : (
@@ -239,7 +267,11 @@ export default function TeamHubScreen() {
                     </View>
                     {typeof evt.capacity === 'number' ? (
                       <View style={S.eventChipMuted}>
+<<<<<<< HEAD
                         <Ionicons name="alert-circle" size={14} color={palette.placeholder} />
+=======
+                         <Ionicons name="alert-circle" size={14} color={Color.textMuted} />
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                         <Text style={S.eventChipMutedText}>{evt.capacity} capacity</Text>
                       </View>
                     ) : null}
@@ -254,6 +286,7 @@ export default function TeamHubScreen() {
   );
 }
 
+<<<<<<< HEAD
 type Palette = ReturnType<typeof buildPalette>;
 
 const buildPalette = (scheme: keyof typeof Colors) => ({
@@ -268,6 +301,10 @@ const buildPalette = (scheme: keyof typeof Colors) => ({
 
 const createStyles = (palette: Palette) => StyleSheet.create({
   page: { flex: 1, backgroundColor: palette.pageBg },
+=======
+const S = StyleSheet.create({
+  page: { flex: 1, backgroundColor: Color.background },
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
     height: 48, marginHorizontal: 16, borderRadius: Radius.md,
@@ -276,7 +313,11 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   },
   searchInput: { flex: 1, color: palette.text },
   tabsWrap: {
+<<<<<<< HEAD
     flexDirection: 'row', backgroundColor: palette.tabBg, borderRadius: Radius.md,
+=======
+    flexDirection: 'row', backgroundColor: Color.surface, borderRadius: Radius.md,
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     marginHorizontal: 16, marginTop: 12, padding: 6, gap: 6, height: 40,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md },
@@ -287,9 +328,15 @@ const createStyles = (palette: Palette) => StyleSheet.create({
     margin: 16, padding: 16, borderRadius: Radius.lg, backgroundColor: palette.surface,
     borderWidth: 1, borderColor: palette.border, gap: 12,
   },
+<<<<<<< HEAD
   iconTile: { width: 56, height: 56, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.infoTile },
   dashedBox: {
     borderWidth: 2, borderStyle: 'dashed', borderColor: palette.borderMuted, borderRadius: Radius.md,
+=======
+  iconTile: { width: 56, height: 56, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: Color.surface },
+  dashedBox: {
+    borderWidth: 2, borderStyle: 'dashed', borderColor: Color.border, borderRadius: Radius.md,
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     padding: 16, alignItems: 'center', justifyContent: 'center', minHeight: 180, marginTop: 8,
   },
   // Countdown
@@ -350,7 +397,11 @@ const createStyles = (palette: Palette) => StyleSheet.create({
     opacity: 0.6,
   },
   eventsWrap: { marginHorizontal: 16, gap: 12, marginBottom: 24 },
+<<<<<<< HEAD
   eventsEmpty: { color: palette.placeholder, fontStyle: 'italic' },
+=======
+  eventsEmpty: { color: Color.textMuted, fontStyle: 'italic' },
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   eventCard: {
     borderRadius: Radius.lg,
     backgroundColor: palette.surface,

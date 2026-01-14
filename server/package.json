@@ -23,8 +23,11 @@
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@prisma/client": "^5.22.0",
+<<<<<<< HEAD
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@sendgrid/mail": "^8.1.6",
+=======
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     "@sentry/node": "^7.91.0",
     "@sentry/profiling-node": "^7.91.0",
     "bcrypt": "^5.1.1",
@@ -68,8 +71,12 @@
     "@types/node": "^20.19.26",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^7.0.1",
+<<<<<<< HEAD
     "@types/swagger-ui-express": "^4.1.8",
     "babel-plugin-istanbul": "^6.1.1",
+=======
+    "@types/swagger-ui-express": "^4.1.6",
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "ts-jest": "^29.1.1",

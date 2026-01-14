@@ -798,4 +798,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 4,
   },
+  accountUpgradeNote: {
+    marginTop: 8,
+    fontSize: 12,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
 });

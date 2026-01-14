@@ -18,6 +18,7 @@ export default function Step10Confirmation() {
   const { checkAuth, markOnboardingCompleteLocally, user } = useAuth();
   const colorScheme = useColorScheme() ?? 'light';
   const [completing, setCompleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
@@ -41,6 +42,14 @@ export default function Step10Confirmation() {
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
+<<<<<<< HEAD
+=======
+    const isFan = ob.role === 'fan';
+    const isCoach = ob.role === 'coach';
+    const paymentRequired = isCoach && (ob.plan === 'veteran' || ob.plan === 'legend');
+    const paymentCompleted = !paymentRequired || ob.payment_pending === false;
+
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     const checks = [
       {
         label: 'Role Selected',
@@ -70,6 +79,13 @@ export default function Step10Confirmation() {
         route: '/onboarding/step-3-plan',
         description: 'Choose your subscription plan (coaches only)'
       },
+      ...(paymentRequired ? [{
+        label: 'Subscription Payment',
+        completed: paymentCompleted,
+        required: true,
+        route: '/onboarding/step-3-plan',
+        description: 'Complete checkout for your coach plan'
+      }] : []),
       {
         label: 'Page Created',
         completed: !!(ob.team_name || ob.organization_name),
@@ -133,12 +149,17 @@ export default function Step10Confirmation() {
     }
   };
 
+  // Define isCoach based on role
+  const isCoach = ob.role === 'coach';
+
   const onComplete = async () => {
     if (!completion.allRequiredComplete) {
       Alert.alert('Setup Incomplete', 'Please complete all required steps before continuing.');
+      setErrorMessage('Complete all required steps before finishing setup.');
       return;
     }
 
+    setErrorMessage(null);
     setCompleting(true);
     try {
       // Debug: log final payload
@@ -223,6 +244,7 @@ export default function Step10Confirmation() {
       // Final submission to backend - mark onboarding as complete
       await User.completeOnboarding(completionPayload);
       
+<<<<<<< HEAD
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
       
@@ -233,10 +255,15 @@ export default function Step10Confirmation() {
       // Server confirmed success - now safe to clear local state
       await markOnboardingCompleteLocally();
       clearOnboarding();
+=======
+      // Clear onboarding state
+      await clearOnboarding();
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       
       // Navigate to main app
       router.replace('/(tabs)');
     } catch (e: any) {
+<<<<<<< HEAD
       const errorMessage = e?.message || 'Failed to complete onboarding';
       
       // Extract detailed Zod validation errors if available
@@ -276,6 +303,11 @@ export default function Step10Confirmation() {
         ]
       );
       // DO NOT clear onboarding state on error - preserve user's progress
+=======
+      console.error('Onboarding completion error:', e);
+      Alert.alert('Setup Failed', e?.message || 'Please try again or contact support.');
+      setErrorMessage(e?.message || 'Unable to complete setup. Please try again.');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     } finally { 
       setCompleting(false); 
     }
@@ -420,6 +452,9 @@ export default function Step10Confirmation() {
 
         {/* Complete Setup Button */}
         <View style={styles.completeSection}>
+          {errorMessage ? (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          ) : null}
           <PrimaryButton 
             label={completing ? 'Completing Setup...' : 'Complete Setup'} 
             onPress={onComplete} 
@@ -609,6 +644,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   
   completeSection: {
     marginTop: 24,
+  },
+  errorText: {
+    color: colorScheme === 'dark' ? '#fca5a5' : '#DC2626',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   completeHelpText: {
     color: Colors[colorScheme].mutedText,

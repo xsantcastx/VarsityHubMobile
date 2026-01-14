@@ -59,8 +59,8 @@
     "__tests__/**/*.ts",
     "__tests__/**/*.tsx",
     "jest.setup.ts",
+    "types/**/*.d.ts",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "types/**/*.d.ts"
+    "expo-env.d.ts"
   ]
 }

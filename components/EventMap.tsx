@@ -13,13 +13,13 @@ import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker, PROVIDER_DEFAULT, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, Region } from 'react-native-maps';
+import { getMapProvider } from '@/utils/maps';
 
 import { EventMapProps } from './EventMap.types';
 
@@ -136,7 +136,7 @@ export default function EventMap({
       <MapView
         ref={mapRef}
         style={styles.map}
-        provider={Platform.OS === 'ios' ? PROVIDER_DEFAULT : PROVIDER_GOOGLE}
+        provider={getMapProvider()}
         initialRegion={region}
         region={region}
         onRegionChangeComplete={setRegion}

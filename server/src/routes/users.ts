@@ -3,6 +3,7 @@ import { notifyNewFollower } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import { emailQueue } from '../lib/queue.js';
 import type { AuthedRequest } from '../middleware/auth.js';
+import { followLimiter } from '../middleware/rateLimiters.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 
@@ -312,7 +313,7 @@ usersRouter.get('/lookup', async (req, res) => {
 });
 
 // Follow a user
-usersRouter.post('/:id/follow', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.post('/:id/follow', followLimiter, requireAuth as any, async (req: AuthedRequest, res) => {
   const follower_id = req.user!.id;
   const following_id = req.params.id;
 

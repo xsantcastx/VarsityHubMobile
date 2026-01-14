@@ -161,7 +161,7 @@ export default function AdminActivityLogScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : '#F3F4F6' }]}
+      style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}
       edges={['top']}
     >
       <Stack.Screen

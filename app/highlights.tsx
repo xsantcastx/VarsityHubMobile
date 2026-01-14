@@ -1,6 +1,10 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+<<<<<<< HEAD
 import AppLinks from '@/utils/links';
+=======
+import { shareText } from '@/utils/share';
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +14,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    GestureResponderEvent,
     Platform,
     Pressable,
     RefreshControl,
@@ -85,6 +90,12 @@ const formatCount = (value?: number | null) => {
   return String(value);
 };
 
+const normalizeList = <T = any>(input: any): T[] => {
+  if (Array.isArray(input)) return input;
+  if (input && Array.isArray(input.items)) return input.items;
+  return [];
+};
+
 const getCountryFlag = (countryCode?: string | null) => {
   const flags: { [key: string]: string } = {
     'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
@@ -102,6 +113,12 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
+};
+
+const stopPressPropagation = (event?: GestureResponderEvent) => {
+  if (event && typeof (event as any).stopPropagation === 'function') {
+    (event as any).stopPropagation();
+  }
 };
 
 const HighlightCard = ({ 
@@ -215,7 +232,7 @@ const HighlightCard = ({
           <Pressable 
             style={styles.authorRow}
             onPress={(e) => {
-              e.stopPropagation();
+              stopPressPropagation(e);
               if (item.author_id && onAuthorPress) {
                 onAuthorPress(item.author_id);
               }
@@ -242,7 +259,7 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={(e) => {
-                e.stopPropagation();
+                stopPressPropagation(e);
                 // Handle upvote action
                 Alert.alert('Upvote', 'Feature coming soon!');
               }}
@@ -254,7 +271,7 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={(e) => {
-                e.stopPropagation();
+                stopPressPropagation(e);
                 onPress(item); // Navigate to post detail to see comments
               }}
             >
@@ -265,8 +282,9 @@ const HighlightCard = ({
             <Pressable 
               style={styles.actionButton}
               onPress={async (e) => {
-                e.stopPropagation();
+                stopPressPropagation(e);
                 try {
+<<<<<<< HEAD
                   const link = AppLinks.post(String(item.id), item.caption || item.title);
                   await Share.share({ message: link.shareMessage, url: link.webUrl, title: item.title || 'VarsityHub Highlight' });
                 } catch {
@@ -281,6 +299,25 @@ const HighlightCard = ({
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
                   } catch {}
+=======
+                  const base = process.env.EXPO_PUBLIC_APP_BASE_URL || 'https://varsityhub.com';
+                  const shareUrl = `${base}/highlights/${item.id}`;
+                  const caption = item.caption?.trim();
+                  const message = caption ? `${caption}\n${shareUrl}` : shareUrl;
+                  const result = await shareText(
+                    message,
+                    Platform.OS === 'android' ? { dialogTitle: item.title || 'VarsityHub Highlight' } : undefined
+                  );
+                  if (__DEV__) {
+                    const actionLabel =
+                      result?.action === Share.dismissedAction
+                        ? 'dismissed'
+                        : result?.action ?? 'fallback';
+                    console.log('Highlight share action', actionLabel);
+                  }
+                } catch (shareError) {
+                  console.error('Failed to share highlight', shareError);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                 }
               }}
             >
@@ -406,7 +443,10 @@ export default function HighlightsScreen() {
 
     setSearching(true);
     try {
+      const trimmedQuery = query.trim();
+      const limit = 5;
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
+<<<<<<< HEAD
         Team.list(query, false, { limit: 5 }).catch(() => []),
         Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
         User.listAll(query, 5).catch(() => []),
@@ -417,6 +457,19 @@ export default function HighlightsScreen() {
       const events = Array.isArray(eventsRes) ? eventsRes.slice(0, 5) : [];
       const users = Array.isArray(usersRes) ? usersRes.slice(0, 5) : [];
       const organizations = Array.isArray(orgsRes) ? orgsRes.slice(0, 5) : [];
+=======
+        Team.list(trimmedQuery, { limit }).catch(() => []),
+        Event.filter({ q: trimmedQuery, approval_status: 'approved' }, 'date', limit).catch(() => []),
+        User.listAll(trimmedQuery, limit).catch(() => []),
+        Organization.list(trimmedQuery, limit).catch(() => []),
+      ]);
+
+      const queryLower = trimmedQuery.toLowerCase();
+      const teams = normalizeList(teamsRes).slice(0, limit);
+      const events = normalizeList(eventsRes).slice(0, limit);
+      const users = normalizeList(usersRes).slice(0, limit);
+      const organizations = normalizeList(orgsRes).slice(0, limit);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
 
       // Filter posts
       const posts = highlights.filter(item => {

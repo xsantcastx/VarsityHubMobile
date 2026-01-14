@@ -213,7 +213,11 @@ PODS:
     - ExpoModulesCore
   - ExpoAsset (12.0.11):
     - ExpoModulesCore
+<<<<<<< HEAD
   - ExpoAudio (1.0.16):
+=======
+  - ExpoAudio (1.0.15):
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     - ExpoModulesCore
   - ExpoBlur (15.0.8):
     - ExpoModulesCore
@@ -294,7 +298,11 @@ PODS:
   - ExpoWebBrowser (15.0.10):
     - ExpoModulesCore
   - EXStructuredHeaders (5.0.0)
+<<<<<<< HEAD
   - EXUpdates (29.0.15):
+=======
+  - EXUpdates (29.0.13):
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     - EASClient
     - EXManifests
     - ExpoModulesCore
@@ -2213,7 +2221,11 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+<<<<<<< HEAD
   - RNReanimated (4.1.6):
+=======
+  - RNReanimated (4.1.5):
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2235,10 +2247,17 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+<<<<<<< HEAD
     - RNReanimated/reanimated (= 4.1.6)
     - RNWorklets
     - Yoga
   - RNReanimated/reanimated (4.1.6):
+=======
+    - RNReanimated/reanimated (= 4.1.5)
+    - RNWorklets
+    - Yoga
+  - RNReanimated/reanimated (4.1.5):
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2260,10 +2279,17 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
+<<<<<<< HEAD
     - RNReanimated/reanimated/apple (= 4.1.6)
     - RNWorklets
     - Yoga
   - RNReanimated/reanimated/apple (4.1.6):
+=======
+    - RNReanimated/reanimated/apple (= 4.1.5)
+    - RNWorklets
+    - Yoga
+  - RNReanimated/reanimated/apple (4.1.5):
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2429,9 +2455,15 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+<<<<<<< HEAD
   - SDWebImage (5.21.5):
     - SDWebImage/Core (= 5.21.5)
   - SDWebImage/Core (5.21.5)
+=======
+  - SDWebImage (5.21.4):
+    - SDWebImage/Core (= 5.21.4)
+  - SDWebImage/Core (5.21.4)
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   - SDWebImageAVIFCoder (0.11.1):
     - libavif/core (>= 0.11.0)
     - SDWebImage (~> 5.10)
@@ -2524,7 +2556,11 @@ DEPENDENCIES:
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+<<<<<<< HEAD
   - react-native-google-maps (from `/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/react-native-maps`)
+=======
+  - react-native-google-maps (from `/Users/varsityhub/VarsityHubMobile/node_modules/react-native-maps`)
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   - react-native-maps (from `../node_modules/react-native-maps`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-view-shot (from `../node_modules/react-native-view-shot`)
@@ -2745,7 +2781,11 @@ EXTERNAL SOURCES:
   React-microtasksnativemodule:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
   react-native-google-maps:
+<<<<<<< HEAD
     :path: "/Users/varsityhub/Desktop/CODE/VarsityHubMobile/node_modules/react-native-maps"
+=======
+    :path: "/Users/varsityhub/VarsityHubMobile/node_modules/react-native-maps"
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   react-native-maps:
     :path: "../node_modules/react-native-maps"
   react-native-safe-area-context:
@@ -2848,6 +2888,7 @@ SPEC CHECKSUMS:
   expo-dev-launcher: a4f4cdef064ab1fb8621e5b8c7c457cd6e9568c3
   expo-dev-menu: 05b18812110c175814c6af0d09dd658abcc5e00d
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
+<<<<<<< HEAD
   ExpoAppleAuthentication: 9413ae9a5e631a424cc04c1b13b0694dbab7d594
   ExpoAsset: 23a958e97d3d340919fe6774db35d563241e6c03
   ExpoAudio: a05a68b4a0bed05b3f255fd60ff4405b4e7e009a
@@ -2877,6 +2918,35 @@ SPEC CHECKSUMS:
   ExpoWebBrowser: 17b064c621789e41d4816c95c93f429b84971f52
   EXStructuredHeaders: c951e77f2d936f88637421e9588c976da5827368
   EXUpdates: f20abbc8a9f4e150656fe88126d52f52d4e7793f
+=======
+  ExpoAppleAuthentication: bc9de6e9ff3340604213ab9031d4c4f7f802623e
+  ExpoAsset: d839c8eae8124470332408427327e8f88beb2dfd
+  ExpoAudio: a435784a5da9c27649d5c585b47c65ee4e25ff2a
+  ExpoBlur: 2dd8f64aa31f5d405652c21d3deb2d2588b1852f
+  ExpoCrypto: c1fbce112d1b6b79652bbe380b4fd4cc91676595
+  ExpoDocumentPicker: 2200eefc2817f19315fa18f0147e0b80ece86926
+  ExpoFileSystem: 77157a101e03150a4ea4f854b4dd44883c93ae0a
+  ExpoFont: cf9d90ec1d3b97c4f513211905724c8171f82961
+  ExpoHaptics: 807476b0c39e9d82b7270349d6487928ce32df84
+  ExpoHead: 95a6ee0be1142320bccf07961d6a1502ded5d6ac
+  ExpoImage: 9c3428921c536ab29e5c6721d001ad5c1f469566
+  ExpoImageManipulator: ead6e7cca441603bfaecc898a69a093adef8b4ef
+  ExpoImagePicker: d251aab45a1b1857e4156fed88511b278b4eee1c
+  ExpoKeepAwake: 1a2e820692e933c94a565ec3fbbe38ac31658ffe
+  ExpoLinearGradient: a464898cb95153125e3b81894fd479bcb1c7dd27
+  ExpoLinking: 77455aa013e9b6a3601de03ecfab09858ee1b031
+  ExpoLocation: 93d7faa0c2adbd5a04686af0c1a61bc6ed3ee2f7
+  ExpoMediaLibrary: 641a6952299b395159ccd459bd8f5f6764bf55fe
+  ExpoModulesCore: e8ec7f8727caf51a49d495598303dd420ca994bf
+  ExpoSecureStore: 9c6571fe3fcb045a671c4011c451546eaaab98fd
+  ExpoSplashScreen: 268b2f128dc04284c21010540a6c4dd9f95003e3
+  ExpoSymbols: 1ae04ce686de719b9720453b988d8bc5bf776c68
+  ExpoSystemUI: 2761aa6875849af83286364811d46e8ed8ea64c7
+  ExpoVideo: 50f5b3f31c7b5fb5a8f61a0137e674096c54eb4f
+  ExpoWebBrowser: b973e1351fdcf5fec0c400997b1851f5a8219ec3
+  EXStructuredHeaders: c951e77f2d936f88637421e9588c976da5827368
+  EXUpdates: 9b61bfe4fbc0188ed61e406ee13bfacecb9328cf
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   Google-Maps-iOS-Utils: 66d6de12be1ce6d3742a54661e7a79cb317a9321
@@ -2961,11 +3031,19 @@ SPEC CHECKSUMS:
   RNCPicker: a7170edbcbf8288de8edb2502e08e7fc757fa755
   RNDateTimePicker: be0e44bcb9ed0607c7c5f47dbedd88cf091f6791
   RNGestureHandler: 2914750df066d89bf9d8f48a10ad5f0051108ac3
+<<<<<<< HEAD
   RNReanimated: e5c702a3e24cc1c68b2de67671713f35461678f4
   RNScreens: d8d6f1792f6e7ac12b0190d33d8d390efc0c1845
   RNSentry: 41979b419908128847ef662cc130a400b7576fa9
   RNWorklets: 76fce72926e28e304afb44f0da23b2d24f2c1fa0
   SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
+=======
+  RNReanimated: 1442a577e066e662f0ce1cd1864a65c8e547aee0
+  RNScreens: d8d6f1792f6e7ac12b0190d33d8d390efc0c1845
+  RNSentry: 41979b419908128847ef662cc130a400b7576fa9
+  RNWorklets: 76fce72926e28e304afb44f0da23b2d24f2c1fa0
+  SDWebImage: d0184764be51240d49c761c37f53dd017e1ccaaf
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   SDWebImageAVIFCoder: afe194a084e851f70228e4be35ef651df0fc5c57
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380

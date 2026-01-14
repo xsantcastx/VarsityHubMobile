@@ -8,8 +8,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { copyToClipboard } from '../utils/share';
 import { formatFileSize, uploadDocument, uploadImage, UploadResponse } from '../utils/uploadUtils';
 // @ts-ignore
 import { Team as TeamApi } from '@/api/entities';
@@ -660,8 +661,13 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
+<<<<<<< HEAD
     } catch {
       showModal('Error', 'Failed to pick image');
+=======
+    } catch (error) {
+  showModal('Error', 'Failed to pick image');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
   }, [sendImageMessage, showModal]);
 
@@ -675,8 +681,13 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendImageMessage(result.assets[0]);
       }
+<<<<<<< HEAD
     } catch {
       showModal('Error', 'Failed to take photo');
+=======
+    } catch (error) {
+  showModal('Error', 'Failed to take photo');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
   }, [sendImageMessage, showModal]);
 
@@ -775,14 +786,23 @@ export default function TeamChatScreen() {
       const uri = recording.getURI();
       
       if (uri) {
+<<<<<<< HEAD
+=======
+        setRecordingUri(uri);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         const status = await recording.getStatusAsync();
         await sendVoiceMessage(uri, status.durationMillis || 0);
       }
       
       setRecording(null);
       setRecordingDuration(0);
+<<<<<<< HEAD
     } catch {
       showModal('Error', 'Failed to stop recording');
+=======
+    } catch (error) {
+  showModal('Error', 'Failed to stop recording');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
       setRecording(null);
       setIsRecording(false);
       setRecordingDuration(0);
@@ -853,6 +873,10 @@ export default function TeamChatScreen() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
 
+<<<<<<< HEAD
+=======
+  // Document picking functions
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const sendFileMessage = useCallback(async (fileAsset: any) => {
     try {
       // Create initial message with uploading status
@@ -963,11 +987,18 @@ export default function TeamChatScreen() {
         return updated;
       });
       
+<<<<<<< HEAD
       showModal('Error', 'Failed to upload file to server');
     }
   }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
 
   // Document picking functions
+=======
+  showModal('Error', 'Failed to upload file to server');
+    }
+  }, [animateNewMessage, replyingTo, saveFiles, saveMessages, showModal, showToast]);
+
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
   const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -978,8 +1009,13 @@ export default function TeamChatScreen() {
       if (!result.canceled && result.assets[0]) {
         await sendFileMessage(result.assets[0]);
       }
+<<<<<<< HEAD
     } catch {
       showModal('Error', 'Failed to pick document');
+=======
+    } catch (error) {
+  showModal('Error', 'Failed to pick document');
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
     }
   }, [sendFileMessage, showModal]);
 
@@ -1140,10 +1176,9 @@ export default function TeamChatScreen() {
       messageAnimations.set(item.id, messageAnim);
     }
     
-    const handleLongPress = () => {
+    const handleLongPress = async () => {
       // Copy to clipboard immediately
-      Clipboard.setString(item.content);
-    showModal('Copied', 'Message copied to clipboard');
+      await copyToClipboard(item.content);
     };
 
     const handleQuickReaction = () => {

@@ -11,6 +11,7 @@ import 'react-native-reanimated';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider } from '@/context/AuthProvider';
+import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
@@ -37,20 +38,10 @@ if (Platform.OS === 'web' && __DEV__) {
   void import('@/utils/testingMonitor.web')
     .then(({ testingMonitor }) => {
       testingMonitor.start();
-      devLog('🔍 Web Testing Monitor Active - Tracking all errors');
+      devLog('Web Testing Monitor Active - Tracking all errors');
     })
     .catch(error => devLog('Testing monitor failed to start', error));
 }
-
-// Dev-only smoke test disabled - use Sentry dashboard to verify
-// if (__DEV__) {
-//   try {
-//     captureBreadcrumb('Dev smoke test', 'diagnostic', { screen: 'RootLayout' });
-//     setTimeout(() => {
-//       captureException(new Error('Sentry smoke test: dev boot'));
-//     }, 300);
-//   } catch {}
-// }
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -148,7 +139,7 @@ export default function RootLayout() {
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme ?? 'light'].background }}>
         <ActivityIndicator />
       </View>
     );
@@ -183,7 +174,7 @@ export default function RootLayout() {
                 <Stack.Screen name="my-team" options={{ headerShown: false }} />
                 <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                 <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                <Stack.Screen name="verify-email" options={{ headerShown: false }} />
+                <Stack.Screen name="verify" options={{ headerShown: false }} />
                 <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
                 <Stack.Screen name="reset" options={{ headerShown: false }} />
                 <Stack.Screen name="reset-password" options={{ headerShown: false }} />

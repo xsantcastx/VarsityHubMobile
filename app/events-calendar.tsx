@@ -38,7 +38,24 @@ export default function EventsCalendarScreen() {
       try {
         // Get current user's followed teams
         const me = await User.me();
+<<<<<<< HEAD
         const teams = await User.following(me?.id || '');
+=======
+        // Support both legacy and nested groups API shapes
+        let teams: any[] = [];
+        try {
+          const groups: any = (Team as any).groups;
+          if (groups && typeof groups.listFollowed === 'function') {
+            teams = await groups.listFollowed();
+          } else if (groups && typeof groups.list === 'function') {
+            teams = await groups.list();
+          } else if (typeof (Team as any).listFollowed === 'function') {
+            teams = await (Team as any).listFollowed();
+          } else if (typeof (Team as any).list === 'function') {
+            teams = await (Team as any).list();
+          }
+        } catch {}
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
         const teamNames = Array.isArray(teams) ? teams.map((t: any) => t.name) : [];
         
         if (!mounted) return;

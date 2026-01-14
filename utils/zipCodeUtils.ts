@@ -23,11 +23,6 @@ interface ZipCodeAvailability {
   distance?: number; // miles from original zip
 }
 
-interface ZipCodeSuggestion {
-  original: string;
-  alternatives: ZipCodeAvailability[];
-  withinRadius: ZipCodeAvailability[];
-}
 
 /**
  * Validates US zip code format
@@ -69,22 +64,6 @@ export function calculateDistanceMiles(
   return R * c;
 }
 
-/**
- * Checks if a zip code is within radius of another
- */
-export function isWithinRadius(
-  zip1: ZipCodeLocation,
-  zip2: ZipCodeLocation,
-  radiusMiles: number = 20
-): boolean {
-  const distance = calculateDistanceMiles(
-    zip1.latitude,
-    zip1.longitude,
-    zip2.latitude,
-    zip2.longitude
-  );
-  return distance <= radiusMiles;
-}
 
 /**
  * Finds nearby zip codes within radius, sorted by distance
@@ -163,54 +142,6 @@ export async function checkZipCapacity(
   };
 }
 
-/**
- * Suggests alternative zip codes when the requested zip is at capacity
- */
-export async function suggestAlternativeZips(
-  requestedZip: string,
-  zipLocation: ZipCodeLocation,
-  nearbyZips: ZipCodeLocation[],
-  dateRange: string[],
-  maxSuggestions: number = 5
-): Promise<ZipCodeSuggestion> {
-  // Check original zip capacity
-  const originalCapacity = await checkZipCapacity(requestedZip, dateRange);
-
-  // If original has capacity, return it
-  if (originalCapacity.available) {
-    return {
-      original: requestedZip,
-      alternatives: [],
-      withinRadius: [originalCapacity],
-    };
-  }
-
-  // Find nearby zips within 20-mile radius
-  const nearby = findNearbyZipCodes(zipLocation, nearbyZips, 20);
-
-  // Check capacity for nearby zips
-  const capacityChecks = await Promise.all(
-    nearby.slice(0, 15).map(async (zip) => {
-      const capacity = await checkZipCapacity(zip.zip, dateRange);
-      return {
-        ...capacity,
-        distance: zip.distance,
-      };
-    })
-  );
-
-  // Filter to available zips, sort by distance
-  const available = capacityChecks
-    .filter((zip) => zip.available)
-    .sort((a, b) => (a.distance || 0) - (b.distance || 0))
-    .slice(0, maxSuggestions);
-
-  return {
-    original: requestedZip,
-    alternatives: available,
-    withinRadius: capacityChecks.slice(0, 10),
-  };
-}
 
 /**
  * Formats distance for display

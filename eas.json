@@ -5,6 +5,7 @@
   },
   "build": {
     "development": {
+      "node": "20.11.1",
       "developmentClient": true,
       "distribution": "internal",
       "env": {
@@ -24,6 +25,7 @@
       }
     },
     "preview": {
+      "node": "20.11.1",
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
@@ -42,6 +44,7 @@
       }
     },
     "production": {
+      "node": "20.11.1",
       "distribution": "store",
       "autoIncrement": true,
       "env": {

@@ -10,7 +10,7 @@ import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 // @ts-ignore JS exports
-import { Advertisement } from '@/api/entities';
+import { Advertisement, Payments } from '@/api/entities';
 
 const weekdayRate = 5.00;   // Per week (Mon-Thu slot)
 const weekendRate = 8.00;   // Per week (Fri-Sun slot)
@@ -145,6 +145,9 @@ export default function AdCalendarScreen() {
   const [zipCode, setZipCode] = useState<string>('');
   const [alternatives, setAlternatives] = useState<Array<{ zip: string; distance: number }>>([]);
   const [showingAlternatives, setShowingAlternatives] = useState(false);
+  const [paymentsStatus, setPaymentsStatus] = useState<{ stripe_configured?: boolean; has_webhook_secret?: boolean } | null>(null);
+  const [paymentsStatusLoading, setPaymentsStatusLoading] = useState(true);
+  const [paymentsStatusError, setPaymentsStatusError] = useState<string | null>(null);
   
   // Load reserved dates for THIS ad only (allow other ads to share dates)
   // AND load date availability to block fully booked dates
@@ -176,6 +179,26 @@ export default function AdCalendarScreen() {
     })();
     return () => { mounted = false; };
   }, [adId]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const status = await Payments.configStatus();
+        if (!mounted) return;
+        setPaymentsStatus(status);
+        setPaymentsStatusError(null);
+      } catch (err) {
+        if (!mounted) return;
+        setPaymentsStatusError('Unable to confirm payment readiness right now.');
+      } finally {
+        if (mounted) setPaymentsStatusLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const loadAvailability = async (zip: string) => {
     try {
@@ -238,6 +261,9 @@ export default function AdCalendarScreen() {
     return afterDiscount + taxCents;
   }, [price, taxCents, preview?.valid, preview?.discount_cents]);
   const effective = useMemo(() => (effectiveCents / 100), [effectiveCents]);
+  const paymentsTemporarilyDisabled = paymentsStatus?.stripe_configured === false;
+  const showPaymentsWarning = (!paymentsStatusLoading && paymentsTemporarilyDisabled) || (!!paymentsStatusError && !paymentsTemporarilyDisabled);
+  const payButtonDisabled = submitting || selected.size === 0 || paymentsTemporarilyDisabled;
 
   const marked = useMemo(() => {
     const obj: Record<string, { selected: boolean; selectedColor?: string } | { disabled: boolean } | any> = {};
@@ -434,6 +460,14 @@ export default function AdCalendarScreen() {
   };
 
   const handlePayment = async () => {
+    if (paymentsTemporarilyDisabled) {
+      Alert.alert(
+        'Payments Unavailable',
+        'Ads checkout is temporarily disabled while payments are being configured. Please try again later.'
+      );
+      return;
+    }
+
     if (!adId || selected.size === 0) {
       Alert.alert('Select at least one date');
       return;
@@ -469,16 +503,18 @@ export default function AdCalendarScreen() {
         Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
           { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }
         ]);
-      } else if (data?.url) {
-        // Show info before opening browser
+        return;
+      }
+      if (data?.url) {
         Alert.alert(
           'Complete Payment',
-          'You\'ll be redirected to Stripe to complete your payment. After payment, return to this app to see your active ads.',
+          'You\'ll be redirected to Stripe to complete your payment. After payment, the app will automatically reopen to a confirmation screen.',
           [
             {
               text: 'Continue to Payment',
               onPress: async () => {
                 try {
+<<<<<<< HEAD
                   await WebBrowser.openBrowserAsync(String(data.url));
                   
                   // Reset submitting state
@@ -505,7 +541,20 @@ export default function AdCalendarScreen() {
                 } catch (browserErr) {
                   if (__DEV__) console.error('Browser error:', browserErr);
                   setSubmitting(false);
+=======
+                  setSubmitting(true);
+                  const result = await WebBrowser.openBrowserAsync(String(data.url));
+                  console.log('[ad-calendar] Browser closed:', result.type);
+                  Alert.alert(
+                    'Check Payment Status',
+                    'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',
+                  );
+                } catch (browserErr) {
+                  console.error('Browser error:', browserErr);
+>>>>>>> 19009a9 (fix: add runtimeVersion to align with Expo.plist for EAS build)
                   Alert.alert('Error', 'Could not open payment page. Please try again.');
+                } finally {
+                  setSubmitting(false);
                 }
               }
             },
@@ -516,11 +565,14 @@ export default function AdCalendarScreen() {
             }
           ]
         );
+        return;
       }
+      throw new Error('Unexpected checkout response');
     } catch (err) {
       if (__DEV__) console.error('Failed to start checkout:', err);
       const msg = (err as any)?.message || 'An error occurred starting checkout.';
       Alert.alert('Error', msg);
+    } finally {
       setSubmitting(false);
     }
   };
@@ -551,6 +603,33 @@ export default function AdCalendarScreen() {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+        {showPaymentsWarning && (
+          <View
+            style={[
+              styles.paymentBanner,
+              paymentsTemporarilyDisabled ? styles.paymentBannerError : styles.paymentBannerMuted,
+            ]}
+          >
+            <Text
+              style={[
+                styles.paymentBannerTitle,
+                { color: paymentsTemporarilyDisabled ? '#92400E' : Colors[colorScheme].text },
+              ]}
+            >
+              {paymentsTemporarilyDisabled ? 'Payments unavailable' : 'Payment status unknown'}
+            </Text>
+            <Text
+              style={[
+                styles.paymentBannerText,
+                { color: paymentsTemporarilyDisabled ? '#92400E' : Colors[colorScheme].mutedText },
+              ]}
+            >
+              {paymentsTemporarilyDisabled
+                ? 'Checkout is disabled until our payment provider is configured. Please try again later.'
+                : paymentsStatusError || 'We could not confirm payment readiness. You can still attempt checkout, but it may fail until connectivity improves.'}
+            </Text>
+          </View>
+        )}
         {zipCode && (
           <View style={[styles.card, { backgroundColor: colorScheme === 'dark' ? '#1E3A8A' : '#EFF6FF', borderColor: colorScheme === 'dark' ? '#3B82F6' : '#BFDBFE' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -875,16 +954,32 @@ export default function AdCalendarScreen() {
           </View>
 
           <Pressable
-            disabled={submitting || selected.size === 0}
+            disabled={payButtonDisabled}
             onPress={handlePayment}
-            style={[styles.payBtn, { backgroundColor: Colors[colorScheme].tint }, (submitting || selected.size === 0) && styles.payBtnDisabled]}
+            style={[
+              styles.payBtn,
+              { backgroundColor: Colors[colorScheme].tint },
+              payButtonDisabled && styles.payBtnDisabled,
+            ]}
           >
             {submitting ? (
               <ActivityIndicator />
             ) : (
-              <Text style={styles.payBtnText}>Pay ${effective.toFixed(2)}</Text>
+              <Text style={styles.payBtnText}>
+                {paymentsTemporarilyDisabled ? 'Checkout unavailable' : `Pay $${effective.toFixed(2)}`}
+              </Text>
             )}
           </Pressable>
+          {paymentsTemporarilyDisabled && (
+            <Text
+              style={[
+                styles.paymentBannerHelp,
+                { color: colorScheme === 'dark' ? '#FCA5A5' : '#B91C1C' },
+              ]}
+            >
+              Payments are temporarily disabled while Stripe is configured. Please try again later.
+            </Text>
+          )}
         </View>
       </ScrollView>
       </View>
@@ -928,6 +1023,36 @@ const styles = StyleSheet.create({
     padding: 16, 
     gap: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Extra padding for iOS home indicator
+  },
+  paymentBanner: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  paymentBannerError: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  paymentBannerMuted: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#38BDF8',
+  },
+  paymentBannerTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+    marginBottom: 4,
+    color: '#1F2937',
+  },
+  paymentBannerText: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  paymentBannerHelp: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#B91C1C',
+    textAlign: 'center',
   },
   card: {
     borderRadius: 16,

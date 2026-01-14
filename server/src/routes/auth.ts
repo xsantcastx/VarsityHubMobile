@@ -16,6 +16,7 @@ import {
 import { verifyAppleToken } from '../lib/appleAuth.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
+import { checkSmsVerification, sendSmsVerification } from '../lib/sms.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
@@ -29,6 +30,24 @@ function checkAuthRateLimit(identifier: string): boolean {
 
 // simple in-memory rate limiting for verification send: 1/30s, 5/hour per user
 const verifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+const phoneVerifyRate: Map<string, { last: number; count: number; hourStart: number }> = new Map();
+const PHONE_CODE_TTL_MS = 30 * 60 * 1000;
+
+const normalizePhoneNumber = (input: string | null | undefined): string | null => {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('+')) {
+    const digits = trimmed.slice(1).replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 15) return null;
+    return `+${digits}`;
+  }
+
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (digitsOnly.length < 10 || digitsOnly.length > 15) return null;
+  return `+${digitsOnly}`;
+};
 const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process.env.GOOGLE_OAUTH_AUDIENCE || '')
   .split(',')
   .map((value) => value.trim())
@@ -292,6 +311,14 @@ authRouter.post('/google', async (req, res) => {
     const audience = typeof payload?.aud === 'string' ? payload.aud : null;
     const email = typeof payload?.email === 'string' ? String(payload.email).toLowerCase() : null;
     const emailVerified = payload?.email_verified === 'true' || payload?.email_verified === true;
+
+    console.log('[auth/google] Received token payload:', {
+      audience,
+      googleId,
+      email,
+      emailVerified,
+    });
+    console.log('[auth/google] Server allowed audiences:', GOOGLE_ALLOWED_AUDIENCES);
 
     if (!googleId || !email) {
       return res.status(400).json({ error: 'Invalid Google credential' });
@@ -856,7 +883,7 @@ const completeOnboardingSchema = z.object({
   messaging_policy_accepted: z.boolean().optional(),
 });
 
-authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
+authRouter.post('/me/complete-onboarding', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = completeOnboardingSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -1108,11 +1135,74 @@ authRouter.post('/verify/confirm', async (req: AuthedRequest, res) => {
   return res.json({ ok: true, user: sanitizeUser(updated) });
 });
 
+authRouter.post('/verify/phone/request', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const schema = z.object({ phone: z.string().min(10) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid phone number' });
+
+  const { phone } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  // Rate limiting
+  const now = Date.now();
+  const key = user.id;
+  const rec = verifyRate.get(key) || { last: 0, count: 0, hourStart: now };
+  if (now - rec.hourStart > 3600_000) { rec.hourStart = now; rec.count = 0; }
+  if (now - rec.last < 30_000) return res.status(429).json({ error: 'Please wait before requesting another code' });
+  if (rec.count >= 5) return res.status(429).json({ error: 'Too many requests' });
+
+  try {
+    await sendSmsVerification(phone);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { phone_number: phone },
+    });
+    rec.last = now; rec.count += 1; verifyRate.set(key, rec);
+    res.json({ ok: true });
+  } catch (e) {
+    req.log?.warn?.({ err: e }, 'SMS send failed');
+    res.status(500).json({ error: 'Failed to send SMS' });
+  }
+});
+
+authRouter.post('/verify/phone/confirm', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const schema = z.object({ phone: z.string().min(10), code: z.string().min(4).max(8) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+
+  const { phone, code } = parsed.data;
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(404).json({ error: 'Not found' });
+
+  try {
+    const check = await checkSmsVerification(phone, code);
+    if (check.status === 'approved') {
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: { phone_verified: true, phone_number: phone },
+      });
+      return res.json({ ok: true, user: sanitizeUser(updated) });
+    } else {
+      return res.status(400).json({ error: 'Invalid or expired code' });
+    }
+  } catch (e) {
+    req.log?.warn?.({ err: e }, 'SMS confirm failed');
+    res.status(500).json({ error: 'Failed to verify code' });
+  }
+});
+
 function sanitizeUser(u: any) {
   const {
     password_hash,
     email_verification_code,
     email_verification_expires,
+    phone_verification_code,
+    phone_verification_expires,
     password_reset_code,
     password_reset_expires,
     ...rest

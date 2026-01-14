@@ -512,7 +512,7 @@ export default function FeedScreen() {
     if (!me || emailVerified) return null;
     return (
       <Pressable
-        onPress={() => void router.push('/verify-email')}
+        onPress={() => void router.push('/verify')}
         style={{
           padding: 10,
           borderRadius: 10,
@@ -675,7 +675,7 @@ export default function FeedScreen() {
                       <Text style={[styles.sponsoredLabel, { color: Colors[colorScheme].mutedText }]}>
                         AD SPACE AVAILABLE
                       </Text>
-                      <Pressable 
+                      <Pressable
                         style={[
                           styles.promoPlaceholder,
                           {
@@ -745,8 +745,8 @@ export default function FeedScreen() {
                         aspectRatio={3.5}
                       />
                     ) : (
-                      <View style={[styles.adPlaceholder, { backgroundColor: colorScheme === 'dark' ? '#1E293B' : '#F3F4F6' }]}>
-                        <Ionicons name="megaphone-outline" size={48} color={colorScheme === 'dark' ? '#64748B' : '#9CA3AF'} />
+                      <View style={[styles.adPlaceholder, { backgroundColor: Colors[colorScheme].surface }]}>
+                        <Ionicons name="megaphone-outline" size={48} color={Colors[colorScheme].mutedText} />
                       </View>
                     )}
                     <View style={styles.adInfo}>
@@ -764,8 +764,8 @@ export default function FeedScreen() {
                         onPress={() => void router.push('/submit-ad')}
                         accessibilityRole="button"
                       >
-                        <Ionicons name="megaphone-outline" size={16} color="#ffffff" />
-                        <Text style={styles.promoteCtaText}>Promote your program</Text>
+                        <Ionicons name="megaphone-outline" size={16} color={Colors.dark.text} />
+                        <Text style={[styles.promoteCtaText, { color: Colors.dark.text }]}>Promote your program</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -777,7 +777,7 @@ export default function FeedScreen() {
               const raw = gameItem as any;
               const banner = gameItem.cover_image_url || raw?.banner_url || null;
               const hasBanner = typeof banner === 'string' && banner.length > 0;
-              const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+              const gradient: [string, string] = colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : [Colors.light.card, Colors.light.surface];
               const eventDate = gameItem.date ? format(new Date(gameItem.date), 'MMM d') : 'TBD';
               const eventTime = gameItem.date ? format(new Date(gameItem.date), 'h:mm a') : '';
               const locationText = gameItem.location ? String(gameItem.location).split(',')[0] : 'Location TBD';
@@ -813,7 +813,7 @@ export default function FeedScreen() {
                     <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                   )}
                   <LinearGradient
-                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                    colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['transparent', 'transparent']}
                     style={styles.gridShade}
                     pointerEvents="none"
                   />
@@ -862,7 +862,7 @@ export default function FeedScreen() {
                 const raw = item as any;
                 const banner = item.cover_image_url || raw?.banner_url || null;
                 const hasBanner = typeof banner === 'string' && banner.length > 0;
-                const gradient: [string, string] = index % 2 === 0 ? ['#1e293b', '#0f172a'] : ['#0f172a', '#1e293b'];
+                const gradient: [string, string] = colorScheme === 'dark' ? ['#1e293b', '#0f172a'] : [Colors.light.card, Colors.light.surface];
                 const eventDate = item.date ? format(new Date(item.date), 'MMM d') : 'TBD';
                 const eventTime = item.date ? format(new Date(item.date), 'h:mm a') : '';
                 const locationText = item.location ? String(item.location).split(',')[0] : 'Location TBD';
@@ -898,7 +898,7 @@ export default function FeedScreen() {
                       <LinearGradient colors={gradient} style={styles.singleEventImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
                     )}
                     <LinearGradient
-                      colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['rgba(15,23,42,0.05)', 'rgba(15,23,42,0.85)']}
+                      colors={colorScheme === 'dark' ? ['rgba(15,23,42,0.1)', 'rgba(15,23,42,0.9)'] : ['transparent', 'transparent']}
                       style={styles.gridShade}
                       pointerEvents="none"
                     />
@@ -1287,7 +1287,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#2563EB',
   },
   promoteCtaText: {
     color: '#FFFFFF',
