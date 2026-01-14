@@ -77,6 +77,7 @@ export const Game = {
   list: (
     sort?: string,
     options?: {
+      cursor?: string | null;
       limit?: number;
       lat?: number;
       lng?: number;
@@ -89,6 +90,7 @@ export const Game = {
   ) => {
     const params: string[] = [];
     if (sort) params.push(`sort=${encodeURIComponent(sort)}`);
+    if (options?.cursor) params.push(`cursor=${encodeURIComponent(options.cursor)}`);
     if (typeof options?.limit === 'number') params.push(`limit=${encodeURIComponent(String(options.limit))}`);
     if (typeof options?.lat === 'number') params.push(`lat=${encodeURIComponent(String(options.lat))}`);
     if (typeof options?.lng === 'number') params.push(`lng=${encodeURIComponent(String(options.lng))}`);
