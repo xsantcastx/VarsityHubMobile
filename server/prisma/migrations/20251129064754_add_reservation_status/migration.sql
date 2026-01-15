@@ -4,9 +4,6 @@ ADD COLUMN     "status" TEXT NOT NULL DEFAULT 'PENDING',
 ADD COLUMN     "stripe_session_id" TEXT;
 
 -- AlterTable
-ALTER TABLE "TeamMembership" ADD COLUMN     "custom_position" TEXT;
-
--- AlterTable
 ALTER TABLE "User" ADD COLUMN     "phone_number" TEXT,
 ADD COLUMN     "phone_verification_code" TEXT,
 ADD COLUMN     "phone_verification_expires" TIMESTAMP(3),
