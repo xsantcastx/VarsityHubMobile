@@ -27,8 +27,9 @@ export async function startEmailWorker(): Promise<Worker<EmailJob> | null> {
   }
 
   try {
-    const Redis = (await import('ioredis')).default;
-    const connection = new Redis(redisUrl, {
+    const { default: Redis } = await import('ioredis');
+    const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
+    const connection = new RedisCtor(redisUrl, {
       maxRetriesPerRequest: null,
     });
 

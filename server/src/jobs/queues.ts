@@ -15,7 +15,7 @@
  */
 
 import { Queue } from 'bullmq';
-import type IORedis from 'ioredis';
+type RedisClient = import('ioredis').Redis;
 
 // Job types
 export interface NotificationJob {
@@ -68,7 +68,7 @@ const QUEUE_CONFIG = {
 };
 
 // Redis connection (lazy initialized)
-let redisConnection: IORedis | null = null;
+let redisConnection: RedisClient | null = null;
 let queuesInitialized = false;
 
 // Queues (lazy initialized)
@@ -82,7 +82,7 @@ let schedulerQueue: Queue | null = null;
  * Initialize Redis connection
  * Returns null if Redis URL is not configured
  */
-async function getRedisConnection(): Promise<IORedis | null> {
+async function getRedisConnection(): Promise<RedisClient | null> {
   if (redisConnection) return redisConnection;
   
   const redisUrl = process.env.REDIS_URL;
@@ -92,19 +92,22 @@ async function getRedisConnection(): Promise<IORedis | null> {
   }
 
   try {
-    const Redis = (await import('ioredis')).default;
-    redisConnection = new Redis(redisUrl, {
+    const { default: Redis } = await import('ioredis');
+    const RedisCtor = Redis as unknown as new (url: string, options?: any) => RedisClient;
+    redisConnection = new RedisCtor(redisUrl, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
     });
     
-    redisConnection.on('connect', () => {
-      console.log('[Jobs] Redis connected');
-    });
-    
-    redisConnection.on('error', (err) => {
-      console.error('[Jobs] Redis error:', err.message);
-    });
+    if (redisConnection) {
+      redisConnection.on('connect', () => {
+        console.log('[Jobs] Redis connected');
+      });
+      
+      redisConnection.on('error', (err: any) => {
+        console.error('[Jobs] Redis error:', err?.message || err);
+      });
+    }
     
     return redisConnection;
   } catch (error) {
@@ -316,4 +319,3 @@ export async function shutdownQueues(): Promise<void> {
 export {
     analyticsQueue, emailQueue, mediaQueue, notificationQueue, schedulerQueue
 };
-

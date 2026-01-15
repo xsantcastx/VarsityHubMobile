@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 import { debugLog } from './debugLog.js';
 
@@ -61,6 +60,199 @@ export function initEmailService() {
   } else {
     debugLog('✅ SendGrid email service initialized (all required templates configured)');
   }
+}
+
+type BasicEmail = { to: string; subject: string; text?: string; html?: string };
+
+const formatLines = (lines: Array<string | undefined | null>) =>
+  lines.filter((line) => Boolean(line && String(line).trim().length)).join('\n');
+
+/**
+ * Generic email helper used by queue fallbacks and non-templated sends.
+ */
+export async function sendEmail({ to, subject, text, html }: BasicEmail): Promise<boolean> {
+  if (!to) {
+    console.warn('[email] Missing recipient');
+    return false;
+  }
+  const safeSubject = subject || 'VarsityHub notification';
+  const safeText = text ?? '';
+  const safeHtml = html ?? text ?? '';
+  if (SENDGRID_API_KEY) {
+    try {
+      await sgMail.send({
+        to,
+        from: EMAIL_FROM,
+        subject: safeSubject,
+        text: safeText,
+        html: safeHtml,
+      });
+      debugLog(`[email] Sent generic email to ${to} (${safeSubject})`);
+      return true;
+    } catch (error) {
+      console.error('[email] Failed to send generic email:', error);
+      return false;
+    }
+  }
+
+  console.warn('[email] SendGrid not configured - logging email', { to, subject: safeSubject });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
+  }
+  return true;
+}
+
+// --- Generic helper wrappers for legacy callers ---
+const genericTemplateEmail = async (
+  to: string,
+  subject: string,
+  bodyLines: Array<string | undefined | null>
+): Promise<boolean> => sendEmail({ to, subject, text: formatLines(bodyLines) || subject });
+
+export async function sendSubscriptionExpiringEmail(params: any): Promise<boolean> {
+  const subject = `Your ${params?.planName || 'subscription'} expires soon`;
+  return genericTemplateEmail(params?.to, subject, [
+    `Hi ${params?.userName || 'there'},`,
+    `Your ${params?.planName || 'plan'} expires on ${params?.expiresDate || 'soon'}.`,
+    params?.daysRemaining ? `Days remaining: ${params.daysRemaining}` : null,
+    params?.renewalPrice ? `Renewal price: ${params.renewalPrice}` : null,
+    params?.renewLink ? `Renew: ${params.renewLink}` : null,
+    params?.manageSubscriptionLink ? `Manage: ${params.manageSubscriptionLink}` : null,
+  ]);
+}
+
+export async function sendAccountRecoveryEmail(...args: any[]): Promise<boolean> {
+  const [to, userName, recoveryTime] = args;
+  return genericTemplateEmail(to, 'Account recovery requested', [
+    `Hi ${userName || 'there'},`,
+    `A recovery action was requested at ${recoveryTime || 'recently'}.`,
+  ]);
+}
+
+export async function sendAdGoesLiveEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Your ad is live', [
+    `Ad: ${params?.adTitle || ''}`,
+    `Business: ${params?.businessName || ''}`,
+    `Target ZIP: ${params?.targetZip || ''}`,
+    params?.analyticsDashboardUrl ? `Dashboard: ${params.analyticsDashboardUrl}` : null,
+  ]);
+}
+
+export async function sendAdReservationEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'We received your ad reservation', [
+    `Advertiser: ${params?.advertiserName || ''}`,
+    `Business: ${params?.businessName || ''}`,
+    params?.checkoutLink ? `Checkout: ${params.checkoutLink}` : null,
+  ]);
+}
+
+export async function sendAthleteFollowerNotificationEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'New follower alert', [
+    `${params?.followerName || 'Someone'} followed ${params?.athleteName || 'you'}.`,
+    params?.followerProfileUrl ? `Profile: ${params.followerProfileUrl}` : null,
+  ]);
+}
+
+export async function sendDormantUserDigestEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'We miss you on VarsityHub', [
+    `Hi ${params?.userName || 'there'}, you have ${params?.daysAbsent || 0} days away.`,
+    params?.openAppLink ? `Open app: ${params.openAppLink}` : null,
+  ]);
+}
+
+export async function sendEventApprovedEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Your event was approved', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    params?.eventDate ? `Date: ${params.eventDate}` : null,
+  ]);
+}
+
+export async function sendEventCanceledEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Event canceled', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    params?.eventDate ? `Date: ${params.eventDate}` : null,
+  ]);
+}
+
+export async function sendEventDeniedEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Event denied', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    params?.reason ? `Reason: ${params.reason}` : null,
+  ]);
+}
+
+export async function sendEventReminderEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Event reminder', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    params?.eventDate ? `Date: ${params.eventDate}` : null,
+    params?.eventLink ? `Link: ${params.eventLink}` : null,
+  ]);
+}
+
+export async function sendEventSubmissionReceivedEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'We received your event submission', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+  ]);
+}
+
+export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Event updated', [
+    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    params?.changes ? `Changes: ${params.changes}` : null,
+  ]);
+}
+
+export async function sendPaymentRequiredEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Payment reminder', [
+    params?.businessName ? `Business: ${params.businessName}` : null,
+    params?.totalCost ? `Total: ${params.totalCost}` : null,
+    params?.checkoutLink ? `Pay: ${params.checkoutLink}` : null,
+  ]);
+}
+
+export async function sendPostHighlightEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Your post was highlighted', [
+    params?.postTitle ? `Post: ${params.postTitle}` : null,
+  ]);
+}
+
+export async function sendProfileCompletionNudgeEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Complete your profile', [
+    `Hi ${params?.userName || 'there'}, please finish your profile.`,
+    params?.profileEditUrl ? `Edit: ${params.profileEditUrl}` : null,
+  ]);
+}
+
+export async function sendReportResolutionEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Your report was processed', [
+    params?.resolution ? `Resolution: ${params.resolution}` : null,
+  ]);
+}
+
+export async function sendRosterThresholdAlertEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Roster threshold alert', [
+    params?.teamName ? `Team: ${params.teamName}` : null,
+    params?.rosterCount ? `Roster count: ${params.rosterCount}` : null,
+  ]);
+}
+
+export async function sendSeasonWrapUpEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Season wrap-up', [
+    params?.teamName ? `Team: ${params.teamName}` : null,
+  ]);
+}
+
+export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'Your staff invitation was confirmed', [
+    params?.teamName ? `Team: ${params.teamName}` : null,
+  ]);
+}
+
+export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
+  return genericTemplateEmail(params?.to, 'You have been invited to a team', [
+    params?.teamName ? `Team: ${params.teamName}` : null,
+    params?.inviteLink ? `Join: ${params.inviteLink}` : null,
+  ]);
 }
 
 /**

@@ -1,4 +1,5 @@
 # Use Node.js 20 LTS Debian-based image for broader libc/SSL support
+# Cache bust: 2026-01-15 - force npm ci to pull fresh lock file
 FROM node:20-bookworm-slim
 
 # Set working directory
