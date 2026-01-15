@@ -11,7 +11,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and Prisma schema (needed for postinstall)
-COPY ./server/package*.json ./
+# Force fresh copy - 2026-01-15T04:40
+COPY ./server/package.json ./server/package-lock.json ./
 COPY ./server/prisma ./prisma/
 
 # Install all dependencies (including devDependencies for build)
