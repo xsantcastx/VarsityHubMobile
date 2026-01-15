@@ -295,10 +295,12 @@ authRouter.post('/apple', async (req, res) => {
     let created = false;
 
     if (!user) {
-      // Check if user exists by email (if provided)
+      // Check if user exists by email (if provided) - use case-insensitive search
       let existingByEmail = null;
       if (email) {
-        existingByEmail = await prisma.user.findUnique({ where: { email } });
+        existingByEmail = await prisma.user.findFirst({
+          where: { email: { equals: email, mode: 'insensitive' } }
+        });
       }
 
       if (existingByEmail) {
@@ -325,18 +327,44 @@ authRouter.post('/apple', async (req, res) => {
         const randomSecret = crypto.randomBytes(32).toString('hex');
         const password_hash = await bcrypt.hash(randomSecret, 10);
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
-        
-        user = await prisma.user.create({
-          data: {
-            email: userEmail,
-            password_hash,
-            apple_id: appleId,
-            display_name: 'Apple User',
-            email_verified: true,
-            preferences: { role: 'fan', onboarding_completed: false },
-          },
-        });
-        created = true;
+
+        try {
+          user = await prisma.user.create({
+            data: {
+              email: userEmail,
+              password_hash,
+              apple_id: appleId,
+              display_name: 'Apple User',
+              email_verified: true,
+              preferences: { role: 'fan', onboarding_completed: false },
+            },
+          });
+          created = true;
+        } catch (createErr: any) {
+          // Handle unique constraint violation (P2002) - user may have been created concurrently
+          // or exists with different apple_id
+          if (createErr?.code === 'P2002') {
+            debugLog('[auth/apple] User already exists, linking Apple ID');
+            const existingUser = await prisma.user.findFirst({
+              where: { email: { equals: userEmail, mode: 'insensitive' } }
+            });
+            if (existingUser) {
+              user = await prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                  apple_id: appleId,
+                  email_verified: true,
+                  email_verification_code: null,
+                  email_verification_expires: null,
+                },
+              });
+            } else {
+              throw createErr; // Re-throw if we still can't find the user
+            }
+          } else {
+            throw createErr;
+          }
+        }
       }
     }
 
