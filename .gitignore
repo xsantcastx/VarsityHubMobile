@@ -51,6 +51,8 @@ android/app/*.keystore
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+*.tmp
 
 # macOS
 .DS_Store
