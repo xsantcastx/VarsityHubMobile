@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
 import { debugLog } from '../lib/debugLog.js';
+import { captureException } from '../lib/sentry.js';
 
 // Extend Request type to include multer file
 interface MulterRequest extends Request {
@@ -114,6 +115,7 @@ uploadsRouter.post('/', upload.single('file'), async (req: MulterRequest, res, n
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    captureException(error as Error, { context: 'media_upload_error', path: req.path });
     next(error);
   }
 });
@@ -161,6 +163,7 @@ uploadsRouter.post('/files', fileUpload.single('file'), async (req: MulterReques
       storage: useCloudinary ? 'cloudinary' : 'local'
     });
   } catch (error) {
+    captureException(error as Error, { context: 'file_upload_error', path: req.path });
     next(error);
   }
 });
@@ -173,6 +176,11 @@ uploadsRouter.use((err: any, req: Request, res: Response, next: NextFunction) =>
     stack: err.stack,
     path: req.path,
   });
+  
+  // Capture in Sentry for non-client errors
+  if (err.code !== 'LIMIT_FILE_SIZE' && err.message !== 'Only image or video files are allowed') {
+    captureException(err, { context: 'upload_middleware_error', path: req.path });
+  }
   
   // Multer errors
   if (err.code === 'LIMIT_FILE_SIZE') {

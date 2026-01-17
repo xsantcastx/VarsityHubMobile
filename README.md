@@ -7,25 +7,41 @@ This repository contains the Expo mobile app and the Node/Express API.
 ## 🚀 Quick Start
 
 ### First Time Setup
-```bash
-# Install dependencies (generates ~2 GB of artifacts)
-npm install
 
-# iOS native dependencies (macOS only)
-cd ios && pod install && cd ..
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/xsantcastx/VarsityHubMobile.git
+   cd VarsityHubMobile
+   ```
 
-# Server dependencies
-cd server && npm install && cd ..
-```
+2. **Install dependencies**
+   ```bash
+   # Frontend dependencies
+   npm install
 
-### Start Development
-```bash
-# Terminal 1: Mobile app
-npm run start
+   # Backend dependencies
+   cd server && npm install && cd ..
 
-# Terminal 2: Backend server (if running locally)
-cd server && npm run dev
-```
+   # iOS native dependencies (macOS only)
+   cd ios && pod install && cd ..
+   ```
+
+3. **Set up environment variables**
+   ```bash
+   # Copy the example file (create manually if .env.example doesn't exist)
+   # See docs/ENV.md for all required variables
+   cp .env.example .env
+   # Edit .env with your values
+   ```
+
+4. **Start development**
+   ```bash
+   # Terminal 1: Mobile app
+   npm run start
+
+   # Terminal 2: Backend server (if running locally)
+   npm run server:dev
+   ```
 
 See **[docs/README.md](./docs/README.md)** for the full documentation index.
 
@@ -90,24 +106,49 @@ Recent security enhancements:
 
 ## 🛠️ Common Commands
 
+### Development
 ```bash
-# Development
-npm install                    # Install root dependencies
-npx expo start                 # Start Expo dev server  
-npx expo start --ios          # Start with iOS simulator
+npm run start                  # Start Expo dev server
+npm run android               # Run on Android
+npm run ios                   # Run on iOS (macOS only)
+npm run web                   # Run on web
+```
 
-# Server
-cd server && npm install       # Install backend deps
-cd server && npm run dev       # Start backend server
-cd server && npx prisma studio # Open database GUI
+### Code Quality
+```bash
+npm run lint                  # Run ESLint
+npm run lint:strict           # Run ESLint with auto-fix + typecheck
+npm run typecheck            # Run TypeScript type checking
+npm run format                # Format code with Prettier
+npm run format:check          # Check code formatting
+```
 
-# iOS (macOS only)
-cd ios && pod install          # Install CocoaPods
-npx expo run:ios              # Build and run on iOS
+### Testing
+```bash
+npm test                      # Run Jest tests
+npm run test:smoke            # Run Playwright E2E tests
+npm run test:server           # Run server tests
+```
 
-# Repository health
+### Server
+```bash
+npm run server:dev            # Start backend server
+npm run server:db:migrate     # Run database migrations
+npm run server:db:studio      # Open Prisma Studio (DB GUI)
+npm run server:db:seed       # Seed database
+```
+
+### Building
+```bash
+npm run build:ios             # Build iOS app (EAS)
+npm run build:android         # Build Android app (EAS)
+npm run build:production      # Production build script
+```
+
+### Repository Health
+```bash
+npm run doctor                # Run Expo Doctor
 ./scripts/check-repo-health.sh # Verify clean state
-du -sh * | sort -h             # Check directory sizes
 ```
 
 ---
@@ -125,6 +166,67 @@ On EAS/production, set it via your environment management (or keep `false` to us
 
 ---
 
-**Last Updated**: December 2, 2025  
+## 📁 Project Structure
+
+```
+VarsityHubMobile/
+├── app/                      # Expo Router screens (file-based routing)
+├── components/               # React components
+├── hooks/                    # Custom React hooks
+├── utils/                    # Utility functions
+├── api/                      # API client code
+├── constants/                # App constants
+├── context/                  # React context providers
+├── config/                   # Configuration files
+├── types/                    # TypeScript type definitions
+├── server/                   # Backend API (Node.js/Express)
+├── docs/                     # Documentation
+│   ├── archive/             # Historical documentation
+│   └── notes/               # Status reports and notes
+├── scripts/                  # Build and utility scripts
+├── tests/                    # Test files
+└── assets/                   # Images, fonts, etc.
+```
+
+For detailed structure documentation, see **[docs/02-PROJECT-STRUCTURE.md](./docs/02-PROJECT-STRUCTURE.md)**.
+
+---
+
+## 🔧 Development Setup
+
+### Prerequisites
+- **Node.js**: v18 or higher
+- **npm** or **yarn**
+- **Expo CLI**: `npm install -g expo-cli eas-cli`
+- **iOS**: Xcode (Mac only) or Expo Go app
+- **Android**: Android Studio or Expo Go app
+
+### Environment Variables
+See **[docs/ENV.md](./docs/ENV.md)** for complete environment variable documentation.
+
+Key variables:
+- `EXPO_PUBLIC_API_URL` - Backend API URL
+- `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` - Google OAuth client IDs
+- `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key
+
+### Code Style
+- **ESLint**: Configured for React Native + TypeScript
+- **Prettier**: Code formatting (run `npm run format`)
+- **TypeScript**: Type checking (run `npm run typecheck`)
+
+---
+
+## 📚 Documentation
+
+- **[docs/README.md](./docs/README.md)** - Documentation index
+- **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Detailed setup guide
+- **[docs/02-PROJECT-STRUCTURE.md](./docs/02-PROJECT-STRUCTURE.md)** - Project structure
+- **[docs/03-ENVIRONMENT.md](./docs/03-ENVIRONMENT.md)** - Environment configuration
+- **[docs/ENV.md](./docs/ENV.md)** - Environment variables reference
+- **[docs/REPO_AUDIT.md](./docs/REPO_AUDIT.md)** - Repository organization audit
+
+---
+
+**Last Updated**: December 2024  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)

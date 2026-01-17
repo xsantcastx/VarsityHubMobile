@@ -9,6 +9,8 @@ import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
+import { initializeQueues, shutdownQueues } from './jobs/queues.js';
+import { captureException } from './lib/sentry.js';
 import { authMiddleware } from './middleware/auth.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { authRouter } from './routes/auth.js';
@@ -47,6 +49,12 @@ initSentry(app);
 
 // Initialize SendGrid email service
 initEmailService();
+
+// Initialize job queues (async, non-blocking)
+initializeQueues().catch((error) => {
+  console.error('[startup] Failed to initialize queues:', error);
+  captureException(error, { context: 'queue_initialization' });
+});
 
 // Trust proxy headers from Railway (required for express-rate-limit and IP detection)
 app.set('trust proxy', true);
@@ -222,6 +230,35 @@ const HOST: string = process.env.HOST || '0.0.0.0';
 
 // Add Sentry error handler (must be last)
 addSentryErrorHandler(app);
+
+// Graceful shutdown handlers
+const shutdown = async (signal: string) => {
+  debugLog(`\n[shutdown] Received ${signal}, shutting down gracefully...`);
+  try {
+    await shutdownQueues();
+    debugLog('[shutdown] Queues closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('[shutdown] Error during shutdown:', error);
+    captureException(error as Error, { context: 'graceful_shutdown' });
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('[uncaughtException]', error);
+  captureException(error, { context: 'uncaught_exception' });
+  shutdown('uncaughtException').finally(() => process.exit(1));
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[unhandledRejection]', reason);
+  captureException(reason as Error, { context: 'unhandled_rejection', promise: String(promise) });
+});
 
 app.listen(PORT, HOST, () => {
   debugLog(`API listening on http://${HOST}:${PORT}`);

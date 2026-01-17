@@ -18,6 +18,8 @@
     "fix:deps": "node ./tools/ensure-simple-swizzle.js && node ./tools/ensure-debug-index.js && node ./tools/ensure-is-arrayish.js",
     "lint": "expo lint",
     "lint:strict": "expo lint --fix && npm run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "doctor": "npx expo-doctor",
     "validate:pre-launch": "bash scripts/validate-pre-launch.sh",
     "build:production": "bash scripts/build-production.sh",

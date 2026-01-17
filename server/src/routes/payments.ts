@@ -8,6 +8,7 @@ import { calculateStripeFee, getTransactionBySession, logTransaction, updateTran
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
+import { captureException } from '../lib/sentry.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -290,6 +291,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+      captureException(err, { context: 'stripe_checkout_error', plan });
       return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
     }
   }
@@ -420,6 +422,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
@@ -429,6 +432,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       await finalizeFromSession(session);
     } catch (e) {
       console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
     }
   }
   
