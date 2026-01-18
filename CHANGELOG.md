@@ -28,6 +28,13 @@
 
 
 
+## v1.0.0 - 2026-01-18
+
+### ✨ Features
+- Initial release
+
+
+
 All notable changes to VarsityHub will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
