@@ -70,8 +70,7 @@
     "production": {
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
-        "ascAppId": "6754257357",
-        "appleTeamId": "B5H8F69RW5"
+        "ascAppId": "6754257357"
       },
       "android": {
         "serviceAccountKeyPath": "./service-account-key.json",
