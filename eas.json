@@ -56,7 +56,8 @@
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
+        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
         "resourceClass": "m-medium"
