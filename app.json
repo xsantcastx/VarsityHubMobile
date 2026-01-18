@@ -120,7 +120,12 @@
       "expo-asset",
       "./plugins/withAndroidManifestCleanup",
       "./plugins/withAndroidBuildConfig",
-      "@sentry/react-native"
+      [
+        "@sentry/react-native",
+        {
+          "uploadSourceMaps": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
