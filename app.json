@@ -119,13 +119,7 @@
       "expo-apple-authentication",
       "expo-asset",
       "./plugins/withAndroidManifestCleanup",
-      "./plugins/withAndroidBuildConfig",
-      [
-        "@sentry/react-native",
-        {
-          "uploadSourceMaps": false
-        }
-      ]
+      "./plugins/withAndroidBuildConfig"
     ],
     "experiments": {
       "typedRoutes": true
