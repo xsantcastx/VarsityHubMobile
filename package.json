@@ -32,6 +32,7 @@
     "server:db:studio": "cd server && npx prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
+    "test:server": "npm --prefix server test",
     "test:smoke": "playwright test",
     "test:smoke:ui": "playwright test --ui",
     "test:smoke:headed": "playwright test --headed",

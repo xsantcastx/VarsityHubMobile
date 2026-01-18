@@ -23,6 +23,7 @@ import { Event, Game, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
+import { applyClearVote, applyVoteSelection, buildVoteSummary, parseVoteSummary, type VoteOption, type VoteSummary } from './voteSummary';
 
 import type { ColorValue } from 'react-native';
 const PLACEHOLDER_GRADIENT: readonly [ColorValue, ColorValue, ...ColorValue[]] = ['#1e293b', '#1d4ed8', '#38bdf8'];
@@ -363,33 +364,6 @@ type GameVM = {
   media: MediaItem[];
   reviewsCount?: number | null;
   isPast: boolean;
-};
-
-type VoteSummary = {
-  teamA: number;
-  teamB: number;
-  total: number;
-  pctA: number;
-  pctB: number;
-  userVote: "A" | "B" | null;
-};
-
-type VoteOption = 'A' | 'B';
-
-const buildVoteSummary = (teamA: number, teamB: number, userVote: VoteOption | null): VoteSummary => {
-  const safeA = Math.max(0, teamA);
-  const safeB = Math.max(0, teamB);
-  const total = safeA + safeB;
-  const pctA = total ? Math.round((safeA / total) * 100) : 0;
-  const pctB = total ? 100 - pctA : 0;
-  return { teamA: safeA, teamB: safeB, total, pctA, pctB, userVote };
-};
-
-const parseVoteSummary = (payload: any): VoteSummary => {
-  const teamA = typeof payload?.teamA === 'number' ? payload.teamA : 0;
-  const teamB = typeof payload?.teamB === 'number' ? payload.teamB : 0;
-  const userVote: VoteOption | null = payload?.userVote === 'A' || payload?.userVote === 'B' ? payload.userVote : null;
-  return buildVoteSummary(teamA, teamB, userVote);
 };
 
 const ensureIso = (value: any) => {
@@ -1398,16 +1372,7 @@ const GameDetailsScreen = () => {
       let rollback: VoteSummary | null = null;
       setVoteSummary((prev) => {
         rollback = prev ? { ...prev } : null;
-        const baseline = prev ?? buildVoteSummary(0, 0, null);
-        if (baseline.userVote === team) {
-          return baseline; // No change
-        }
-        let nextA = baseline.teamA;
-        let nextB = baseline.teamB;
-        if (baseline.userVote === 'A') nextA = Math.max(0, nextA - 1);
-        if (baseline.userVote === 'B') nextB = Math.max(0, nextB - 1);
-        if (team === 'A') nextA += 1; else nextB += 1;
-        return buildVoteSummary(nextA, nextB, team);
+        return applyVoteSelection(prev, team);
       });
 
       // For event-only or sample games, just update local state and don't call API
@@ -1451,11 +1416,8 @@ const GameDetailsScreen = () => {
 
     let rollback: VoteSummary | null = null;
     setVoteSummary((prev) => {
-      if (!prev?.userVote) return prev; // Nothing to clear
-      rollback = { ...prev };
-      const nextA = prev.userVote === 'A' ? Math.max(0, prev.teamA - 1) : prev.teamA;
-      const nextB = prev.userVote === 'B' ? Math.max(0, prev.teamB - 1) : prev.teamB;
-      return buildVoteSummary(nextA, nextB, null);
+      if (prev?.userVote) rollback = { ...prev };
+      return applyClearVote(prev);
     });
 
     // For event-only or sample games, just update local state and don't call API

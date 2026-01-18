@@ -6,7 +6,7 @@ export default {
     '^.+\\.(ts|tsx)$': ['ts-jest', { useESM: true, tsconfig: { isolatedModules: true } }],
   },
   roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  testMatch: ['**/__tests__/**/*.(spec|test).ts', '**/?(*.)+(spec|test).ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -25,6 +25,7 @@ export default {
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    'debugLog\\.js$': '<rootDir>/src/lib/debugLog.ts',
     '../lib/prisma\\.js$': '<rootDir>/src/lib/prisma.ts',
     '../middleware/requireAdmin\\.js$': '<rootDir>/src/middleware/requireAdmin.ts',
     '../middleware/requireAuth\\.js$': '<rootDir>/src/middleware/requireAuth.ts',

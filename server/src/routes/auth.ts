@@ -484,7 +484,9 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     zip_code: null,
     onboarding_completed: true,
   };
-  const prefs = mergePreferences(defaults, (user as any).preferences || {});
+  // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
+  // This ensures admin accounts always have onboarding_completed=true regardless of DB state
+  const prefs = mergePreferences((user as any).preferences || {}, defaults);
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, preferences: prefs, is_admin });
 });

@@ -27,17 +27,18 @@ npm run start
 cd server && npm run dev
 ```
 
-See **[SETUP.md](./SETUP.md)** for detailed setup instructions.
+See **[docs/README.md](./docs/README.md)** for the full documentation index.
 
 ---
 
 ## 📚 Key Documentation
 
-- **[SETUP.md](./SETUP.md)** - Development environment setup
-- **[SECURITY.md](./SECURITY.md)** - Security audit & foundation grade (A-)
-- **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Feature implementation guide
-- **[PRODUCTION_LAUNCH_CHECKLIST.md](./PRODUCTION_LAUNCH_CHECKLIST.md)** - Pre-launch checklist
-- **[docs/RAILWAY_RUNBOOK.md](./docs/RAILWAY_RUNBOOK.md)** - Deployment guide
+- **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
+- **[docs/PRODUCTION_HARDENING.md](./docs/PRODUCTION_HARDENING.md)** - Security hardening & audit notes
+- **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
+- **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
+- **[docs/RAILWAY_ENV_SETUP.md](./docs/RAILWAY_ENV_SETUP.md)** - Railway deployment setup
+- **[docs/status/INDEX.md](./docs/status/INDEX.md)** - Status reports and checklists
 
 ---
 
@@ -127,4 +128,3 @@ On EAS/production, set it via your environment management (or keep `false` to us
 **Last Updated**: December 2, 2025  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)
-
