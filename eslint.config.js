@@ -32,10 +32,13 @@ module.exports = [
       'react-native/no-raw-text': ['error', { skip: ['ThemedText'] }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      'no-unused-vars': 'off', // Use TS version instead
+      // Use TS version instead of base ESLint rule
+      'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-floating-promises': 'warn', // Warn for now, fix incrementally
+      // Intentional fire-and-forget patterns (haptics, analytics) - warn not error
+      '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/await-thenable': 'warn',
+      // Allow console.warn and console.error for debugging
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },

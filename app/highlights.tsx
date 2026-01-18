@@ -29,6 +29,7 @@ import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 import { BackHeader } from '@/components/ui/BackHeader';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
+import { timeAgo, formatCount, getCountryFlag } from '@/utils/format';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 220;
@@ -63,35 +64,6 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
   };
 };
 
-const timeAgo = (value?: string | Date | null) => {
-  if (!value) return '';
-  const ts = typeof value === 'string' ? new Date(value).getTime() : new Date(value).getTime();
-  const diff = Math.max(0, Date.now() - ts) / 1000;
-  const days = Math.floor(diff / 86400);
-  if (days >= 30) return '1 month ago';
-  if (days >= 7) return `${Math.floor(days / 7)}w ago`;
-  if (days >= 1) return `${days}d ago`;
-  const hours = Math.floor(diff / 3600);
-  if (hours >= 1) return `${hours}h ago`;
-  const minutes = Math.floor(diff / 60);
-  if (minutes >= 1) return `${minutes}m ago`;
-  return 'now';
-};
-
-const formatCount = (value?: number | null) => {
-  if (!value) return '0';
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(value);
-};
-
-const getCountryFlag = (countryCode?: string | null) => {
-  const flags: { [key: string]: string } = {
-    'US': '🇺🇸', 'CA': '🇨🇦', 'GB': '🇬🇧', 'AU': '🇦🇺', 'DE': '🇩🇪',
-    'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'BR': '🇧🇷', 'MX': '🇲🇽',
-  };
-  return flags[countryCode || ''] || '🌍';
-};
 
 const getSportCategory = (title?: string | null, content?: string | null) => {
   const text = (title + ' ' + content || '').toLowerCase();

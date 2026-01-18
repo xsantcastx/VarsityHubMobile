@@ -233,9 +233,47 @@ Key variables:
 - **[docs/03-ENVIRONMENT.md](./docs/03-ENVIRONMENT.md)** - Environment configuration
 - **[docs/ENV.md](./docs/ENV.md)** - Environment variables reference
 - **[docs/REPO_AUDIT.md](./docs/REPO_AUDIT.md)** - Repository organization audit
+- **[docs/CHANGELOG_ORG.md](./docs/CHANGELOG_ORG.md)** - Reorganization change log
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Contribution guidelines
+- **[CHANGELOG.md](./CHANGELOG.md)** - Change history
 
 ---
 
-**Last Updated**: December 2024  
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Metro bundler port already in use:**
+```bash
+# Kill process on port 8081
+lsof -ti:8081 | xargs kill -9  # Mac/Linux
+netstat -ano | findstr :8081   # Windows
+
+# Or use different port
+npx expo start --port 8082
+```
+
+**npm install fails:**
+```bash
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install --legacy-peer-deps
+```
+
+**Environment variables not working:**
+- Restart Expo after adding `.env` file
+- Use `EXPO_PUBLIC_` prefix for client-accessible variables
+- See [docs/03-ENVIRONMENT.md](./docs/03-ENVIRONMENT.md) for details
+
+**Database connection fails:**
+- Check PostgreSQL is running
+- Verify `DATABASE_URL` in `server/.env`
+- See [server/docs/POSTGRESQL_RECOVERY.md](./server/docs/POSTGRESQL_RECOVERY.md)
+
+For more troubleshooting help, see **[docs/11-TROUBLESHOOTING.md](./docs/11-TROUBLESHOOTING.md)**.
+
+---
+
+**Last Updated**: January 2025  
 **Security Grade**: A-  
 **Repository Size**: ~18 MB (source) / ~2.5 GB (with dependencies)

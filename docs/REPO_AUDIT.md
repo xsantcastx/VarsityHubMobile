@@ -1,259 +1,371 @@
-# Repository Audit Report
-**Date**: December 2024  
-**Project**: VarsityHub Mobile  
-**Framework**: Expo Router (React Native) with TypeScript
+# Repository Audit & Reorganization Plan
+
+**Date**: January 17, 2025  
+**Repository**: VarsityHub Mobile & API  
+**Framework**: Expo Router (React Native) + Express.js Backend  
+**Status**: Current structure analyzed, reorganization plan created
 
 ---
 
-## Executive Summary
+## 📊 Current Structure Snapshot
 
-This repository contains a production-ready Expo React Native application with a Node.js/Express backend. While the core structure is functional, the repository suffers from significant organizational issues that impact developer experience and maintainability.
+### Root Directory Issues
 
-**Overall Assessment**: ⚠️ **Needs Organization**  
-**Code Quality**: ✅ Good  
-**Structure**: ⚠️ Needs Improvement  
-**Documentation**: ⚠️ Scattered  
-
----
-
-## Current Structure Snapshot
-
-### ✅ Well-Organized Directories
-
-```
-app/                    # Expo Router file-based routing (good)
-components/            # React components (good)
-hooks/                 # Custom React hooks (good)
-utils/                 # Utility functions (good)
-api/                   # API client code (good)
-constants/             # App constants (good)
-context/               # React context providers (good)
-config/                # Configuration files (good)
-types/                 # TypeScript type definitions (good)
-server/                # Backend API (separate, good)
-docs/                  # Documentation (exists but incomplete)
-scripts/               # Build and utility scripts (good)
-```
-
-### ❌ Problem Areas
-
-#### 1. Root Directory Clutter
-- **100+ markdown files** in root (status reports, checklists, summaries)
-- **Log files** scattered in root (`*.log`, `*.txt`)
-- **Backup files** (`.bak` extensions)
-- **Temporary files** and build artifacts
-
-#### 2. Documentation Issues
-- Documentation exists in both `docs/` and root
-- No clear documentation hierarchy
-- Many outdated/duplicate status files
-- Missing key documentation (env setup, contribution guide)
-
-#### 3. Configuration Gaps
+**Problems:**
+- **25+ files in root directory** (should be < 10)
+- Scripts scattered across root and `scripts/` directory
+- Temporary directories (overnight-logs-*, test-results) in root
 - No `.env.example` file
-- No `.editorconfig`
-- No Prettier configuration
-- TypeScript strict mode disabled (`strict: false`)
+- Multiple markdown files in root that should be in `docs/`
 
-#### 4. CI/CD Missing
-- No GitHub Actions workflows
-- No automated linting/typechecking on PRs
-- No automated testing pipeline
+**Files that should be moved:**
+- `*.sh` scripts → `scripts/`
+- `*.md` documentation → `docs/`
+- Temporary log directories → `.gitignore` (or remove)
+- Overnight scripts → `scripts/overnight/`
 
-#### 5. Script Organization
-- Scripts are functional but could be better organized
-- Some scripts in root that should be in `scripts/`
+### Directory Structure
 
----
-
-## Pain Points
-
-### For New Developers
-1. **"Where do I start?"** - Too many entry points, unclear onboarding
-2. **"What's the current status?"** - 100+ status files, which one is current?
-3. **"How do I set up my environment?"** - No `.env.example`, unclear env vars
-4. **"Where do I put new code?"** - Structure exists but not well documented
-
-### For Maintainers
-1. **Hard to find relevant docs** - Scattered across root and `docs/`
-2. **Build artifacts in repo** - Log files, temp files not properly ignored
-3. **No automated quality checks** - Manual linting/typechecking
-4. **Inconsistent formatting** - No Prettier, different styles across files
-
-### For CI/CD
-1. **No automated testing** - Tests exist but not run automatically
-2. **No pre-commit hooks** - Code quality issues slip through
-3. **No build verification** - Manual verification required
-
----
-
-## Quick Wins
-
-### Immediate (Low Risk)
-1. ✅ Move all root-level `.md` files to `docs/archive/notes/`
-2. ✅ Move log files to `logs/` directory
-3. ✅ Create `.env.example` with all required variables
-4. ✅ Add `.editorconfig` for consistent formatting
-5. ✅ Add Prettier configuration
-6. ✅ Remove `.bak` backup files
-7. ✅ Update `.gitignore` to catch more artifacts
-
-### Short Term (Medium Risk)
-1. ✅ Add GitHub Actions CI workflow
-2. ✅ Improve npm scripts (`format`, `typecheck`, etc.)
-3. ✅ Update README with clear structure documentation
-4. ✅ Create `docs/ENV.md` explaining environment variables
-5. ✅ Add Husky + lint-staged (optional but recommended)
-
-### Long Term (Higher Risk)
-1. ⚠️ Enable TypeScript strict mode (incremental)
-2. ⚠️ Refactor large components (if needed)
-3. ⚠️ Add more comprehensive tests
-
----
-
-## Risks
-
-### Low Risk ✅
-- Moving documentation files (no code changes)
-- Adding configuration files (Prettier, EditorConfig)
-- Creating `.env.example` (no runtime impact)
-- Adding CI workflows (only runs on PR/merge)
-
-### Medium Risk ⚠️
-- Updating import paths (if we reorganize)
-- Changing npm scripts (could break existing workflows)
-- Enabling TypeScript strict mode (may reveal type errors)
-
-### High Risk ❌
-- Moving source code files (requires import updates)
-- Changing build configuration (could break builds)
-
-**Mitigation Strategy**: 
-- Make changes incrementally
-- Test after each change
-- Keep commits small and logical
-- Document breaking changes
-
----
-
-## Proposed Target Structure
-
-### Root Directory (Clean)
 ```
 VarsityHubMobile/
-├── .github/
-│   └── workflows/
-│       └── ci.yml              # GitHub Actions CI
-├── android/                     # Android native code
-├── ios/                         # iOS native code
-├── app/                         # Expo Router screens (file-based routing)
-├── src/                         # Source code (if we consolidate)
-│   ├── components/             # React components
-│   ├── hooks/                  # Custom hooks
-│   ├── utils/                  # Utility functions
-│   ├── api/                    # API client
-│   ├── constants/              # App constants
-│   ├── context/                # React context
-│   ├── config/                 # Configuration
-│   ├── types/                  # TypeScript types
-│   └── assets/                 # Images, fonts, etc.
-├── server/                     # Backend API (separate)
-├── docs/                       # All documentation
-│   ├── README.md              # Docs index
-│   ├── SETUP.md               # Setup guide
-│   ├── ENV.md                 # Environment variables
-│   ├── ARCHITECTURE.md        # Architecture overview
-│   └── archive/               # Historical docs
-│       └── notes/             # Status reports, checklists
-├── scripts/                    # Build and utility scripts
-├── tests/                      # Test files
-├── logs/                       # Log files (gitignored)
-├── .env.example               # Environment template
-├── .editorconfig              # Editor configuration
-├── .prettierrc                # Prettier config
-├── .prettierignore            # Prettier ignore
-├── package.json
-├── tsconfig.json
-├── babel.config.js
-├── eslint.config.js
-├── README.md                   # Main project README
-└── CHANGELOG_ORG.md            # Organization changelog
+├── app/                    ✅ Expo Router screens (correct - don't move)
+├── components/             ✅ Reusable components (correct)
+├── hooks/                  ✅ Custom hooks (correct)
+├── utils/                  ✅ Utilities (correct)
+├── api/                    ✅ API client (correct)
+├── constants/              ✅ Constants (correct)
+├── context/                ✅ React context (correct)
+├── config/                 ✅ Config files (correct)
+├── types/                  ✅ TypeScript types (correct)
+├── server/                 ✅ Backend (correct - monorepo structure)
+├── docs/                   ✅ Documentation (needs organization)
+├── scripts/                ⚠️  Some scripts missing
+├── assets/                 ✅ Static assets (correct)
+├── tests/                  ✅ Test files (correct)
+├── shared/                 ✅ Shared code (correct)
+├── tools/                  ✅ Build tools (correct)
+└── [ROOT CLUTTER]          ❌ 25+ files that should be organized
 ```
 
-### Key Decisions
+---
 
-1. **Keep current structure** - The `app/`, `components/`, `hooks/`, etc. structure is good for Expo Router. No need to move to `src/` unless team prefers it.
+## 🎯 Pain Points
 
-2. **Consolidate docs** - All documentation goes to `docs/`, with `docs/archive/notes/` for historical status files.
+### 1. Root Directory Clutter
+- **25+ files in root** causing confusion
+- Hard to find important files (package.json, app.json buried)
+- Scripts scattered between root and `scripts/`
+- Temporary directories not cleaned up
 
-3. **Separate concerns** - Keep `server/` separate (it's a monorepo structure).
+### 2. Script Organization
+- Scripts in root: `start.sh`, `start-overnight.sh`, `*.sh`
+- Scripts in `scripts/`: Various utility scripts
+- **No clear convention** for where scripts belong
+- Overnight scripts should be grouped separately
 
-4. **Add tooling incrementally** - Prettier, EditorConfig, CI - all non-breaking additions.
+### 3. Documentation Scattered
+- Some docs in root: `README.md`, `PRIVACY_POLICY.md`, `TERMS_OF_SERVICE.md`
+- Some docs in `docs/`: Various documentation files
+- **No clear structure** for documentation
+
+### 4. Missing Standard Files
+- **No `.env.example`** - hard to know what env vars are needed
+- **No `CONTRIBUTING.md`** - no contribution guidelines
+- **No `CHANGELOG.md`** - no change tracking
+- Incomplete `.gitignore` - temporary files committed
+
+### 5. Configuration Inconsistencies
+- TypeScript config: `strict: false` (should be stricter)
+- ESLint config exists but may need improvements
+- Prettier config exists but may need review
+- No Husky/lint-staged setup
+
+### 6. Component Organization
+- `components/` directory ✅ (good)
+- `app/components/` directory ⚠️ (duplicate? screen-specific?)
+- **Unclear** when to use which directory
 
 ---
 
-## Implementation Plan
+## ✅ Quick Wins
 
-### Phase 1: Documentation Cleanup (No Code Changes)
-- Move root `.md` files to `docs/archive/notes/`
-- Move log files to `logs/`
-- Update `.gitignore`
-- Remove `.bak` files
+### Phase 1: Root Directory Cleanup (30 mins)
+1. **Move all `.sh` scripts to `scripts/`**
+   - Consolidate overnight scripts into `scripts/overnight/`
+   - Keep only essential root scripts (if any)
 
-### Phase 2: Configuration (Low Risk)
-- Create `.env.example`
-- Add `.editorconfig`
-- Add Prettier configuration
-- Update npm scripts
+2. **Move documentation files to `docs/`**
+   - `PRIVACY_POLICY.md` → `docs/legal/PRIVACY_POLICY.md`
+   - `TERMS_OF_SERVICE.md` → `docs/legal/TERMS_OF_SERVICE.md`
+   - `BUILD_AND_INSTALL.md` → `docs/setup/BUILD_AND_INSTALL.md`
+   - `INSTALL_ANDROID_DEVICE.md` → `docs/setup/INSTALL_ANDROID_DEVICE.md`
+   - `QUICK_INSTALL_GUIDE.md` → `docs/setup/QUICK_INSTALL_GUIDE.md`
 
-### Phase 3: CI/CD (Low Risk)
-- Add GitHub Actions workflow
-- Test CI pipeline
+3. **Clean up temporary directories**
+   - Add `overnight-*/`, `test-results/`, `playwright-report/` to `.gitignore`
+   - Remove committed temporary directories
 
-### Phase 4: Documentation (No Code Changes)
-- Update README.md
-- Create `docs/ENV.md`
-- Create `docs/CHANGELOG_ORG.md`
+4. **Create `.env.example`**
+   - Document all required environment variables
+   - Create `docs/ENV.md` with detailed explanations
 
-### Phase 5: Quality Improvements (Optional)
-- Consider enabling TypeScript strict mode (incremental)
-- Add Husky + lint-staged (optional)
+### Phase 2: Configuration Improvements (30 mins)
+1. **Improve TypeScript strictness** (carefully)
+   - Enable `strict: true` incrementally
+   - Fix type errors as they appear
+
+2. **Review ESLint config**
+   - Ensure all recommended rules are enabled
+   - Add React Native specific rules
+
+3. **Add Husky + lint-staged** (optional)
+   - Pre-commit hooks for linting/formatting
+   - Pre-push hooks for type checking
+
+### Phase 3: Documentation Enhancement (1 hour)
+1. **Update README.md**
+   - Clear project overview
+   - Step-by-step setup guide
+   - Folder structure explanation
+   - Troubleshooting section
+
+2. **Create CONTRIBUTING.md**
+   - Contribution guidelines
+   - Code style standards
+   - PR process
+
+3. **Create CHANGELOG.md**
+   - Track changes and releases
+
+### Phase 4: CI/CD Setup (30 mins)
+1. **Add GitHub Actions workflow**
+   - Lint check
+   - Type check
+   - Test run (if tests exist)
+   - Keep it fast and non-flaky
 
 ---
 
-## Metrics
+## ⚠️ Risks
 
-### Before
-- Root files: ~150+ files
-- Documentation: Scattered
-- CI/CD: None
-- Code formatting: Inconsistent
-- Environment setup: Unclear
+### 1. Breaking Changes
+- **Risk**: Moving files could break imports
+- **Mitigation**: Use path aliases (`@/` imports), update imports incrementally
+- **Test**: Run `npm run typecheck` after each change
 
-### After (Target)
-- Root files: ~20 essential files
-- Documentation: Organized in `docs/`
-- CI/CD: Automated linting/typechecking
-- Code formatting: Consistent (Prettier)
-- Environment setup: Clear (`.env.example` + docs)
+### 2. Expo Router Requirements
+- **Risk**: Moving files from `app/` breaks routing
+- **Mitigation**: **DO NOT move files from `app/` directory** - it's Expo Router's routing directory
+- **Note**: `app/` structure must remain as-is for file-based routing
 
----
+### 3. Script Dependencies
+- **Risk**: Scripts may have hardcoded paths
+- **Mitigation**: Use relative paths, test scripts after moving
+- **Check**: Update any scripts that reference moved files
 
-## Success Criteria
-
-✅ Repository is easier to navigate  
-✅ New developers can set up in < 10 minutes  
-✅ CI catches linting/type errors automatically  
-✅ Documentation is findable and up-to-date  
-✅ Code formatting is consistent  
-✅ No breaking changes to app functionality  
+### 4. Build System
+- **Risk**: Metro bundler or build config may break
+- **Mitigation**: Test build after changes: `npm run build:ios` and `npm run build:android`
+- **Verify**: App still runs in Expo Go
 
 ---
 
-## Notes
+## 🏗️ Proposed Target Structure
 
-- This is a **refactoring/organization** task, not a feature addition
-- All changes will be committed with clear messages
-- App functionality will remain unchanged
-- Focus on developer experience and maintainability
+### Root Directory (Clean)
+
+```
+VarsityHubMobile/
+├── .env.example            ✨ NEW - Environment template
+├── .gitignore              ✅ Already exists (needs updates)
+├── .editorconfig           ✅ Already exists
+├── .prettierrc             ✅ Already exists
+├── package.json             ✅ Stays
+├── package-lock.json        ✅ Stays
+├── tsconfig.json            ✅ Stays
+├── app.json                 ✅ Stays (Expo config)
+├── eas.json                 ✅ Stays (EAS config)
+├── babel.config.js          ✅ Stays
+├── metro.config.js          ✅ Stays
+├── eslint.config.js         ✅ Stays (may need creation)
+├── jest.config.js           ✅ Stays
+├── playwright.config.ts     ✅ Stays
+├── README.md                ✅ Stays (improved)
+├── CONTRIBUTING.md          ✨ NEW
+├── CHANGELOG.md             ✨ NEW
+├── LICENSE                  ✨ NEW (if missing)
+└── [NO OTHER FILES]         ✅ Clean root
+```
+
+### Organized Directory Structure
+
+```
+VarsityHubMobile/
+├── app/                     ✅ Expo Router (file-based routing - DON'T CHANGE)
+│   ├── (tabs)/              ✅ Tab routes
+│   ├── onboarding/          ✅ Onboarding flow
+│   ├── settings/            ✅ Settings screens
+│   └── ...                  ✅ All route files
+│
+├── src/                     ⚠️  Currently missing - could add for non-route code
+│   ├── features/            ✨ NEW - Feature-based organization
+│   │   ├── auth/
+│   │   ├── teams/
+│   │   ├── games/
+│   │   └── payments/
+│   ├── components/          ⚠️  Move from root/components? (see note)
+│   ├── hooks/               ⚠️  Move from root/hooks? (see note)
+│   ├── utils/               ⚠️  Move from root/utils? (see note)
+│   └── types/               ⚠️  Move from root/types? (see note)
+│
+├── components/              ✅ Current location (keep OR move to src/components)
+├── hooks/                   ✅ Current location (keep OR move to src/hooks)
+├── utils/                   ✅ Current location (keep OR move to src/utils)
+├── constants/               ✅ Current location (keep OR move to src/constants)
+├── api/                     ✅ API client (keep current)
+├── context/                 ✅ React context (keep current)
+├── config/                  ✅ Config (keep current)
+├── types/                   ✅ Types (keep current)
+├── assets/                  ✅ Static assets (keep current)
+│
+├── server/                  ✅ Backend (keep current - monorepo structure)
+│   ├── src/
+│   ├── prisma/
+│   └── ...
+│
+├── scripts/                 ✅ Organized scripts
+│   ├── setup/               ✨ NEW - Setup scripts
+│   ├── build/               ✨ NEW - Build scripts
+│   ├── deploy/              ✨ NEW - Deployment scripts
+│   ├── overnight/           ✨ NEW - Overnight automation
+│   └── utils/               ✨ NEW - Utility scripts
+│
+├── docs/                    ✅ Enhanced documentation
+│   ├── README.md            ✅ Documentation index
+│   ├── setup/               ✨ NEW - Setup guides
+│   ├── legal/               ✨ NEW - Legal documents
+│   ├── architecture/        ✅ Already exists
+│   └── ...
+│
+├── tests/                   ✅ Test files (keep current)
+├── shared/                  ✅ Shared code (keep current)
+├── tools/                   ✅ Build tools (keep current)
+├── .github/                 ✅ GitHub config
+│   └── workflows/           ✅ CI workflows (enhance)
+│
+└── [Clean root directory]   ✅ Only essential files
+```
+
+**Note on src/ directory:**
+- Expo Router uses `app/` for routing, which is correct
+- We can add `src/` for non-route code, but path aliases (`@/`) already work
+- **Recommendation**: Keep current structure (components, hooks, utils at root) since path aliases are configured
+- Alternative: Move to `src/` for better organization, but requires updating all imports
+
+---
+
+## 🔧 Implementation Plan
+
+### Step 1: Create Audit Report ✅
+- [x] Document current structure
+- [x] Identify pain points
+- [x] Propose target structure
+- [x] Assess risks
+
+### Step 2: Root Directory Cleanup
+1. Move scripts to `scripts/` directory
+2. Move documentation to `docs/` directory
+3. Clean up temporary directories
+4. Update `.gitignore`
+
+### Step 3: Environment Setup
+1. Create `.env.example`
+2. Create `docs/ENV.md`
+3. Verify env var usage
+
+### Step 4: Configuration Improvements
+1. Review ESLint config
+2. Review Prettier config
+3. Improve TypeScript config (incrementally)
+4. Add Husky (optional)
+
+### Step 5: Documentation
+1. Update README.md
+2. Create CONTRIBUTING.md
+3. Create CHANGELOG.md
+4. Organize docs/ directory
+
+### Step 6: CI/CD
+1. Create GitHub Actions workflow
+2. Add lint, typecheck, test jobs
+3. Test workflow
+
+### Step 7: Verification
+1. Run `npm run typecheck` - should pass
+2. Run `npm run lint` - should pass
+3. Run `npm run build:ios` - should work
+4. Run `npm run build:android` - should work
+5. Test app in Expo Go - should work
+
+---
+
+## 📋 File Organization Rules
+
+### Root Directory
+- **Only essential config files**
+- **README.md, CONTRIBUTING.md, CHANGELOG.md**
+- **No scripts, no temporary files, no scattered docs**
+
+### Scripts
+- **All scripts in `scripts/` directory**
+- **Organized by purpose** (setup, build, deploy, overnight)
+- **Naming**: `kebab-case.sh` or `kebab-case.js`
+
+### Documentation
+- **All docs in `docs/` directory**
+- **Organized by topic** (setup, legal, architecture, etc.)
+- **README.md stays in root** (entry point)
+
+### Components
+- **Keep `components/` at root** (or move to `src/components/`)
+- **Screen-specific components**: `app/components/`
+- **Reusable components**: `components/` or `src/components/`
+
+---
+
+## 🎯 Success Criteria
+
+After reorganization:
+- ✅ Root directory has < 10 files
+- ✅ All scripts in `scripts/` directory
+- ✅ All documentation in `docs/` directory
+- ✅ `.env.example` exists
+- ✅ TypeScript compiles without errors
+- ✅ App builds successfully (iOS & Android)
+- ✅ App runs in Expo Go
+- ✅ CI workflow passes
+- ✅ README.md is clear and helpful
+- ✅ Folder structure is logical and scalable
+
+---
+
+## ⚠️ Important Notes
+
+### DO NOT CHANGE:
+- ❌ `app/` directory structure (Expo Router file-based routing)
+- ❌ Server structure (monorepo backend)
+- ❌ Path aliases configuration (already working)
+- ❌ Package.json scripts (unless improving)
+- ❌ Build configurations (unless fixing)
+
+### DO CHANGE:
+- ✅ Root directory cleanup
+- ✅ Script organization
+- ✅ Documentation organization
+- ✅ Add missing standard files
+- ✅ Improve configurations (incrementally)
+- ✅ Add CI workflows
+
+---
+
+**Next Steps**: Implement changes incrementally, test after each step, commit logically.
