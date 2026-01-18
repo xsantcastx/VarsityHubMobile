@@ -42,7 +42,7 @@ export default function MessageThreadScreen() {
     if (prefill) {
       router.setParams({ prefill: '' });
     }
-  }, [prefill]);
+  }, [prefill, router]);
 
   const load = useCallback(async () => {
     setLoading(true);

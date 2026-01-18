@@ -7,6 +7,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
+import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
 
@@ -92,15 +93,26 @@ teamsRouter.get('/limits', authMiddleware as any, async (req: AuthedRequest, res
     }
   });
   
-  const maxTeams = (user as any).max_teams ?? 2;
-  const canCreateMore = ownedTeamsCount < maxTeams;
+  // Get plan from preferences, fallback to subscription_tier
+  const prefs = (user.preferences && typeof user.preferences === 'object') ? (user.preferences as any) : {};
+  const plan = prefs.plan || user.subscription_tier || 'rookie';
+  
+  // Get max teams from plan definitions (source of truth)
+  const maxTeamsFromPlan = getMaxTeamsForPlan(plan);
+  // Use plan-based limit if available, otherwise fallback to database column, then default to 2
+  const maxTeams = maxTeamsFromPlan ?? (user as any).max_teams ?? 2;
+  
+  // For unlimited plans (null), set to a high number for UI display
+  const maxTeamsDisplay = maxTeamsFromPlan === null ? 999 : maxTeams;
+  
+  const canCreateMore = maxTeamsFromPlan === null || ownedTeamsCount < maxTeams;
   const subscriptionTier = (user as any).subscription_tier ?? 'free';
   
   return res.json({
     owned_teams: ownedTeamsCount,
-    max_teams: maxTeams,
+    max_teams: maxTeamsDisplay,
     can_create_more: canCreateMore,
-    remaining: Math.max(0, maxTeams - ownedTeamsCount),
+    remaining: maxTeamsFromPlan === null ? 999 : Math.max(0, maxTeams - ownedTeamsCount),
     subscription_tier: subscriptionTier,
     upgrade_required: !canCreateMore
   });
@@ -264,10 +276,15 @@ teamsRouter.get('/members/all', async (req, res) => {
 // Create team (auth required). Creator becomes owner.
 const createSchema = z.object({ name: z.string().min(2), description: z.string().optional() });
 teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
+  // req.user is guaranteed by requireVerified middleware
   const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
+  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // SECURITY: Enforce coach role requirement
@@ -328,12 +345,15 @@ const updateSchema = z.object({
 });
 teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
   debugLog('[Teams PUT] Received update request:', JSON.stringify(req.body));
+  // req.user is guaranteed by requireVerified middleware
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     console.error('[Teams PUT] Validation failed:', JSON.stringify(parsed.error));
-    return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
   }
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
@@ -419,7 +439,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
 
 // Delete team (auth required). Only owners/admins can delete.
 teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  // req.user is guaranteed by requireVerified middleware
   
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
@@ -494,12 +514,17 @@ const createTeamSchema = z.object({
 });
 
 teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, res) => {
+  // req.user is guaranteed by requireVerified middleware
   const parsed = createTeamSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   
   const data = parsed.data;
-  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { id: true, preferences: true } });
+  const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, preferences: true } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check team limit for free tier (Rookie plan)
@@ -699,22 +724,24 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
   const parsed = inviteSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
-  // PLAN LIMITS: Enforce authorized user caps
+  // PLAN LIMITS: Enforce authorized user caps (per-team limits)
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const prefs = (user?.preferences || {}) as any;
     const plan = prefs.plan || 'rookie';
-    let limit: number | null = null;
-    if (plan === 'rookie') limit = 1;
-    else if (plan === 'veteran') {
-      const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ where: { user_id: req.user.id, role: 'owner' } });
-      limit = (teamCountTotal * 2) || 12; // fallback 12
-    }
-    // legend => unlimited
+    
+    // Get per-team limit from plan definitions
+    const limit = getAuthorizedUsersPerTeam(plan);
+    
     if (limit !== null) {
       const inviteCount = await prisma.teamInvite.count({ where: { team_id: id, status: 'pending' } });
       const memberCount = await prisma.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
@@ -722,12 +749,13 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
       if (totalAuthorized >= limit) {
         return res.status(403).json({
           error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} (${plan === 'veteran' ? '2 per team' : 'Rookie max'}).`,
+          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team.`,
           limit,
           current: totalAuthorized
         });
       }
     }
+    // If limit is null, plan has unlimited authorized users (Legend tier)
   } catch (e) {
     console.warn('[teams][invite-limit] check failed', e);
   }

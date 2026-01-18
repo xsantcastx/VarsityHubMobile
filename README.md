@@ -49,12 +49,21 @@ See **[docs/README.md](./docs/README.md)** for the full documentation index.
 
 ## 📚 Key Documentation
 
+### Setup & Development
 - **[docs/01-SETUP.md](./docs/01-SETUP.md)** - Development environment setup
-- **[docs/PRODUCTION_HARDENING.md](./docs/PRODUCTION_HARDENING.md)** - Security hardening & audit notes
+- **[docs/02-PROJECT-STRUCTURE.md](./docs/02-PROJECT-STRUCTURE.md)** - Project structure guide
+- **[docs/03-ENVIRONMENT.md](./docs/03-ENVIRONMENT.md)** - Environment configuration
 - **[docs/04-DEVELOPMENT.md](./docs/04-DEVELOPMENT.md)** - Development workflow and standards
+
+### Email System
+- **[docs/EMAIL_GUIDE.md](./docs/EMAIL_GUIDE.md)** - Complete email system guide
+- **[docs/EMAIL_ENV.md](./docs/EMAIL_ENV.md)** - Email environment variables
+- **[docs/EMAIL_AUDIT.md](./docs/EMAIL_AUDIT.md)** - Email system audit
+
+### Production
 - **[docs/07-PRODUCTION.md](./docs/07-PRODUCTION.md)** - Production launch guide
+- **[docs/PRODUCTION_HARDENING.md](./docs/PRODUCTION_HARDENING.md)** - Security hardening & audit notes
 - **[docs/RAILWAY_ENV_SETUP.md](./docs/RAILWAY_ENV_SETUP.md)** - Railway deployment setup
-- **[docs/status/INDEX.md](./docs/status/INDEX.md)** - Status reports and checklists
 
 ---
 

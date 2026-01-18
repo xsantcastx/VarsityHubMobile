@@ -7,17 +7,17 @@
     "period": "",
     "priceId": null,
     "max_teams": 2,
-    "max_authorized_users_per_team": 3,
+    "max_authorized_users_per_team": 1,
     "max_roster_size_per_team": 50,
     "authorized_users_org_strategy": {
       "type": "fixed",
-      "value": 3
+      "value": 1
     },
     "supports_extracurricular": false,
     "features": [
       "Entry-level access",
       "First two teams free forever (ex: mens and womens soccer)",
-      "Up to 3 staff per team",
+      "Up to 1 staff per team",
       "50 athletes per team roster"
     ],
     "billing": {

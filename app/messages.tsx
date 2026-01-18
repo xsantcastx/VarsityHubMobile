@@ -176,7 +176,7 @@ export default function MessagesScreen() {
       } catch (e: any) {
         // Silently handle admin-only restriction
         if (e?.message?.includes('Admin only')) {
-          console.log('[messages] User search is admin-only');
+          // Admin-only feature - silently ignore
         } else {
           console.error('User search failed', e);
         }

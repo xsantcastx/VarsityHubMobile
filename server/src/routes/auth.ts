@@ -490,18 +490,61 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
 });
 
 const updateMeSchema = z.object({
-  display_name: z.string().min(1).max(120).optional(),
-  avatar_url: z.string().url().optional(),
-  bio: z.string().max(1000).optional(),
+  display_name: z.string().min(1).max(120).refine((val) => val.trim().length > 0, { message: 'Display name cannot be only whitespace' }).optional(),
+  username: z.string().min(3).max(20).regex(/^[a-z0-9_.]+$/, { message: 'Username can only contain lowercase letters, numbers, dots, and underscores' }).optional(),
+  avatar_url: z.string()
+    .url({ message: 'Avatar URL must be a valid URL' })
+    .refine((url) => {
+      try {
+        const parsed = new URL(url);
+        // Only allow https
+        if (parsed.protocol !== 'https:') return false;
+        // Allow specific domains (Cloudinary, etc.)
+        const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
+        return allowedDomains.some(d => parsed.hostname.endsWith(d));
+      } catch {
+        return false;
+      }
+    }, { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' })
+    .optional()
+    .nullable(),
+  bio: z.string().max(1000).transform((val) => val === '' ? null : val).optional().nullable(),
   preferences: z.any().optional(),
 });
 
 authRouter.put('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   const data = parsed.data as any;
   let patch: any = { ...data };
+  
+  // Validate username availability if provided
+  if (data.username) {
+    const exists = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: data.username, mode: 'insensitive' } },
+          { display_name: { equals: data.username, mode: 'insensitive' } }
+        ],
+        NOT: { id: req.user.id }
+      },
+      select: { id: true }
+    });
+    if (exists) {
+      return res.status(400).json({ 
+        error: 'Username taken',
+        message: 'This username is already in use.',
+      });
+    }
+    patch.username = data.username;
+  }
+  
   if (data.preferences) {
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
@@ -516,9 +559,36 @@ authRouter.put('/me', async (req: AuthedRequest, res) => {
 authRouter.patch('/me', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const parsed = updateMeSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   const data = parsed.data as any;
   let patch: any = { ...data };
+  
+  // Validate username availability if provided
+  if (data.username) {
+    const exists = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: data.username, mode: 'insensitive' } },
+          { display_name: { equals: data.username, mode: 'insensitive' } }
+        ],
+        NOT: { id: req.user.id }
+      },
+      select: { id: true }
+    });
+    if (exists) {
+      return res.status(400).json({ 
+        error: 'Username taken',
+        message: 'This username is already in use.',
+      });
+    }
+    patch.username = data.username;
+  }
+  
   if (data.preferences) {
     const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
     const mergedPrefs = mergePreferences(current?.preferences || {}, data.preferences);
@@ -531,10 +601,29 @@ authRouter.patch('/me', async (req: AuthedRequest, res) => {
 
 // Utility to deep-merge preferences, preserving nested notification keys
 function mergePreferences(base: any, incoming: any) {
-  const out = { ...(base || {}), ...(incoming || {}) };
-  if (base?.notifications || incoming?.notifications) {
-    out.notifications = { ...(base?.notifications || {}), ...(incoming?.notifications || {}) };
+  if (!base && !incoming) return {};
+  if (!base) return incoming;
+  if (!incoming) return base;
+  
+  const out = { ...base };
+  
+  // Deep merge for nested objects
+  for (const key in incoming) {
+    if (incoming[key] === null || incoming[key] === undefined) {
+      // Explicit null/undefined means remove (for optional fields)
+      // But preserve existing if not explicitly set to null
+      if (incoming[key] === null && key in incoming) {
+        delete out[key];
+      }
+    } else if (typeof incoming[key] === 'object' && !Array.isArray(incoming[key]) && incoming[key] !== null && incoming[key].constructor === Object) {
+      // Deep merge objects (but not arrays or special objects like Date)
+      out[key] = mergePreferences(base[key], incoming[key]);
+    } else {
+      // Overwrite primitives and arrays
+      out[key] = incoming[key];
+    }
   }
+  
   return out;
 }
 
@@ -568,7 +657,12 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   }).partial();
   
   const parsed = schema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   const incoming = parsed.data as any;
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   const defaults = {

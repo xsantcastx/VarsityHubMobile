@@ -145,13 +145,13 @@ export default function Step3Plan() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const status = await Payments.configStatus();
         if (!mounted) return;
         setPaymentsStatus(status);
         setPaymentsStatusError(null);
-      } catch (err) {
+      } catch {
         if (!mounted) return;
         setPaymentsStatusError('Unable to confirm payment readiness right now.');
       } finally {

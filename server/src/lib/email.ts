@@ -1,7 +1,8 @@
-import sgMail from '@sendgrid/mail';
 import { debugLog } from './debugLog.js';
+import { getEmailService, initEmailService as initNewEmailService } from '../services/email/service.js';
+import type { EmailResult } from '../services/email/types.js';
 
-// Initialize SendGrid
+// Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
@@ -33,10 +34,6 @@ const REQUIRED_TEMPLATE_KEYS: TemplateKey[] = [
   'JOIN_REQUEST_DENIED',
 ];
 
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-}
-
 export function isSendGridConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
 }
@@ -47,19 +44,19 @@ export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMP
     .map((key) => key.toLowerCase());
 }
 
+/**
+ * Initialize email service (now uses new EmailService)
+ */
 export function initEmailService() {
-  if (!SENDGRID_API_KEY) {
-    console.warn('⚠️ SENDGRID_API_KEY not set - emails will not be sent');
-    return;
-  }
-
-  sgMail.setApiKey(SENDGRID_API_KEY);
+  const result = initNewEmailService();
+  
+  // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
   if (missing.length) {
     console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
-  } else {
-    debugLog('✅ SendGrid email service initialized (all required templates configured)');
   }
+  
+  return result;
 }
 
 type BasicEmail = { to: string; subject: string; text?: string; html?: string };
@@ -69,37 +66,47 @@ const formatLines = (lines: Array<string | undefined | null>) =>
 
 /**
  * Generic email helper used by queue fallbacks and non-templated sends.
+ * Now uses the new EmailService with retry logic and better error handling.
  */
 export async function sendEmail({ to, subject, text, html }: BasicEmail): Promise<boolean> {
   if (!to) {
     console.warn('[email] Missing recipient');
     return false;
   }
+
   const safeSubject = subject || 'VarsityHub notification';
   const safeText = text ?? '';
   const safeHtml = html ?? text ?? '';
-  if (SENDGRID_API_KEY) {
-    try {
-      await sgMail.send({
-        to,
-        from: EMAIL_FROM,
-        subject: safeSubject,
-        text: safeText,
-        html: safeHtml,
-      });
-      debugLog(`[email] Sent generic email to ${to} (${safeSubject})`);
-      return true;
-    } catch (error) {
-      console.error('[email] Failed to send generic email:', error);
-      return false;
+
+  const service = getEmailService();
+  
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured - logging email', { to, subject: safeSubject });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
     }
+    return true; // Return true to not break existing flows
   }
 
-  console.warn('[email] SendGrid not configured - logging email', { to, subject: safeSubject });
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
+  try {
+    const result = await service.send({
+      to,
+      subject: safeSubject,
+      text: safeText,
+      html: safeHtml,
+    });
+
+    if (result.success) {
+      debugLog(`[email] Sent generic email to ${to} (${safeSubject})`);
+      return true;
+    } else {
+      console.error('[email] Failed to send generic email:', result.error);
+      return false;
+    }
+  } catch (error: any) {
+    console.error('[email] Failed to send generic email:', error);
+    return false;
   }
-  return true;
 }
 
 // --- Generic helper wrappers for legacy callers ---
@@ -257,27 +264,40 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
 
 /**
  * Send verification email with 6-digit code
+ * Now uses EmailService with retry logic
  */
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.VERIFICATION) {
+  if (!TEMPLATE_IDS.VERIFICATION) {
     console.warn('[email] SendGrid verification template not configured');
     return false;
   }
 
+  const service = getEmailService();
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured');
+    return false;
+  }
+
   try {
-    await sgMail.send({
+    const result = await service.send({
       to: email,
-      from: EMAIL_FROM,
+      subject: 'Verify your VarsityHub account',
       templateId: TEMPLATE_IDS.VERIFICATION,
-      dynamicTemplateData: {
+      templateData: {
         verification_link: `${APP_BASE_URL}/verify?token=${encodeURIComponent(token)}`,
         user_name: userName || 'Varsity Hub user',
         verification_code: token,
       },
     });
-    debugLog(`✅ Verification email sent to ${email}`);
-    return true;
-  } catch (error) {
+
+    if (result.success) {
+      debugLog(`✅ Verification email sent to ${email}`);
+      return true;
+    } else {
+      console.error('❌ Failed to send verification email:', result.error);
+      return false;
+    }
+  } catch (error: any) {
     console.error('❌ Failed to send verification email:', error);
     return false;
   }
@@ -285,26 +305,39 @@ export async function sendVerificationEmail(email: string, token: string, userNa
 
 /**
  * Send password reset email with 6-digit code
+ * Now uses EmailService with retry logic
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.PASSWORD_RESET) {
+  if (!TEMPLATE_IDS.PASSWORD_RESET) {
     console.warn('[email] SendGrid password reset template not configured');
     return false;
   }
 
+  const service = getEmailService();
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured');
+    return false;
+  }
+
   try {
-    await sgMail.send({
+    const result = await service.send({
       to: email,
-      from: EMAIL_FROM,
+      subject: 'Reset your VarsityHub password',
       templateId: TEMPLATE_IDS.PASSWORD_RESET,
-      dynamicTemplateData: {
+      templateData: {
         reset_code: code,
         expires_in: '30 minutes',
       },
     });
-    debugLog(`✅ Password reset email sent to ${email}`);
-    return true;
-  } catch (error) {
+
+    if (result.success) {
+      debugLog(`✅ Password reset email sent to ${email}`);
+      return true;
+    } else {
+      console.error('❌ Failed to send password reset email:', result.error);
+      return false;
+    }
+  } catch (error: any) {
     console.error('❌ Failed to send password reset email:', error);
     return false;
   }
@@ -312,6 +345,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
 
 /**
  * Send team invite with personalized team branding
+ * Now uses EmailService with retry logic
  */
 export async function sendTeamInviteEmail(params: {
   to: string;
@@ -324,19 +358,25 @@ export async function sendTeamInviteEmail(params: {
   teamLogoUrl?: string;
   primaryColor?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.TEAM_INVITE) {
+  if (!TEMPLATE_IDS.TEAM_INVITE) {
     console.warn('[email] SendGrid team invite template not configured');
+    return false;
+  }
+
+  const service = getEmailService();
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured');
     return false;
   }
 
   const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
 
   try {
-    await sgMail.send({
+    const result = await service.send({
       to: params.to,
-      from: EMAIL_FROM,
+      subject: `You've been invited to join ${params.teamName}`,
       templateId: TEMPLATE_IDS.TEAM_INVITE,
-      dynamicTemplateData: {
+      templateData: {
         recipient_name: params.recipientName || '',
         team_name: params.teamName,
         org_name: params.organizationName || '',
@@ -348,16 +388,65 @@ export async function sendTeamInviteEmail(params: {
         primary_color: params.primaryColor || '#2563EB',
       },
     });
-    debugLog(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
-    return true;
-  } catch (error) {
+
+    if (result.success) {
+      debugLog(`✅ Team invite sent to ${params.to} for ${params.teamName}`);
+      return true;
+    } else {
+      console.error('❌ Failed to send team invite:', result.error);
+      return false;
+    }
+  } catch (error: any) {
     console.error('❌ Failed to send team invite:', error);
     return false;
   }
 }
 
 /**
+ * Helper function to send template-based emails using EmailService
+ */
+async function sendTemplateEmail(
+  templateId: string,
+  to: string,
+  subject: string,
+  templateData: Record<string, any>,
+  logMessage: string
+): Promise<boolean> {
+  if (!templateId) {
+    console.warn(`[email] Template ID not configured for: ${subject}`);
+    return false;
+  }
+
+  const service = getEmailService();
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured');
+    return false;
+  }
+
+  try {
+    const result = await service.send({
+      to,
+      subject,
+      templateId,
+      templateData,
+    });
+
+    if (result.success) {
+      debugLog(`✅ ${logMessage}`);
+      return true;
+    } else {
+      console.error(`❌ Failed: ${logMessage}`, result.error);
+      return false;
+    }
+  } catch (error: any) {
+    console.error(`❌ Failed: ${logMessage}`, error);
+    return false;
+  }
+}
+
+/**
  * Send organization invite with personalized org branding
+ * Now uses EmailService with retry logic
  */
 export async function sendOrganizationInviteEmail(params: {
   to: string;
@@ -367,37 +456,27 @@ export async function sendOrganizationInviteEmail(params: {
   orgLogoUrl?: string;
   primaryColor?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ORG_INVITE) {
-    console.warn('[email] SendGrid org invite template not configured');
-    return false;
-  }
-
   const prettyRole = params.role?.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || 'member';
 
-  try {
-    await sgMail.send({
-      to: params.to,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ORG_INVITE,
-      dynamicTemplateData: {
-        org_name: params.organizationName,
-        role: prettyRole,
-        inviter_name: params.inviterName || 'VarsityHub Admin',
-        invite_url: `${APP_BASE_URL}/invites`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-        primary_color: params.primaryColor || '#2563EB',
-      },
-    });
-    debugLog(`✅ Organization invite sent to ${params.to} for ${params.organizationName}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send organization invite:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ORG_INVITE,
+    params.to,
+    `You've been invited to join ${params.organizationName}`,
+    {
+      org_name: params.organizationName,
+      role: prettyRole,
+      inviter_name: params.inviterName || 'VarsityHub Admin',
+      invite_url: `${APP_BASE_URL}/invites`,
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+      primary_color: params.primaryColor || '#2563EB',
+    },
+    `Organization invite sent to ${params.to} for ${params.organizationName}`
+  );
 }
 
 /**
  * Send abuse report notification to customer service
+ * Now uses EmailService with retry logic
  */
 export async function sendAbuseReportNotification(params: {
   reporterName: string;
@@ -406,35 +485,25 @@ export async function sendAbuseReportNotification(params: {
   message: string;
   userId?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.ABUSE_REPORT) {
-    console.warn('[email] SendGrid abuse report template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: process.env.CUSTOMER_SERVICE_EMAIL || 'customerservice@varsityhub.app',
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.ABUSE_REPORT,
-      dynamicTemplateData: {
-        reporter_name: params.reporterName,
-        reporter_email: params.reporterEmail,
-        subject: params.subject,
-        message: params.message,
-        user_id: params.userId || '',
-        submitted_at: new Date().toLocaleString(),
-      },
-    });
-    debugLog(`✅ Abuse report sent to customer service from ${params.reporterEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send abuse report:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ABUSE_REPORT,
+    process.env.CUSTOMER_SERVICE_EMAIL || 'customerservice@varsityhub.app',
+    'New Abuse Report',
+    {
+      reporter_name: params.reporterName,
+      reporter_email: params.reporterEmail,
+      subject: params.subject,
+      message: params.message,
+      user_id: params.userId || '',
+      submitted_at: new Date().toLocaleString(),
+    },
+    `Abuse report sent to customer service from ${params.reporterEmail}`
+  );
 }
 
 /**
  * Send join request notification to organization admin
+ * Now uses EmailService with retry logic
  */
 export async function sendJoinRequestToAdmin(params: {
   adminEmail: string;
@@ -445,32 +514,21 @@ export async function sendJoinRequestToAdmin(params: {
   requestId: string;
   orgLogoUrl?: string;
 }): Promise<boolean> {
-  if (!SENDGRID_API_KEY || !TEMPLATE_IDS.JOIN_REQUEST_ADMIN) {
-    console.warn('[email] SendGrid join request admin template not configured');
-    return false;
-  }
-
-  try {
-    await sgMail.send({
-      to: params.adminEmail,
-      from: EMAIL_FROM,
-      templateId: TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
-      dynamicTemplateData: {
-        admin_name: params.adminName,
-        requester_name: params.requesterName,
-        org_name: params.organizationName,
-        message: params.message || '',
-        approve_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/approve`,
-        deny_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/deny`,
-        logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
-      },
-    });
-    debugLog(`✅ Join request notification sent to ${params.adminEmail}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send join request notification:', error);
-    return false;
-  }
+  return sendTemplateEmail(
+    TEMPLATE_IDS.JOIN_REQUEST_ADMIN,
+    params.adminEmail,
+    `New join request for ${params.organizationName}`,
+    {
+      admin_name: params.adminName,
+      requester_name: params.requesterName,
+      org_name: params.organizationName,
+      message: params.message || '',
+      approve_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/approve`,
+      deny_url: `${APP_BASE_URL}/organizations/join-requests/${params.requestId}/deny`,
+      logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
+    },
+    `Join request notification sent to ${params.adminEmail}`
+  );
 }
 
 /**

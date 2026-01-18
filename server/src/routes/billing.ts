@@ -74,6 +74,15 @@ billingRouter.post('/webhooks/stripe', async (req: AuthedRequest, res) => {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
+      // Security: Only process if payment was actually successful
+      if (session.payment_status !== 'paid') {
+        console.warn('[billing] Webhook skipped - session not paid', {
+          session_id: session.id,
+          payment_status: session.payment_status,
+          status: session.status
+        });
+        return res.json({ received: true, skipped: true });
+      }
       const userId = session.metadata?.user_id;
       const plan = session.metadata?.plan;
       if (userId && plan) {

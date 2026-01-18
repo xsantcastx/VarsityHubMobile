@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { cancelGameReminders, scheduleGameReminders } from '../lib/notifications.js';
+import { cancelGameReminders, scheduleGameReminders, sendPushNotification } from '../lib/notifications.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 
@@ -79,6 +80,11 @@ eventsRouter.get('/', async (req, res) => {
     ];
   }
   
+  // Filter out past events by default (unless explicitly requested)
+  if (!req.query.include_past && !approvalStatus) {
+    where.date = { gte: new Date() };
+  }
+  
   const orderBy = sort === 'date' ? { date: 'asc' as const } : { created_at: 'desc' as const };
   const events = await prisma.event.findMany({
     where,
@@ -107,6 +113,29 @@ eventsRouter.get('/my-rsvps', async (req: AuthedRequest, res) => {
   return res.json(list);
 });
 
+// List current user's created events (for fans to track their submissions)
+eventsRouter.get('/my-events', requireAuth as any, async (req: AuthedRequest, res) => {
+  // req.user is guaranteed by requireAuth middleware
+  const events = await prisma.event.findMany({
+    where: { creator_id: req.user!.id },
+    orderBy: { created_at: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      location: true,
+      event_type: true,
+      approval_status: true,
+      status: true,
+      rejected_reason: true,
+      created_at: true,
+      approved_at: true,
+      description: true,
+    },
+  });
+  return res.json(events);
+});
+
 // Get single event with RSVP count
 eventsRouter.get('/:id', async (req, res) => {
   const id = String(req.params.id);
@@ -122,13 +151,17 @@ eventsRouter.get('/:id', async (req, res) => {
 // Get RSVP status and count
 eventsRouter.get('/:id/rsvp', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
-  const event = await prisma.event.findUnique({ where: { id }, select: { capacity: true } });
+  const event = await prisma.event.findUnique({ 
+    where: { id }, 
+    select: { capacity: true, max_attendees: true } 
+  });
   if (!event) return res.status(404).json({ error: 'Not found' });
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
-  if (!req.user) return res.json({ going: false, attending: false, count, capacity: event.capacity ?? null });
+  const capacity = event.capacity ?? event.max_attendees ?? null;
+  if (!req.user) return res.json({ going: false, attending: false, count, capacity });
   const exists = await prisma.eventRsvp.findUnique({ where: { event_id_user_id: { event_id: id, user_id: req.user.id } } as any });
   const going = !!exists;
-  return res.json({ going, attending: going, count, capacity: event.capacity ?? null });
+  return res.json({ going, attending: going, count, capacity });
 });
 
 // Toggle/set RSVP
@@ -137,10 +170,31 @@ const rsvpSchema = z.object({ attending: z.boolean().optional(), going: z.boolea
 eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
-  const event = await prisma.event.findUnique({ where: { id }, select: { id: true, capacity: true } });
+  
+  // Get event with date and capacity info
+  const event = await prisma.event.findUnique({ 
+    where: { id }, 
+    select: { id: true, capacity: true, max_attendees: true, date: true } 
+  });
   if (!event) return res.status(404).json({ error: 'Not found' });
+  
+  // Validate event hasn't passed
+  const eventDate = new Date(event.date);
+  const now = new Date();
+  if (eventDate < now) {
+    return res.status(400).json({
+      error: 'Event has passed',
+      message: 'You cannot RSVP to events that have already occurred.',
+    });
+  }
+  
   const parsed = rsvpSchema.safeParse(req.body || {});
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   const me = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!me) return res.status(401).json({ error: 'Unauthorized' });
   const current = await prisma.eventRsvp.findUnique({ where: { event_id_user_id: { event_id: id, user_id: me.id } } as any });
@@ -150,17 +204,51 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
       : typeof parsed.data.attending === 'boolean'
         ? parsed.data.attending
         : !current;
+  
   if (desired && !current) {
-    await prisma.eventRsvp.create({ data: { event_id: id, user_id: me.id, user_email: me.email } });
-    // Schedule game reminder notifications (12h and 1h before)
-    await scheduleGameReminders(id, me.id);
+    // Use transaction to prevent race condition and enforce capacity
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Check current count within transaction (prevents race condition)
+        const currentCount = await tx.eventRsvp.count({ where: { event_id: id } });
+        const capacity = event.capacity ?? event.max_attendees;
+        
+        if (capacity && currentCount >= capacity) {
+          throw new Error('EVENT_AT_CAPACITY');
+        }
+        
+        await tx.eventRsvp.create({ 
+          data: { event_id: id, user_id: me.id, user_email: me.email } 
+        });
+      });
+      
+      // Schedule game reminder notifications (12h and 1h before)
+      await scheduleGameReminders(id, me.id).catch(err => 
+        console.warn('[events] Failed to schedule reminders:', err)
+      );
+    } catch (error: any) {
+      if (error.message === 'EVENT_AT_CAPACITY') {
+        const currentCount = await prisma.eventRsvp.count({ where: { event_id: id } });
+        const capacity = event.capacity ?? event.max_attendees;
+        return res.status(403).json({
+          error: 'Event at capacity',
+          message: 'This event is full. Please check back later for cancellations.',
+          count: currentCount,
+          capacity,
+        });
+      }
+      throw error;
+    }
   } else if (!desired && current) {
     await prisma.eventRsvp.delete({ where: { event_id_user_id: { event_id: id, user_id: me.id } } as any });
     // Cancel scheduled reminders
-    await cancelGameReminders(id, me.id);
+    await cancelGameReminders(id, me.id).catch(err => 
+      console.warn('[events] Failed to cancel reminders:', err)
+    );
   }
   const count = await prisma.eventRsvp.count({ where: { event_id: id } });
-  return res.json({ going: desired, attending: desired, count, capacity: event.capacity ?? null });
+  const capacity = event.capacity ?? event.max_attendees;
+  return res.json({ going: desired, attending: desired, count, capacity: capacity ?? null });
 });
 
 // Create event (fans & coaches)
@@ -180,14 +268,29 @@ const createEventSchema = z.object({
 });
 
 eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-  
+  // req.user is guaranteed by requireVerified middleware
   const parsed = createEventSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload', details: parsed.error });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   
   const data = parsed.data;
+  
+  // Validate event date is in the future
+  const eventDate = new Date(data.date);
+  const now = new Date();
+  if (eventDate < now) {
+    return res.status(400).json({
+      error: 'Invalid date',
+      message: 'Event date must be in the future.',
+    });
+  }
+  
   const user = await prisma.user.findUnique({ 
-    where: { id: req.user.id }, 
+    where: { id: req.user!.id }, 
     select: { id: true, preferences: true } 
   });
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -219,6 +322,9 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
   // Coaches/organizers get auto-approval, fans need approval
   const autoApprove = userRole === 'coach' || userRole === 'organizer';
   
+  // Use capacity if provided, otherwise max_attendees (for backward compatibility)
+  const capacity = data.max_attendees ?? null;
+  
   const event = await prisma.event.create({
     data: {
       title: data.title,
@@ -229,7 +335,8 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
       description: data.description,
       event_type: data.event_type,
       linked_league: data.linked_league,
-      max_attendees: data.max_attendees,
+      capacity: capacity,
+      max_attendees: data.max_attendees, // Keep for backward compatibility
       contact_info: data.contact_info,
       banner_url: data.banner_url,
       game_id: data.game_id,
@@ -241,11 +348,23 @@ eventsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =
     },
   });
   
+  // Get pending count for response (helpful for fans to know their limit status)
+  const pendingCount = userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free')
+    ? await prisma.event.count({
+        where: {
+          creator_id: user.id,
+          approval_status: 'pending',
+        },
+      })
+    : null;
+  
   return res.status(201).json({
     ...serializeEvent(event),
     message: autoApprove 
       ? 'Event created and published successfully!' 
       : 'Your event has been submitted for approval.',
+    pending_count: pendingCount,
+    limit: userRole === 'fan' && (userPlan === 'rookie' || !userPlan || userPlan === 'free') ? 3 : null,
   });
 });
 
@@ -282,7 +401,7 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
 
 // Approve event
 eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  // req.user is guaranteed by requireVerified middleware
   
   const user = await prisma.user.findUnique({ 
     where: { id: req.user.id }, 
@@ -302,6 +421,28 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
   
+  // Validate event is in pending state
+  if (event.approval_status === 'approved') {
+    return res.status(400).json({ 
+      error: 'Event already approved',
+      message: 'This event has already been approved.',
+    });
+  }
+  
+  if (event.approval_status === 'rejected') {
+    return res.status(400).json({ 
+      error: 'Event already rejected',
+      message: 'This event has already been rejected. Cannot approve a rejected event.',
+    });
+  }
+  
+  if (event.approval_status !== 'pending') {
+    return res.status(400).json({ 
+      error: 'Invalid state',
+      message: 'Can only approve pending events.',
+    });
+  }
+  
   const updated = await prisma.event.update({
     where: { id: eventId },
     data: {
@@ -315,8 +456,20 @@ eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedReque
     }
   });
   
-  // TODO: Send notification to event creator
-  // await createNotification(updated.creator_id, 'EVENT_APPROVED', { event_id: eventId })
+  // Send notification to event creator
+  if (updated.creator_id) {
+    await sendPushNotification(
+      updated.creator_id,
+      'Event Approved',
+      `Your event "${updated.title}" has been approved and is now visible to everyone!`,
+      {
+        type: 'event_approved',
+        event_id: eventId,
+        screen: 'event-detail',
+        event_id_param: eventId,
+      }
+    ).catch(err => console.warn('[events] Failed to send approval notification:', err));
+  }
   
   return res.json({ 
     ...serializeEvent(updated),
@@ -330,7 +483,7 @@ const rejectEventSchema = z.object({
 });
 
 eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  // req.user is guaranteed by requireVerified middleware
   
   const user = await prisma.user.findUnique({ 
     where: { id: req.user.id }, 
@@ -350,6 +503,28 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
   const event = await prisma.event.findUnique({ where: { id: eventId } });
   if (!event) return res.status(404).json({ error: 'Event not found' });
   
+  // Validate event is in pending state
+  if (event.approval_status === 'approved') {
+    return res.status(400).json({ 
+      error: 'Event already approved',
+      message: 'This event has already been approved. Cannot reject an approved event.',
+    });
+  }
+  
+  if (event.approval_status === 'rejected') {
+    return res.status(400).json({ 
+      error: 'Event already rejected',
+      message: 'This event has already been rejected.',
+    });
+  }
+  
+  if (event.approval_status !== 'pending') {
+    return res.status(400).json({ 
+      error: 'Invalid state',
+      message: 'Can only reject pending events.',
+    });
+  }
+  
   const parsed = rejectEventSchema.safeParse(req.body);
   const reason = parsed.success ? parsed.data.reason : undefined;
   
@@ -367,11 +542,125 @@ eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedReques
     }
   });
   
-  // TODO: Send notification to event creator
-  // await createNotification(updated.creator_id, 'EVENT_REJECTED', { event_id: eventId, reason })
+  // Send notification to event creator
+  if (updated.creator_id) {
+    const reasonText = reason ? ` Reason: ${reason}` : '';
+    await sendPushNotification(
+      updated.creator_id,
+      'Event Not Approved',
+      `Your event "${updated.title}" was not approved.${reasonText}`,
+      {
+        type: 'event_rejected',
+        event_id: eventId,
+        reason: reason || null,
+        screen: 'event-detail',
+        event_id_param: eventId,
+      }
+    ).catch(err => console.warn('[events] Failed to send rejection notification:', err));
+  }
   
   return res.json({ 
     ...serializeEvent(updated),
     message: 'Event rejected' 
+  });
+});
+
+// Update event (creator only, pending events only)
+const updateEventSchema = z.object({
+  title: z.string().min(1).optional(),
+  date: z.string().optional(),
+  location: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  description: z.string().optional(),
+  event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
+  linked_league: z.string().optional(),
+  max_attendees: z.number().optional(),
+  contact_info: z.string().optional(),
+  banner_url: z.string().optional(),
+});
+
+eventsRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  // req.user is guaranteed by requireAuth middleware
+  const eventId = String(req.params.id);
+  
+  // Get event to check permissions and status
+  const event = await prisma.event.findUnique({ 
+    where: { id: eventId },
+    select: { 
+      id: true, 
+      creator_id: true, 
+      approval_status: true,
+      date: true,
+    },
+  });
+  
+  if (!event) return res.status(404).json({ error: 'Event not found' });
+  
+  // Only creator can edit
+  if (event.creator_id !== req.user!.id) {
+    return res.status(403).json({ 
+      error: 'Permission denied',
+      message: 'Only the event creator can edit this event.',
+    });
+  }
+  
+  // Only pending events can be edited
+  if (event.approval_status !== 'pending') {
+    return res.status(400).json({ 
+      error: 'Cannot edit event',
+      message: 'Only pending events can be edited. Once approved or rejected, events cannot be modified.',
+    });
+  }
+  
+  // Validate input
+  const parsed = updateEventSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
+  
+  const data = parsed.data;
+  
+  // If date is being updated, validate it's in the future
+  if (data.date) {
+    const eventDate = new Date(data.date);
+    const now = new Date();
+    if (eventDate < now) {
+      return res.status(400).json({
+        error: 'Invalid date',
+        message: 'Event date must be in the future.',
+      });
+    }
+  }
+  
+  // Build update data
+  const updateData: any = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.date !== undefined) updateData.date = new Date(data.date);
+  if (data.location !== undefined) updateData.location = data.location;
+  if (data.latitude !== undefined) updateData.latitude = data.latitude;
+  if (data.longitude !== undefined) updateData.longitude = data.longitude;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.event_type !== undefined) updateData.event_type = data.event_type;
+  if (data.linked_league !== undefined) updateData.linked_league = data.linked_league;
+  if (data.max_attendees !== undefined) {
+    updateData.capacity = data.max_attendees;
+    updateData.max_attendees = data.max_attendees; // Keep for backward compatibility
+  }
+  if (data.contact_info !== undefined) updateData.contact_info = data.contact_info;
+  if (data.banner_url !== undefined) updateData.banner_url = data.banner_url;
+  
+  // Update event
+  const updated = await prisma.event.update({
+    where: { id: eventId },
+    data: updateData,
+  });
+  
+  return res.json({
+    ...serializeEvent(updated),
+    message: 'Event updated successfully. It will be reviewed again.',
   });
 });
