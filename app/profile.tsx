@@ -1131,6 +1131,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingTop: 30, // Minimal space for overlapping avatar
     marginBottom: 0, // No gap before tabs
+    paddingBottom: 0, // No padding at bottom
   },
   editButton: {
     paddingHorizontal: 20,
