@@ -193,6 +193,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   let admin1: string | null = null;
   let place_name: string | null = null;
   
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const prefs = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   const preferCountry = getCountryFromReqOrPrefs(req as any, prefs?.preferences);
   const loc = (data as any).location || {};
@@ -217,6 +218,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
   // If this is an event-specific post, verify user is at the venue
   if ((data as any).event_id) {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const verification = await verifyEventPostingPermission(
       (data as any).event_id,
       req.user.id,
@@ -235,6 +237,7 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
   }
 
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const post = await prisma.post.create({
     data: {
       title: data.title,
@@ -349,6 +352,7 @@ postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest,
   
   // Notify post author (if not self)
   try {
+    if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
     const post = await prisma.post.findUnique({ where: { id }, select: { author_id: true } });
     const recipient = post?.author_id;
     if (recipient && recipient !== req.user.id) {

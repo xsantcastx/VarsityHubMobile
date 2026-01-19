@@ -669,10 +669,10 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     });
   }
   const incoming = parsed.data as any;
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-  const is_admin = req.user.email ? adminEmails.includes(req.user.email.toLowerCase()) : false;
+  const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
     is_parent: false,

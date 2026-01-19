@@ -16,8 +16,8 @@ import type {
   TemplateEmailOptions,
   EmailResult,
   EmailServiceConfig,
-  EmailErrorCode,
 } from './types.js';
+import { EmailErrorCode } from './types.js';
 import { SendGridProvider } from './providers/SendGridProvider.js';
 import { debugLog } from '../../lib/debugLog.js';
 
@@ -128,7 +128,7 @@ export class EmailService {
         lastError = result;
 
         // Check if error is retryable
-        if (!this.isRetryableError(result.errorCode)) {
+        if (!this.isRetryableError(result.errorCode as EmailErrorCode | undefined)) {
           this.log('error', correlationId, 'Non-retryable error', {
             error: result.error,
             errorCode: result.errorCode,
@@ -156,7 +156,7 @@ export class EmailService {
         });
 
         // Don't retry on non-retryable errors
-        if (!this.isRetryableError(lastError.errorCode)) {
+        if (!this.isRetryableError(lastError.errorCode as EmailErrorCode | undefined)) {
           break;
         }
 

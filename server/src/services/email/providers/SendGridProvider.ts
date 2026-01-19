@@ -11,8 +11,8 @@ import type {
   BaseEmailOptions,
   TemplateEmailOptions,
   EmailError,
-  EmailErrorCode,
 } from '../types.js';
+import { EmailErrorCode } from '../types.js';
 
 export class SendGridProvider implements EmailProvider {
   name = 'sendgrid';
@@ -178,7 +178,7 @@ export class SendGridProvider implements EmailProvider {
       ? this.normalizeRecipient(options.from)
       : this.defaultFrom;
 
-    const baseData: MailDataRequired = {
+    const baseData: any = {
       to,
       from: from as string,
       subject: options.subject,
@@ -191,6 +191,16 @@ export class SendGridProvider implements EmailProvider {
       }
       if (options.html) {
         baseData.html = options.html;
+      }
+      // Ensure content array is present for MailDataRequired
+      if (!baseData.content) {
+        baseData.content = [];
+        if (baseData.text) {
+          baseData.content.push({ type: 'text/plain', value: baseData.text });
+        }
+        if (baseData.html) {
+          baseData.content.push({ type: 'text/html', value: baseData.html });
+        }
       }
     }
 

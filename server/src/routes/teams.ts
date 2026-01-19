@@ -358,6 +358,7 @@ teamsRouter.put('/:id', requireVerified as any, async (req: AuthedRequest, res) 
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check if user is owner or admin
   const membership = await prisma.teamMembership.findUnique({
@@ -444,6 +445,7 @@ teamsRouter.delete('/:id', requireVerified as any, async (req: AuthedRequest, re
   const teamId = String(req.params.id);
   const team = await prisma.team.findUnique({ where: { id: teamId } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   // Check if user is owner or admin
   const membership = await prisma.teamMembership.findUnique({
@@ -733,6 +735,7 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const { email, role } = parsed.data;
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   // PLAN LIMITS: Enforce authorized user caps (per-team limits)
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });

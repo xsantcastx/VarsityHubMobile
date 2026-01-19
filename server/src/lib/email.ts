@@ -1,6 +1,7 @@
 import { debugLog } from './debugLog.js';
 import { getEmailService, initEmailService as initNewEmailService } from '../services/email/service.js';
 import type { EmailResult } from '../services/email/types.js';
+import sgMail from '@sendgrid/mail';
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
@@ -48,6 +49,11 @@ export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMP
  * Initialize email service (now uses new EmailService)
  */
 export function initEmailService() {
+  // Initialize SendGrid if API key is available
+  if (SENDGRID_API_KEY) {
+    sgMail.setApiKey(SENDGRID_API_KEY);
+  }
+  
   const result = initNewEmailService();
   
   // Also check for missing templates (legacy check)

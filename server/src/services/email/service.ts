@@ -58,5 +58,8 @@ export function initEmailService(): { success: boolean; errors: string[] } {
     }
   }
 
-  return validation;
+  return {
+    success: validation.valid && service.isConfigured(),
+    errors: validation.errors,
+  };
 }

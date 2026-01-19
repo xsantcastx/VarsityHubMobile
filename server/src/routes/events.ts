@@ -402,6 +402,7 @@ eventsRouter.get('/pending', authMiddleware as any, async (req: AuthedRequest, r
 // Approve event
 eventsRouter.put('/:id/approve', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const user = await prisma.user.findUnique({ 
     where: { id: req.user.id }, 
@@ -484,6 +485,7 @@ const rejectEventSchema = z.object({
 
 eventsRouter.put('/:id/reject', requireVerified as any, async (req: AuthedRequest, res) => {
   // req.user is guaranteed by requireVerified middleware
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const user = await prisma.user.findUnique({ 
     where: { id: req.user.id }, 
