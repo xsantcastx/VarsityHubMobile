@@ -26,7 +26,7 @@ const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', icon: 'trophy' },
   { value: 'watch_party', label: 'Watch Party', icon: 'tv' },
   { value: 'fundraiser', label: 'Fundraiser', icon: 'cash' },
-  { value: 'team_meeting', label: 'Team Meeting', icon: 'people' },
+  { value: 'team_meeting', label: 'Pep Rally', icon: 'people' },
   { value: 'bbq', label: 'BBQ/Social', icon: 'restaurant' },
   { value: 'other', label: 'Other', icon: 'ellipsis-horizontal' },
 ];
