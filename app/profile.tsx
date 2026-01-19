@@ -569,7 +569,7 @@ export default function ProfileScreen() {
         )}
         
         {/* Settings Button - Top Right */}
-        <View style={[styles.headerControls, { top: 12 + insets.top }]}>
+        <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
           <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
             <Ionicons name="settings-outline" size={18} color="#333" />
           </Pressable>
@@ -652,7 +652,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </View>
-
 
       {/* Tabs */}
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
@@ -1003,7 +1002,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     position: 'relative',
     width: '100%',
-    overflow: 'hidden',
+    overflow: 'visible', // Allow avatar to extend beyond banner
     backgroundColor: '#ffffff',
   },
   headerBackgroundPressable: {
@@ -1053,8 +1052,9 @@ const styles = StyleSheet.create({
   },
   avatarSection: {
     marginBottom: -40, // Overlap into content area to close gap
-    zIndex: 9999, // Highest z-index to ensure avatar is always on top
-    elevation: 9999, // Highest elevation for Android
+    zIndex: 99999, // Highest z-index to ensure avatar is always on top
+    elevation: 99999, // Highest elevation for Android
+    position: 'relative',
   },
   avatarContainer: {
     position: 'relative',
@@ -1067,9 +1067,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 9999, // Highest elevation for Android
+    elevation: 99999, // Highest elevation for Android
     backgroundColor: '#ffffff',
-    zIndex: 9999, // Highest z-index to ensure avatar is always on top
+    zIndex: 99999, // Highest z-index to ensure avatar is always on top
+    overflow: 'visible', // Ensure full circle is visible
   },
   avatarImage: {
     width: '100%',
@@ -1129,6 +1130,7 @@ const styles = StyleSheet.create({
   profileDetailsContainer: {
     backgroundColor: 'transparent',
     paddingTop: 30, // Minimal space for overlapping avatar
+    marginBottom: 0, // No gap before tabs
   },
   editButton: {
     paddingHorizontal: 20,
@@ -1305,11 +1307,12 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2
   },
-  tabsContainer: {
-    flexDirection: 'row',
+  tabsContainer: { 
+    flexDirection: 'row', 
     borderBottomWidth: 1, 
     backgroundColor: 'transparent',
     marginTop: 0,
+    marginBottom: 0,
     paddingTop: 0,
     paddingBottom: 0,
   },
