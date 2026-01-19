@@ -104,9 +104,11 @@ export default function ProfileScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
+  const hasLoadedOnce = useRef(false);
+  const isInitialMount = useRef(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
   });
@@ -283,10 +285,14 @@ export default function ProfileScreen() {
     if (profileRequestInFlight.current) return;
     profileRequestInFlight.current = true;
     
-    // Only show loading skeleton if we don't have data yet
-    const isInitialLoad = !me;
+    // Only show loading skeleton on very first load (initial mount with no data)
+    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !me;
     if (!options?.silent && isInitialLoad) {
       setLoading(true);
+    }
+    // If silent refresh or already loaded, ensure loading is false
+    if (options?.silent || hasLoadedOnce.current) {
+      setLoading(false);
     }
     setError(null);
     
@@ -299,6 +305,10 @@ export default function ProfileScreen() {
         setLoading(false);
         return;
       }
+
+      // Mark as loaded and not initial mount anymore
+      hasLoadedOnce.current = true;
+      isInitialMount.current = false;
 
       // Extract theme color from preferences
       const themeColor = u?.preferences?.theme_color || '#3B82F6';
@@ -330,28 +340,28 @@ export default function ProfileScreen() {
       }
     } finally {
       profileRequestInFlight.current = false;
-      if (!options?.silent || isInitialLoad) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, me]);
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes]);
 
-  // Initial load on mount
+  // Initial load on mount - only once
   useEffect(() => {
-    void loadProfile();
-  }, []);
+    if (isInitialMount.current) {
+      void loadProfile();
+    }
+  }, []); // Empty deps - only run once on mount
 
-  // Silent refresh on focus (don't show loading skeleton if data exists)
+  // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
     useCallback(() => {
-      // Only refresh silently if we already have data
-      if (me) {
+      // If we've loaded before, always do silent refresh
+      if (hasLoadedOnce.current) {
         void loadProfile({ silent: true });
-      } else {
-        // If no data, do a full load
+      } else if (isInitialMount.current && !profileRequestInFlight.current) {
+        // Only do full load if this is the initial mount and nothing is in flight
         void loadProfile();
       }
-    }, [loadProfile, me])
+    }, [loadProfile])
   );
 
   // Load organizations separately to avoid blocking profile render
@@ -691,7 +701,8 @@ export default function ProfileScreen() {
     </View>
   );
 
-  if (loading) {
+  // Only show loading skeleton on initial load when we have no data
+  if (loading && !me && !hasLoadedOnce.current) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
         <Stack.Screen options={{ title: 'Profile' }} />
