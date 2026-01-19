@@ -155,32 +155,20 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="create-post" options={{ headerShown: false }} />
-                <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="post-detail" options={{ headerShown: false }} />
-                <Stack.Screen name="user-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="team-profile" options={{ headerShown: false }} />
-                <Stack.Screen name="team-hub" options={{ headerShown: false }} />
-                <Stack.Screen name="team-contacts" options={{ headerShown: false }} />
-                <Stack.Screen name="game-detail" options={{ headerShown: false }} />
-                <Stack.Screen name="highlights" options={{ headerShown: false }} />
-                <Stack.Screen name="messages" options={{ headerShown: false }} />
-                <Stack.Screen name="message-thread" options={{ headerShown: false }} />
-                <Stack.Screen name="followers" options={{ headerShown: false }} />
-                <Stack.Screen name="following" options={{ headerShown: false }} />
-                <Stack.Screen name="create-team" options={{ headerShown: false }} />
-                <Stack.Screen name="edit-team" options={{ headerShown: false }} />
-                <Stack.Screen name="manage-teams" options={{ headerShown: false }} />
-                <Stack.Screen name="my-team" options={{ headerShown: false }} />
+                {/* Auth screens - no tab bar needed */}
                 <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                 <Stack.Screen name="sign-up" options={{ headerShown: false }} />
                 <Stack.Screen name="verify" options={{ headerShown: false }} />
                 <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
                 <Stack.Screen name="reset" options={{ headerShown: false }} />
                 <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                {/* Payment screens - no tab bar needed */}
                 <Stack.Screen name="payment-success" options={{ headerShown: false }} />
                 <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                {/* Onboarding - no tab bar needed */}
                 <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                {/* Settings and other screens that don't need tab bar */}
+                <Stack.Screen name="settings" options={{ headerShown: false }} />
                 <Stack.Screen name="+not-found" />
               </Stack>
               <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

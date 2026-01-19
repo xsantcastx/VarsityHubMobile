@@ -75,7 +75,7 @@ export default function PostDetailScreen() {
 
   // Skeleton loading component
   const SkeletonLoader = () => (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
       
@@ -420,7 +420,7 @@ export default function PostDetailScreen() {
 
   if (error && !loading) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
@@ -437,7 +437,7 @@ export default function PostDetailScreen() {
   if (!post && !loading && !error) {
     // Post failed to load but no error was set - show error state
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
         <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
@@ -827,7 +827,7 @@ export default function PostDetailScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ headerShown: false }} />
       
