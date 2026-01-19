@@ -12,7 +12,8 @@ RUN apt-get update \
 
 # Copy package files and Prisma schema (needed for postinstall)
 # Force fresh copy - 2026-01-15T04:40
-COPY ./server/package.json ./server/package-lock.json ./
+COPY ./server/package.json ./package.json
+COPY ./server/package-lock.json ./package-lock.json
 COPY ./server/prisma ./prisma/
 
 # Install all dependencies (including devDependencies for build)
@@ -26,8 +27,27 @@ COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
 
-# Build TypeScript
-RUN npm run build
+# Verify TypeScript is installed and can compile
+RUN echo "🔍 Verifying TypeScript installation..." && \
+    npx tsc --version && \
+    echo "🔨 Building TypeScript..." && \
+    npm run build 2>&1 | tee /tmp/build.log && \
+    echo "✅ Build command completed" && \
+    echo "📁 Checking for dist/index.js..." && \
+    if [ ! -f dist/index.js ]; then \
+      echo "❌ ERROR: dist/index.js not found after build!"; \
+      echo "Working directory: $(pwd)"; \
+      echo "Contents of /app:"; \
+      ls -la /app/; \
+      echo "Contents of dist/ (if exists):"; \
+      ls -la dist/ 2>/dev/null || echo "dist/ directory does not exist!"; \
+      echo "Build log:"; \
+      cat /tmp/build.log; \
+      echo "Checking TypeScript configuration..."; \
+      cat tsconfig.json; \
+      exit 1; \
+    fi && \
+    echo "✅ dist/index.js exists - build successful!"
 
 # Remove devDependencies to reduce final image size
 RUN npm prune --omit=dev
