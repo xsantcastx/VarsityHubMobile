@@ -275,7 +275,7 @@ const FeedCard = memo(
             <FastImage
               source={{ uri: post.media_url }}
               style={styles.media}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           ) : (
             <View style={[styles.media, styles.textOnlyCard]}>
@@ -1081,8 +1081,17 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   card: { width: windowWidth, backgroundColor: 'transparent' },
-  mediaContainer: { flex: 1 },
-  media: { width: '100%', height: '100%' },
+  mediaContainer: { 
+    flex: 1,
+    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  media: { 
+    width: '100%', 
+    height: '100%',
+    backgroundColor: 'transparent',
+  },
   mediaFallback: { alignItems: 'center', justifyContent: 'center' },
   mediaFallbackText: { fontWeight: '700' },
   textOnlyCard: {

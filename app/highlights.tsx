@@ -125,7 +125,7 @@ const HighlightCard = ({
           )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
-              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
+              <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="contain" />
               {isVideo && (
                 <View style={styles.videoOverlay}>
                   <View style={styles.playButton}>
@@ -961,10 +961,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'relative',
+    backgroundColor: '#000', // Black background for images to show properly with contain mode
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   mediaImage: {
     width: '100%',
     height: '100%',
+    backgroundColor: 'transparent',
   },
   noMediaContent: {
     flex: 1,
