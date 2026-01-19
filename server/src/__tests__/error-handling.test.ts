@@ -5,13 +5,15 @@
  */
 
 import { describe, expect, it } from '@jest/globals';
-import { AppError } from '../lib/errors/AppError.js';
-import { AuthenticationError } from '../lib/errors/AuthenticationError.js';
-import { AuthorizationError } from '../lib/errors/AuthorizationError.js';
-import { ConflictError } from '../lib/errors/ConflictError.js';
-import { NotFoundError } from '../lib/errors/NotFoundError.js';
-import { RateLimitError } from '../lib/errors/RateLimitError.js';
-import { ValidationError } from '../lib/errors/ValidationError.js';
+import {
+  AppError,
+  ValidationError,
+  AuthenticationError,
+  AuthorizationError,
+  NotFoundError,
+  ConflictError,
+  RateLimitError,
+} from '../lib/errors/index.js';
 
 describe('Error Handling System', () => {
   describe('AppError Base Class', () => {
