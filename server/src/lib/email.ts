@@ -14,6 +14,7 @@ const TEMPLATE_IDS = {
   TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
   ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
   PASSWORD_RESET: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID || '',
+  PASSWORD_CHANGED: process.env.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID || '',
   ABUSE_REPORT: process.env.SENDGRID_ABUSE_REPORT_TEMPLATE_ID || '',
   JOIN_REQUEST_ADMIN: process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID || '',
   JOIN_REQUEST_APPROVED: process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID || '',
@@ -345,6 +346,53 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
     }
   } catch (error: any) {
     console.error('❌ Failed to send password reset email:', error);
+    return false;
+  }
+}
+
+/**
+ * Send password changed confirmation email
+ * Now uses EmailService with retry logic
+ */
+export async function sendPasswordChangedEmail(email: string, userName?: string): Promise<boolean> {
+  if (!TEMPLATE_IDS.PASSWORD_CHANGED) {
+    console.warn('[email] SendGrid password changed template not configured');
+    // Fallback to basic email if template not configured
+    return sendEmail({
+      to: email,
+      subject: 'Password Changed Successfully',
+      text: `Your VarsityHub password has been changed. If you didn't make this change, please contact support immediately.`,
+      html: `<p>Your VarsityHub password has been changed. If you didn't make this change, please contact support immediately.</p>`,
+    });
+  }
+
+  const service = getEmailService();
+  if (!service.isConfigured()) {
+    console.warn('[email] Email service not configured');
+    return false;
+  }
+
+  try {
+    const result = await service.send({
+      to: email,
+      subject: 'Password Changed Successfully',
+      templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
+      templateData: {
+        user_name: userName || 'VarsityHub user',
+        date: new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }),
+        email: email,
+      },
+    });
+
+    if (result.success) {
+      debugLog(`✅ Password changed email sent to ${email}`);
+      return true;
+    } else {
+      console.error('❌ Failed to send password changed email:', result.error);
+      return false;
+    }
+  } catch (error: any) {
+    console.error('❌ Failed to send password changed email:', error);
     return false;
   }
 }

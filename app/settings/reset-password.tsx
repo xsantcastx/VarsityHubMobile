@@ -5,10 +5,14 @@ import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { refresh: refreshUser } = useUser(false);
+  const { checkAuth } = useAuth();
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -22,12 +26,23 @@ export default function ResetPasswordScreen() {
     if (p !== confirm.trim()) { Alert.alert('Passwords do not match'); return; }
     setSaving(true);
     try {
+      console.log('[reset-password] Changing password...');
       await auth.changePassword(currentValue, p);
-      Alert.alert('Password updated', 'Your password has been changed.');
+      console.log('[reset-password] Password changed successfully');
+      
+      // Refresh user data in both useUser hook and AuthProvider
+      await Promise.all([
+        refreshUser().catch(() => {}), // Refresh useUser hook
+        checkAuth().catch(() => {}), // Refresh AuthProvider state
+      ]);
+      console.log('[reset-password] User data refreshed in all contexts');
+      
+      Alert.alert('Password updated', 'Your password has been changed. A confirmation email has been sent to your account.');
       setCurrent('');
       setPassword('');
       setConfirm('');
     } catch (err: any) {
+      console.error('[reset-password] Password change failed:', err);
       const message = err?.message || err?.data?.error || 'Unable to update password.';
       Alert.alert('Unable to update password', message);
     } finally { setSaving(false); }

@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { sendPasswordResetEmail, sendPasswordChangedEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
@@ -459,6 +459,46 @@ authRouter.post('/password/reset', async (req, res) => {
     },
   });
 
+  return res.json({ ok: true });
+});
+
+const passwordChangeSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
+});
+
+authRouter.post('/password/change', async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  const parsed = passwordChangeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  const { current_password, new_password } = parsed.data;
+  
+  // Get user with password hash
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  // Verify current password
+  const isValid = await bcrypt.compare(current_password, user.password_hash);
+  if (!isValid) return res.status(401).json({ error: 'Current password is incorrect' });
+  
+  // Hash new password
+  const password_hash = await bcrypt.hash(new_password, 10);
+  
+  // Update password
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password_hash },
+  });
+  
+  // Send confirmation email
+  try {
+    const userName = user.display_name || user.email?.split('@')[0] || 'VarsityHub user';
+    await sendPasswordChangedEmail(user.email, userName);
+  } catch (e) {
+    console.warn('[email] Password changed email failed:', e);
+    // Don't fail the request if email fails
+  }
+  
   return res.json({ ok: true });
 });
 
