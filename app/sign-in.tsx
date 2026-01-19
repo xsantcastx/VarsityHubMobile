@@ -182,7 +182,17 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={[styles.logoContainer, { backgroundColor: palette.card, shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a' }]}>
+            <View style={[
+              styles.logoContainer, 
+              { 
+                backgroundColor: colorScheme === 'dark' ? '#FFFFFF' : palette.card,
+                shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a',
+                shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
+                shadowOffset: { width: 0, height: 2 },
+                shadowRadius: 8,
+                elevation: colorScheme === 'dark' ? 4 : 2,
+              }
+            ]}>
               <Image
                 source={require('../assets/images/logo.png')}
                 style={styles.logo}
@@ -331,10 +341,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingHorizontal: 0,
     paddingVertical: 0,
-    shadowOpacity: 0,
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 0,
-    elevation: 0,
   },
   logo: {
     width: 88,
