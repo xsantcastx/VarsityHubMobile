@@ -145,9 +145,9 @@ const appConfig = getConfig();
               const setOB = obCtx?.setState ?? null;
               const colorScheme = useColorScheme();
               const { themePreference, setThemePreference } = useThemePreference();
-              const [_loading, setLoading] = useState(true);
+              const [loading, setLoading] = useState(true);
               const [error, setError] = useState<string | null>(null);
-              const [_email, setEmail] = useState<string | null>(null);
+              const [email, setEmail] = useState<string | null>(null);
               const [prefs, setPrefs] = useState<Preferences>({
                 notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
                 is_parent: false,

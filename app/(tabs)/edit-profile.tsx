@@ -391,7 +391,10 @@ export default function EditProfileScreen() {
       if (zipCode.trim()) preferences.zip_code = zipCode.trim();
       if (dateOfBirth) preferences.date_of_birth = formatDateForAPI(dateOfBirth);
       if (sportsInterests.length > 0) preferences.sports_interests = sportsInterests;
-      if (themeColor) preferences.theme_color = themeColor;
+      // Only save theme_color for coach/organization accounts
+      if (themeColor && (userRole === 'coach' || userRole === 'admin' || userRole === 'organization')) {
+        preferences.theme_color = themeColor;
+      }
       if (headerImageTouched) {
         preferences.header_image_url = headerImageUrl || null;
       }
@@ -827,7 +830,8 @@ export default function EditProfileScreen() {
               </Text>
             </View>
 
-            {/* Theme Color Section */}
+            {/* Theme Color Section - Only for coach/organization accounts */}
+            {(userRole === 'coach' || userRole === 'admin' || userRole === 'organization') && (
             <View style={[styles.section, { 
               backgroundColor: Colors[colorScheme].card,
               borderColor: Colors[colorScheme].border,
@@ -885,6 +889,7 @@ export default function EditProfileScreen() {
                 </View>
               </View>
             </View>
+            )}
 
             {/* Team Member Section */}
             {isTeamMember && (

@@ -310,8 +310,10 @@ export default function ProfileScreen() {
       hasLoadedOnce.current = true;
       isInitialMount.current = false;
 
-      // Extract theme color from preferences
-      const themeColor = u?.preferences?.theme_color || '#3B82F6';
+      // Extract theme color from preferences - only for coach/organization accounts
+      const userRole = (u?.preferences?.role || u?.role || '').toLowerCase();
+      const isCoachOrOrg = userRole === 'coach' || userRole === 'admin' || userRole === 'organization';
+      const themeColor = isCoachOrOrg ? (u?.preferences?.theme_color || '#3B82F6') : '#6B7280'; // Default gray for fans
       setUserThemeColor(themeColor);
 
       // Load first page for active tab (only if initial load or tab changed)
@@ -759,7 +761,7 @@ export default function ProfileScreen() {
       {activeTab === 'posts' ? (
         <FlatList
           data={posts}
-          key={activeTab + '-grid'}
+          key={`${activeTab}-grid-2cols`}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
           keyExtractor={(item) => item.id}

@@ -2,7 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
@@ -15,6 +16,8 @@ function isValidZip(v: string) {
 
 export default function ZipCodeScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const { zipCode } = useUserProfile();
   const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
@@ -33,17 +36,21 @@ export default function ZipCodeScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'ZIP Code' }} />
-      <Text style={styles.title}>ZIP / Postal Code</Text>
-      <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
-      <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-    </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+      <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back' }} />
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>ZIP / Postal Code</Text>
+        <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
+        <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: 'white' },
+  container: { flex: 1 },
+  content: { flex: 1 },
+  contentContainer: { padding: 16, paddingTop: 24 },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
 });
 

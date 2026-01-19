@@ -4,9 +4,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ManageSubscription() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<string | null>(null);
 
@@ -116,15 +119,18 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   };
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Manage Subscription' }} />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Text style={styles.title}>Subscription</Text>
-        <Text style={styles.subtitle}>Manage your membership plan.</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
+      <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back' }} />
+      <ScrollView contentContainerStyle={styles.contentContainer}>
+        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Subscription</Text>
+        <Text style={[styles.subtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Manage your membership plan.</Text>
 
-        <View style={styles.card}>
-          <Text style={styles.rowLabel}>Current plan</Text>
-          <Text style={styles.rowValue}>{plan || 'rookie'}</Text>
+        <View style={[styles.card, { 
+          backgroundColor: isDark ? '#1F2937' : '#fff',
+          borderColor: isDark ? '#374151' : '#E5E7EB'
+        }]}>
+          <Text style={[styles.rowLabel, { color: isDark ? '#9CA3AF' : '#6b7280' }]}>Current plan</Text>
+          <Text style={[styles.rowValue, { color: isDark ? '#ECEDEE' : '#11181C' }]}>{plan || 'rookie'}</Text>
 
           {plan && plan !== 'rookie' ? (
             // Paid plans (veteran/legend) - show cancel option
@@ -136,7 +142,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           ) : (
             // Free plan (rookie) or no plan - show upgrade options
             <>
-              <Text style={{ marginTop: 12 }}>Choose a plan to unlock organization features.</Text>
+              <Text style={[styles.description, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Choose a plan to unlock organization features.</Text>
               <View style={{ height: 12 }} />
               <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
               <View style={{ height: 8 }} />
@@ -145,15 +151,17 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  contentContainer: { padding: 16, paddingTop: 24 },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  subtitle: { color: '#6b7280', marginBottom: 12 },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  rowLabel: { color: '#6b7280', fontSize: 12 },
+  subtitle: { marginBottom: 12 },
+  card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  rowLabel: { fontSize: 12 },
   rowValue: { fontSize: 18, fontWeight: '700', marginTop: 6 },
+  description: { marginTop: 12 },
 });
