@@ -37,7 +37,7 @@ export default function ZipCodeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>ZIP / Postal Code</Text>
         <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />

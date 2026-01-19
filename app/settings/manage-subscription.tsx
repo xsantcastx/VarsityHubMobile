@@ -120,7 +120,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Subscription</Text>
         <Text style={[styles.subtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Manage your membership plan.</Text>

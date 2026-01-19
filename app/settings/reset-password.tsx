@@ -35,7 +35,7 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Reset Password', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Current Password</Text>
         <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />

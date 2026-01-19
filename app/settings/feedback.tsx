@@ -40,7 +40,7 @@ export default function FeedbackScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Feedback</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>

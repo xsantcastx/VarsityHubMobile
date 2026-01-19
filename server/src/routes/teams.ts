@@ -652,6 +652,37 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   } catch (e) {
     console.warn('[teams][rookie-limit] check failed', e);
   }
+  
+  // Validate organization_id if provided (fail fast if invalid)
+  if (data.organization_id) {
+    try {
+      const orgExists = await prisma.organization.findUnique({
+        where: { id: data.organization_id },
+        select: { id: true, status: true }
+      });
+      if (!orgExists) {
+        return res.status(400).json({
+          error: 'Invalid organization',
+          message: 'The specified organization does not exist.',
+          code: 'ORGANIZATION_NOT_FOUND'
+        });
+      }
+      if (orgExists.status !== 'active') {
+        return res.status(400).json({
+          error: 'Inactive organization',
+          message: 'The specified organization is not active.',
+          code: 'ORGANIZATION_INACTIVE'
+        });
+      }
+    } catch (err) {
+      console.error('[Teams] Failed to verify organization:', err);
+      return res.status(500).json({
+        error: 'Organization verification failed',
+        message: 'Unable to verify organization. Please try again or contact support.',
+      });
+    }
+  }
+  
   const team = await prisma.team.create({ 
     data: {
       name: data.name,
@@ -710,8 +741,9 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
               teamHeroUrl: team.logo_url || undefined,
               teamLogoUrl: team.avatar_url || undefined,
             });
-          } catch (_error) {
-            /* ignore */
+          } catch (error) {
+            console.warn('[Teams] Failed to send team invite email:', error);
+            // Continue - email failure shouldn't block team creation
           }
         }));
     }

@@ -7,12 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
 
 export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { user, loading: userLoading, refresh: refreshUser } = useUser();
+  const { checkAuth } = useAuth();
   const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -51,9 +53,12 @@ export default function EditUsernameScreen() {
       console.log('[edit-username] Updating username to:', v);
       const result = await User.updateMe({ username: v });
       console.log('[edit-username] Update result:', result);
-      // Refresh user data after successful update
-      await refreshUser();
-      console.log('[edit-username] User data refreshed');
+      // Refresh user data in both useUser hook and AuthProvider
+      await Promise.all([
+        refreshUser(),
+        checkAuth().catch(() => {}), // Refresh AuthProvider state
+      ]);
+      console.log('[edit-username] User data refreshed in all contexts');
       Alert.alert('Success', 'Username updated successfully');
       router.back(); 
     } catch (e: any) { 
@@ -88,6 +93,7 @@ export default function EditUsernameScreen() {
         options={{ 
           title: 'Edit Username',
           headerBackTitle: 'Back',
+          headerShown: true,
         }} 
       />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

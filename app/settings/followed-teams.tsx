@@ -18,7 +18,7 @@ export default function FollowedTeamsScreen() {
   })(); }, []);
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }} />
       <View style={styles.content}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Followed Teams</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}

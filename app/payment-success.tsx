@@ -136,8 +136,9 @@ export default function PaymentSuccessScreen() {
       } else {
         setError('Payment verification still pending. Please try again in a moment.');
       }
-    } catch {
-      setError('Unable to verify payment status');
+    } catch (error) {
+      console.error('[payment-success] Retry verification failed:', error);
+      setError('Unable to verify payment status. Please contact support if this persists.');
     } finally {
       setLoading(false);
     }

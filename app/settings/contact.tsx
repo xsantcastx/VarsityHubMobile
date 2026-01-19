@@ -38,7 +38,7 @@ export default function ContactScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Contact Varsity Hub Team</Text>
         <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />

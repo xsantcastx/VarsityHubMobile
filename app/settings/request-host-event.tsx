@@ -37,7 +37,7 @@ export default function RequestHostEventScreen() {
   };
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Request to Host Event', headerBackTitle: 'Back' }} />
+      <Stack.Screen options={{ title: 'Request to Host Event', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Basic Request</Text>
         <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Organization Name</Text>
