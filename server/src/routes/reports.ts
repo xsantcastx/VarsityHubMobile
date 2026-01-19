@@ -260,7 +260,10 @@ reportsRouter.post('/', reportLimiter, requireAuth as any, async (req: AuthedReq
     },
   });
 
-  console.log(`[Reports] User ${req.user.id} reported ${target_type}:${target_id} for ${reason}`);
+  // Log report for moderation tracking
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[Reports] User ${req.user.id} reported ${target_type}:${target_id} for ${reason}`);
+  }
 
   return res.status(201).json({
     ok: true,
