@@ -513,7 +513,7 @@ const GameDetailsScreen = () => {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then((v) => setPrefersReducedMotion(!!v)).catch(() => {});
     const ev = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => setPrefersReducedMotion(!!v));
-    return () => { try { ev?.remove?.(); } catch {} };
+    return () => { try { ev?.remove?.(); } catch (error) { if (__DEV__) console.warn('[GameDetails] Accessibility listener cleanup error:', error); } };
   }, []);
 
   // update display percentages from animated numeric values
@@ -524,8 +524,8 @@ const GameDetailsScreen = () => {
     numAnimA.setValue(displayPctA);
     numAnimB.setValue(displayPctB);
     return () => {
-      try { numAnimA.removeListener(idA); } catch {}
-      try { numAnimB.removeListener(idB); } catch {}
+      try { numAnimA.removeListener(idA); } catch (error) { if (__DEV__) console.warn('[GameDetails] Animation listener cleanup error:', error); }
+      try { numAnimB.removeListener(idB); } catch (error) { if (__DEV__) console.warn('[GameDetails] Animation listener cleanup error:', error); }
     };
   }, [displayPctA, displayPctB, numAnimA, numAnimB]);
 
@@ -1415,10 +1415,19 @@ const GameDetailsScreen = () => {
     const isEventOnly = !vm?.gameId && vm?.eventId;
 
     let rollback: VoteSummary | null = null;
+    let hasVoteToClear = false;
     setVoteSummary((prev) => {
-      if (prev?.userVote) rollback = { ...prev };
+      // Early return if there's no vote to clear
+      if (!prev?.userVote) {
+        return prev;
+      }
+      hasVoteToClear = true;
+      rollback = { ...prev };
       return applyClearVote(prev);
     });
+
+    // Early return if there's no vote to clear - prevents unnecessary API calls
+    if (!hasVoteToClear) return;
 
     // For event-only or sample games, just update local state and don't call API
     if (isEventOnly || (vm?.gameId && isSampleId(vm.gameId))) {
@@ -2019,9 +2028,10 @@ const renderBanner = () => {
                         Alert.alert('Create Post', 'Reload this event before creating a post.');
                         return;
                       }
+                      // Directly navigate to create-post with gameId - defaults to 'post' type
                       void router.push({
                         pathname: '/create-post',
-                        params: { gameId: String(targetGameId), type: 'highlight' },
+                        params: { gameId: String(targetGameId), type: 'post' },
                       } as any);
                     }}
                   >
@@ -2608,7 +2618,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     backgroundColor: `${Colors[colorScheme].tint}10`,
   },
   voteLabelAboveText: {
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -2626,7 +2636,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginTop: 0,
     marginBottom: 16,
     textAlign: 'center',
-    color: '#6B7280',
+    color: Colors[colorScheme].mutedText,
     fontWeight: '600',
     fontSize: 13,
     paddingHorizontal: 12,
@@ -2636,7 +2646,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   voteFloatPill: {
     position: 'absolute',
     top: -18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors[colorScheme].card,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -2650,12 +2660,12 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   voteFloatLeft: { left: 28 },
   voteFloatRight: { right: 28 },
-  voteFloatText: { color: '#0f172a', fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  voteFloatText: { color: Colors[colorScheme].text, fontWeight: '700', fontSize: 12, textAlign: 'center' },
 
   teamLinkButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     padding: 8,
     borderRadius: 8,
     marginVertical: 4,
@@ -2710,7 +2720,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     marginHorizontal: 4,
   },
   viewAllButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors[colorScheme].surface,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -2779,8 +2789,8 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   },
   rsvpOn: { backgroundColor: '#c7d2fe', borderColor: '#818cf8' },
   rsvpDisabled: { opacity: 0.6 },
-  rsvpText: { fontWeight: '700', color: '#2563EB' },
-  rsvpTextOn: { color: '#0f172a' },
+  rsvpText: { fontWeight: '700', color: Colors[colorScheme].tint },
+  rsvpTextOn: { color: Colors[colorScheme].text },
   rsvpTopInline: { paddingHorizontal: 10, paddingVertical: 6 },
   rsvpTextInline: { fontSize: 13 },
   finalChip: {

@@ -18,9 +18,16 @@ export const serializeMedia = (story: any) => ({
   user_id: story.user_id ?? null,
 });
 
+const locationSchema = z.object({
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
+  source: z.enum(['device','places','zip','derived']).nullable().optional(),
+}).optional();
+
 const storySchema = z.object({
   media_url: z.string().min(1),
   caption: z.string().optional(),
+  location: locationSchema,
 });
 
 type StoryDeps = { prisma: Pick<PrismaClient, 'story'> };
@@ -39,12 +46,20 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const id = String(req.params.id);
   const parsed = storySchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  
+  // Extract location data if provided
+  const location = parsed.data.location;
+  const lat = location?.lat ?? null;
+  const lng = location?.lng ?? null;
+  
   const story = await prisma.story.create({
     data: {
       game_id: id,
       user_id: req.user.id,
       media_url: parsed.data.media_url,
       caption: parsed.data.caption,
+      lat: typeof lat === 'number' ? lat : undefined,
+      lng: typeof lng === 'number' ? lng : undefined,
     },
   });
   return res.status(201).json(story);

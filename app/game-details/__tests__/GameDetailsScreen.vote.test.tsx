@@ -5,9 +5,11 @@ import { Game } from '@/api/entities';
 
 jest.mock('expo-router', () => {
   const actual = jest.requireActual('expo-router');
+  const Stack = () => null;
+  Stack.Screen = () => null;
   return {
     ...actual,
-    Stack: { Screen: () => null },
+    Stack,
     useLocalSearchParams: () => ({ id: 'game-1' }),
     useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   };

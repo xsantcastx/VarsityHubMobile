@@ -61,6 +61,7 @@
     "expo-blur": "~15.0.7",
     "expo-clipboard": "~8.0.7",
     "expo-constants": "~18.0.12",
+    "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.9",
     "expo-document-picker": "~14.0.7",
     "expo-font": "~14.0.8",
@@ -114,7 +115,8 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-native": "^4.0.0",
     "jest-expo": "~54.0.16",
-    "react-test-renderer": "19.1.0"
+    "react-test-renderer": "19.1.0",
+    "ts-jest": "^29.4.6"
   },
   "private": true,
   "prisma": {

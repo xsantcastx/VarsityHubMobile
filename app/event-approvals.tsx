@@ -398,9 +398,9 @@ export default function EventApprovalsScreen() {
             sectionTab === 'create-event' && { borderBottomColor: Colors[colorScheme].text, borderBottomWidth: 2 }
           ]}
           onPress={() => { // Role-based navigation
-            if (me?.role === 'coach') { void void router.push('/manage-season');
+            if (me?.role === 'coach') { void router.push('/manage-season');
             } else {
-              setCreateEventModalOpen(true);
+              void router.push('/create-fan-event');
             }
           }}
         >

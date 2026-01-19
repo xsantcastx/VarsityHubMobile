@@ -262,7 +262,7 @@ teamsRouter.get('/members/all', async (req, res) => {
 });
 
 // Create team (auth required). Creator becomes owner.
-const createSchema = z.object({ name: z.string().min(2), description: z.string().optional() });
+const createSchema = z.object({ name: z.string().trim().min(2), description: z.string().trim().optional() });
 teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
@@ -312,10 +312,10 @@ teamsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 // Accept full URLs or relative paths (uploads return .path) or empty string to clear
 const logoUrlString = z.union([z.string().url(), z.string().regex(/^\/uploads\//).optional().or(z.string()), z.literal('')]);
 const updateSchema = z.object({
-  name: z.string().min(2).optional(),
-  description: z.string().optional(),
-  sport: z.string().optional(),
-  season: z.string().optional(),
+  name: z.string().trim().min(2).optional(),
+  description: z.string().trim().optional(),
+  sport: z.string().trim().optional(),
+  season: z.string().trim().optional(),
   organization_id: z.string().optional().nullable(),
   logo_url: z.string().optional().or(z.literal('')),
   city: z.string().max(100).optional(),

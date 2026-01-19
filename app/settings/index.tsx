@@ -347,6 +347,7 @@ const appConfig = getConfig();
                     {/* My Content */}
                     <SectionCard title="My Content">
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
+                      <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.push('/submit-ad')} />
                       <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.push('/my-ads')} />
                     </SectionCard>
 

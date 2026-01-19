@@ -21,12 +21,11 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
 import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import { BackHeader } from '@/components/ui/BackHeader';
 import RankingBadge from '../components/RankingBadge';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
 
@@ -139,19 +138,19 @@ const HighlightCard = ({
   return (
     <Pressable style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]} onPress={() => onPress(item)}>
       <View style={styles.cardContainer}>
-        {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 */}
-        {showNumberedRank && (
-          <View style={[
-            styles.numberBadge, 
-            { 
-              backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
-            }
-          ]}>
-            <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
-          </View>
-        )}
         {/* Media Section */}
         <View style={styles.mediaSection}>
+          {/* Numbered Ranking Badge for Top 3 (Trending) or Top 10 - positioned relative to media */}
+          {showNumberedRank && (
+            <View style={[
+              styles.numberBadge, 
+              { 
+                backgroundColor: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#2563EB'
+              }
+            ]}>
+              <Text style={styles.numberBadgeText}>#{rankNumber}</Text>
+            </View>
+          )}
           {hasMedia ? (
             <View style={styles.mediaContainer}>
               <ExpoImage source={{ uri: item.media_url }} style={styles.mediaImage} contentFit="cover" />
@@ -234,7 +233,7 @@ const HighlightCard = ({
               </Text>
               <Ionicons name="chevron-forward" size={14} color={Colors[colorScheme].tabIconDefault} />
             </View>
-            <Text style={styles.timeText}>{timeAgo(item.created_at)}</Text>
+            <Text style={[styles.timeText, { color: Colors[colorScheme].mutedText }]}>{timeAgo(item.created_at)}</Text>
           </Pressable>
 
           {/* Stats Row */}
@@ -259,7 +258,7 @@ const HighlightCard = ({
               }}
             >
               <Ionicons name="chatbubble" size={16} color="#6B7280" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>{formatCount(item._count?.comments || 0)}</Text>
             </Pressable>
             
             <Pressable 
@@ -280,18 +279,21 @@ const HighlightCard = ({
                     } else {
                       Alert.alert('Share Failed', 'Clipboard unavailable in this build.');
                     }
-                  } catch {}
+                  } catch (error) {
+                    // Silently fail - instrumentation is optional
+                    if (__DEV__) console.warn('[highlights] Instrumentation error:', error);
+                  }
                 }
               }}
             >
               <Ionicons name="share-outline" size={16} color="#10B981" />
-              <Text style={[styles.statText, { fontWeight: '600' }]}>Share</Text>
+              <Text style={[styles.statText, { color: Colors[colorScheme].mutedText, fontWeight: '600' }]}>Share</Text>
             </Pressable>
             
             {item._score && (
               <View style={[styles.actionButton, { opacity: 0.7 }]}>
                 <Ionicons name="trending-up" size={16} color="#10B981" />
-                <Text style={styles.statText}>{Math.round(item._score)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].mutedText }]}>{Math.round(item._score)}</Text>
               </View>
             )}
           </View>
@@ -309,6 +311,7 @@ const TabButton = ({ title, active, onPress, colorScheme }: { title: string; act
 
 export default function HighlightsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -445,10 +448,38 @@ export default function HighlightsScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery, performGlobalSearch]);
 
-  const handleHighlightPress = useCallback((item: HighlightItem) => {
-    // Navigate to post detail screen
-    router.push(`/post-detail?id=${item.id}`);
-  }, [router]);
+  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:448',message:'handleHighlightPress called',data:{itemId:item.id,index:index !== undefined ? index : -1,hasFilteredHighlights:getFilteredHighlights().length > 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    try {
+      // Navigate to post-detail with all highlights for swipe navigation
+      const filtered = getFilteredHighlights();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:452',message:'Got filtered highlights',data:{filteredCount:filtered.length,itemInFiltered:filtered.some(h => h.id === item.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
+      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:457',message:'Navigating to post-detail',data:{postIdsLength:postIds.length,targetIndex,willUsePostIds:!!postIds,itemId:item.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      if (postIds && filtered.length > 0) {
+        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
+      } else {
+        // Fallback to single post if no filtered highlights
+        router.push(`/post-detail?id=${item.id}`);
+      }
+    } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:466',message:'Navigation error',data:{error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      console.error('Navigation error in handleHighlightPress:', error);
+      // Fallback to single post navigation on error
+      router.push(`/post-detail?id=${item.id}`);
+    }
+  }, [router, getFilteredHighlights]);
 
   const handleAuthorPress = useCallback((authorId: string) => {
     // Navigate to user profile
@@ -519,7 +550,7 @@ export default function HighlightsScreen() {
       nationalTop={nationalTop}
       ranked={ranked}
       userLocation={userLocation}
-      onPress={handleHighlightPress}
+      onPress={() => handleHighlightPress(item, index)}
       onAuthorPress={handleAuthorPress}
       colorScheme={colorScheme} 
     />
@@ -557,23 +588,34 @@ export default function HighlightsScreen() {
   const filteredHighlights = getFilteredHighlights();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom', 'left', 'right']}>
       <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
       <Stack.Screen options={{ title: 'Highlights', headerShown: false }} />
-      <BackHeader 
-        title="Highlights"
-        backgroundColor={Colors[colorScheme].card}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
-        showDivider={false}
-      />
       
       {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: 0, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Highlights</Text>
+      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
+        {/* Back button and title */}
+        <View style={styles.headerRow}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.push('/(tabs)' as any);
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
+          </Pressable>
+          <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
+            Highlights
+          </Text>
+          <View style={styles.headerSpacer} />
         </View>
-        
         {/* Search Bar */}
         <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
           <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
@@ -762,6 +804,7 @@ export default function HighlightsScreen() {
           }
         />
       )}
+
     </SafeAreaView>
   );
 }
@@ -806,6 +849,29 @@ const styles = StyleSheet.create({
   header: {
     borderBottomWidth: 1,
     paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -12,
+  },
+  headerTitleText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  headerSpacer: {
+    width: 44,
   },
   headerContent: {
     flexDirection: 'row',
@@ -930,6 +996,7 @@ const styles = StyleSheet.create({
   },
   mediaSection: {
     width: '40%',
+    position: 'relative',
   },
   mediaContainer: {
     width: '100%',
@@ -1047,7 +1114,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    // color: Uses dynamic color in JSX
     fontWeight: '500',
   },
   statsRow: {
@@ -1082,7 +1149,7 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
   },
   numberBadge: {
     position: 'absolute',

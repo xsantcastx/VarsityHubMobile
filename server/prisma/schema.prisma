@@ -464,10 +464,15 @@ model Story {
   caption    String?
   created_at DateTime @default(now())
 
+  // Geolocation (optional)
+  lat Float?
+  lng Float?
+
   game Game  @relation(fields: [game_id], references: [id], onDelete: Cascade)
   user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([game_id, created_at])
+  @@index([lat, lng])
 }
 
 // ===========================

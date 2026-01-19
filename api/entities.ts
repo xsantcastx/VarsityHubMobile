@@ -122,7 +122,7 @@ export const Game = {
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
   stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
-  addStory: (id: string, data: { media_url: string; caption?: string }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
+  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
 };
 
 

@@ -139,9 +139,20 @@ export default function CreatePostScreen() {
         if (game) {
           setSuggestedGame(game);
           setSelectedGameId(String(game.id));
+          setError(null); // Clear any previous errors
         }
       } catch (error) {
         console.warn('Failed to load game from params:', error);
+        // If game not found (404), clear the selectedGameId so user can still post
+        if ((error as any)?.status === 404) {
+          setSelectedGameId(undefined);
+          setSuggestedGame(null);
+          // Don't set error - allow user to post without event
+        } else {
+          // For other errors (network, etc.), keep the gameId and let backend validate
+          // User can still try to post - backend will handle validation
+          console.warn('Game load failed but keeping gameId for backend validation:', error);
+        }
       }
     })();
   }, [gameId]);
@@ -378,7 +389,14 @@ export default function CreatePostScreen() {
       if (issues.length) {
         setError(issues.map(i => i.message).join('\n'));
       } else {
-        setError(e?.message || 'Failed to create post');
+        // Provide more helpful error messages
+        if (e?.status === 404 && selectedGameId) {
+          setError('Event not found. Please remove the event attachment and try again, or select a different event.');
+        } else if (e?.status === 403) {
+          setError(e?.data?.message || 'You do not have permission to post to this event.');
+        } else {
+          setError(e?.message || 'Failed to create post. Please try again.');
+        }
       }
     } finally {
       setSubmitting(false);
@@ -648,7 +666,7 @@ export default function CreatePostScreen() {
                       setEventSelectorVisible(false);
                     }}
                   >
-                    <View style={styles.eventOptionIcon}>
+                    <View style={[styles.eventOptionIcon, { backgroundColor: Colors[colorScheme].surface }]}>
                       <Ionicons 
                         name={index === 0 ? "star" : "trophy"} 
                         size={20} 
@@ -730,7 +748,7 @@ export default function CreatePostScreen() {
 
               {/* Media Preview */}
               {previewData?.media && (
-                <View style={styles.previewMediaContainer}>
+                <View style={[styles.previewMediaContainer, { backgroundColor: Colors[colorScheme].surface }]}>
                   {previewData.media.type === 'image' ? (
                     <RNImage 
                       source={{ uri: previewData.media.uri }} 
@@ -956,7 +974,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    // color: Uses dynamic color in JSX
   },
   swipeOptionLabelActiveCamera: {
     color: '#FFFFFF',
@@ -1200,7 +1218,7 @@ const styles = StyleSheet.create({
   // Review Modal
   reviewModalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    // backgroundColor: Uses dynamic color in JSX
   },
   reviewModalHeader: {
     flexDirection: 'row',
@@ -1210,12 +1228,12 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E5E7EB',
+    // borderBottomColor: Uses dynamic color in JSX
   },
   reviewModalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    // color: Uses dynamic color in JSX
   },
   reviewModalBody: {
     padding: 20,
@@ -1225,8 +1243,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#F9FAFB',
+    // borderColor & backgroundColor: Uses dynamic colors in JSX
   },
   reviewMedia: {
     width: '100%',
@@ -1236,26 +1253,25 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     fontWeight: '600',
-    color: '#4B5563',
+    // color: Uses dynamic color in JSX
   },
   reviewTextCard: {
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#F9FAFB',
+    // borderColor & backgroundColor: Uses dynamic colors in JSX
     padding: 16,
   },
   reviewTextLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   reviewText: {
     fontSize: 15,
-    color: '#111827',
+    // color: Uses dynamic color in JSX
     lineHeight: 22,
   },
   reviewEmpty: {
@@ -1265,18 +1281,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#F9FAFB',
+    // borderColor & backgroundColor: Uses dynamic colors in JSX
     gap: 12,
   },
   reviewEmptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#111827',
+    // color: Uses dynamic color in JSX
   },
   reviewEmptySubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -1300,12 +1315,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    // borderColor & backgroundColor: Uses dynamic colors in JSX
     borderStyle: 'dashed',
-    backgroundColor: '#F9FAFB',
   },
   noEventText: {
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     fontSize: 14,
     fontWeight: '500',
   },
@@ -1323,7 +1337,7 @@ const styles = StyleSheet.create({
   // Event selector modal
   modalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    // backgroundColor: Uses dynamic color in JSX
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1332,12 +1346,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    // borderBottomColor: Uses dynamic color in JSX
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    // color: Uses dynamic color in JSX
   },
   modalBody: {
     padding: 16,
@@ -1350,8 +1364,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
+    // borderColor & backgroundColor: Uses dynamic colors in JSX
   },
   eventOptionCardSelected: {
     borderColor: '#059669',
@@ -1361,7 +1374,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    // backgroundColor: Uses dynamic color in JSX
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1376,17 +1389,17 @@ const styles = StyleSheet.create({
   eventOptionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#111827',
+    // color: Uses dynamic color in JSX
     marginBottom: 4,
   },
   eventOptionDate: {
     fontSize: 13,
-    color: '#6B7280',
+    // color: Uses dynamic color in JSX
     marginBottom: 2,
   },
   eventOptionLocation: {
     fontSize: 12,
-    color: '#9CA3AF',
+    // color: Uses dynamic color in JSX
   },
   emptyState: {
     alignItems: 'center',

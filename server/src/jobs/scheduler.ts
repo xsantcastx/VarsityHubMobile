@@ -68,6 +68,39 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       console.log('[Scheduler] Push receipt verification - TODO');
     },
   },
+  {
+    name: 'end-of-day-transaction-report',
+    cron: '59 23 * * *', // Every day at 11:59 PM
+    description: 'Send end-of-day transaction report via email',
+    handler: async () => {
+      try {
+        const { getEndOfDayReport } = await import('../lib/transactionLogger.js');
+        const { sendEndOfDayTransactionReport } = await import('../lib/email.js');
+        
+        // Get report for today
+        const report = await getEndOfDayReport();
+        
+        // Get recipient email from environment variable or use first admin email
+        const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
+          (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
+          'emancero@varsityhub.app'; // Fallback to primary admin
+        
+        if (!reportEmail) {
+          console.warn('[Scheduler] No email configured for transaction reports');
+          return;
+        }
+        
+        await sendEndOfDayTransactionReport({
+          to: reportEmail,
+          report,
+        });
+        
+        console.log(`[Scheduler] End-of-day transaction report sent to ${reportEmail} for ${report.date}`);
+      } catch (error) {
+        console.error('[Scheduler] Failed to send end-of-day transaction report:', error);
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
@@ -122,6 +155,9 @@ export async function setupScheduler(): Promise<boolean> {
 /**
  * Fallback cron using setInterval (for when Redis is not available)
  */
+// Track last date when end-of-day transaction report was sent to prevent duplicates
+let lastTransactionReportDate: string | null = null;
+
 function setupFallbackCron(): boolean {
   console.log('[Scheduler] Setting up fallback cron with setInterval');
 
@@ -155,6 +191,44 @@ function setupFallbackCron(): boolean {
       }
     }
   }, 60 * 60 * 1000); // Check every hour
+
+  // End-of-day transaction report - check every minute, run at 11:59 PM
+  setInterval(async () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    
+    // Run at 11:59 PM
+    if (hour === 23 && minute === 59) {
+      // Get today's date string (YYYY-MM-DD) to prevent duplicate sends
+      const todayDate = now.toISOString().split('T')[0];
+      
+      // Only send if we haven't already sent for today
+      if (lastTransactionReportDate !== todayDate) {
+        try {
+          const { getEndOfDayReport } = await import('../lib/transactionLogger.js');
+          const { sendEndOfDayTransactionReport } = await import('../lib/email.js');
+          
+          const report = await getEndOfDayReport();
+          
+          const reportEmail = process.env.TRANSACTION_REPORT_EMAIL || 
+            (process.env.ADMIN_EMAILS || '').split(',')[0]?.trim() ||
+            'emancero@varsityhub.app';
+          
+          if (reportEmail) {
+            await sendEndOfDayTransactionReport({
+              to: reportEmail,
+              report,
+            });
+            lastTransactionReportDate = todayDate;
+            console.log(`[Scheduler] End-of-day transaction report sent to ${reportEmail} for ${report.date}`);
+          }
+        } catch (error) {
+          console.error('[Scheduler] End-of-day transaction report failed:', error);
+        }
+      }
+    }
+  }, 60 * 1000); // Check every minute
 
   return true;
 }

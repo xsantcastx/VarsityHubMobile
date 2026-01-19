@@ -165,16 +165,16 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
 
 // Create event (fans & coaches)
 const createEventSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().trim().min(1),
   date: z.string(),
-  location: z.string().optional(),
+  location: z.string().trim().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
-  description: z.string().optional(),
+  description: z.string().trim().optional(),
   event_type: z.enum(['game', 'watch_party', 'fundraiser', 'tryout', 'bbq', 'other']).optional(),
-  linked_league: z.string().optional(),
+  linked_league: z.string().trim().optional(),
   max_attendees: z.number().optional(),
-  contact_info: z.string().optional(),
+  contact_info: z.string().trim().optional(),
   banner_url: z.string().optional(),
   game_id: z.string().optional(),
 });

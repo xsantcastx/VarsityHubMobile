@@ -180,6 +180,11 @@ export default function FeedScreen() {
   // State for notifications in modal
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  
+  // Ad rotation timer state - based on slide requirements
+  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+  const [isShowingPromoCard, setIsShowingPromoCard] = useState(false);
+  const adCycleStartTimeRef = useRef(Date.now());
 
   const preloadVoteSummaries = useCallback(async (gameList: GameItem[]) => {
     const candidates = gameList
@@ -430,45 +435,88 @@ export default function FeedScreen() {
     return { upcomingEvents: upcoming, pastEvents: past };
   }, [filtered]);
 
-  // Insert sponsored ads into upcoming events feed (Instagram-style)
-  const upcomingWithAds = useMemo(() => {
-    const result: Array<GameItem | { type: 'ad'; ad: any }> = [];
-    const adInterval = 8; // Show ad every 8 events
-    const hasAds = sponsoredAds && sponsoredAds.length > 0;
+  // Ad rotation timer logic - based on slide requirements:
+  // 1 ad: Show ad for 2 minutes, then promo card for 15 seconds, cycle repeats
+  // 2+ ads: Show each ad for 1:30 (90 seconds), then promo card for 10 seconds, cycle repeats
+  useEffect(() => {
+    const activeAdsCount = sponsoredAds?.length || 0;
     
-    // If no events exist, show promotional ad card alone
+    if (activeAdsCount === 0) {
+      // No ads, always show promo card
+      setIsShowingPromoCard(true);
+      return;
+    }
+    
+    // Reset cycle start time when ads change
+    adCycleStartTimeRef.current = Date.now();
+    setCurrentAdIndex(0);
+    setIsShowingPromoCard(false);
+    
+    // Calculate timing based on number of ads
+    const AD_DURATION_MS = activeAdsCount === 1 
+      ? 2 * 60 * 1000  // 2 minutes for 1 ad
+      : 90 * 1000;      // 1:30 (90 seconds) for 2+ ads
+    const PROMO_DURATION_MS = activeAdsCount === 1
+      ? 15 * 1000       // 15 seconds promo for 1 ad
+      : 10 * 1000;      // 10 seconds promo for 2+ ads
+    const CYCLE_DURATION_MS = (AD_DURATION_MS * activeAdsCount) + PROMO_DURATION_MS;
+    const totalAdTime = AD_DURATION_MS * activeAdsCount;
+    
+    // Update every second to keep rotation smooth
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - adCycleStartTimeRef.current;
+      const cyclePosition = elapsed % CYCLE_DURATION_MS;
+      
+      // Check if we're in promo card phase
+      if (cyclePosition >= totalAdTime) {
+        // Show promo card
+        setIsShowingPromoCard(true);
+      } else {
+        // Show ad - calculate which ad to show
+        setIsShowingPromoCard(false);
+        const adSlot = Math.floor(cyclePosition / AD_DURATION_MS);
+        const newIndex = Math.min(adSlot % activeAdsCount, activeAdsCount - 1);
+        setCurrentAdIndex((prev) => prev !== newIndex ? newIndex : prev);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [sponsoredAds?.length]);
+
+  // Insert sponsored ads into upcoming events feed (Instagram-style)
+  // First event always shows the current ad (or promo card) based on rotation timer
+  const upcomingWithAds = useMemo(() => {
+    const result: Array<GameItem | { type: 'ad'; ad: any | null }> = [];
+    const activeAdsCount = sponsoredAds?.length || 0;
+    
+    // If no events exist, show ad/promo card alone
     if (upcomingEvents.length === 0) {
-      result.push({ type: 'ad', ad: null });
+      if (isShowingPromoCard || activeAdsCount === 0) {
+        result.push({ type: 'ad', ad: null }); // Promo card
+      } else if (activeAdsCount > 0 && sponsoredAds[currentAdIndex]) {
+        result.push({ type: 'ad', ad: sponsoredAds[currentAdIndex] });
+      }
       return result;
     }
     
     upcomingEvents.forEach((event, index) => {
       result.push(event);
       
-      // Insert first ad AFTER the first event (index 0)
+      // Insert ad/promo card AFTER the first event (index 0)
       if (index === 0) {
-        if (hasAds) {
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-        } else {
+        if (isShowingPromoCard || activeAdsCount === 0) {
+          // Show promo card during promo phase or if no ads
           result.push({ type: 'ad', ad: null });
-        }
-      }
-      // Insert subsequent ads after every adInterval events (starting from the first interval)
-      else if ((index + 1) % adInterval === 0) {
-        if (hasAds) {
-          // Pick a random ad from available ads
-          const randomAdIndex = Math.floor(Math.random() * sponsoredAds.length);
-          result.push({ type: 'ad', ad: sponsoredAds[randomAdIndex] });
-        } else {
-          // No ads available, show promotional card
-          result.push({ type: 'ad', ad: null });
+        } else if (activeAdsCount > 0 && sponsoredAds[currentAdIndex]) {
+          // Show current ad from rotation
+          result.push({ type: 'ad', ad: sponsoredAds[currentAdIndex] });
         }
       }
     });
     
     return result;
-  }, [upcomingEvents, sponsoredAds]);
+  }, [upcomingEvents, sponsoredAds, currentAdIndex, isShowingPromoCard]);
 
   const verticalFeedTitle = 'All Highlights';
   const verticalFeedPreviewImage = typeof highlightPreview?.media_url === 'string' ? highlightPreview.media_url : null;
@@ -584,10 +632,10 @@ export default function FeedScreen() {
       <View style={styles.contentContainer}>
 
       {error && (
-        <View style={{ marginBottom: 8 }}>
-          <Text style={styles.error}>{error}</Text>
+        <View style={{ marginBottom: 8, paddingHorizontal: 16 }}>
+          <Text style={[styles.error, { color: Colors[colorScheme].text }]}>{error}</Text>
           <Pressable onPress={() => void router.push('/sign-in')} style={{ paddingVertical: 8 }}>
-            <Text style={{ color: '#0a7ea4', fontWeight: '600' }}>Sign in to load personalized feed</Text>
+            <Text style={{ color: Colors[colorScheme].tint, fontWeight: '600' }}>Sign in to load personalized feed</Text>
           </Pressable>
         </View>
       )}
@@ -690,7 +738,7 @@ export default function FeedScreen() {
                           styles.promoIcon,
                           { borderColor: colorScheme === 'dark' ? '#60A5FA' : '#2563EB', justifyContent: 'center', alignItems: 'center' },
                         ]}>
-                          <Ionicons name="image-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
+                          <Ionicons name="megaphone-outline" size={24} color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} />
                         </View>
                         <View style={{ flex: 1, paddingRight: 12 }}>
                           <Text style={[

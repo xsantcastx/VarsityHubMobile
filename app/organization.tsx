@@ -1,15 +1,14 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Organization, Post, Team, User } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import { GameCard } from '@/components/ui/GameCard';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type LeagueTeam = {
@@ -40,31 +39,11 @@ export default function OrganizationScreen() {
   const [games, setGames] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'schedule' | 'feed'>('teams');
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
-
-  // Swipe gesture handler
-  const translateX = useSharedValue(0);
-  const swipeGesture = Gesture.Pan()
-    .onUpdate((event) => {
-      // Only allow positive swipes (left to right)
-      if (event.translationX > 0) {
-        translateX.value = event.translationX;
-      }
-    })
-    .onEnd((event) => {
-      // If swipe distance is > 100px, go back
-      if (event.translationX > 100) {
-        router.back();
-      } else {
-        // Snap back to original position
-        translateX.value = withSpring(0);
-      }
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
+  const [isOrgAdmin, setIsOrgAdmin] = useState(false);
+  const [me, setMe] = useState<any>(null);
+  const [organization, setOrganization] = useState<any>(null);
 
   const loadOrganization = useCallback(async () => {
     setLoading(true);
@@ -78,6 +57,47 @@ export default function OrganizationScreen() {
       }
 
       setOrganizationId(orgId);
+
+      // Load current user to check permissions
+      try {
+        const currentUser = await User.me();
+        setMe(currentUser);
+        
+        // Check if user is organization admin
+        if (currentUser && orgId) {
+          try {
+            const orgData = await Organization.get(orgId);
+            setOrganization(orgData);
+            
+            // Check if user is admin
+            if (orgData?.memberships && Array.isArray(orgData.memberships)) {
+              const membership = orgData.memberships.find((m: any) => {
+                const memberUserId = m.user?.id || m.user_id;
+                if (memberUserId !== currentUser.id) return false;
+                const role = String(m.role || '').toLowerCase();
+                return ['owner', 'manager', 'administrator', 'admin'].includes(role);
+              });
+              setIsOrgAdmin(!!membership);
+            } else {
+              setIsOrgAdmin(false);
+            }
+          } catch {
+            setIsOrgAdmin(false);
+          }
+        }
+      } catch {
+        // Not logged in or error loading user
+        setMe(null);
+        setIsOrgAdmin(false);
+      }
+      
+      // Try to load organization data
+      try {
+        const orgData = await Organization.get(orgId);
+        setOrganization(orgData);
+      } catch {
+        // Continue without org data if it fails
+      }
 
       // Fetch all teams in this organization with fallback
       let allTeams: any[] = [];
@@ -313,115 +333,166 @@ export default function OrganizationScreen() {
     );
   }
 
+  const orgName = organization?.name || organization?.display_name || 'Organization';
+  const orgHandle = `@${(orgName || 'organization').toLowerCase().replace(/\s+/g, '')}`;
+  const orgDescription = organization?.description || '';
+  const orgAvatarUrl = organization?.avatar_url || organization?.logo_url;
+
   return (
-    <GestureDetector gesture={swipeGesture}>
-      <Animated.View style={[{ flex: 1 }, animatedStyle]}>
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
-          <Stack.Screen options={{ 
-            title: `Organization`, 
-            headerShown: true,
-            headerLeft: () => (
-              <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-                <Ionicons name="chevron-back" size={24} color="#3B82F6" />
-              </Pressable>
-            ),
-          }} />
-          
-          <ScrollView
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <Stack.Screen options={{ title: orgName, headerShown: false }} />
+      
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />}
+      >
+        {/* Header Banner with Gradient - Matching Profile Design */}
+        <View style={styles.headerBannerContainer}>
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#3B82F6', '#2563EB']}
+            style={styles.headerBanner}
           >
-            {/* Hero Header with Gradient */}
-            <View style={[styles.heroHeader, { backgroundColor: theme.tint }]}>
-              <View style={styles.heroContent}>
-                <View style={styles.heroIcon}>
-                  <Ionicons name="business" size={56} color="#ffffff" />
+            {/* Back Button */}
+            <Pressable 
+              style={[styles.backButtonBanner, { top: 12 + insets.top }]}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#ffffff" />
+            </Pressable>
+            
+            {/* Settings Icon (Top Right) - Only for org admins */}
+            {isOrgAdmin && (
+              <Pressable 
+                style={[styles.settingsButton, { top: 12 + insets.top }]}
+                onPress={() => router.push('/settings')}
+              >
+                <Ionicons name="settings-outline" size={18} color="#ffffff" />
+              </Pressable>
+            )}
+            
+            {/* Profile Picture Overlay - Circular, Overlapping Banner */}
+            <View style={styles.profilePictureOverlay}>
+              {orgAvatarUrl ? (
+                <Image source={{ uri: orgAvatarUrl }} style={styles.profilePicture} contentFit="cover" />
+              ) : (
+                <View style={styles.profilePicturePlaceholder}>
+                  <Ionicons name="business" size={36} color="#ffffff" />
                 </View>
-                <View style={styles.heroText}>
-                  <Text style={styles.heroTitle}>Organization</Text>
-                  <Text style={styles.heroSubtitle}>ID: {organizationId?.substring(0, 8)}...</Text>
-                </View>
-                <Pressable
-                  onPress={handleFollowPress}
-                  style={[
-                    styles.followButton,
-                    {
-                      backgroundColor: isFollowing ? '#fff' : 'rgba(255,255,255,0.15)',
-                      borderColor: 'rgba(255,255,255,0.35)',
-                    },
-                  ]}
+              )}
+            </View>
+            
+            {/* Organization Name and Edit Button Overlay */}
+            <View style={styles.headerInfoOverlay}>
+              <Text style={styles.headerOrgName}>{orgName}</Text>
+              {isOrgAdmin && (
+                <Pressable 
+                  style={styles.editProfileButton}
+                  onPress={() => router.push(`/create-organization?id=${organizationId}` as any)}
                 >
-                  <Ionicons
-                    name={isFollowing ? 'checkmark-circle' : 'person-add'}
-                    size={18}
-                    color={isFollowing ? theme.tint : '#fff'}
+                  <Text style={styles.editProfileButtonText}>Edit profile</Text>
+                </Pressable>
+              )}
+            </View>
+          </LinearGradient>
+        </View>
+        
+        {/* Organization Details Section - Below Banner */}
+        <View style={styles.orgDetailsSection}>
+          <Text style={[styles.orgHandle, { color: theme.mutedText }]}>
+            {orgHandle}
+          </Text>
+          {orgDescription && (
+            <Text style={[styles.orgBio, { color: theme.text }]}>
+              {orgDescription}
+            </Text>
+          )}
+          <View style={styles.orgMetaRow}>
+            {organization?.created_at && (
+              <View style={styles.metaItem}>
+                <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
+                <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                  Created {new Date(organization.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </Text>
+              </View>
+            )}
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                {teams.length} Teams {games.length} Games
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Tabs - Matching Profile Design */}
+        <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('posts')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>
+              Posts
+            </Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('replies')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>
+              Replies
+            </Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('upvotes')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>
+              Upvotes
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Tab Content */}
+        <View style={[styles.tabContentContainer, { paddingBottom: insets.bottom + 20 }]}>
+          {activeTab === 'posts' && (
+            posts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
+                <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                  No posts yet
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.postsList}>
+                {posts.map((post, index) => (
+                  <PostCard
+                    key={`${post.id}-${index}`}
+                    post={post}
+                    onPress={() => router.push(`/post-detail?id=${post.id}` as any)}
                   />
-                  <Text
-                    style={[
-                      styles.followButtonText,
-                      { color: isFollowing ? theme.tint : '#fff' },
-                    ]}
-                  >
-                    {isFollowing ? 'Following' : 'Follow'}
-                  </Text>
-                </Pressable>
+                ))}
               </View>
-              
-              {/* Floating Stats Cards */}
-              <View style={styles.floatingStats}>
-                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                  <Text style={styles.floatingStatValue}>{teams.length}</Text>
-                  <Text style={styles.floatingStatLabel}>Teams</Text>
-                </View>
-                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                  <Text style={styles.floatingStatValue}>{games.length}</Text>
-                  <Text style={styles.floatingStatLabel}>Games</Text>
-                </View>
-                <View style={[styles.floatingStat, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                  <Text style={styles.floatingStatValue}>{posts.length}</Text>
-                  <Text style={styles.floatingStatLabel}>Posts</Text>
-                </View>
-              </View>
+            )
+          )}
+          {activeTab === 'replies' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubble-outline" size={48} color={theme.mutedText} />
+              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                No replies yet
+              </Text>
             </View>
-
-            {/* Tabs with Modern Design */}
-            <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-              {(['teams', 'schedule', 'feed'] as const).map((tab) => (
-                <Pressable
-                  key={tab}
-                  onPress={() => setActiveTab(tab)}
-                  style={[
-                    styles.modernTab,
-                    activeTab === tab && [
-                      styles.modernTabActive,
-                      { backgroundColor: theme.tint }
-                    ],
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modernTabLabel,
-                      { color: activeTab === tab ? '#ffffff' : theme.mutedText },
-                    ]}
-                  >
-                    {tab === 'teams' && <Ionicons name="people" size={16} />}
-                    {tab === 'schedule' && <Ionicons name="calendar" size={16} />}
-                    {tab === 'feed' && <Ionicons name="newspaper" size={16} />}
-                    {' '}{tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </Text>
-                </Pressable>
-              ))}
+          )}
+          {activeTab === 'upvotes' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="arrow-up-outline" size={48} color={theme.mutedText} />
+              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                No upvotes yet
+              </Text>
             </View>
-
-            {/* Tab Content */}
-            <View style={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}>
-              {renderTabContent()}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Animated.View>
-    </GestureDetector>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -437,106 +508,145 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // Hero Header Styles
-  heroHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 60,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  // Header Banner - Matching Profile Design
+  headerBannerContainer: {
+    position: 'relative',
+    overflow: 'hidden',
   },
-  heroContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 24,
+  headerBanner: {
+    height: 200,
+    width: '100%',
+    position: 'relative',
+    paddingTop: 12,
   },
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  backButtonBanner: {
+    position: 'absolute',
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  profilePictureOverlay: {
+    position: 'absolute',
+    left: 16,
+    bottom: -40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    backgroundColor: '#ffffff',
+    overflow: 'hidden',
+  },
+  profilePicture: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 37,
+  },
+  profilePicturePlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 37,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroText: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  followButton: {
+  headerInfoOverlay: {
+    position: 'absolute',
+    left: 16,
+    bottom: 12,
+    right: 16,
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 6,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
-  followButtonText: {
+  headerOrgName: {
+    fontSize: 20,
     fontWeight: '700',
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '800',
     color: '#ffffff',
     marginBottom: 4,
   },
-  heroSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
-    fontWeight: '500',
+  editProfileButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
   },
-  floatingStats: {
-    flexDirection: 'row',
-    gap: 10,
-    marginHorizontal: -5,
-  },
-  floatingStat: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  floatingStatValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 2,
-  },
-  floatingStatLabel: {
-    fontSize: 11,
+  editProfileButtonText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    color: '#3B82F6',
   },
-  // Modern Tab Styles
+  orgDetailsSection: {
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 12,
+  },
+  orgHandle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  orgBio: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  orgMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  // Tab Styles
   tabsContainer: {
     flexDirection: 'row',
+    borderBottomWidth: 1,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
   },
-  modernTab: {
+  tabButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
-  modernTabActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+  tabText: {
+    fontSize: 14,
+    fontWeight: '400',
   },
-  modernTabLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  contentContainer: {
+  tabContentContainer: {
     paddingHorizontal: 16,
   },
   teamsList: {

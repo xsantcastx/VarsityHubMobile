@@ -1,4 +1,4 @@
-import { Game, Post, Team } from '@/api/entities';
+import { Game, Post, Team, User } from '@/api/entities';
 import PostCard from '@/components/PostCard';
 import { GameCard } from '@/components/ui/GameCard';
 import { Colors } from '@/constants/Colors';
@@ -54,8 +54,10 @@ export default function TeamScreen() {
   const [games, setGames] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'feed' | 'schedule' | 'roster'>('roster');
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isTeamAdmin, setIsTeamAdmin] = useState(false);
+  const [me, setMe] = useState<any>(null);
 
   const loadTeam = useCallback(async () => {
     setLoading(true);
@@ -105,6 +107,49 @@ export default function TeamScreen() {
       }
 
       setTeam(teamData);
+
+      // Load current user to check permissions (if not already loaded)
+      if (!me) {
+        try {
+          const currentUser = await User.me();
+          setMe(currentUser);
+          
+          // Check if user is team owner/admin
+          if (currentUser && teamData.id) {
+            try {
+              const memberships = await Team.members(teamData.id);
+              const memberList = Array.isArray(memberships) ? memberships : [];
+              const membership = memberList.find((m: any) => {
+                const memberUserId = m.user_id || m.user?.id;
+                if (memberUserId !== currentUser.id) return false;
+                const role = String(m.role || '').toLowerCase();
+                return ['owner', 'coach', 'admin'].includes(role);
+              });
+              setIsTeamAdmin(!!membership);
+            } catch {
+              setIsTeamAdmin(false);
+            }
+          }
+        } catch {
+          setMe(null);
+          setIsTeamAdmin(false);
+        }
+      } else if (me && teamData.id) {
+        // Re-check admin status if user is already loaded
+        try {
+          const memberships = await Team.members(teamData.id);
+          const memberList = Array.isArray(memberships) ? memberships : [];
+          const membership = memberList.find((m: any) => {
+            const memberUserId = m.user_id || m.user?.id;
+            if (memberUserId !== me.id) return false;
+            const role = String(m.role || '').toLowerCase();
+            return ['owner', 'coach', 'admin'].includes(role);
+          });
+          setIsTeamAdmin(!!membership);
+        } catch {
+          setIsTeamAdmin(false);
+        }
+      }
 
       // Fetch games, posts, and members for THIS SPECIFIC TEAM only
       const [gamesResult, postsResult, membersResult] = await Promise.all([
@@ -371,187 +416,157 @@ export default function TeamScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <Stack.Screen options={{ title: team?.name || 'Team', headerShown: false }} />
       
-      {/* Custom Header */}
-      <View style={[styles.header, { 
-        backgroundColor: theme.card,
-        borderBottomColor: theme.border,
-        paddingTop: insets.top,
-      }]}>
-        <Pressable 
-          onPress={() => void router.back()} 
-          style={styles.backButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </Pressable>
-        <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-          {team?.name || 'Team'}
-        </Text>
-        <View style={styles.headerRight} />
-      </View>
-      
-      {/* Cover Photo - Reduced Height */}
-      <LinearGradient
-        colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#e2e8f0', '#cbd5e1']}
-        style={[styles.coverContainer, { height: 80 }]}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.tint} />}
       >
-        {team?.logo_url ? (
-          <Image source={{ uri: team.logo_url }} style={styles.coverImage} contentFit="cover" />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverPlaceholderText}>{team?.name || 'Team'}</Text>
-          </View>
-        )}
-      </LinearGradient>
-
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
-        {/* Avatar */}
-        <View style={styles.avatarContainer}>
-          {team?.logo_url ? (
-            <Image source={{ uri: team.logo_url }} style={styles.avatar} contentFit="cover" />
-          ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.avatarPlaceholderText, { color: theme.text }]}>
-                {team?.name?.charAt(0).toUpperCase() || 'T'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Team Info */}
-        <View style={styles.infoSection}>
-          <Text style={[styles.teamName, { color: theme.text }]}>
-            {team?.name || 'Team Name'}
-          </Text>
-          
-          {/* Handle and Organization Button Row */}
-          <View style={styles.handleOrgRow}>
-            <Text style={[styles.teamHandle, { color: theme.mutedText }]}>
-              @{(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}
-            </Text>
-            <Pressable
-              onPress={() => router.push(`/organization?id=${team?.organization_id || team?.id}` as any)}
+        {/* Header Banner with Gradient - Matching Profile Design */}
+        <View style={styles.headerBannerContainer}>
+          <LinearGradient
+            colors={colorScheme === 'dark' ? ['#1e293b', '#334155'] : ['#3B82F6', '#2563EB']}
+            style={styles.headerBanner}
+          >
+            {/* Back Button */}
+            <Pressable 
+              style={[styles.backButtonBanner, { top: 12 + insets.top }]}
+              onPress={() => void router.back()}
             >
-              <Text style={styles.orgEmojiButton}>🏢</Text>
+              <Ionicons name="arrow-back" size={24} color="#ffffff" />
             </Pressable>
-          </View>
-
+            
+            {/* Settings Icon (Top Right) - Only for team admins */}
+            {isTeamAdmin && (
+              <Pressable 
+                style={[styles.settingsButton, { top: 12 + insets.top }]}
+                onPress={() => router.push('/settings')}
+              >
+                <Ionicons name="settings-outline" size={18} color="#ffffff" />
+              </Pressable>
+            )}
+            
+            {/* Profile Picture Overlay - Circular, Overlapping Banner */}
+            <View style={styles.profilePictureOverlay}>
+              {team?.logo_url ? (
+                <Image source={{ uri: team.logo_url }} style={styles.profilePicture} contentFit="cover" />
+              ) : (
+                <View style={styles.profilePicturePlaceholder}>
+                  <Ionicons name="people" size={36} color="#ffffff" />
+                </View>
+              )}
+            </View>
+            
+            {/* Team Name and Edit Button Overlay */}
+            <View style={styles.headerInfoOverlay}>
+              <Text style={styles.headerTeamName}>{team?.name || 'Team Name'}</Text>
+              {isTeamAdmin && (
+                <Pressable 
+                  style={styles.editProfileButton}
+                  onPress={() => router.push(`/create-team?id=${team?.id}` as any)}
+                >
+                  <Text style={styles.editProfileButtonText}>Edit profile</Text>
+                </Pressable>
+              )}
+            </View>
+          </LinearGradient>
+        </View>
+        
+        {/* Team Details Section - Below Banner */}
+        <View style={styles.teamDetailsSection}>
+          <Text style={[styles.teamHandle, { color: theme.mutedText }]}>
+            @{(team?.name || 'team').toLowerCase().replace(/\s+/g, '')}
+          </Text>
           {team?.description && (
             <Text style={[styles.teamBio, { color: theme.text }]}>
               {team.description}
             </Text>
           )}
-          {/* Coach Contact */}
-          <Text style={[styles.coachContact, { color: theme.mutedText }]}>
-            📧 Coach contact available in roster
-          </Text>
+          <View style={styles.teamMetaRow}>
+            {team?.created_at && (
+              <View style={styles.metaItem}>
+                <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
+                <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                  Created {new Date(team.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </Text>
+              </View>
+            )}
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                {members.length} Members {games.length} Games
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Follow Button */}
-        <Pressable
-          style={[styles.followButton, { backgroundColor: isFollowing ? theme.border : theme.tint }]}
-          onPress={handleFollowPress}
-        >
-          {isFollowing ? (
-            <>
-              <Ionicons name="checkmark" size={20} color={theme.text} />
-              <Text style={[styles.followButtonText, { color: theme.text }]}>Following</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="add" size={20} color="#FFFFFF" />
-              <Text style={styles.followButtonText}>Follow</Text>
-            </>
+        {/* Tabs - Matching Profile Design */}
+        <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('posts')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>
+              Posts
+            </Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('replies')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>
+              Replies
+            </Text>
+          </Pressable>
+          <Pressable 
+            style={[styles.tabButton, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+            onPress={() => setActiveTab('upvotes')}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>
+              Upvotes
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Tab Content */}
+        <View style={[styles.tabContentContainer, { paddingBottom: insets.bottom + 20 }]}>
+          {activeTab === 'posts' && (
+            posts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
+                <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                  No posts yet
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.postsGrid}>
+                {posts.map((item, idx) => (
+                  <View key={`${item.id}-${idx}`} style={styles.gridItem}>
+                    <PostCard
+                      post={item}
+                      onPress={() => void router.push(`/post-detail?id=${item.id}` as any)}
+                    />
+                  </View>
+                ))}
+              </View>
+            )
           )}
-        </Pressable>
-
-        {/* Small Organization Button - Emoji Only */}
-        {/* Moved above to handle row */}
-      </View>
-
-      {/* Tabs */}
-      <View style={[styles.tabsContainer, { borderBottomColor: theme.border }]}>
-        <Pressable 
-          style={[styles.tabButton, activeTab === 'feed' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('feed')}
-        >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'feed' && styles.tabTextActive, activeTab === 'feed' && { color: theme.text }]}>
-            Feed
-          </Text>
-        </Pressable>
-        <Pressable 
-          style={[styles.tabButton, activeTab === 'schedule' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('schedule')}
-        >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'schedule' && styles.tabTextActive, activeTab === 'schedule' && { color: theme.text }]}>
-            Schedule
-          </Text>
-        </Pressable>
-        <Pressable 
-          style={[styles.tabButton, activeTab === 'roster' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('roster')}
-        >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'roster' && styles.tabTextActive, activeTab === 'roster' && { color: theme.text }]}>
-            Roster
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Content - Use FlatList for Feed tab, ScrollView for others */}
-      {activeTab === 'feed' ? (
-        <FlatList
-          key="feed-grid"
-          data={posts}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          keyExtractor={(item, idx) => `${item.id}-${idx}`}
-          renderItem={({ item }) => (
-            <View style={styles.gridItem}>
-              <PostCard
-                post={item}
-                onPress={() => void router.push(`/post-detail?id=${item.id}` as any)}
-              />
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={[styles.emptyState, { width: '100%' }]}>
-              <Ionicons name="newspaper-outline" size={48} color={theme.mutedText} />
+          {activeTab === 'replies' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubble-outline" size={48} color={theme.mutedText} />
               <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
-                No posts yet
-              </Text>
-              <Text style={[styles.emptyStateSubtext, { color: theme.mutedText }]}>
-                Posts from team games and team mentions will appear here
+                No replies yet
               </Text>
             </View>
-          }
-          contentContainerStyle={{ paddingHorizontal: 6, paddingVertical: 12, paddingBottom: insets.bottom + 20 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.tint}
-            />
-          }
-        />
-      ) : (
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.tint}
-            />
-          }
-        >
-          <View style={styles.tabContentContainer}>
-            {renderTabContent()}
-          </View>
-        </ScrollView>
-      )}
+          )}
+          {activeTab === 'upvotes' && (
+            <View style={styles.emptyState}>
+              <Ionicons name="arrow-up-outline" size={48} color={theme.mutedText} />
+              <Text style={[styles.emptyStateText, { color: theme.mutedText }]}>
+                No upvotes yet
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

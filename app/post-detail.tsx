@@ -79,7 +79,9 @@ export default function PostDetailScreen() {
   
   // State for current post in swipe sequence
   const [currentPostIndex, setCurrentPostIndex] = useState(initialIndex);
-  const currentPostId = postIdsArray[currentPostIndex] || params.id;
+  const currentPostId = useMemo(() => {
+    return postIdsArray[currentPostIndex] || params.id;
+  }, [postIdsArray, currentPostIndex, params.id]);
   
   // FlatList ref for programmatic scrolling
   const flatListRef = useRef<FlatList>(null);
@@ -175,11 +177,28 @@ export default function PostDetailScreen() {
   }, []);
 
   const load = useCallback(async (postId?: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:177',message:'load called',data:{postId:postId || null,currentPostId,postIdsArrayLength:postIdsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     const targetId = postId || currentPostId;
-    if (!targetId) return;
+    if (!targetId) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:180',message:'No post ID to load',data:{postId:postId || null,currentPostId,postIdsArrayLength:postIdsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      setError('No post ID provided');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setError(null);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:188',message:'Fetching post data',data:{targetId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       const [p, c] = await Promise.all([PostApi.get(targetId), PostApi.comments(targetId)]);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:191',message:'Post data received',data:{hasPost:!!p,hasComments:!!c,commentsIsArray:Array.isArray(c)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       setPost(p);
       
       // Handle comments response - it returns { items, nextCursor }
@@ -202,6 +221,9 @@ export default function PostDetailScreen() {
         // Note: has_upvoted is stored directly in post state for UI
       }
     } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:213',message:'Failed to load post',data:{error:e?.message || String(e),status:e?.status,targetId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       setError('Failed to load post');
       console.error('Error loading post and comments:', e);
     } finally {
@@ -209,9 +231,10 @@ export default function PostDetailScreen() {
     }
   }, [currentPostId]);
 
+  // Reload when params or currentPostIndex changes
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, params.id, params.postIds, currentPostIndex]);
 
   // Handle post change when swiping
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -430,8 +453,8 @@ export default function PostDetailScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#DC2626" />
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => load()}>
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
         </View>
@@ -439,6 +462,23 @@ export default function PostDetailScreen() {
     );
   }
 
+  if (!post && !loading && !error) {
+    // Post failed to load but no error was set - show error state
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#DC2626" />
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Failed to load post</Text>
+          <Pressable style={styles.retryButton} onPress={() => void load()}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
   if (!post) return null;
 
   const hasMultiplePosts = postIdsArray.length > 1;
@@ -616,16 +656,16 @@ export default function PostDetailScreen() {
           <View style={styles.statsSection}>
             <View style={styles.stats}>
               <View style={styles.stat}>
-                <Ionicons name="arrow-up" size={18} color="#2563EB" />
-                <Text style={styles.statText}>{formatCount(post.upvotes_count || 0)}</Text>
+                <Ionicons name="arrow-up" size={18} color={Colors[colorScheme].tint} />
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(post.upvotes_count || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="chatbubble-outline" size={18} color="#6B7280" />
-                <Text style={styles.statText}>{formatCount(comments.length || 0)}</Text>
+                <Ionicons name="chatbubble-outline" size={18} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(comments.length || 0)}</Text>
               </View>
               <View style={styles.stat}>
-                <Ionicons name="eye-outline" size={18} color="#6B7280" />
-                <Text style={styles.statText}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
+                <Ionicons name="eye-outline" size={18} color={Colors[colorScheme].mutedText} />
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
               </View>
             </View>
             
@@ -642,9 +682,13 @@ export default function PostDetailScreen() {
                 <Ionicons 
                   name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"} 
                   size={20} 
-                  color={post?.has_upvoted ? "#fff" : "#fff"} 
+                  color={post?.has_upvoted ? "#fff" : Colors[colorScheme].tint} 
                 />
-                <Text style={[styles.actionText, post?.has_upvoted && styles.actionTextActive]}>
+                <Text style={[
+                  styles.actionText, 
+                  { color: post?.has_upvoted ? "#fff" : Colors[colorScheme].text },
+                  post?.has_upvoted && styles.actionTextActive
+                ]}>
                   {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
                 </Text>
               </Pressable>
@@ -653,7 +697,7 @@ export default function PostDetailScreen() {
                 <Ionicons 
                   name={saved ? "bookmark" : "bookmark-outline"} 
                   size={20} 
-                  color={saved ? "#FFB800" : "#6B7280"} 
+                  color={saved ? "#FFB800" : Colors[colorScheme].mutedText} 
                 />
               </Pressable>
             </View>
@@ -982,7 +1026,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#DC2626',
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -1324,10 +1367,8 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
   },
   actionTextActive: {
-    color: '#fff',
     fontWeight: '700',
   },
 

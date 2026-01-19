@@ -11,7 +11,12 @@ export function getApiBaseUrl(): string {
   const config = getConfig();
   const envUrl = getEnvValue('EXPO_PUBLIC_API_URL');
   const forceRemote = config.forceRemoteApi;
-  let url = config.apiUrl || envUrl || 'https://api-production-8ac3.up.railway.app';
+  const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
+  let url = config.apiUrl || envUrl || PRODUCTION_URL;
+
+  // #region agent log
+  const originalUrl = url;
+  // #endregion
 
   // Handle simulator networking (only for actual localhost, not LAN IPs)
   if (__DEV__ && !forceRemote && url.startsWith('http://localhost')) {
@@ -24,7 +29,24 @@ export function getApiBaseUrl(): string {
       url = url.replace('http://localhost', 'http://127.0.0.1');
     }
   }
+  
+  // #region agent log
+  // Safeguard: If URL is a private IP (not localhost/127.0.0.1/10.0.2.2), it's likely cached config
+  // Fall back to production URL to prevent connection errors
+  // Allow: localhost, 127.0.0.1, 10.0.2.2 (Android emulator)
+  // Block: other private IPs like 192.168.x.x, 10.x.x.x (except 10.0.2.2), 172.16-31.x.x
+  const isAllowedLocalIP = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('10.0.2.2');
+  const isPrivateIP = /^http:\/\/192\.168\.\d+\.\d+/.test(url) || 
+    (/^http:\/\/10\.\d+\.\d+\.\d+/.test(url) && !url.includes('10.0.2.2')) ||
+    /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+/.test(url);
+  if (isPrivateIP && !isAllowedLocalIP) {
+    console.warn('[http] Detected cached private IP URL:', url, '- Falling back to production URL');
+    url = PRODUCTION_URL;
+  }
+  // #endregion
+  
   const finalUrl = url.replace(/\/$/, '');
+  
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
     // eslint-disable-next-line no-console
@@ -99,7 +121,6 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);

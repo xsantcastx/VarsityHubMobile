@@ -14,7 +14,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
@@ -107,7 +107,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
-  const [activeTab, setActiveTab] = useState<'posts' | 'interactions'>(() => {
+  const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
@@ -116,12 +116,17 @@ export default function ProfileScreen() {
   const [postsLoading, setPostsLoading] = useState(false);
   const postsRequestInFlight = useRef(false);
 
-  const [interactions, setInteractions] = useState<any[]>([]);
-  const [interCursor, setInterCursor] = useState<string | null>(null);
-  const [interHasMore, setInterHasMore] = useState(true);
-  const [interLoading, setInterLoading] = useState(false);
-  const interRequestInFlight = useRef(false);
-  const [interType, setInterType] = useState<'all' | 'like' | 'comment' | 'repost' | 'save'>('all');
+  const [replies, setReplies] = useState<any[]>([]);
+  const [repliesCursor, setRepliesCursor] = useState<string | null>(null);
+  const [repliesHasMore, setRepliesHasMore] = useState(true);
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const repliesRequestInFlight = useRef(false);
+  
+  const [upvotes, setUpvotes] = useState<any[]>([]);
+  const [upvotesCursor, setUpvotesCursor] = useState<string | null>(null);
+  const [upvotesHasMore, setUpvotesHasMore] = useState(true);
+  const [upvotesLoading, setUpvotesLoading] = useState(false);
+  const upvotesRequestInFlight = useRef(false);
   const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
   const _rememberingTab = useRef(false);
@@ -134,7 +139,10 @@ export default function ProfileScreen() {
     setter((prev: any) => {
       try {
         if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch {}
+      } catch (error) {
+        // Silently fail - localStorage is optional
+        if (__DEV__) console.warn('[profile] localStorage error:', error);
+      }
       return next;
     });
   }, []);
@@ -155,21 +163,37 @@ export default function ProfileScreen() {
     }
   }, [sort, setIfDifferent]);
 
-  const refreshInteractions = useCallback(async (userId: string) => {
-    if (interRequestInFlight.current) return;
-    interRequestInFlight.current = true;
-    setInterLoading(true);
+  const refreshReplies = useCallback(async (userId: string) => {
+    if (repliesRequestInFlight.current) return;
+    repliesRequestInFlight.current = true;
+    setRepliesLoading(true);
     try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: interType, sort });
-      setIfDifferent(setInteractions, page.items || []);
-      setInterCursor(page.nextCursor || null);
-      setInterHasMore(Boolean(page.nextCursor));
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: 'comment', sort });
+      setIfDifferent(setReplies, page.items || []);
+      setRepliesCursor(page.nextCursor || null);
+      setRepliesHasMore(Boolean(page.nextCursor));
       if (page.counts) setCounts(page.counts);
     } finally {
-      interRequestInFlight.current = false;
-      setInterLoading(false);
+      repliesRequestInFlight.current = false;
+      setRepliesLoading(false);
     }
-  }, [interType, sort, setIfDifferent]);
+  }, [sort, setIfDifferent]);
+
+  const refreshUpvotes = useCallback(async (userId: string) => {
+    if (upvotesRequestInFlight.current) return;
+    upvotesRequestInFlight.current = true;
+    setUpvotesLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, type: 'like', sort });
+      setIfDifferent(setUpvotes, page.items || []);
+      setUpvotesCursor(page.nextCursor || null);
+      setUpvotesHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      upvotesRequestInFlight.current = false;
+      setUpvotesLoading(false);
+    }
+  }, [sort, setIfDifferent]);
 
   // Vertical viewer state
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -273,8 +297,10 @@ export default function ProfileScreen() {
       // Load first page for active tab
       if (activeTab === 'posts') {
         await refreshPosts(u.id);
-      } else {
-        await refreshInteractions(u.id);
+      } else if (activeTab === 'replies') {
+        await refreshReplies(u.id);
+      } else if (activeTab === 'upvotes') {
+        await refreshUpvotes(u.id);
       }
     } catch (e: any) {
       console.error('Failed to load profile', e);
@@ -288,7 +314,7 @@ export default function ProfileScreen() {
       profileRequestInFlight.current = false;
       setLoading(false);
     }
-  }, [activeTab, refreshInteractions, refreshPosts]);
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes]);
 
   // Refresh on mount and when screen regains focus (after creating a post, etc.)
   useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
@@ -364,28 +390,33 @@ export default function ProfileScreen() {
     setError(null); // Clear any stale errors
     if (activeTab === 'posts') {
       void refreshPosts(String(me.id));
-    } else {
-      void refreshInteractions(String(me.id));
+    } else if (activeTab === 'replies') {
+      void refreshReplies(String(me.id));
+    } else if (activeTab === 'upvotes') {
+      void refreshUpvotes(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, me?.id]);
 
-  // When interactions filters/sort change while on Interactions tab, refresh
+  // When sort changes while on Replies or Upvotes tab, refresh
   useEffect(() => {
     if (!me?.id) return;
-    if (activeTab === 'interactions') {
-      setError(null); // Clear any stale errors
-      void refreshInteractions(String(me.id));
+    if (activeTab === 'replies') {
+      setError(null);
+      void refreshReplies(String(me.id));
+    } else if (activeTab === 'upvotes') {
+      setError(null);
+      void refreshUpvotes(String(me.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interType, sort, me?.id]);
+  }, [sort, me?.id]);
 
-  // Refresh interactions when a new comment is created from the viewer
+  // Refresh replies when a new comment is created from the viewer
   useEffect(() => {
     if (!me?.id) return;
     const off = events.on('comment:created', () => {
-      if (activeTab === 'interactions') {
-        void refreshInteractions(String(me.id));
+      if (activeTab === 'replies') {
+        void refreshReplies(String(me.id));
       }
     });
     return () => { off(); };
@@ -406,19 +437,33 @@ export default function ProfileScreen() {
     }
   }, [postsCursor, postsHasMore, postsLoading, sort]);
 
-  const loadMoreInteractions = useCallback(async (userId: string) => {
-    if (interLoading || !interHasMore) return;
-    setInterLoading(true);
+  const loadMoreReplies = useCallback(async (userId: string) => {
+    if (repliesLoading || !repliesHasMore) return;
+    setRepliesLoading(true);
     try {
-      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: interType, cursor: interCursor || undefined });
-      setInteractions((prev) => [...prev, ...(page.items || [])]);
-      setInterCursor(page.nextCursor || null);
-      setInterHasMore(Boolean(page.nextCursor));
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'comment', cursor: repliesCursor || undefined });
+      setReplies((prev) => [...prev, ...(page.items || [])]);
+      setRepliesCursor(page.nextCursor || null);
+      setRepliesHasMore(Boolean(page.nextCursor));
       if (page.counts) setCounts(page.counts);
     } finally {
-      setInterLoading(false);
+      setRepliesLoading(false);
     }
-  }, [interCursor, interHasMore, interLoading, interType, sort]);
+  }, [repliesCursor, repliesHasMore, repliesLoading, sort]);
+
+  const loadMoreUpvotes = useCallback(async (userId: string) => {
+    if (upvotesLoading || !upvotesHasMore) return;
+    setUpvotesLoading(true);
+    try {
+      const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'like', cursor: upvotesCursor || undefined });
+      setUpvotes((prev) => [...prev, ...(page.items || [])]);
+      setUpvotesCursor(page.nextCursor || null);
+      setUpvotesHasMore(Boolean(page.nextCursor));
+      if (page.counts) setCounts(page.counts);
+    } finally {
+      setUpvotesLoading(false);
+    }
+  }, [upvotesCursor, upvotesHasMore, upvotesLoading, sort]);
 
   const preferences = me?.preferences ? (me.preferences as ProfilePreferences) : null;
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
@@ -537,6 +582,24 @@ export default function ProfileScreen() {
               )}
             </View>
             {me?.username && <Text style={styles.userHandle}>@{me.username}</Text>}
+            {me?.bio && (
+              <Text style={styles.userBioInline} numberOfLines={2}>{me.bio}</Text>
+            )}
+            <View style={styles.userMetaRow}>
+              {me?.created_at && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
+                  <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                    Joined {new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.metaItem}>
+                <Text style={[styles.metaText, { color: theme.mutedText }]}>
+                  {me?._count?.following ?? 0} Following {me?._count?.followers ?? 0} Followers
+                </Text>
+              </View>
+            </View>
             {preferences?.location && (
               <Text style={styles.userLocation}>{preferences.location}</Text>
             )}
@@ -556,13 +619,6 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Bio Section - Outside Header, Below */}
-      {me?.bio && (
-        <View style={styles.bioSectionCompact}>
-          <Text style={styles.userBioCompact}>{me.bio}</Text>
-        </View>
-      )}
-
       {/* Action Buttons */}
       <View style={styles.actionsContainerCompact}>
         <Pressable style={styles.editButtonCompact} onPress={() => void router.push('/edit-profile')}>
@@ -570,25 +626,6 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      {/* Athletic Stats Card */}
-      <View style={[styles.statsCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-        {stats.map((stat, index) => (
-          <React.Fragment key={stat.label}>
-            <Pressable 
-              style={styles.statItem} 
-              onPress={() => { if (stat.label === 'followers') { void void router.push(`/followers?id=${me.id}&username=${name}`);
-                } else if (stat.label === 'following') {
-                  router.push(`/following?id=${me.id}&username=${name}`);
-                }
-              }}
-            >
-              <Text style={[styles.statNumber, { color: theme.text }]}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}>{stat.label}</Text>
-            </Pressable>
-            {index < stats.length - 1 && <View style={styles.statDivider} />}
-          </React.Fragment>
-        ))}
-      </View>
 
       {/* Organizations Section */}
       {organizations.length > 0 && (
@@ -626,55 +663,24 @@ export default function ProfileScreen() {
 
       <View style={[styles.tabsContainer, { borderBottomColor: theme.border }] }>
         <Pressable
-          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch {} }}
+          onPress={() => { setActiveTab('posts'); try { globalThis?.localStorage?.setItem('profile.activeTab','posts'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
           style={[styles.tab, activeTab === 'posts' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'posts' && { color: theme.text } ]}>Posts{counts ? ` (${counts.posts})` : ''}</Text>
+          <Text style={[styles.tabText, { color: activeTab === 'posts' ? theme.tint : theme.mutedText }]}>Posts</Text>
         </Pressable>
         <Pressable
-          onPress={() => { setActiveTab('interactions'); try { globalThis?.localStorage?.setItem('profile.activeTab','interactions'); } catch {} }}
-          style={[styles.tab, activeTab === 'interactions' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+          onPress={() => { setActiveTab('replies'); try { globalThis?.localStorage?.setItem('profile.activeTab','replies'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+          style={[styles.tab, activeTab === 'replies' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
         >
-          <Text style={[styles.tabText, { color: theme.mutedText }, activeTab === 'interactions' && { color: theme.text }]}>Interactions</Text>
+          <Text style={[styles.tabText, { color: activeTab === 'replies' ? theme.tint : theme.mutedText }]}>Replies</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { setActiveTab('upvotes'); try { globalThis?.localStorage?.setItem('profile.activeTab','upvotes'); } catch (error) { if (__DEV__) console.warn('[profile] localStorage error:', error); } }}
+          style={[styles.tab, activeTab === 'upvotes' && { borderBottomWidth: 2, borderBottomColor: theme.tint }]}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
       </View>
-
-      {activeTab === 'interactions' && (
-        <View style={styles.filtersBar}>
-          <View style={styles.segmentedRow}>
-            {(['all','like','comment','save'] as const).map((t) => {
-              const emoji = t === 'all'
-                ? '🗂️'
-                : t === 'like'
-                ? '⬆️'
-                : t === 'comment'
-                ? '💬'
-                : '🔖';
-              const count = t === 'all'
-                ? ''
-                : t === 'like'
-                ? counts ? ` ${counts.likes}` : ''
-                : t === 'comment'
-                ? counts ? ` ${counts.comments}` : ''
-                : counts ? ` ${counts.saves}` : '';
-              return (
-                <Pressable key={t} onPress={() => setInterType(t)} style={[styles.segment, { backgroundColor: theme.surface }, interType === t && [styles.segmentActive, { backgroundColor: theme.tint }]]}>
-                  <Text style={[styles.segmentText, { color: theme.text }, interType === t && styles.segmentTextActive]}>{emoji}{count}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.sortRow}>
-            {(['newest','most_upvoted','most_commented'] as const).map(s => (
-              <Pressable key={s} onPress={() => setSort(s)} style={[styles.sortPill, { backgroundColor: theme.surface }, sort === s && [styles.sortPillActive, { backgroundColor: theme.tint }]]}>
-                <Text style={[styles.sortText, { color: theme.text }, sort === s && styles.sortTextActive]}>
-                  {s === 'newest' ? 'Newest' : s === 'most_upvoted' ? 'Most upvoted' : 'Most commented'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
     </>
   );
 
@@ -687,7 +693,8 @@ export default function ProfileScreen() {
   );
 
   const onEndReachedPosts = useCallback(() => { if (me?.id) void loadMorePosts(String(me.id)); }, [me?.id, loadMorePosts]);
-  const _onEndReachedInteractions = useCallback(() => { if (me?.id) void loadMoreInteractions(String(me.id)); }, [me?.id, loadMoreInteractions]);
+  const onEndReachedReplies = useCallback(() => { if (me?.id) void loadMoreReplies(String(me.id)); }, [me?.id, loadMoreReplies]);
+  const onEndReachedUpvotes = useCallback(() => { if (me?.id) void loadMoreUpvotes(String(me.id)); }, [me?.id, loadMoreUpvotes]);
 
   // Some interaction items may wrap a post (e.g., { type, post, created_at })
   const unwrapPost = useCallback((item: any) => {
@@ -791,73 +798,155 @@ export default function ProfileScreen() {
           ListFooterComponent={postsLoading ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
         />
       ) : (
-        <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}>
+        <ScrollView 
+          style={[styles.container, { backgroundColor: theme.background }]} 
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16) }}
+          onScroll={({ nativeEvent }) => {
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const paddingToBottom = 20;
+            const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+            if (isCloseToBottom) {
+              if (activeTab === 'replies' && repliesHasMore && !repliesLoading) {
+                onEndReachedReplies();
+              } else if (activeTab === 'upvotes' && upvotesHasMore && !upvotesLoading) {
+                onEndReachedUpvotes();
+              }
+            }
+          }}
+          scrollEventThrottle={400}
+        >
           {renderHeader()}
-          {interactions.length === 0 ? (
-            <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No activity yet</Text></View>
-          ) : (
-            <View style={styles.masonryContainer}>
-              {interactions.map((item, index) => {
-                const postItem = unwrapPost(item);
-                const thumb = postItem?.media_url;
-                const likes = postItem?.upvotes_count ?? 0;
-                const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
-                
-                // Create varied aspect ratios for dynamic look
-                const aspectRatios = [1, 1.2, 0.8, 1.5, 0.75, 1.1, 0.9, 1.3];
-                const aspectRatio = aspectRatios[index % aspectRatios.length];
-                
-                return (
-                  <Pressable
-                    key={`${postItem?.id ?? item?.id ?? index}-${index}`}
-                    style={[styles.masonryItem, { aspectRatio }]}
-                    onPress={() => {
-                      const mapped = (interactions || []).map(unwrapPost).map(toFeedPost);
-                      const items = mapped.filter(Boolean) as FeedPost[];
-                      const targetId = unwrapPost(interactions[index])?.id;
-                      const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
-                      setViewerItems(items);
-                      setViewerIndex(Math.max(0, targetIdx));
-                      setViewerOpen(true);
-                    }}
-                  >
-                    {thumb ? (
-                      <View style={styles.gridImageContainer}>
-                        <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
-                        <View style={styles.gridImageOverlay} />
-                      </View>
-                    ) : (
-                      <View style={[styles.gridImage, styles.gridImageFallback]}>
-                        <LinearGradient 
-                          colors={["#667eea", "#764ba2", "#f093fb"]} 
-                          style={StyleSheet.absoluteFillObject as any} 
-                          start={{ x: 0, y: 0 }} 
-                          end={{ x: 1, y: 1 }}
-                        />
-                        <View style={styles.textPostOverlay}>
-                          <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+          {activeTab === 'replies' && (
+            replies.length === 0 ? (
+              <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No replies yet</Text></View>
+            ) : (
+              <View style={styles.masonryContainer}>
+                {replies.map((item, index) => {
+                  const postItem = unwrapPost(item);
+                  const thumb = postItem?.media_url;
+                  const likes = postItem?.upvotes_count ?? 0;
+                  const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+                  
+                  const aspectRatios = [1, 1.2, 0.8, 1.5, 0.75, 1.1, 0.9, 1.3];
+                  const aspectRatio = aspectRatios[index % aspectRatios.length];
+                  
+                  return (
+                    <Pressable
+                      key={`${postItem?.id ?? item?.id ?? index}-${index}`}
+                      style={[styles.masonryItem, { aspectRatio }]}
+                      onPress={() => {
+                        const mapped = (replies || []).map(unwrapPost).map(toFeedPost);
+                        const items = mapped.filter(Boolean) as FeedPost[];
+                        const targetId = unwrapPost(replies[index])?.id;
+                        const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                        setViewerItems(items);
+                        setViewerIndex(Math.max(0, targetIdx));
+                        setViewerOpen(true);
+                      }}
+                    >
+                      {thumb ? (
+                        <View style={styles.gridImageContainer}>
+                          <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                          <View style={styles.gridImageOverlay} />
+                        </View>
+                      ) : (
+                        <View style={[styles.gridImage, styles.gridImageFallback]}>
+                          <LinearGradient 
+                            colors={["#667eea", "#764ba2", "#f093fb"]} 
+                            style={StyleSheet.absoluteFillObject as any} 
+                            start={{ x: 0, y: 0 }} 
+                            end={{ x: 1, y: 1 }}
+                          />
+                          <View style={styles.textPostOverlay}>
+                            <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                          </View>
+                        </View>
+                      )}
+                      <View style={styles.gridCounts}>
+                        <View style={styles.gridCountItem}>
+                          <Ionicons name="arrow-up" size={12} color="#fff" />
+                          <Text style={styles.gridCountText}>{likes}</Text>
+                        </View>
+                        <View style={styles.gridCountItem}>
+                          <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                          <Text style={styles.gridCountText}>{comments}</Text>
                         </View>
                       </View>
-                    )}
-                    <View style={styles.gridCounts}>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="arrow-up" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{likes}</Text>
+                      <View style={styles.gridIconBadge}>
+                        <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
                       </View>
-                      <View style={styles.gridCountItem}>
-                        <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
-                        <Text style={styles.gridCountText}>{comments}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.gridIconBadge}>
-                      <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )
           )}
-          {interLoading && <ActivityIndicator style={{ marginVertical: 16 }} />}
+          {activeTab === 'upvotes' && (
+            upvotes.length === 0 ? (
+              <View style={styles.emptyContainer}><Text style={[styles.emptyTitle, { color: theme.text }]}>No upvotes yet</Text></View>
+            ) : (
+              <View style={styles.masonryContainer}>
+                {upvotes.map((item, index) => {
+                  const postItem = unwrapPost(item);
+                  const thumb = postItem?.media_url;
+                  const likes = postItem?.upvotes_count ?? 0;
+                  const comments = postItem?.comments_count ?? postItem?._count?.comments ?? 0;
+                  
+                  const aspectRatios = [1, 1.2, 0.8, 1.5, 0.75, 1.1, 0.9, 1.3];
+                  const aspectRatio = aspectRatios[index % aspectRatios.length];
+                  
+                  return (
+                    <Pressable
+                      key={`${postItem?.id ?? item?.id ?? index}-${index}`}
+                      style={[styles.masonryItem, { aspectRatio }]}
+                      onPress={() => {
+                        const mapped = (upvotes || []).map(unwrapPost).map(toFeedPost);
+                        const items = mapped.filter(Boolean) as FeedPost[];
+                        const targetId = unwrapPost(upvotes[index])?.id;
+                        const targetIdx = targetId ? items.findIndex((p) => p.id === targetId) : index;
+                        setViewerItems(items);
+                        setViewerIndex(Math.max(0, targetIdx));
+                        setViewerOpen(true);
+                      }}
+                    >
+                      {thumb ? (
+                        <View style={styles.gridImageContainer}>
+                          <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                          <View style={styles.gridImageOverlay} />
+                        </View>
+                      ) : (
+                        <View style={[styles.gridImage, styles.gridImageFallback]}>
+                          <LinearGradient 
+                            colors={["#667eea", "#764ba2", "#f093fb"]} 
+                            style={StyleSheet.absoluteFillObject as any} 
+                            start={{ x: 0, y: 0 }} 
+                            end={{ x: 1, y: 1 }}
+                          />
+                          <View style={styles.textPostOverlay}>
+                            <Text numberOfLines={4} style={styles.gridTextOnly}>{String(postItem?.caption || postItem?.content || '').trim() || 'Post'}</Text>
+                          </View>
+                        </View>
+                      )}
+                      <View style={styles.gridCounts}>
+                        <View style={styles.gridCountItem}>
+                          <Ionicons name="arrow-up" size={12} color="#fff" />
+                          <Text style={styles.gridCountText}>{likes}</Text>
+                        </View>
+                        <View style={styles.gridCountItem}>
+                          <Ionicons name="chatbubble-ellipses" size={12} color="#fff" />
+                          <Text style={styles.gridCountText}>{comments}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.gridIconBadge}>
+                        <Ionicons name={thumb ? 'camera-outline' : 'text'} size={14} color="#fff" />
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )
+          )}
+          {(repliesLoading || upvotesLoading) && <ActivityIndicator style={{ marginVertical: 16 }} />}
         </ScrollView>
       )}
 
@@ -867,7 +956,7 @@ export default function ProfileScreen() {
           showHeader
           initialPosts={viewerItems}
           startIndex={viewerIndex}
-          title={activeTab === 'posts' ? 'Your posts' : 'Your interactions'}
+          title={activeTab === 'posts' ? 'Your posts' : activeTab === 'replies' ? 'Your replies' : 'Your upvotes'}
         />
       </Modal>
     </SafeAreaView>
@@ -992,18 +1081,50 @@ const styles = StyleSheet.create({
   userHandle: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
-    marginBottom: 2,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 4,
+  },
+  userBioInline: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  userMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 4,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  userMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+    marginBottom: 4,
   },
   userLocation: {
     fontSize: 13,
     fontWeight: '400',
     color: '#6B7280',
+    marginTop: 4,
   },
   userName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
+    color: '#ffffff',
   },
   athleteCredentialsCompact: {
     paddingHorizontal: 16,

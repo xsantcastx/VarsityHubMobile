@@ -961,8 +961,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
 
   if (!gameId && !usingInitial) {
     return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyStateTitle}>Missing game id</Text>
+      <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].background }]}>
+        <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>Missing game id</Text>
         <Pressable onPress={handleBack} style={styles.emptyStateBtn}>
           <Text style={styles.emptyStateBtnText}>Go back</Text>
         </Pressable>
@@ -1036,7 +1036,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           style={styles.commentModalRoot}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75 }]} pointerEvents="box-none"> 
+          <View style={[styles.commentSheet, { maxHeight: windowHeight * 0.75, backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none"> 
             <View style={[styles.commentHeader, { backgroundColor: Colors[colorScheme].surface }]}>
               <Text style={[styles.commentTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
               <Pressable onPress={() => setCommentsVisible(false)} style={styles.commentCloseBtn}>
@@ -1046,15 +1046,15 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
             {commentsLoading && comments.length === 0 ? (
               <ActivityIndicator color={Colors[colorScheme].tint} style={{ marginVertical: 24 }} />
             ) : null}
-            {commentsError ? <Text style={[styles.commentError, { color: '#dc2626' }]}>{commentsError}</Text> : null}
+            {commentsError ? <Text style={[styles.commentError, { color: Colors[colorScheme].text }]}>{commentsError}</Text> : null}
             <FlatList
               data={comments}
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
-                <View style={styles.commentRow}>
-                  <Text style={styles.commentAuthor}>{item.author?.display_name || (item.optimistic ? (meInfo?.display_name || meInfo?.username || 'You') : 'Anonymous')}</Text>
-                  <Text style={styles.commentBody}>{item.content}</Text>
-                  {item.created_at ? <Text style={styles.commentTimestamp}>{new Date(item.created_at).toLocaleString()}</Text> : null}
+                <View style={[styles.commentRow, { borderBottomColor: Colors[colorScheme].border }]}>
+                  <Text style={[styles.commentAuthor, { color: Colors[colorScheme].text }]}>{item.author?.display_name || (item.optimistic ? (meInfo?.display_name || meInfo?.username || 'You') : 'Anonymous')}</Text>
+                  <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>{item.content}</Text>
+                  {item.created_at ? <Text style={[styles.commentTimestamp, { color: Colors[colorScheme].mutedText }]}>{new Date(item.created_at).toLocaleString()}</Text> : null}
                 </View>
               )}
               onEndReached={loadMoreComments}
@@ -1269,8 +1269,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  emptyStateTitle: { color: '#fff', fontWeight: '800', fontSize: 18 },
-  emptyStateCaption: { color: '#cbd5f5', marginTop: 8, textAlign: 'center' },
+  emptyStateTitle: { fontWeight: '800', fontSize: 18 },
+  emptyStateCaption: { marginTop: 8, textAlign: 'center' },
   emptyStateBtn: {
     marginTop: 16,
     backgroundColor: '#2563EB',
@@ -1282,7 +1282,6 @@ const styles = StyleSheet.create({
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   commentModalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
   commentSheet: {
-    backgroundColor: '#111827',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingBottom: 24,
@@ -1291,13 +1290,13 @@ const styles = StyleSheet.create({
     minHeight: windowHeight * 0.4,
   },
   commentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  commentTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  commentTitle: { fontSize: 18, fontWeight: '700' },
   commentCloseBtn: { position: 'absolute', right: 0, padding: 6 },
-  commentError: { color: '#f97316', marginVertical: 8, textAlign: 'center' },
-  commentRow: { marginBottom: 14 },
-  commentAuthor: { color: '#fff', fontWeight: '700' },
-  commentBody: { color: '#e5e7eb', marginTop: 4 },
-  commentTimestamp: { color: '#9ca3af', marginTop: 4, fontSize: 12 },
+  commentError: { marginVertical: 8, textAlign: 'center' },
+  commentRow: { marginBottom: 14, borderBottomWidth: 1 },
+  commentAuthor: { fontWeight: '700' },
+  commentBody: { marginTop: 4 },
+  commentTimestamp: { marginTop: 4, fontSize: 12 },
   commentComposer: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   commentInput: {
     flex: 1,

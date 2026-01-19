@@ -184,15 +184,15 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   
   const schema = z.object({
-    title: z.string().min(1).max(200),
-    home_team: z.string().optional(), // Home team name for display
-    away_team: z.string().optional(), // Away team name for display
-    home_team_id: z.string().optional(), // Team ID for home team
-    away_team_id: z.string().optional(), // Team ID if opponent exists in system
-    away_team_name: z.string().optional(), // Manual opponent name if not in system
+    title: z.string().trim().min(1).max(200),
+    home_team: z.string().trim().optional(), // Home team name for display
+    away_team: z.string().trim().optional(), // Away team name for display
+    home_team_id: z.string().trim().optional(), // Team ID for home team
+    away_team_id: z.string().trim().optional(), // Team ID if opponent exists in system
+    away_team_name: z.string().trim().optional(), // Manual opponent name if not in system
     date: z.string().datetime().optional(),
-    location: z.string().optional(),
-    description: z.string().optional(),
+    location: z.string().trim().optional(),
+    description: z.string().trim().optional(),
     cover_image_url: z.string().url().optional(),
     banner_url: z.string().url().optional(),
     // Optional appearance preset chosen by coach (e.g. 'classic','sparkle','sporty')
@@ -203,18 +203,18 @@ gamesRouter.post('/', requireAuth as any, async (req: AuthedRequest, res) => {
     event_type: z.enum(['game', 'fundraiser', 'watch_party', 'team_trip', 'meeting', 'other']).optional(),
     // Event type-specific fields
     donation_goal: z.number().min(0).optional(), // For fundraisers
-    watch_location: z.string().max(200).optional(), // For watch parties
+    watch_location: z.string().trim().max(200).optional(), // For watch parties
     watch_location_lat: z.number().optional(), // Watch party latitude
     watch_location_lng: z.number().optional(), // Watch party longitude
     watch_location_place_id: z.string().optional(), // Watch party Google Place ID
-    destination: z.string().max(200).optional(), // For team trips
+    destination: z.string().trim().max(200).optional(), // For team trips
     // Coordinate options
     latitude: z.number().optional(),
     longitude: z.number().optional(),
     autoGeocode: z.boolean().optional(),
     // Venue information for opponent's location
     venue_place_id: z.string().optional(),
-    venue_address: z.string().optional(),
+    venue_address: z.string().trim().optional(),
     venue_lat: z.number().optional(),
     venue_lng: z.number().optional(),
     is_neutral: z.boolean().optional(),

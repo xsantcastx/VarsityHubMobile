@@ -1,7 +1,38 @@
-import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render } from '@testing-library/react-native';
 import EventMap from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
+
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props: any) => React.createElement(View, { testID: 'MapView', ...props }, props.children),
+    MapView: (props: any) => React.createElement(View, { testID: 'MapView', ...props }, props.children),
+    Marker: (props: any) => React.createElement(View, { testID: 'Marker', ...props }, props.children),
+    Callout: (props: any) => React.createElement(View, { testID: 'Callout', ...props }, props.children),
+  };
+});
+
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
+  getCurrentPositionAsync: jest.fn(() => Promise.resolve({
+    coords: {
+      latitude: 37.7749,
+      longitude: -122.4194,
+      altitude: null,
+      accuracy: 10,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+    },
+    timestamp: Date.now(),
+  })),
+}));
+
+jest.mock('@/hooks/useColorScheme', () => ({
+  useColorScheme: () => 'light',
+}));
 
 const mockEvents = [
   {

@@ -686,3 +686,204 @@ export async function sendBillingNoticeEmail(params: {
     return false;
   }
 }
+
+/**
+ * Format currency from cents to dollars
+ */
+function formatCurrency(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * Send end-of-day transaction report
+ */
+export async function sendEndOfDayTransactionReport(params: {
+  to: string;
+  report: {
+    date: string;
+    summary: {
+      totalTransactions: number;
+      completedTransactions: number;
+      totalRevenueCents: number;
+      totalFeesCents: number;
+      totalDiscountsCents: number;
+      netRevenueCents: number;
+    };
+    breakdownByType: Array<{
+      type: string;
+      count: number;
+      revenueCents: number;
+      feesCents: number;
+      discountsCents: number;
+      netCents: number;
+    }>;
+    breakdownByStatus: Array<{
+      status: string;
+      count: number;
+    }>;
+  };
+}): Promise<boolean> {
+  const { report } = params;
+  const { summary, breakdownByType, breakdownByStatus } = report;
+
+  // Format transaction type for display
+  const formatType = (type: string) => {
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+  };
+
+  // Build HTML report
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { color: #2563EB; border-bottom: 2px solid #2563EB; padding-bottom: 10px; }
+    h2 { color: #1F2937; margin-top: 30px; }
+    .summary-box { background: #F3F4F6; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB; }
+    .summary-row:last-child { border-bottom: none; font-weight: bold; font-size: 1.1em; }
+    .label { color: #6B7280; }
+    .value { font-weight: 600; color: #111827; }
+    .value.revenue { color: #059669; }
+    .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .table th { background: #2563EB; color: white; padding: 12px; text-align: left; }
+    .table td { padding: 10px; border-bottom: 1px solid #E5E7EB; }
+    .table tr:hover { background: #F9FAFB; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E5E7EB; color: #6B7280; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 End-of-Day Transaction Report</h1>
+    <p><strong>Date:</strong> ${report.date}</p>
+
+    <div class="summary-box">
+      <h2>Summary</h2>
+      <div class="summary-row">
+        <span class="label">Total Transactions:</span>
+        <span class="value">${summary.totalTransactions}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Completed:</span>
+        <span class="value">${summary.completedTransactions}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Gross Revenue:</span>
+        <span class="value revenue">${formatCurrency(summary.totalRevenueCents)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Stripe Fees:</span>
+        <span class="value">${formatCurrency(summary.totalFeesCents)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Discounts:</span>
+        <span class="value">${formatCurrency(summary.totalDiscountsCents)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Net Revenue:</span>
+        <span class="value revenue">${formatCurrency(summary.netRevenueCents)}</span>
+      </div>
+    </div>
+
+    ${breakdownByType.length > 0 ? `
+    <h2>Breakdown by Transaction Type</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Count</th>
+          <th>Revenue</th>
+          <th>Fees</th>
+          <th>Discounts</th>
+          <th>Net</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${breakdownByType.map((b) => `
+        <tr>
+          <td>${formatType(b.type)}</td>
+          <td>${b.count}</td>
+          <td>${formatCurrency(b.revenueCents)}</td>
+          <td>${formatCurrency(b.feesCents)}</td>
+          <td>${formatCurrency(b.discountsCents)}</td>
+          <td><strong>${formatCurrency(b.netCents)}</strong></td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ` : ''}
+
+    ${breakdownByStatus.length > 0 ? `
+    <h2>Breakdown by Status</h2>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${breakdownByStatus.map((s) => `
+        <tr>
+          <td>${s.status}</td>
+          <td>${s.count}</td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ` : ''}
+
+    <div class="footer">
+      <p>This is an automated daily report from VarsityHub.</p>
+      <p>Generated at ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  // Build plain text version
+  const text = `
+END-OF-DAY TRANSACTION REPORT
+Date: ${report.date}
+
+SUMMARY
+Total Transactions: ${summary.totalTransactions}
+Completed: ${summary.completedTransactions}
+Gross Revenue: ${formatCurrency(summary.totalRevenueCents)}
+Stripe Fees: ${formatCurrency(summary.totalFeesCents)}
+Discounts: ${formatCurrency(summary.totalDiscountsCents)}
+Net Revenue: ${formatCurrency(summary.netRevenueCents)}
+
+${breakdownByType.length > 0 ? `
+BREAKDOWN BY TYPE
+${breakdownByType.map((b) => `${formatType(b.type)}: ${b.count} transactions, ${formatCurrency(b.revenueCents)} revenue, ${formatCurrency(b.netCents)} net`).join('\n')}
+` : ''}
+
+${breakdownByStatus.length > 0 ? `
+BREAKDOWN BY STATUS
+${breakdownByStatus.map((s) => `${s.status}: ${s.count}`).join('\n')}
+` : ''}
+
+Generated at ${new Date().toLocaleString()}
+This is an automated daily report from VarsityHub.
+  `;
+
+  const subject = `📊 Daily Transaction Report - ${report.date}`;
+
+  try {
+    await sendEmail({
+      to: params.to,
+      subject,
+      html,
+      text,
+    });
+    debugLog(`✅ End-of-day transaction report sent to ${params.to} for ${report.date}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send end-of-day transaction report:', error);
+    return false;
+  }
+}

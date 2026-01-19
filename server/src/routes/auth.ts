@@ -482,11 +482,14 @@ authRouter.get('/me', async (req: AuthedRequest, res) => {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
     is_parent: false,
     zip_code: null,
-    onboarding_completed: true,
+    // Only set onboarding_completed=true for admin accounts
+    ...(is_admin ? { onboarding_completed: true } : {}),
   };
   // CRITICAL: Admin defaults must override DB values (second arg overrides first in mergePreferences)
   // This ensures admin accounts always have onboarding_completed=true regardless of DB state
-  const prefs = mergePreferences((user as any).preferences || {}, defaults);
+  // Non-admin users' preferences are merged without forcing onboarding_completed
+  const userPrefs = (user as any).preferences || {};
+  const prefs = mergePreferences(userPrefs, defaults);
   const { password_hash, ...rest } = user as any;
   return res.json({ ...rest, preferences: prefs, is_admin });
 });
@@ -573,11 +576,15 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const incoming = parsed.data as any;
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  // Check if user is admin (same logic as GET /me endpoint)
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const is_admin = req.user.email ? adminEmails.includes(req.user.email.toLowerCase()) : false;
   const defaults = {
     notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
     is_parent: false,
     zip_code: null,
-    onboarding_completed: true,
+    // Only set onboarding_completed=true for admin accounts (same as GET /me)
+    ...(is_admin ? { onboarding_completed: true } : {}),
     plan: null, // Plans only for coaches - don't default to 'rookie'
     role: 'fan',
     sports_interests: [],
@@ -587,7 +594,9 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
     notifications_enabled: true,
     messaging_policy_accepted: false,
   };
-  const merged = mergePreferences(defaults, mergePreferences(current?.preferences || {}, incoming));
+  // CRITICAL: Same merge order as GET /me - defaults must override (second arg overrides first)
+  // First merge user preferences with incoming, then apply defaults on top
+  const merged = mergePreferences(mergePreferences(current?.preferences || {}, incoming), defaults);
   const updated = await prisma.user.update({ where: { id: req.user.id }, data: { preferences: merged } });
   return res.json({ preferences: updated.preferences });
 });

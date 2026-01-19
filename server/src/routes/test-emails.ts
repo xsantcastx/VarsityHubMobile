@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
     sendBillingNoticeEmail,
     sendContentModerationEmail,
+    sendEndOfDayTransactionReport,
     sendJoinRequestApproved,
     sendJoinRequestDenied,
     sendJoinRequestToAdmin,
@@ -12,6 +13,7 @@ import {
     sendTeamInviteEmail,
     sendVerificationEmail,
 } from '../lib/email.js';
+import { getEndOfDayReport } from '../lib/transactionLogger.js';
 
 const router = Router();
 
@@ -179,6 +181,34 @@ router.post('/org-denial', async (req, res) => {
   const { to = 'user@example.com', organizationName = 'Texas Elite Sports', reason = 'Missing docs', orgLogoUrl } = req.body || {};
   const ok = await sendOrganizationDenialEmail({ to, organizationName, reason, orgLogoUrl });
   return res.json({ ok });
+});
+
+router.post('/transaction-report', async (req, res) => {
+  const { to = 'emancero@varsityhub.app', date } = req.body || {};
+  
+  try {
+    // Get report for specified date or today
+    const reportDate = date ? new Date(date) : undefined;
+    const report = await getEndOfDayReport(reportDate);
+    
+    const ok = await sendEndOfDayTransactionReport({
+      to,
+      report,
+    });
+    
+    return res.json({ 
+      ok, 
+      reportDate: report.date,
+      summary: report.summary,
+      message: ok ? 'Transaction report sent successfully' : 'Failed to send transaction report'
+    });
+  } catch (error) {
+    console.error('[test-emails] Transaction report test failed:', error);
+    return res.status(500).json({ 
+      ok: false, 
+      error: (error as any).message || 'Unknown error' 
+    });
+  }
 });
 
 export const testEmailsRouter = router;
