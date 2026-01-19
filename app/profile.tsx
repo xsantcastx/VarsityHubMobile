@@ -7,6 +7,7 @@ import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
+import { calculateContrastRatio } from '@/utils/accessibility';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -532,6 +533,39 @@ export default function ProfileScreen() {
     ? ['rgba(4,7,20,0.85)', 'rgba(15,23,42,0.45)']
     : (getGradientForColor(userThemeColor) as [string, string, ...string[]]);
   
+  // Helper function to determine text color based on background contrast
+  // White is default, but switches to black if white has insufficient contrast
+  const getTextColorForBackground = (bgColor: string): string => {
+    // Convert rgba to hex if needed
+    let hexColor = bgColor;
+    if (bgColor.startsWith('rgba')) {
+      const match = bgColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (match) {
+        const r = parseInt(match[1], 10);
+        const g = parseInt(match[2], 10);
+        const b = parseInt(match[3], 10);
+        hexColor = `#${[r, g, b].map(x => {
+          const hex = x.toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        }).join('')}`;
+      }
+    }
+    
+    // Calculate contrast ratio for white text (default)
+    const whiteContrast = calculateContrastRatio('#FFFFFF', hexColor);
+    
+    // If white has sufficient contrast (>= 3.0 for large text), use white
+    // Otherwise, use black
+    if (whiteContrast && whiteContrast >= 3.0) {
+      return '#FFFFFF';
+    }
+    return '#000000';
+  };
+  
+  // Get the first gradient color to determine text color
+  const firstGradientColor = heroGradientColors[0] || userThemeColor;
+  const userNameTextColor = getTextColorForBackground(firstGradientColor);
+  
   const stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
@@ -600,7 +634,7 @@ export default function ProfileScreen() {
           {/* User Info - Next to Avatar ON BANNER */}
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.userName}>{name}</Text>
+              <Text style={[styles.userName, { color: userNameTextColor }]}>{name}</Text>
               {roleLabel && (
                 <View style={[styles.roleBadge, 
                   roleRaw === 'coach' && styles.coachBadge,
@@ -1108,7 +1142,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#ffffff', // Default, will be overridden dynamically
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
