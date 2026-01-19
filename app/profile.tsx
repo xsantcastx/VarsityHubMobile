@@ -760,12 +760,12 @@ export default function ProfileScreen() {
         <FlatList
           data={posts}
           key={activeTab + '-grid'}
-          numColumns={3}
+          numColumns={2}
           columnWrapperStyle={styles.gridRow}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 0 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -1341,16 +1341,22 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   gridRow: { 
-    gap: 1, // Minimal gap between cards
+    gap: 12, // Spacing between cards like event page
     paddingHorizontal: 0,
+    marginBottom: 12, // Vertical spacing between rows
   },
   gridItem: { 
     flex: 1, 
     aspectRatio: 1, 
-    margin: 0.5, // Minimal margin
-    borderRadius: 0, // No border radius to match reference
+    margin: 0,
+    borderRadius: 14, // Rounded corners like event page
     overflow: 'hidden', 
     backgroundColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
   gridImage: { width: '100%', height: '100%' },
