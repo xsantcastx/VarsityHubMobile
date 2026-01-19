@@ -600,13 +600,13 @@ export default function ProfileScreen() {
             </View>
           )}
           
-          {/* Following/Followers - Separate with Bold Numbers */}
+          {/* Following/Followers - Separate with Bold Numbers, tight spacing */}
           <View style={styles.statsRow}>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {me?._count?.following ?? 0}
             </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Following</Text>
-            <Text style={[styles.statNumber, { color: theme.text, marginLeft: 16 }]}>
+            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Following </Text>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
               {me?._count?.followers ?? 0}
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers</Text>
@@ -1010,7 +1010,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatarSection: {
-    marginBottom: -40, // Overlap into content area
+    marginBottom: -35, // Reduced overlap to close gap
   },
   avatarContainer: {
     position: 'relative',
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 8,
+    paddingBottom: 4, // Reduced padding
   },
   userName: {
     fontSize: 22,
@@ -1065,25 +1065,25 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  // Profile Details Below Banner
+  // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 50, // Space for overlapping avatar
+    paddingTop: 40, // Reduced - space for overlapping avatar
   },
   actionsContainer: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingTop: 0,
+    paddingBottom: 8, // Reduced from 16
     alignItems: 'center',
   },
   editButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#3B82F6',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 120,
+    minWidth: 100,
   },
   editButtonText: {
     color: '#ffffff',
@@ -1092,24 +1092,24 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 8, // Reduced from 16
   },
   userHandle: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 4,
+    marginBottom: 2, // Reduced from 4
   },
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 12,
+    marginBottom: 6, // Reduced from 12
     lineHeight: 20,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 4, // Reduced from 8
   },
   metaText: {
     fontSize: 14,
@@ -1118,7 +1118,8 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 8,
+    marginTop: 4, // Reduced from 8
+    gap: 0, // No gap between number and label
   },
   statNumber: {
     fontSize: 15,
@@ -1241,8 +1242,13 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2
   },
-  tabsContainer: { flexDirection: 'row', borderBottomWidth: 1, backgroundColor: 'transparent' },
-  tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  tabsContainer: { 
+    flexDirection: 'row', 
+    borderBottomWidth: 1, 
+    backgroundColor: 'transparent',
+    marginTop: 0, // No gap above tabs
+  },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' }, // Reduced padding
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
   tabText: { color: '#6B7280', fontWeight: '600', fontSize: 15 },
   activeTabText: { color: 'black' },
