@@ -12,12 +12,12 @@ export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { user } = useUser();
-  const [username, setUsername] = useState(user?.username || '');
+  const { user, loading: userLoading } = useUser();
+  const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user?.username && !username) {
+    if (user?.username) {
       setUsername(user.username);
     }
   }, [user?.username]);
@@ -43,11 +43,18 @@ export default function EditUsernameScreen() {
     }
     setSaving(true);
     try { 
-      await User.updateMe({ username: v }); 
+      const result = await User.updateMe({ username: v });
+      console.log('[edit-username] Update result:', result);
+      // Refresh user data after successful update
+      if (user) {
+        await User.me().catch(() => {}); // Refresh user data
+      }
       Alert.alert('Success', 'Username updated successfully');
       router.back(); 
     } catch (e: any) { 
-      Alert.alert('Save failed', e?.message || 'Could not save'); 
+      console.error('[edit-username] Update failed:', e);
+      const errorMessage = e?.data?.message || e?.data?.error || e?.message || 'Could not save';
+      Alert.alert('Save failed', errorMessage); 
     } finally { 
       setSaving(false); 
     }
@@ -66,15 +73,19 @@ export default function EditUsernameScreen() {
         <Text style={[styles.hint, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
           This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
         </Text>
-        <Input 
-          value={username} 
-          onChangeText={(text) => setUsername(text.toLowerCase())} 
-          placeholder="username" 
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={{ marginBottom: 24 }} 
-        />
-        <Button onPress={onSave} disabled={saving}>
+        {userLoading ? (
+          <Text style={[styles.hint, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>Loading...</Text>
+        ) : (
+          <Input 
+            value={username} 
+            onChangeText={(text) => setUsername(text.toLowerCase())} 
+            placeholder={user?.username || "username"} 
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={{ marginBottom: 24 }} 
+          />
+        )}
+        <Button onPress={onSave} disabled={saving || userLoading}>
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </ScrollView>
