@@ -27,46 +27,48 @@ COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
 
-# Verify TypeScript is installed and can compile
-RUN echo "🔍 Verifying TypeScript installation..." && \
-    npx tsc --version && \
-    echo "🔍 Checking if expo/tsconfig.base.json exists..." && \
-    if [ ! -f node_modules/expo/tsconfig.base.json ]; then \
-      echo "⚠️  expo tsconfig NOT found - removing extends from tsconfig.json"; \
-      sed -i 's/"extends": "expo\/tsconfig.base",//' tsconfig.json || true; \
-    else \
-      echo "✅ expo tsconfig found"; \
-    fi && \
-    echo "🔨 Running Prisma generate..." && \
-    npx prisma generate && \
-    echo "🔨 Building TypeScript directly (showing all output)..." && \
-    rm -f .tsbuildinfo && \
-    npx tsc -p . --noEmit false 2>&1 | tee /tmp/tsc.log && \
-    TSC_EXIT=${PIPESTATUS[0]} && \
-    echo "TypeScript exit code: $TSC_EXIT" && \
-    if [ "$TSC_EXIT" -ne 0 ]; then \
-      echo "❌ TypeScript compilation FAILED!"; \
-      echo "TypeScript errors:"; \
-      cat /tmp/tsc.log; \
-      exit 1; \
-    fi && \
-    echo "📁 Checking for dist/index.js..." && \
+# Remove expo extends and ensure noEmit is false (use python for reliable JSON manipulation)
+RUN python3 << 'PYTHON_SCRIPT' && \
+    echo "✅ Removed extends from tsconfig.json"
+import json
+import sys
+
+with open('tsconfig.json', 'r') as f:
+    config = json.load(f)
+
+# Remove extends property
+if 'extends' in config:
+    del config['extends']
+
+# Ensure noEmit is false
+if 'compilerOptions' not in config:
+    config['compilerOptions'] = {}
+config['compilerOptions']['noEmit'] = False
+
+# Write back
+with open('tsconfig.json', 'w') as f:
+    json.dump(config, f, indent=2)
+
+print(json.dumps(config, indent=2))
+PYTHON_SCRIPT
+
+# Build TypeScript using npm run build (matches package.json script)
+RUN echo "🔨 Building TypeScript..." && \
+    rm -rf dist .tsbuildinfo && \
+    npm run build && \
     if [ ! -f dist/index.js ]; then \
-      echo "❌ ERROR: dist/index.js not found after TypeScript compilation!"; \
-      echo "TypeScript output:"; \
-      cat /tmp/tsc.log; \
-      echo "Working directory: $(pwd)"; \
-      echo "Contents of /app:"; \
-      ls -la /app/; \
-      echo "Contents of dist/ (if exists):"; \
-      ls -la dist/ 2>/dev/null || echo "dist/ directory does not exist!"; \
-      echo "Running tsc --listFiles to see what files it compiled:"; \
-      npx tsc -p . --listFiles 2>&1 | head -30 || true; \
-      echo "Checking TypeScript configuration:"; \
-      cat tsconfig.json; \
-      exit 1; \
+        echo "❌ ERROR: dist/index.js not found after build!" && \
+        echo "TypeScript config:" && \
+        cat tsconfig.json && \
+        echo "Checking if dist directory exists:" && \
+        ls -la dist/ 2>/dev/null || echo "dist/ does not exist" && \
+        echo "Files in src:" && \
+        ls -la src/ | head -10 && \
+        echo "Running tsc --listFiles to debug:" && \
+        npx tsc -p . --listFiles 2>&1 | head -30 && \
+        exit 1; \
     fi && \
-    echo "✅ dist/index.js exists - build successful!"
+    echo "✅ Build successful - dist/index.js exists"
 
 # Remove devDependencies to reduce final image size
 RUN npm prune --omit=dev
