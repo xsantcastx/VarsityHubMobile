@@ -1305,11 +1305,13 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2
   },
-  tabsContainer: { 
-    flexDirection: 'row', 
+  tabsContainer: {
+    flexDirection: 'row',
     borderBottomWidth: 1, 
     backgroundColor: 'transparent',
-    marginTop: 0, // No gap above tabs
+    marginTop: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center' }, // Reduced padding
   activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
