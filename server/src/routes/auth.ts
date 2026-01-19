@@ -7,6 +7,8 @@ import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { debugLog } from '../lib/debugLog.js';
+import { ValidationError, ConflictError, AuthenticationError } from '../lib/errors/index.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
@@ -46,25 +48,30 @@ const registerSchema = z.object({
   role: z.enum(['fan', 'coach']).optional(),
 });
 
-authRouter.post('/register', async (req, res) => {
+authRouter.post('/register', asyncHandler(async (req, res) => {
   const start = Date.now();
   debugLog('[register] Incoming request');
   const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    throw new ValidationError('Invalid registration data', {
+      validationIssues: parsed.error.issues.map((issue) => ({
+        path: issue.path.map(String),
+        message: issue.message,
+      })),
+    });
+  }
   const { email, password, display_name, role } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
   
   // Prevent duplicate accounts - check if email already exists
   // Users can create multiple accounts with different emails, but not duplicate the same email
   debugLog('[register] Checking for existing user');
-  let exists;
-  try {
-    exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
-  } catch (e) {
-    console.error('[register] prisma findUnique error:', e);
-    return res.status(500).json({ error: 'Database unavailable' });
+  const exists = await prisma.user.findUnique({ where: { email: sanitizedEmail } });
+  if (exists) {
+    throw new ConflictError('Email already registered', {
+      errorCode: 'EMAIL_ALREADY_REGISTERED',
+    });
   }
-  if (exists) return res.status(409).json({ error: 'Email already registered' });
   const password_hash = await bcrypt.hash(password, 10);
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const exp = new Date(Date.now() + 30 * 60 * 1000);
@@ -79,9 +86,7 @@ authRouter.post('/register', async (req, res) => {
   };
   
   debugLog('[register] Creating user record');
-  let user;
-  try {
-    user = await prisma.user.create({ 
+  const user = await prisma.user.create({ 
     data: { 
       email: sanitizedEmail, 
       password_hash, 
@@ -92,10 +97,6 @@ authRouter.post('/register', async (req, res) => {
       preferences: initialPreferences
     } 
   });
-  } catch (e) {
-    console.error('[register] prisma create error:', e);
-    return res.status(500).json({ error: 'Failed to create user' });
-  }
   const access_token = signJwt({ id: user.id });
   try { 
     debugLog('[email] Sending verification email to:', email);
@@ -119,8 +120,8 @@ authRouter.post('/register', async (req, res) => {
   const payload: any = { access_token, user: sanitizeUser(user) };
   if (process.env.NODE_ENV !== 'production') payload.dev_verification_code = code;
   debugLog('[register] Completed in', Date.now() - start, 'ms');
-  return res.status(201).json(payload);
-});
+  res.status(201).json(payload);
+}));
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 

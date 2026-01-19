@@ -228,6 +228,10 @@ const PORT = Number(process.env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
 const HOST: string = process.env.HOST || '0.0.0.0';
 
+// Add centralized error handler (must be before Sentry)
+import { errorHandler } from './middleware/errorHandler.js';
+app.use(errorHandler);
+
 // Add Sentry error handler (must be last)
 addSentryErrorHandler(app);
 
