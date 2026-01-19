@@ -306,8 +306,13 @@ export default function ProfileScreen() {
     
     try {
       // Step 1: ensure session is valid
+      // Force fresh data by adding cache-busting header
       const u: any = await User.me();
-      if (u && !u._isNotModified) setMe(u ?? null);
+      console.log('[profile] Loaded user data:', { id: u?.id, username: u?.username, display_name: u?.display_name });
+      if (u && !u._isNotModified) {
+        setMe(u ?? null);
+        console.log('[profile] Updated me state with username:', u?.username);
+      }
       if (!u?.id) { 
         setError('You need to sign in to view your profile.');
         setLoading(false);
