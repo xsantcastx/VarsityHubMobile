@@ -182,13 +182,13 @@ export default function AdCalendarScreen() {
 
   React.useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const status = await Payments.configStatus();
         if (!mounted) return;
         setPaymentsStatus(status);
         setPaymentsStatusError(null);
-      } catch (err) {
+      } catch {
         if (!mounted) return;
         setPaymentsStatusError('Unable to confirm payment readiness right now.');
       } finally {
@@ -515,8 +515,7 @@ export default function AdCalendarScreen() {
               onPress: async () => {
                 try {
                   setSubmitting(true);
-                  const result = await WebBrowser.openBrowserAsync(String(data.url));
-                  console.log('[ad-calendar] Browser closed:', result.type);
+                  await WebBrowser.openBrowserAsync(String(data.url));
                   Alert.alert(
                     'Check Payment Status',
                     'If you completed checkout, a confirmation screen should appear shortly. If you canceled the payment, you can reopen checkout from this screen.',

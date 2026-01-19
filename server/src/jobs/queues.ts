@@ -210,11 +210,21 @@ export async function queueEmail(job: EmailJob): Promise<string | null> {
     return added.id || null;
   }
   
-  // Fallback: process immediately
+  // Fallback: process immediately using EmailService
   console.log('[Jobs] Fallback: Processing email immediately');
   try {
-    const { sendEmail } = await import('../lib/email.js');
-    await sendEmail({ to: job.to, subject: job.subject, text: job.text, html: job.html });
+    const { getEmailService } = await import('../services/email/service.js');
+    const emailService = getEmailService();
+    const result = await emailService.send({
+      to: job.to,
+      subject: job.subject,
+      text: job.text,
+      html: job.html,
+    });
+    if (!result.success) {
+      console.error('[Jobs] Fallback email failed:', result.error);
+      return null;
+    }
     return 'immediate';
   } catch (error) {
     console.error('[Jobs] Fallback email failed:', error);

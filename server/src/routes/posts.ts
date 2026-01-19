@@ -176,7 +176,7 @@ import { notifyPostInteraction } from '../lib/notifications.js';
 import { debugLog } from '../lib/debugLog.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  // req.user is guaranteed by requireVerified middleware
   const parsed = createPostSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -329,14 +329,19 @@ postsRouter.get('/:id/comments', async (req, res) => {
 });
 
 postsRouter.post('/:id/comments', requireAuth as any, async (req: AuthedRequest, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  // req.user is guaranteed by requireAuth middleware
   const { id } = req.params;
   const schema = z.object({ content: z.string().min(1).max(1000) });
   const parsed = schema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'Invalid payload',
+      issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })),
+    });
+  }
   
   const comment = await prisma.comment.create({ 
-    data: { post_id: id, author_id: req.user.id, content: parsed.data.content },
+    data: { post_id: id, author_id: req.user!.id, content: parsed.data.content },
     include: {
       author: { select: { id: true, display_name: true, avatar_url: true } }
     }

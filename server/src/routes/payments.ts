@@ -8,6 +8,8 @@ import { calculateStripeFee, getTransactionBySession, logTransaction, updateTran
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
 import { debugLog } from '../lib/debugLog.js';
+import { captureException } from '../lib/sentry.js';
+import { getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -201,13 +203,13 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
         quantity: chosen === 'veteran' ? billableQuantity : 1,
         price_data: {
           currency: 'usd',
-          unit_amount: chosen === 'veteran' ? 250 : 1999, // Veteran: $2.50/month per additional team, Legend: $19.99/year
+          unit_amount: chosen === 'veteran' ? 150 : 2000, // Veteran: $1.50/month per additional team, Legend: $20.00/year
           recurring: { interval: chosen === 'veteran' ? 'month' : 'year' },
           product_data: {
             name: 'Membership - ' + chosen,
             description: chosen === 'veteran'
-              ? `Veteran plan - $2.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
-              : 'Legend plan - $19.99/year unlimited (fallback price)',
+              ? `Veteran plan - $1.50/month per additional team (${billableQuantity} billable of ${teamCount} total, 2 free)`
+              : 'Legend plan - $20.00/year unlimited (fallback price)',
           },
         },
       }];
@@ -255,7 +257,7 @@ async function createMembershipCheckoutSession(req: AuthedRequest, planValue: un
     where: { id: req.user!.id },
     select: { email: true }
   });
-  const amount = chosen === 'veteran' ? 250 * billableQuantity : 1999; // Veteran billed only for additional teams
+  const amount = chosen === 'veteran' ? 150 * billableQuantity : 2000; // Veteran: $1.50/month per additional team, Legend: $20.00/year
   await logTransaction({
     transactionType: 'SUBSCRIPTION_PURCHASE',
     status: 'PENDING',
@@ -290,6 +292,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       return res.json({ url, session_id: sessionId });
     } catch (err: any) {
       const status = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+      captureException(err, { context: 'stripe_checkout_error', plan });
       return res.status(status).json({ error: err?.message || 'Unable to start subscription checkout' });
     }
   }
@@ -420,6 +423,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
     event = stripe.webhooks.constructEvent((req as any).body, sig as string, webhookSecret);
   } catch (err: any) {
     console.error('Stripe webhook signature verification failed:', err?.message || err);
+    captureException(err, { context: 'stripe_webhook_verification_failed' });
     return res.status(400).send('Webhook Error: Invalid signature');
   }
 
@@ -429,6 +433,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       await finalizeFromSession(session);
     } catch (e) {
       console.warn('Error finalizing session in webhook:', (e as any)?.message || e);
+      captureException(e as Error, { context: 'stripe_webhook_finalize_failed', sessionId: session.id });
     }
   }
   
@@ -595,7 +600,7 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
         subscription_id: subscriptionId,
         total_teams: team_count,
         billable_teams: billable,
-        monthly_cost: billable * 2.50
+        monthly_cost: billable * 1.50
       });
     } catch (err: any) {
       console.warn('Failed to update Stripe subscription quantity:', err?.message || err);
@@ -985,8 +990,28 @@ async function finalizeFromSession(session: Stripe.Checkout.Session) {
         if (session.customer) {
           prefs.stripe_customer_id = String(session.customer);
         }
-        await prisma.user.update({ where: { id: userId }, data: { preferences: prefs } });
-        console.info('[payments] membership finalize', { userId, plan, subscription_id: prefs.subscription_id, subscription_period_end: prefs.subscription_period_end });
+        
+        // Update max_teams and subscription_tier based on plan
+        const maxTeams = getMaxTeamsForPlan(plan);
+        const subscriptionTier = plan === 'rookie' ? 'free' : plan === 'veteran' ? 'premium' : 'pro';
+        
+        await prisma.user.update({ 
+          where: { id: userId }, 
+          data: { 
+            preferences: prefs,
+            max_teams: maxTeams ?? 999, // Use 999 as unlimited (null not supported by Int type)
+            subscription_tier: subscriptionTier,
+            subscription_status: 'active'
+          } 
+        });
+        console.info('[payments] membership finalize', { 
+          userId, 
+          plan, 
+          max_teams: maxTeams ?? 999,
+          subscription_tier: subscriptionTier,
+          subscription_id: prefs.subscription_id, 
+          subscription_period_end: prefs.subscription_period_end 
+        });
         
         // Update transaction log to COMPLETED
         await updateTransactionStatus(session.id, 'COMPLETED', {

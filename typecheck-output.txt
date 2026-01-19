@@ -1,9 +1,0 @@
-
-> varsityhubmobile@1.0.1 typecheck
-> tsc --noEmit
-
-components/__tests__/OfflineBanner.test.tsx(23,35): error TS2345: Argument of type '{ healthOk: true; healthError: null; checkAuth: jest.Mock<any, any, any>; }' is not assignable to parameter of type 'AuthContextType'.
-  Type '{ healthOk: true; healthError: null; checkAuth: Mock<any, any, any>; }' is missing the following properties from type 'AuthContextType': user, pendingVerificationEmail, loading, isAdmin, and 2 more.
-components/__tests__/OfflineBanner.test.tsx(35,35): error TS2345: Argument of type '{ healthOk: false; healthError: string; checkAuth: jest.Mock<any, any, any>; }' is not assignable to parameter of type 'AuthContextType'.
-  Type '{ healthOk: false; healthError: string; checkAuth: Mock<any, any, any>; }' is missing the following properties from type 'AuthContextType': user, pendingVerificationEmail, loading, isAdmin, and 2 more.
-utils/sentry.ts(34,7): error TS2353: Object literal may only specify known properties, and 'enableInExpoDevelopment' does not exist in type 'ReactNativeOptions'.

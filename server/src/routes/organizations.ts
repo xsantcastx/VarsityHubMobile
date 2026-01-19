@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { debugLog } from '../lib/debugLog.js';
+import { getAuthorizedUsersOrgLimit } from '../lib/planLimits.js';
 
 export const organizationsRouter = Router();
 
@@ -321,13 +322,15 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     const prefs = (user?.preferences || {}) as any;
     const plan = prefs.plan || 'rookie';
-    let limit: number | null = null;
-    if (plan === 'rookie') limit = 1; // Rookie org usage unlikely but safeguard
-    else if (plan === 'veteran') {
-      const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ where: { user_id: req.user!.id, role: 'owner' } });
-      limit = (teamCountTotal * 2) || 12; // fallback 12
-    }
-    // legend => unlimited
+    
+    // Get team count for org-level limit calculation
+    const teamCountTotal = prefs.team_count_total || await prisma.teamMembership.count({ 
+      where: { user_id: req.user!.id, role: 'owner' } 
+    });
+    
+    // Get organization-level limit from plan definitions
+    const limit = getAuthorizedUsersOrgLimit(plan, teamCountTotal);
+    
     if (limit !== null) {
       const inviteCount = await prisma.organizationInvite.count({ where: { organization_id: id } });
       const memberCount = await prisma.organizationMembership.count({ where: { organization_id: id, role: { in: ['manager','member'] } } });
@@ -335,12 +338,13 @@ organizationsRouter.post('/:id/invite', requireAuth as any, async (req: AuthedRe
       if (totalAuthorized >= limit) {
         return res.status(403).json({
           error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} (${plan === 'veteran' ? '2 per team' : 'Rookie max'}).`,
+          message: `Plan limit reached. ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} for your organization.`,
           limit,
           current: totalAuthorized
         });
       }
     }
+    // If limit is null, plan has unlimited authorized users (Legend tier)
   } catch (e) {
     console.warn('[organizations][invite-limit] check failed', e);
   }

@@ -22,6 +22,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.varsithub.varsityhub",
       "usesAppleSignIn": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+      },
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -41,6 +44,11 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "package": "com.varsithub.varsityhub",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY"
+        }
+      },
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -118,7 +126,6 @@
     },
     "extra": {
       "router": {},
-      "googleMapsApiKey": "",
       "eas": {
         "projectId": "64489ed7-a8c0-41de-91ec-5846ea79a27f"
       },

@@ -1,27 +1,26 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { useUserProfile } from '@/hooks/useUser';
 
 export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const [name, setName] = useState('');
+  const { displayName } = useUserProfile();
+  const [name, setName] = useState(displayName || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { 
-    void (async () => { 
-      try { 
-        const me: any = await User.me(); 
-        setName(me?.display_name || ''); 
-      } catch {} 
-    })(); 
-  }, []);
+  useEffect(() => {
+    if (displayName && !name) {
+      setName(displayName);
+    }
+  }, [displayName]);
 
   const onSave = async () => {
     const v = name.trim();

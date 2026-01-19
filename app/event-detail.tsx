@@ -238,7 +238,18 @@ export default function EventDetailScreen() {
             )}
             
             <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
-            <Text style={styles.meta}>Attending: {attendeeCount}{typeof event.capacity === 'number' ? ` / ${event.capacity}` : ''}</Text>
+            {(() => {
+              const capacity = (event as any)?.capacity ?? (event as any)?.max_attendees;
+              const isFull = typeof capacity === 'number' && attendeesCount >= capacity;
+              const capacityText = typeof capacity === 'number' 
+                ? ` / ${capacity}${isFull ? ' (FULL)' : ''}`
+                : '';
+              return (
+                <Text style={[styles.meta, isFull && { color: '#DC2626', fontWeight: '600' }]}>
+                  Attending: {attendeeCount}{capacityText}
+                </Text>
+              );
+            })()}
             {event.description ? <Text>{event.description}</Text> : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>

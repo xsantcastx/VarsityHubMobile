@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
+import { useUserProfile } from '@/hooks/useUser';
 
 function isValidZip(v: string) {
   const us = /^\d{5}$/;
@@ -14,10 +15,15 @@ function isValidZip(v: string) {
 
 export default function ZipCodeScreen() {
   const router = useRouter();
-  const [zip, setZip] = useState('');
+  const { zipCode } = useUserProfile();
+  const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { void (async () => { try { const me: any = await User.me(); setZip(String(me?.preferences?.zip_code || '')); } catch {} })(); }, []);
+  useEffect(() => {
+    if (zipCode && !zip) {
+      setZip(zipCode);
+    }
+  }, [zipCode]);
 
   const onSave = async () => {
     const v = zip.trim();

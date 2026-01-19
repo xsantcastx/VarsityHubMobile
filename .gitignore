@@ -88,6 +88,15 @@ overnight-results/
 build-*.ipa
 ENV_ALIGNMENT_REPORT.md
 
+# Logs directory
+logs/
+*.log
+*.txt
+!package.json
+!tsconfig.json
+!*.config.*
+!README*.txt
+
 # Test/output artifacts
 coverage/
 coverage-*/
@@ -99,6 +108,11 @@ test-results/
 overnight.log
 midnight-health.json
 overnight-audit.sh
+
+# Overnight automation directories
+overnight-*/
+overnight-health-*/
+overnight-logs-*/
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md

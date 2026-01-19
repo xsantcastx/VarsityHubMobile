@@ -19,8 +19,9 @@ export default function PublicEventScreen() {
 
   useEffect(() => {
     if (params?.id) {
-      loadEventData();
+      void loadEventData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.id]);
 
   const loadEventData = async () => {

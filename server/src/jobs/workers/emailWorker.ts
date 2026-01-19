@@ -33,7 +33,7 @@ export async function startEmailWorker(): Promise<Worker<EmailJob> | null> {
       maxRetriesPerRequest: null,
     });
 
-    const { sendEmail } = await import('../../lib/email.js');
+    const { getEmailService } = await import('../../services/email/service.js');
 
     worker = new Worker<EmailJob>(
       'emails',
@@ -43,12 +43,34 @@ export async function startEmailWorker(): Promise<Worker<EmailJob> | null> {
         console.log(`[EmailWorker] Processing job ${job.id} to ${to}`);
 
         try {
-          // TODO: Add template rendering if template is specified
-          await sendEmail({ to, subject, text, html });
+          const emailService = getEmailService();
+          
+          // Use template if provided, otherwise use text/html
+          let result;
+          if (template && templateData) {
+            result = await emailService.send({
+              to,
+              subject,
+              templateId: template,
+              templateData,
+            });
+          } else {
+            result = await emailService.send({
+              to,
+              subject,
+              text,
+              html,
+            });
+          }
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Email send failed');
+          }
           
           return {
             success: true,
             processedAt: new Date().toISOString(),
+            messageId: result.messageId,
           };
         } catch (error) {
           console.error(`[EmailWorker] Failed to send email:`, error);

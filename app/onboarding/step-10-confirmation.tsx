@@ -222,7 +222,7 @@ export default function Step10Confirmation() {
       
       // Server confirmed success - now safe to clear local state
       await markOnboardingCompleteLocally();
-      clearOnboarding();
+      void clearOnboarding();
       
       // Navigate to main app
       router.replace('/(tabs)');
