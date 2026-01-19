@@ -4,6 +4,8 @@ import { JerseyBadge, Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
+import { useUser } from '@/hooks/useUser';
+import { useAuth } from '@/context/AuthProvider';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
@@ -105,11 +107,14 @@ export default function ProfileScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user: userFromHook } = useUser(false); // Get user from hook but don't auto-load
+  const { user: userFromAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<CurrentUser | null>(null);
   const hasLoadedOnce = useRef(false);
   const isInitialMount = useRef(true);
+  const lastUsernameRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
@@ -355,6 +360,21 @@ export default function ProfileScreen() {
       void loadProfile();
     }
   }, []); // Empty deps - only run once on mount
+
+  // Sync with user data from hooks/AuthProvider when username changes
+  useEffect(() => {
+    const currentUsername = userFromHook?.username || userFromAuth?.username;
+    const previousUsername = lastUsernameRef.current;
+    
+    // If username changed and we have a new username, refresh profile
+    if (currentUsername && currentUsername !== previousUsername && currentUsername !== me?.username) {
+      console.log('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
+      lastUsernameRef.current = currentUsername;
+      void loadProfile({ silent: true });
+    } else if (currentUsername) {
+      lastUsernameRef.current = currentUsername;
+    }
+  }, [userFromHook?.username, userFromAuth?.username, me?.username, loadProfile]);
 
   // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
