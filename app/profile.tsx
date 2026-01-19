@@ -107,7 +107,7 @@ export default function ProfileScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user: userFromHook } = useUser(false); // Get user from hook but don't auto-load
+  const { user: userFromHook, refresh: refreshUserFromHook } = useUser(false); // Get user from hook but don't auto-load
   const { user: userFromAuth } = useAuth(); // Get user from AuthProvider
   const [loading, setLoading] = useState(false); // Start as false - only show loading when actually loading
   const [error, setError] = useState<string | null>(null);
@@ -365,28 +365,49 @@ export default function ProfileScreen() {
   useEffect(() => {
     const currentUsername = userFromHook?.username || userFromAuth?.username;
     const previousUsername = lastUsernameRef.current;
+    const currentMeUsername = me?.username;
+    
+    console.log('[profile] Username sync check:', { 
+      currentUsername, 
+      previousUsername, 
+      currentMeUsername,
+      userFromHookUsername: userFromHook?.username,
+      userFromAuthUsername: userFromAuth?.username
+    });
     
     // If username changed and we have a new username, refresh profile
-    if (currentUsername && currentUsername !== previousUsername && currentUsername !== me?.username) {
+    if (currentUsername && currentUsername !== previousUsername) {
       console.log('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
+      lastUsernameRef.current = currentUsername;
+      void loadProfile({ silent: true });
+    } else if (currentUsername && currentUsername !== currentMeUsername && hasLoadedOnce.current) {
+      // Username in hooks doesn't match profile - force refresh
+      console.log('[profile] Username mismatch detected, forcing refresh:', { hook: currentUsername, profile: currentMeUsername });
       lastUsernameRef.current = currentUsername;
       void loadProfile({ silent: true });
     } else if (currentUsername) {
       lastUsernameRef.current = currentUsername;
     }
-  }, [userFromHook?.username, userFromAuth?.username, me?.username, loadProfile]);
+  }, [userFromHook?.username, userFromAuth?.username, me?.username, loadProfile, hasLoadedOnce]);
 
   // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
     useCallback(() => {
-      // If we've loaded before, always do silent refresh
+      console.log('[profile] Screen focused, checking if refresh needed');
+      // Refresh user data from hooks first, then refresh profile
       if (hasLoadedOnce.current) {
-        void loadProfile({ silent: true });
+        console.log('[profile] Refreshing user hooks and profile on focus (silent)');
+        // Refresh hooks first to get latest username
+        Promise.all([
+          refreshUserFromHook().catch(() => {}),
+          loadProfile({ silent: true })
+        ]).catch(() => {});
       } else if (isInitialMount.current && !profileRequestInFlight.current) {
         // Only do full load if this is the initial mount and nothing is in flight
+        console.log('[profile] Initial load on mount');
         void loadProfile();
       }
-    }, [loadProfile])
+    }, [loadProfile, refreshUserFromHook])
   );
 
   // Load organizations separately to avoid blocking profile render
