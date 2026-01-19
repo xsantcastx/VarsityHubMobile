@@ -1049,10 +1049,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 12,
     zIndex: 100, // Ensure profile content is above banner but below avatar
+    elevation: 100, // For Android
   },
   avatarSection: {
     marginBottom: -40, // Overlap into content area to close gap
-    zIndex: 1000, // Highest z-index to ensure avatar is always on top
+    zIndex: 9999, // Highest z-index to ensure avatar is always on top
+    elevation: 9999, // Highest elevation for Android
   },
   avatarContainer: {
     position: 'relative',
@@ -1065,9 +1067,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 10, // High elevation for Android
+    elevation: 9999, // Highest elevation for Android
     backgroundColor: '#ffffff',
-    zIndex: 1000, // Highest z-index to ensure avatar is always on top
+    zIndex: 9999, // Highest z-index to ensure avatar is always on top
   },
   avatarImage: {
     width: '100%',
@@ -1126,7 +1128,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 35, // Minimal space for overlapping avatar
+    paddingTop: 30, // Minimal space for overlapping avatar
   },
   editButton: {
     paddingHorizontal: 20,
@@ -1145,14 +1147,14 @@ const styles = StyleSheet.create({
   userDetails: {
     paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 8,
+    paddingBottom: 4,
     gap: 12,
   },
   userHandle: {
@@ -1163,14 +1165,14 @@ const styles = StyleSheet.create({
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 6, // Reduced from 12
+    marginBottom: 4,
     lineHeight: 20,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4, // Reduced from 8
+    marginBottom: 2,
   },
   metaText: {
     fontSize: 14,
@@ -1179,7 +1181,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: 4, // Reduced from 8
+    marginTop: 2,
     gap: 0, // No gap between number and label
   },
   statNumber: {
