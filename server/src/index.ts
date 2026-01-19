@@ -260,6 +260,12 @@ process.on('unhandledRejection', (reason, promise) => {
   captureException(reason as Error, { context: 'unhandled_rejection', promise: String(promise) });
 });
 
-app.listen(PORT, HOST, () => {
-  debugLog(`API listening on http://${HOST}:${PORT}`);
-});
+// Export app for testing
+export { app };
+
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, HOST, () => {
+    debugLog(`API listening on http://${HOST}:${PORT}`);
+  });
+}
