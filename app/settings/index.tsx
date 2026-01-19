@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
             // @ts-ignore JS exports
             import { User } from '@/api/entities';
 import { useOnboardingOptional } from '@/context/OnboardingContext';
+import { useAuth } from '@/context/AuthProvider';
 
 const appConfig = getConfig();
 
@@ -145,6 +146,7 @@ const appConfig = getConfig();
               const setOB = obCtx?.setState ?? null;
               const colorScheme = useColorScheme();
               const { themePreference, setThemePreference } = useThemePreference();
+              const { checkAuth } = useAuth();
               const [loading, setLoading] = useState(true);
               const [error, setError] = useState<string | null>(null);
               const [email, setEmail] = useState<string | null>(null);
@@ -190,6 +192,25 @@ const appConfig = getConfig();
                     setRole(effectiveRole);
                   } catch (e: any) {
                     if (!mounted) return;
+                    // Handle authentication errors gracefully - don't show "Unauthorized" to user
+                    // AuthProvider will handle redirecting to sign-in
+                    const isAuthError = e?.status === 401 || e?.status === 403 || 
+                                      (typeof e?.message === 'string' && 
+                                       (e.message.toLowerCase().includes('unauthorized') || 
+                                        e.message.toLowerCase().includes('forbidden')));
+                    if (isAuthError) {
+                      console.warn('[settings] Authentication error - refreshing auth state');
+                      // Trigger auth check to let AuthProvider handle redirect
+                      try {
+                        await checkAuth();
+                      } catch (authErr) {
+                        console.warn('[settings] Auth check failed:', authErr);
+                      }
+                      // Don't set error - let AuthProvider redirect to sign-in
+                      // The error state will be cleared when user is redirected
+                      return;
+                    }
+                    // Only show non-auth errors to the user
                     setError(e?.message || 'Failed to load settings');
                   } finally {
                     if (!mounted) return;
@@ -220,9 +241,9 @@ const appConfig = getConfig();
                   timers.current[key] = setTimeout(async () => {
                     try {
                       await User.updatePreferences(newPrefs);
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    } catch (_e: any) {
+                    } catch (e: any) {
                       // Error handled via Alert below
+                      console.error('[settings] Failed to update preferences:', e);
                       // Revert on failure if needed, though not implemented here
                       Alert.alert('Update failed', 'Could not save your preference. Please try again.');
                     }
@@ -251,13 +272,17 @@ const appConfig = getConfig();
                   } as any;
 
                   // Previously we attempted to record onboarding history here, but the context no longer exposes that API.
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_e: any) { /* ignore */ }
+                  try {
+                    void await User.updatePreferences({ onboarding_completed: false });
+                  } catch (error: any) {
+                    console.warn('[settings] Failed to reset onboarding_completed flag:', error);
+                    // Continue anyway - user will be redirected to onboarding
+                  }
                   if (setOB) void setOB(preload);
                   router.replace('/onboarding/step-1-role');
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                } catch (_e: any) {
+                } catch (e: any) {
                   // Error in onboarding restart - try fallback
+                  console.error('[settings] Failed to restart onboarding:', e);
                   try { 
                     void await User.updatePreferences({ onboarding_completed: false }); 
                   } catch (error: any) {

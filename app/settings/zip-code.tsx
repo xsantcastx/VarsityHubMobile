@@ -18,7 +18,7 @@ export default function ZipCodeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { zipCode } = useUserProfile();
+  const { zipCode, refresh: refreshUserProfile } = useUserProfile();
   const [zip, setZip] = useState(zipCode || '');
   const [saving, setSaving] = useState(false);
 
@@ -32,7 +32,19 @@ export default function ZipCodeScreen() {
     const v = zip.trim();
     if (v && !isValidZip(v)) { Alert.alert('Invalid ZIP/Postal Code'); return; }
     setSaving(true);
-    try { await User.updatePreferences({ zip_code: v || null }); router.back(); } catch (e: any) { Alert.alert('Save failed', e?.message || 'Could not save'); } finally { setSaving(false); }
+    try {
+      await User.updatePreferences({ zip_code: v || null });
+      // Refresh user profile to reflect the change
+      await refreshUserProfile().catch((error) => {
+        console.warn('[zip-code] Failed to refresh user profile after save:', error);
+      });
+      router.back();
+    } catch (e: any) {
+      console.error('[zip-code] Failed to save ZIP code:', e);
+      Alert.alert('Save failed', e?.message || 'Could not save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

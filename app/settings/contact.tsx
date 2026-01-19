@@ -33,7 +33,12 @@ export default function ContactScreen() {
       await Support.contact({ name: name || 'Unknown', email: emailField || 'unknown@example.com', subject: subject.trim(), message: message.trim() });
       Alert.alert('Sent', 'Thanks for reaching out.');
       router.back();
-    } catch (e: any) { Alert.alert('Failed', e?.message || 'Try again later'); } finally { setSending(false); }
+    } catch (e: any) {
+      console.error('[contact] Failed to send contact message:', e);
+      Alert.alert('Failed', e?.message || 'Try again later');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (

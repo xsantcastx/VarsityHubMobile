@@ -33,7 +33,12 @@ export default function RequestHostEventScreen() {
       await Support.contact({ name: name || 'Unknown', email: emailField || 'unknown@example.com', subject: 'Request to Host Event', message: `Org: ${org}\nVenue: ${venue}\nProposed dates: ${dates}` });
       Alert.alert('Sent', 'We received your request.');
       router.back();
-    } catch (e: any) { Alert.alert('Failed to send', e?.message || 'Try again later'); } finally { setSending(false); }
+    } catch (e: any) {
+      console.error('[request-host-event] Failed to send request:', e);
+      Alert.alert('Failed to send', e?.message || 'Try again later');
+    } finally {
+      setSending(false);
+    }
   };
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
