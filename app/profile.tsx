@@ -502,7 +502,7 @@ export default function ProfileScreen() {
   const renderHeader = () => (
     <>
       {/* Banner Header - Exact Match to Reference */}
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
         {/* Background Image / Gradient */}
         <Pressable 
           onPress={handleBackgroundImagePress} 
@@ -964,7 +964,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: theme.background || '#ffffff',
+    backgroundColor: '#ffffff',
   },
   headerBackgroundPressable: {
     position: 'relative',
