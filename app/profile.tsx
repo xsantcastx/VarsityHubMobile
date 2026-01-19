@@ -288,7 +288,11 @@ export default function ProfileScreen() {
       // Step 1: ensure session is valid
       const u: any = await User.me();
       if (u && !u._isNotModified) setMe(u ?? null);
-      if (!u?.id) { setLoading(false); return; }
+      if (!u?.id) { 
+        setError('You need to sign in to view your profile.');
+        setLoading(false);
+        return;
+      }
 
       // Extract theme color from preferences
       const themeColor = u?.preferences?.theme_color || '#3B82F6';
@@ -303,13 +307,17 @@ export default function ProfileScreen() {
         await refreshUpvotes(u.id);
       }
     } catch (e: any) {
-      console.error('Failed to load profile', e);
-      // Only show sign-in if the session itself is invalid from /me.
+      console.error('[Profile] Failed to load profile:', e);
+      // Always set error - don't leave blank state
       if (e && e.status === 401) {
         setError('You need to sign in to view your profile.');
+      } else if (e?.isNetworkError || e?.status === 0) {
+        setError('Unable to connect to server. Please check your internet connection.');
       } else {
-        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile.');
+        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile. Please try again.');
       }
+      // Clear me on error to prevent stale data
+      setMe(null);
     } finally {
       profileRequestInFlight.current = false;
       setLoading(false);
@@ -704,25 +712,59 @@ export default function ProfileScreen() {
   const SkeletonList = ({ count = 8 }: { count?: number }) => (
     <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
       {Array.from({ length: count }).map((_, i) => (
-        <View key={i} style={{ height: 100, backgroundColor: '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
+        <View key={i} style={{ height: 100, backgroundColor: theme.surface || '#F3F4F6', borderRadius: 12, marginBottom: 12 }} />
       ))}
     </View>
   );
 
-  if (loading) return <SkeletonList count={8} />;
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Profile' }} />
+        <SkeletonList count={8} />
+      </SafeAreaView>
+    );
+  }
 
   if (error) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.error}>{error}</Text>
-        <View style={{ height: 8 }} />
-  <Button onPress={() => void router.push('/sign-in')}><Text>Sign In</Text></Button>
-      </View>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Profile' }} />
+        <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
+          <Ionicons name="alert-circle-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>{error}</Text>
+          <View style={{ height: 16 }} />
+          {error.includes('sign in') ? (
+            <Button onPress={() => void router.push('/sign-in')}>
+              <Text style={{ color: '#fff' }}>Sign In</Text>
+            </Button>
+          ) : (
+            <Button onPress={() => void loadProfile()}>
+              <Text style={{ color: '#fff' }}>Retry</Text>
+            </Button>
+          )}
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!me) {
-    return null; // Or some other placeholder
+    // Show error state instead of blank screen
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+        <Stack.Screen options={{ title: 'Profile' }} />
+        <View style={[styles.center, { flex: 1, justifyContent: 'center', padding: 24 }]}>
+          <Ionicons name="person-outline" size={48} color={theme.mutedText} style={{ marginBottom: 16 }} />
+          <Text style={[styles.error, { color: theme.text, textAlign: 'center', marginBottom: 8 }]}>
+            Unable to load profile
+          </Text>
+          <View style={{ height: 16 }} />
+          <Button onPress={() => void loadProfile()}>
+            <Text style={{ color: '#fff' }}>Retry</Text>
+          </Button>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
