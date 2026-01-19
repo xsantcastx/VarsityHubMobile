@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import Textarea from '@/components/ui/textarea';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support, User } from '@/api/entities';
