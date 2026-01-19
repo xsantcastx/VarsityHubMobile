@@ -7,8 +7,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore JS exports
 import { Event, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
-import MatchBanner from './components/MatchBanner';
-import RsvpSheet from './components/RsvpSheet';
+import MatchBanner from '../components/MatchBanner';
+import RsvpSheet from '../components/RsvpSheet';
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 

@@ -106,8 +106,11 @@ if (isProd && allowedOrigins.length === 0) {
   throw new Error('[cors] No allowed origins configured for production environment.');
 }
 const isAllowedOrigin = (origin?: string | null) => {
+  // Allow requests with no origin (mobile apps, Postman, etc.)
   if (!origin) return true;
+  // Allow exact matches
   if (allowedOrigins.includes(origin)) return true;
+  // Allow wildcard pattern matches
   return wildcardOriginMatchers.some((pattern) => pattern.test(origin));
 };
 const corsOptions: cors.CorsOptions = {
@@ -118,7 +121,10 @@ const corsOptions: cors.CorsOptions = {
     debugLog(`[cors] blocked origin ${origin}`);
     return cb(null, false);
   },
-  credentials: false,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
 };
 debugLog(`[cors] allowed origins: ${allowedOrigins.join(', ') || '(regex only)'}`);
 app.use(cors(corsOptions));
@@ -168,12 +174,13 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => isDev,
 });
+// Increased limits for read operations - app makes multiple requests on startup
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 100000 : 500,
+  max: isDev ? 100000 : 2000, // Increased from 500 to 2000 for normal app usage
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => isDev,
+  skip: (req) => isDev || req.path === '/health',
 });
 
 app.use('/health', healthRouter);

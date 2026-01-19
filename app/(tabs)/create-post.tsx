@@ -350,7 +350,7 @@ export default function CreatePostScreen() {
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
       let finalMediaUrl = '';
       if (picked?.uri) {
-        const { getApiBaseUrl } = await import('../api/http');
+        const { getApiBaseUrl } = await import('@/api/http');
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');

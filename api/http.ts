@@ -12,13 +12,17 @@ export function getApiBaseUrl(): string {
   const envUrl = getEnvValue('EXPO_PUBLIC_API_URL');
   const forceRemote = config.forceRemoteApi;
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
-  let url = config.apiUrl || envUrl || PRODUCTION_URL;
-
-  // #region agent log
-  const originalUrl = url;
-  // #endregion
-
-  // Handle simulator networking (only for actual localhost, not LAN IPs)
+  
+  // Always use Railway production server - easier to manage
+  // If forceRemote is true or we have a configured URL, use it; otherwise use production
+  let url = forceRemote ? (envUrl || PRODUCTION_URL) : (config.apiUrl || envUrl || PRODUCTION_URL);
+  
+  // Ensure we always use Railway production in production mode
+  if (config.nodeEnv === 'production' || forceRemote) {
+    url = envUrl || PRODUCTION_URL;
+  }
+  
+  // Handle simulator networking (only for actual localhost in dev mode)
   if (__DEV__ && !forceRemote && url.startsWith('http://localhost')) {
     if (Platform.OS === 'android') {
       // Android simulator uses 10.0.2.2 to reach host machine
@@ -30,27 +34,22 @@ export function getApiBaseUrl(): string {
     }
   }
   
-  // #region agent log
-  // Safeguard: If URL is a private IP (not localhost/127.0.0.1/10.0.2.2), it's likely cached config
-  // Fall back to production URL to prevent connection errors
-  // Allow: localhost, 127.0.0.1, 10.0.2.2 (Android emulator)
-  // Block: other private IPs like 192.168.x.x, 10.x.x.x (except 10.0.2.2), 172.16-31.x.x
+  // Safeguard: If URL is a private IP (not localhost/127.0.0.1/10.0.2.2), fall back to production
   const isAllowedLocalIP = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('10.0.2.2');
   const isPrivateIP = /^http:\/\/192\.168\.\d+\.\d+/.test(url) || 
     (/^http:\/\/10\.\d+\.\d+\.\d+/.test(url) && !url.includes('10.0.2.2')) ||
     /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+/.test(url);
   if (isPrivateIP && !isAllowedLocalIP) {
-    console.warn('[http] Detected cached private IP URL:', url, '- Falling back to production URL');
+    console.warn('[http] Detected cached private IP URL:', url, '- Falling back to Railway production URL');
     url = PRODUCTION_URL;
   }
-  // #endregion
   
   const finalUrl = url.replace(/\/$/, '');
   
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
     // eslint-disable-next-line no-console
-    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS });
+    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS, nodeEnv: config.nodeEnv });
   }
   return finalUrl;
 }
@@ -132,8 +131,32 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       (path.includes('/users') && error.status === 403) ||
       (path.includes('/notifications') && error.status === 401);
     
+    // Enhanced error logging with more context
     if (!isExpectedDevError && !isKnownMissingEndpoint) {
-      console.error('[http] Request failed:', { url: base + path, error: error.message });
+      const errorDetails = {
+        url: base + path,
+        method: options.method || 'GET',
+        status: error.status,
+        message: error.message,
+        name: error.name,
+        ...(error.data && { responseData: error.data }),
+      };
+      console.error('[http] Request failed:', errorDetails);
+    }
+    
+    // Handle 429 Rate Limit errors with retry
+    if (error.status === 429) {
+      const retryAfter = error.data?.retryAfter || 5; // Default 5 seconds
+      if (retries > 0) {
+        // Wait for retryAfter seconds before retrying
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        return request(path, options, timeoutMs, retries - 1);
+      }
+      // If no retries left, throw user-friendly error
+      const err: any = new Error(error.data?.message || 'Too many requests, please try again later.');
+      err.status = 429;
+      err.data = error.data;
+      throw err;
     }
     
     if (error.name === 'AbortError') {
@@ -150,16 +173,20 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       }
       throw err;
     }
-    // Add more context to network errors
-    if (error.message === 'Network request failed') {
-      const err: any = new Error(`Cannot connect to server at ${base}. Make sure the backend is running.`);
+    
+    // Add more context to network errors with better retry logic
+    if (error.message === 'Network request failed' || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
+      const err: any = new Error(`Cannot connect to server. Please check your internet connection and try again.`);
       err.originalError = error;
       err.status = 0;
+      err.isNetworkError = true;
       if (!isExpectedDevError && !isKnownMissingEndpoint) {
-        captureException(err, { path, base, method: options.method || 'GET' });
+        captureException(err, { path, base, method: options.method || 'GET', isNetworkError: true });
       }
+      // Retry network errors with exponential backoff
       if (retries > 0) {
-        await new Promise(r => setTimeout(r, Math.min(1000, timeoutMs * 0.1)));
+        const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
+        await new Promise(r => setTimeout(r, delay));
         return request(path, options, timeoutMs, retries - 1);
       }
       throw err;
@@ -172,7 +199,8 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
 }
 
 export function httpGet(path: string, options: RequestInit = {}) {
-  return request(path, { ...options, method: 'GET' });
+  // Allow 2 retries for GET requests (helps with rate limits and network errors)
+  return request(path, { ...options, method: 'GET' }, 30000, 2);
 }
 // Default POST with moderate timeout
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 1); }

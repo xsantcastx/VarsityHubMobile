@@ -10,6 +10,8 @@ const summarize = (n: any) => {
     case 'FOLLOW': return 'followed you';
     case 'UPVOTE': return 'upvoted your post';
     case 'COMMENT': return 'commented on your post';
+    case 'MESSAGE': return 'sent you a message';
+    case 'TEAM_INVITE': return 'invited you to a team';
     default: return 'did something';
   }
 };
@@ -32,6 +34,7 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
       actor: { select: { id: true, display_name: true, avatar_url: true } },
       post: { select: { id: true, content: true, media_url: true, upvotes_count: true, created_at: true, author_id: true } },
       comment: { select: { id: true, content: true, post_id: true, created_at: true } },
+      message: { select: { id: true, content: true, conversation_id: true, created_at: true } },
     },
   };
   if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
@@ -48,6 +51,7 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
     actor: n.actor ? { id: n.actor.id, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
     post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
     comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
+    message: n.message ? { id: n.message.id, content: n.message.content, conversation_id: n.message.conversation_id } : null,
     meta: { ...((n.meta as any) || {}), summary: summarize(n) },
   }));
 

@@ -959,16 +959,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     return () => { cancelled = true; };
   }, []);
 
-  if (!gameId && !usingInitial) {
-    return (
-      <View style={[styles.emptyState, { backgroundColor: Colors[colorScheme].background }]}>
-        <Text style={[styles.emptyStateTitle, { color: Colors[colorScheme].text }]}>Missing game id</Text>
-        <Pressable onPress={handleBack} style={styles.emptyStateBtn}>
-          <Text style={styles.emptyStateBtnText}>Go back</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  // Note: We allow missing gameId - the component will load general highlights instead
+  // The loadFeed function handles this case gracefully (lines 612-642)
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} pointerEvents="box-none">

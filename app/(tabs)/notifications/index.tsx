@@ -90,12 +90,20 @@ export default function NotificationsScreen() {
       ? `${item.actor?.display_name || 'Someone'} upvoted your post`
       : item.type === 'COMMENT'
       ? `${item.actor?.display_name || 'Someone'} commented on your post`
+      : item.type === 'MESSAGE'
+      ? `${item.actor?.display_name || 'Someone'} sent you a message`
+      : item.type === 'TEAM_INVITE'
+      ? `${item.actor?.display_name || 'Someone'} invited you to a team`
       : 'Notification';
     const onPress = () => {
       if (item.type === 'FOLLOW' && item.actor?.id) {
         router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       } else if ((item.type === 'UPVOTE' || item.type === 'COMMENT') && item.post?.id) {
         router.push(`/post-detail?id=${encodeURIComponent(item.post.id)}`);
+      } else if (item.type === 'MESSAGE' && item.message?.conversation_id) {
+        router.push(`/message-thread?conversation_id=${encodeURIComponent(item.message.conversation_id)}`);
+      } else if (item.type === 'TEAM_INVITE' && item.actor?.id) {
+        router.push(`/user-profile?id=${encodeURIComponent(item.actor.id)}`);
       }
       // Mark read optimistically
       if (!item.read_at) {
@@ -120,7 +128,11 @@ export default function NotificationsScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={S.title}>{title}</Text>
-          {item.post?.content ? <Text numberOfLines={1} style={S.subtitle}>{item.post.content}</Text> : null}
+          {item.post?.content ? (
+            <Text numberOfLines={1} style={S.subtitle}>{item.post.content}</Text>
+          ) : item.message?.content ? (
+            <Text numberOfLines={1} style={S.subtitle}>{item.message.content}</Text>
+          ) : null}
         </View>
       </Pressable>
     );

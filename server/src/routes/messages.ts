@@ -179,16 +179,34 @@ content
 include: { sender: { select: baseUserSelect }, recipient: { select: baseUserSelect } },
 });
 
-// Send push notification to recipient
-try {
-  await notifyNewMessage(
-    toId!,
-    meId,
-    created.sender?.display_name || 'Someone',
-    content
-  );
-} catch (e) {
-  console.error('Failed to send message notification:', e);
+// Create in-app notification and send push notification to recipient
+// Only notify if recipient is different from sender (prevent self-notifications)
+if (toId !== meId) {
+  try {
+    // Create in-app notification record
+    await (prisma as any).notification.create({
+      data: {
+        user_id: toId!,
+        actor_id: meId,
+        type: 'MESSAGE',
+        message_id: created.id,
+        meta: {
+          conversation_id: convId!,
+          preview: content.substring(0, 100),
+        },
+      },
+    });
+    
+    // Send push notification
+    await notifyNewMessage(
+      toId!,
+      meId,
+      created.sender?.display_name || 'Someone',
+      content
+    );
+  } catch (e) {
+    console.error('Failed to send message notification:', e);
+  }
 }
 
 return res.status(201).json(created);

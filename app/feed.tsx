@@ -225,8 +225,25 @@ export default function FeedScreen() {
         ? String(user.preferences.country_code).toUpperCase()
         : undefined;
       const todayISO = new Date().toISOString().slice(0, 10);
-      const [gamesData, highlightsData, forFeedAds] = await Promise.all([
-        Game.list('-date'),
+      // Load games with better error handling
+      let gamesData: any = null;
+      try {
+        gamesData = await Game.list('-date');
+      } catch (err: any) {
+        console.error('[Feed] Failed to load games:', err);
+        // If it's a network error, show a more helpful message
+        if (err?.isNetworkError || err?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else if (err?.status === 401 || err?.status === 403) {
+          setError('Please sign in to view games.');
+        } else {
+          setError('Unable to load games. Please try again.');
+        }
+        gamesData = null;
+      }
+      
+      // Load highlights and ads with error handling
+      const [highlightsData, forFeedAds] = await Promise.all([
         Highlights.fetch(countryCode ? { country: countryCode, limit: 20 } : { limit: 20 }).catch((err) => {
           if (__DEV__) console.warn('Highlights preview load failed', err);
           return null;
@@ -240,12 +257,16 @@ export default function FeedScreen() {
       if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
         normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
         cursor = gamesData.nextCursor || null;
-      } else {
-        normalizedGames = Array.isArray(gamesData) ? gamesData : [];
+      } else if (Array.isArray(gamesData)) {
+        normalizedGames = gamesData;
+      } else if (gamesData === null || gamesData === undefined) {
+        // If games failed to load, don't inject sample data - show error instead
+        normalizedGames = [];
       }
       
-      // If no games returned, inject sample events for Warriors, Duke, Patriots
-      if (!normalizedGames || normalizedGames.length === 0) {
+      // Only inject sample events if we successfully loaded but got empty results
+      // (not if the request failed)
+      if ((!normalizedGames || normalizedGames.length === 0) && gamesData !== null) {
         const now = new Date();
         const addDays = (d: number) => new Date(now.getTime() + d * 86400000).toISOString();
         normalizedGames = [
@@ -296,8 +317,17 @@ export default function FeedScreen() {
         setSponsoredAds([]);
       }
     } catch (e: any) {
-      console.error('Failed to load feed', e);
-      setError('Unable to load games. Sign in may be required.');
+      console.error('[Feed] Failed to load feed:', e);
+      // Only set generic error if we haven't already set a specific one
+      if (!error) {
+        if (e?.isNetworkError || e?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else if (e?.status === 401 || e?.status === 403) {
+          setError('Please sign in to view your feed.');
+        } else {
+          setError('Unable to load feed. Please try again.');
+        }
+      }
       setGames([]);
       setHighlightPreview(null);
     } finally {

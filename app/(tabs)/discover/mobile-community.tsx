@@ -14,7 +14,7 @@ import EventMap, { EventMapData } from '@/components/EventMap';
 import PostCard from '@/components/PostCard';
 import QuickAddGameModal, { QuickGameData } from '@/components/QuickAddGameModal';
 import { Calendar } from 'react-native-calendars';
-import GameVerticalFeedScreen, { type FeedPost } from '@/app/game-details/GameVerticalFeedScreen';
+import GameVerticalFeedScreen, { type FeedPost } from '../../game-details/GameVerticalFeedScreen';
 
 
 type GameItem = { id: string; title?: string; date?: string; location?: string; latitude?: number | null; longitude?: number | null; cover_image_url?: string; banner_url?: string | null };

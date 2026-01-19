@@ -230,6 +230,7 @@ model Message {
 
   sender    User @relation("message_sender", fields: [sender_id], references: [id], onDelete: Cascade)
   recipient User @relation("message_recipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   content    String?
   read       Boolean  @default(false)
@@ -484,6 +485,7 @@ enum NotificationType {
   UPVOTE
   COMMENT
   TEAM_INVITE
+  MESSAGE
 }
 
 model Notification {
@@ -493,6 +495,7 @@ model Notification {
   type       NotificationType
   post_id    String?
   comment_id String?
+  message_id String?
   meta       Json?            @default("{}")
   created_at DateTime         @default(now())
   read_at    DateTime?
@@ -501,6 +504,7 @@ model Notification {
   actor  User @relation("notification_actor", fields: [actor_id], references: [id], onDelete: Cascade)
   post   Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
   comment Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
+  message Message? @relation(fields: [message_id], references: [id], onDelete: SetNull)
 
   @@index([user_id, created_at])
   @@index([user_id, read_at])
