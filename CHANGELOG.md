@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.0 - 2026-01-19
+
+### ✨ Features
+- Initial release
+
+
+
 ## v1.0.0 - 2026-01-18
 
 ### ✨ Features
