@@ -559,17 +559,19 @@ export default function ProfileScreen() {
             <View style={styles.headerBackgroundImage} />
           )}
         </Pressable>
-        <LinearGradient
-          colors={heroGradientColors}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
+        {!headerBackgroundImage && (
+          <LinearGradient
+            colors={heroGradientColors}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        )}
         
         {/* Settings Button - Top Right */}
         <View style={[styles.headerControls, { top: 12 + insets.top }]}>
           <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-            <Ionicons name="settings-outline" size={20} color="#666" />
+            <Ionicons name="settings-outline" size={18} color="#666" />
           </Pressable>
         </View>
         
@@ -764,7 +766,7 @@ export default function ProfileScreen() {
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 2 }}
+          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 0 }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -1006,17 +1008,17 @@ const styles = StyleSheet.create({
   },
   headerBackgroundPressable: {
     position: 'relative',
-    height: 200,
+    height: 180, // Slightly reduced to match reference
     width: '100%',
   },
   headerBackgroundImage: {
     ...StyleSheet.absoluteFillObject,
-    height: 200,
+    height: 180,
     width: '100%',
   },
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
-    height: 200,
+    height: 180,
   },
   headerControls: {
     position: 'absolute',
@@ -1024,17 +1026,17 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   controlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   profileContent: {
     position: 'absolute',
@@ -1048,7 +1050,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatarSection: {
-    marginBottom: -35, // Reduced overlap to close gap
+    marginBottom: -40, // Overlap into content area to close gap
   },
   avatarContainer: {
     position: 'relative',
@@ -1106,7 +1108,7 @@ const styles = StyleSheet.create({
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 40, // Reduced - space for overlapping avatar
+    paddingTop: 35, // Minimal space for overlapping avatar
   },
   actionsContainer: {
     paddingHorizontal: 16,
@@ -1309,19 +1311,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  gridRow: { gap: 3 },
+  gridRow: { 
+    gap: 1, // Minimal gap between cards
+    paddingHorizontal: 0,
+  },
   gridItem: { 
     flex: 1, 
     aspectRatio: 1, 
-    margin: 1.5, 
-    borderRadius: 12, 
+    margin: 0.5, // Minimal margin
+    borderRadius: 0, // No border radius to match reference
     overflow: 'hidden', 
     backgroundColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2
   },
   gridImageContainer: { width: '100%', height: '100%', position: 'relative' },
   gridImage: { width: '100%', height: '100%' },
