@@ -508,7 +508,8 @@ const updateMeSchema = z.object({
         // Allow specific domains (Cloudinary, etc.)
         const allowedDomains = ['res.cloudinary.com', 'varsityhub.app', 'cdn.varsityhub.app'];
         return allowedDomains.some(d => parsed.hostname.endsWith(d));
-      } catch {
+      } catch (error) {
+        console.warn('[auth] Invalid avatar URL format:', error);
         return false;
       }
     }, { message: 'Avatar URL must be from an allowed domain (Cloudinary or VarsityHub CDN)' })

@@ -37,7 +37,8 @@ const { height: windowHeight, width: windowWidth } = Dimensions.get('window');
 let FastImage: any = null;
 try {
   FastImage = require('react-native-fast-image');
-} catch {
+} catch (error) {
+  console.warn('[GameVerticalFeedScreen] FastImage not available, using fallback:', error);
   FastImage = ({ source, style, resizeMode }: any) => (
     <Image
       source={source}
@@ -453,7 +454,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       s = s.replace(/^https?:\/\//i, '');
       s = s.replace(/\/+$/, '');
       return s.toLowerCase();
-    } catch {
+    } catch (error) {
+      console.warn('[GameVerticalFeedScreen] URL normalization failed:', error);
       return null;
     }
   }, []);
@@ -500,14 +502,15 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   const hasMoreRef = useRef(true);
   const _resetRunCount = useRef(0);
   const setIfDifferent = useCallback((setter: any, next: any) => {
-    setter((prev: any) => {
-      try {
-        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
-      } catch {
-        // If comparison fails, fall back to setting the new value
-      }
-      return next;
-    });
+      setter((prev: any) => {
+        try {
+          if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+        } catch (error) {
+          console.warn('[GameVerticalFeedScreen] State comparison failed, using new value:', error);
+          // If comparison fails, fall back to setting the new value
+        }
+        return next;
+      });
   }, []);
   const _initialSeedSig = useRef<string | null>(null);
 
@@ -591,7 +594,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!cancelled && summary) {
           setGame({ id: summary.id, title: summary.title || 'Game', date: summary.date ?? null });
         }
-      } catch {
+      } catch (error) {
+        console.warn('[GameVerticalFeedScreen] Failed to load game summary:', error);
         if (!cancelled) setGame(null);
       }
     })();
@@ -666,7 +670,8 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         cursorRef.current = nextCursor;
         const more = Boolean(page?.nextCursor);
         hasMoreRef.current = more;
-      } catch {
+      } catch (error) {
+        console.error('[GameVerticalFeedScreen] Failed to load more posts:', error);
       } finally {
         setLoading(false);
         setRefreshing(false);

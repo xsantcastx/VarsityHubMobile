@@ -180,7 +180,7 @@ export default function Step2Basic() {
       <Text style={styles.label}>Username</Text>
       <Input value={username} onChangeText={setUsername} autoCapitalize="none" placeholder="username" style={{ marginBottom: 4, letterSpacing: 0 }} onEndEditing={async () => {
         if (!usernameRe.test(username)) { setAvailable(null); return; }
-        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch { setAvailable(null); }
+        try { const r: any = await User.usernameAvailable(username); setAvailable(!!r?.available); } catch (error) { console.warn('[onboarding] Username availability check failed:', error); setAvailable(null); }
       }} />
       {usernameError ? (
         <Text style={styles.error}>Use 3-20 lowercase letters, numbers, underscores, or periods.</Text>

@@ -111,7 +111,7 @@ export default function ProfileScreen() {
   const hasLoadedOnce = useRef(false);
   const isInitialMount = useRef(true);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
-    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch { return 'posts'; }
+    try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
   const [posts, setPosts] = useState<any[]>([]);
   const [postsCursor, setPostsCursor] = useState<string | null>(null);
@@ -235,7 +235,8 @@ export default function ProfileScreen() {
       await User.updateMe({ avatar_url: url });
       setMe((prev) => (prev ? { ...prev, avatar_url: url } : null));
 
-  } catch {
+  } catch (error) {
+    console.error('[profile] Avatar upload failed:', error);
     // Avatar upload failed - error handled via Alert below
     Alert.alert("Upload failed", "Could not upload your new profile picture. Please try again.");
   } finally {
@@ -275,7 +276,8 @@ export default function ProfileScreen() {
       await User.updateMe({ preferences: updatedPreferences });
       setMe((prev) => (prev ? { ...prev, preferences: updatedPreferences } : null));
 
-  } catch {
+  } catch (error) {
+    console.error('[profile] Background image upload failed:', error);
     Alert.alert("Upload failed", "Could not upload your background image. Please try again.");
   } finally {
       setIsUploadingAvatar(false);

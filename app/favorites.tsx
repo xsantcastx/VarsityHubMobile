@@ -93,7 +93,8 @@ export default function FavoritesScreen() {
         } else {
           setError('Unable to determine your account. Please sign in again.');
         }
-      } catch {
+      } catch (error) {
+        console.error('[favorites] Failed to load user data:', error);
         if (!canceled) {
           setError('Unable to load your favorites right now.');
           setLoading(false);

@@ -36,8 +36,9 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
       const me: any = await User.me();
       const prefs = me?.preferences || {};
       setPlan(prefs.plan || null);
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn('[manage-subscription] Failed to load plan:', error);
+      // Non-critical - plan display can fail silently
     }
   }, []);
 
@@ -89,7 +90,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           'Email verification required',
           'You must verify your email before purchasing a plan.',
           [
-            { text: 'Resend verification', onPress: async () => { try { await User.requestVerification(); Alert.alert('Verification sent', 'Check your email for a verification link.'); } catch { Alert.alert('Error', 'Unable to resend verification.'); } } },
+            { text: 'Resend verification', onPress: async () => { try { await User.requestVerification(); Alert.alert('Verification sent', 'Check your email for a verification link.'); } catch (error) { console.error('[manage-subscription] Failed to resend verification:', error); Alert.alert('Error', 'Unable to resend verification.'); } } },
             { text: 'OK', style: 'cancel' },
           ]
         );
