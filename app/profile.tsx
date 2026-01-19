@@ -608,10 +608,6 @@ export default function ProfileScreen() {
                   <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
                 </View>
               )}
-              {/* Edit Profile Button - ON BANNER next to name */}
-              <Pressable style={styles.editButtonOnBanner} onPress={() => void router.push('/edit-profile')}>
-                <Text style={styles.editButtonOnBannerText}>Edit profile</Text>
-              </Pressable>
             </View>
           </View>
         </View>
@@ -619,10 +615,16 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
+        {/* Username and Edit Profile Button Row */}
+        <View style={styles.usernameRow}>
+          {me?.username && <Text style={[styles.userHandle, { color: theme.text }]}>@{me.username}</Text>}
+          <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push('/edit-profile')}>
+            <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
+          </Pressable>
+        </View>
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
-          {me?.username && <Text style={[styles.userHandle, { color: theme.text }]}>@{me.username}</Text>}
           {me?.bio && (
             <Text style={[styles.userBio, { color: theme.text }]}>{me.bio}</Text>
           )}
@@ -1046,9 +1048,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
+    zIndex: 100, // Ensure profile content is above banner but below avatar
   },
   avatarSection: {
     marginBottom: -40, // Overlap into content area to close gap
+    zIndex: 1000, // Highest z-index to ensure avatar is always on top
   },
   avatarContainer: {
     position: 'relative',
@@ -1061,8 +1065,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 10, // High elevation for Android
     backgroundColor: '#ffffff',
+    zIndex: 1000, // Highest z-index to ensure avatar is always on top
   },
   avatarImage: {
     width: '100%',
@@ -1103,18 +1108,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  editButtonOnBanner: {
+  editButtonBelowBanner: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: '#E5E7EB',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editButtonOnBannerText: {
-    color: '#ffffff',
+  editButtonBelowBannerText: {
+    color: '#374151',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1142,10 +1147,18 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 8,
   },
+  usernameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 8,
+    gap: 12,
+  },
   userHandle: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 2, // Reduced from 4
+    flex: 1,
   },
   userBio: {
     fontSize: 15,
