@@ -13,8 +13,9 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
 
-// Allow spaces temporarily so prefilled Apple display names don't block progress; we normalize to underscores.
-const usernameRe = /^[a-z0-9_. ]{3,20}$/;
+// Username validation: lowercase letters, numbers, dots, underscores only (matches backend)
+// Spaces are normalized to underscores BEFORE validation
+const usernameRe = /^[a-z0-9_.]+$/;
 
 export default function Step2Basic() {
   const router = useRouter();
@@ -41,7 +42,8 @@ export default function Step2Basic() {
         try {
           const me: any = await User.me();
           setEmailVerified(me?.email_verified ?? null);
-        } catch {
+        } catch (error) {
+          console.warn('[step-2-basic] Failed to check email verification:', error);
           setEmailVerified(null);
         }
       })();
@@ -59,15 +61,20 @@ export default function Step2Basic() {
         setZip(me?.preferences?.zip_code || '');
         
         // Check username availability immediately if it exists
-        if (displayName && usernameRe.test(displayName)) {
+        // Normalize display name before checking (spaces -> underscores, lowercase)
+        const normalizedDisplayName = normalized.replace(/\s+/g, '_');
+        if (normalizedDisplayName && usernameRe.test(normalizedDisplayName)) {
           try {
-            const r: any = await User.usernameAvailable(displayName);
+            const r: any = await User.usernameAvailable(normalizedDisplayName);
             setAvailable(!!r?.available);
-          } catch {
+          } catch (error) {
+            console.warn('[step-2-basic] Username availability check failed:', error);
             setAvailable(null);
           }
         }
-      } catch {} 
+      } catch (error) {
+        console.warn('[step-2-basic] Failed to load user data:', error);
+      } 
     })(); 
   }, []);
   useEffect(() => {
@@ -76,10 +83,12 @@ export default function Step2Basic() {
   }, [ob.affiliation, ob.dob]);
 
   useEffect(() => {
-    // Normalize live input (replace spaces) so user doesn't get stuck on Continue
-    if (username.includes(' ')) {
-      setUsername((prev) => prev.replace(/\s+/g, '_'));
-      return; // will re-run effect
+    // Normalize live input (replace spaces with underscores, convert to lowercase)
+    // This ensures validation matches backend requirements
+    const normalized = username.trim().toLowerCase().replace(/\s+/g, '_');
+    if (normalized !== username) {
+      setUsername(normalized);
+      return; // will re-run effect with normalized value
     }
     // Don't check if username is empty or invalid format
     if (!username || !usernameRe.test(username)) {
@@ -94,7 +103,8 @@ export default function Step2Basic() {
       try {
         const r: any = await User.usernameAvailable(username);
         setAvailable(!!r?.available);
-      } catch {
+      } catch (error) {
+        console.warn('[step-2-basic] Username availability check failed:', error);
         setAvailable(null);
       } finally {
         setChecking(false);

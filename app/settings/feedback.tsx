@@ -17,7 +17,16 @@ export default function FeedbackScreen() {
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => { void (async () => { try { await User.me(); } catch {} })(); }, []);
+  useEffect(() => { 
+    void (async () => { 
+      try { 
+        await User.me(); 
+      } catch (error) {
+        console.warn('[feedback] Failed to load user data:', error);
+        // Non-critical - feedback can be submitted without user data
+      }
+    })(); 
+  }, []);
 
   const onSubmit = async () => {
     if (!message.trim()) { Alert.alert('Please enter a message'); return; }

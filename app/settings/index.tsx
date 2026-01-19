@@ -258,8 +258,12 @@ const appConfig = getConfig();
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 } catch (_e: any) {
                   // Error in onboarding restart - try fallback
-                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                  try { void await User.updatePreferences({ onboarding_completed: false }); } catch (_error: any) {}
+                  try { 
+                    void await User.updatePreferences({ onboarding_completed: false }); 
+                  } catch (error: any) {
+                    console.warn('[settings] Failed to reset onboarding status:', error);
+                    // Continue anyway - user will be redirected to onboarding
+                  }
                   router.replace('/onboarding');
                 }
               };
@@ -416,10 +420,18 @@ const appConfig = getConfig();
                         Alert.alert('Log out', 'Are you sure you want to log out?', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Log Out', style: 'destructive', onPress: async () => {
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            try { await User.logout(); } catch (_error: any) {}
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            try { obCtx?.clearOnboarding?.(); } catch (_error: any) { /* ignore */ }
+                            try { 
+                              await User.logout(); 
+                            } catch (error: any) {
+                              console.warn('[settings] Logout failed:', error);
+                              // Continue with navigation even if logout fails
+                            }
+                            try { 
+                              obCtx?.clearOnboarding?.(); 
+                            } catch (error: any) {
+                              console.warn('[settings] Failed to clear onboarding:', error);
+                              // Non-critical - continue with logout
+                            }
                             router.replace('/sign-in');
                           } },
                         ]);
@@ -435,13 +447,17 @@ const appConfig = getConfig();
                               const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                               const ok = res.ok;
                               if (!ok) throw new Error('Failed');
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            } catch (_e: any) {
+                            } catch (error: any) {
+                              console.error('[settings] Account deletion failed:', error);
                               Alert.alert('Delete failed', 'Could not delete your account.');
                               return;
                             }
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            try { await User.logout(); } catch (_error: any) {}
+                            try { 
+                              await User.logout(); 
+                            } catch (error: any) {
+                              console.warn('[settings] Logout after deletion failed:', error);
+                              // Continue with navigation even if logout fails
+                            }
                             router.replace('/sign-in');
                           }}
                         ], 'plain-text');
@@ -454,10 +470,17 @@ const appConfig = getConfig();
                               try {
                                 const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
                                 if (!res.ok) throw new Error('Failed');
-                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                              } catch (_e: any) { Alert.alert('Delete failed', 'Could not delete your account.'); return; }
-                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                              try { await User.logout(); } catch (_error: any) {}
+                              } catch (error: any) {
+                                console.error('[settings] Account deletion failed (Android):', error);
+                                Alert.alert('Delete failed', 'Could not delete your account.');
+                                return;
+                              }
+                              try { 
+                                await User.logout(); 
+                              } catch (error: any) {
+                                console.warn('[settings] Logout after deletion failed (Android):', error);
+                                // Continue with navigation even if logout fails
+                              }
                               router.replace('/sign-in');
                             } },
                           ]);
