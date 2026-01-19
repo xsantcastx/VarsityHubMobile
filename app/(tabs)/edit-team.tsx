@@ -10,7 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore
 import { Organization, Team } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '@/api/http';
 
 export default function EditTeamScreen() {
   const router = useRouter();

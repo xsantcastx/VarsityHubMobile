@@ -12,7 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Organization, Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '@/api/http';
 
 type TeamLimitSummary = {
   owned_teams: number;

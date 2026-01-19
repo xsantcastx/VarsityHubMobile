@@ -13,7 +13,7 @@ import { uploadFile } from '@/api/upload';
 import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { getApiBaseUrl } from '../api/http';
+import { getApiBaseUrl } from '@/api/http';
 
 const SPORTS_OPTIONS = [
   'Football', 'Basketball', 'Baseball', 'Soccer', 'Volleyball', 
