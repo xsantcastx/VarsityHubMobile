@@ -571,7 +571,7 @@ export default function ProfileScreen() {
         {/* Settings Button - Top Right */}
         <View style={[styles.headerControls, { top: 12 + insets.top }]}>
           <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-            <Ionicons name="settings-outline" size={18} color="#666" />
+            <Ionicons name="settings-outline" size={18} color="#333" />
           </Pressable>
         </View>
         
@@ -595,7 +595,7 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* User Info - Next to Avatar */}
+          {/* User Info - Next to Avatar ON BANNER */}
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
               <Text style={styles.userName}>{name}</Text>
@@ -608,6 +608,10 @@ export default function ProfileScreen() {
                   <Text style={styles.roleText}>{roleRaw === 'coach' ? 'COACH' : roleRaw.toUpperCase()}</Text>
                 </View>
               )}
+              {/* Edit Profile Button - ON BANNER next to name */}
+              <Pressable style={styles.editButtonOnBanner} onPress={() => void router.push('/edit-profile')}>
+                <Text style={styles.editButtonOnBannerText}>Edit profile</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -615,14 +619,8 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Edit Profile Button - Oval, Centered */}
-        <View style={styles.actionsContainer}>
-          <Pressable style={styles.editButton} onPress={() => void router.push('/edit-profile')}>
-            <Text style={styles.editButtonText}>Edit profile</Text>
-          </Pressable>
-        </View>
 
-        {/* User Details */}
+        {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
           {me?.username && <Text style={[styles.userHandle, { color: theme.text }]}>@{me.username}</Text>}
           {me?.bio && (
@@ -1008,17 +1006,17 @@ const styles = StyleSheet.create({
   },
   headerBackgroundPressable: {
     position: 'relative',
-    height: 180, // Slightly reduced to match reference
+    height: 200, // Match reference image
     width: '100%',
   },
   headerBackgroundImage: {
     ...StyleSheet.absoluteFillObject,
-    height: 180,
+    height: 200,
     width: '100%',
   },
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
-    height: 180,
+    height: 200,
   },
   headerControls: {
     position: 'absolute',
@@ -1029,12 +1027,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -1044,7 +1042,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
@@ -1105,16 +1103,25 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
+  editButtonOnBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButtonOnBannerText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
     paddingTop: 35, // Minimal space for overlapping avatar
-  },
-  actionsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 8, // Reduced from 16
-    alignItems: 'center',
   },
   editButton: {
     paddingHorizontal: 20,
@@ -1132,7 +1139,8 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingBottom: 8, // Reduced from 16
+    paddingTop: 0,
+    paddingBottom: 8,
   },
   userHandle: {
     fontSize: 15,
