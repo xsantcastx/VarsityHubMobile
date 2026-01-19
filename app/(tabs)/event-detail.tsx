@@ -9,6 +9,7 @@ import { Event, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
 import MatchBanner from '../components/MatchBanner';
 import RsvpSheet from '../components/RsvpSheet';
+import { Colors } from '@/constants/Colors';
 
 type EventItem = { id: string | number; title?: string; date?: string; location?: string; description?: string; capacity?: number; attendees?: any[] };
 
@@ -256,8 +257,8 @@ export default function EventDetailScreen() {
               <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
                 <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
               </Pressable>
-              <Pressable style={styles.outlineBtn} onPress={shareEvent}>
-                <Text style={styles.outlineBtnText}>Share</Text>
+              <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>
+                <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Share</Text>
               </Pressable>
             </View>
           </View>
@@ -322,5 +323,5 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: '#111827', fontWeight: '700' },
+  outlineBtnText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
 });

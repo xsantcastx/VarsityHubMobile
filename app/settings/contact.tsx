@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
+import { Colors } from '@/constants/Colors';
 
 export default function ContactScreen() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function ContactScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Contact', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Contact Varsity Hub Team</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Contact Varsity Hub Team</Text>
         <Input placeholder="Your name" value={name} onChangeText={setName} style={{ marginBottom: 8 }} />
         <Input placeholder="you@example.com" value={emailField} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
         <Input placeholder="Subject" value={subject} onChangeText={setSubject} style={{ marginBottom: 8 }} />

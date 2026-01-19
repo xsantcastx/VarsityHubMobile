@@ -500,7 +500,7 @@ export default function CreatePostScreen() {
                 }}
               >
                 <View style={styles.gameIconContainer}>
-                  <Ionicons name="location" size={18} color="#3B82F6" />
+                  <Ionicons name="location" size={18} color={Colors[colorScheme].tint} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
@@ -508,7 +508,7 @@ export default function CreatePostScreen() {
                   </Text>
                   <View style={styles.gameMetaRow}>
                     {game.distance !== null && game.distance !== undefined && (
-                      <Text style={[styles.gameDistance, { color: '#3B82F6' }]}>
+                      <Text style={[styles.gameDistance, { color: Colors[colorScheme].tint }]}>
                         {game.distance < 1 
                           ? `${Math.round(game.distance * 1000)}m away` 
                           : `${game.distance.toFixed(1)}km away`}
@@ -555,7 +555,7 @@ export default function CreatePostScreen() {
               onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
             >
               <View style={styles.gameIconContainer}>
-                <Ionicons name="trophy" size={20} color="#059669" />
+                <Ionicons name="trophy" size={20} color={Colors[colorScheme].tint} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
@@ -566,7 +566,7 @@ export default function CreatePostScreen() {
                 </Text>
                 <View style={styles.gameMetaRow}>
                   {suggestedGame.distance !== null && suggestedGame.distance !== undefined && (
-                    <Text style={[styles.gameDistance, { color: '#3B82F6' }]}>
+                    <Text style={[styles.gameDistance, { color: Colors[colorScheme].tint }]}>
                       {suggestedGame.distance < 1 
                         ? `${Math.round(suggestedGame.distance * 1000)}m away` 
                         : `${suggestedGame.distance.toFixed(1)}km away`}
@@ -579,16 +579,16 @@ export default function CreatePostScreen() {
                     </Text>
                   )}
                 </View>
-                <Text style={[styles.eventConfirmation, { color: '#059669', marginTop: 4 }]}>
+                <Text style={[styles.eventConfirmation, { color: Colors[colorScheme].tint, marginTop: 4 }]}>
                   ✓ This post will appear in this event
                 </Text>
               </View>
-              <Ionicons name="checkmark-circle" size={24} color="#059669" />
+              <Ionicons name="checkmark-circle" size={24} color={Colors[colorScheme].tint} />
             </Pressable>
             
             <View style={styles.eventActions}>
               <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
-                <Text style={[styles.removeEventButton, { color: '#EF4444' }]}>Remove Event</Text>
+                <Text style={[styles.removeEventButton, { color: Colors[colorScheme].destructive }]}>Remove Event</Text>
               </Pressable>
             </View>
           </View>
@@ -600,15 +600,24 @@ export default function CreatePostScreen() {
             <Text style={[styles.footerLink, { color: Colors[colorScheme].tint }]}>Respect all the players on the field.</Text>
           </Pressable>
           {showPrecisionWarning ? (
-            <View style={[styles.warningBanner, { backgroundColor: '#FEF9C3', borderColor: '#FACC15', marginTop: 12 }]}>
-              <Ionicons name="navigate-outline" size={16} color="#B45309" />
+            <View style={[styles.warningBanner, { 
+              backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3', 
+              borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FACC15', 
+              marginTop: 12 
+            }]}>
+              <Ionicons name="navigate-outline" size={16} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.warningText, { color: '#92400E', marginBottom: 4 }]}>
+                <Text style={[styles.warningText, { 
+                  color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', 
+                  marginBottom: 4 
+                }]}>
                   Precise location is off. Nearby event suggestions may be less accurate on Android.
                 </Text>
                 <View style={styles.warningActionsRow}>
                   <Pressable onPress={() => setPrecisionBannerDismissed(true)}>
-                    <Text style={[styles.warningActionLink, { color: '#92400E' }]}>Maybe later</Text>
+                    <Text style={[styles.warningActionLink, { 
+                      color: colorScheme === 'dark' ? Colors[colorScheme].tint : '#92400E' 
+                    }]}>Maybe later</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -625,9 +634,9 @@ export default function CreatePostScreen() {
             </View>
           ) : null}
           {locationError && (
-            <View style={[styles.warningBanner, { backgroundColor: Colors[colorScheme].surface, borderColor: '#FCA5A5' }]}>
-              <Ionicons name="alert-circle" size={16} color="#DC2626" />
-              <Text style={[styles.warningText, { color: '#991B1B' }]}>{locationError}</Text>
+            <View style={[styles.warningBanner, { backgroundColor: Colors[colorScheme].surface, borderColor: colorScheme === 'dark' ? Colors[colorScheme].destructive + '80' : '#FCA5A5' }]}>
+              <Ionicons name="alert-circle" size={16} color={Colors[colorScheme].destructive} />
+              <Text style={[styles.warningText, { color: Colors[colorScheme].destructive }]}>{locationError}</Text>
             </View>
           )}
           {error ? <Text style={styles.error}>{error}</Text> : null}

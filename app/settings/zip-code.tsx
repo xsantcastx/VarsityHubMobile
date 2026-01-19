@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
+import { Colors } from '@/constants/Colors';
 
 function isValidZip(v: string) {
   const us = /^\d{5}$/;
@@ -51,7 +52,7 @@ export default function ZipCodeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'ZIP Code', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>ZIP / Postal Code</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>ZIP / Postal Code</Text>
         <Input placeholder="94105" value={zip} onChangeText={setZip} keyboardType="number-pad" style={{ marginBottom: 12 }} />
         <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </ScrollView>

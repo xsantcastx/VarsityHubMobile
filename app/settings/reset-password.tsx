@@ -7,6 +7,7 @@ import { Alert, ScrollView, StyleSheet, Text, useColorScheme } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/context/AuthProvider';
+import { Colors } from '@/constants/Colors';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme();
@@ -52,11 +53,11 @@ export default function ResetPasswordScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Change Password', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Current Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current Password</Text>
         <Input placeholder="Enter current password" value={current} onChangeText={setCurrent} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>New Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>New Password</Text>
         <Input placeholder="At least 8 characters" value={password} onChangeText={setPassword} secureTextEntry style={{ marginBottom: 16 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Confirm Password</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Confirm Password</Text>
         <Input placeholder="Re-enter your password" value={confirm} onChangeText={setConfirm} secureTextEntry style={{ marginBottom: 24 }} />
         <Button onPress={onSave} disabled={saving}>{saving ? 'Saving…' : 'Update Password'}</Button>
       </ScrollView>

@@ -594,13 +594,13 @@ export default function FeedScreen() {
         style={{
           padding: 10,
           borderRadius: 10,
-          backgroundColor: '#FEF9C3',
+          backgroundColor: colorScheme === 'dark' ? Colors[colorScheme].surface : '#FEF9C3',
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: '#FDE68A',
+          borderColor: colorScheme === 'dark' ? Colors[colorScheme].border : '#FDE68A',
           marginBottom: 12,
         }}
       >
-        <Text style={{ color: '#92400E', fontWeight: '700' }}>
+        <Text style={{ color: colorScheme === 'dark' ? Colors[colorScheme].text : '#92400E', fontWeight: '700' }}>
           Verify your email to unlock posting and ads. Tap to verify.
         </Text>
       </Pressable>
@@ -699,9 +699,9 @@ export default function FeedScreen() {
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
       >
-        <Ionicons name="map" size={24} color="#FFFFFF" />
-        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
-        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+        <Ionicons name="map" size={24} color={Colors[colorScheme].tint} />
+        <Text style={[styles.mapsButtonText, { color: Colors[colorScheme].text }]}>View Nearby Games on Map</Text>
+        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tint} />
       </Pressable>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>

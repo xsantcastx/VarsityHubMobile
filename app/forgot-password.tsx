@@ -54,7 +54,7 @@ export default function ForgotPasswordScreen() {
         title: 'Forgot Password',
         headerLeft: () => (
           <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <Ionicons name="chevron-back" size={24} color={palette.tint} />
           </Pressable>
         ),
       }} />
@@ -62,8 +62,8 @@ export default function ForgotPasswordScreen() {
         <Text style={[styles.title, { color: palette.text }]}>Reset your password</Text>
         <Text style={[styles.subtitle, { color: palette.mutedText }]}>Enter your account email and we'll send a 6-digit code to reset your password.</Text>
 
-        {error ? <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text> : null}
-        {info ? <Text style={[styles.info, { color: '#065F46' }]}>{info}</Text> : null}
+        {error ? <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text> : null}
+        {info ? <Text style={[styles.info, { color: colorScheme === 'dark' ? '#10B981' : '#065F46' }]}>{info}</Text> : null}
 
         <Input
           placeholder="name@school.edu"

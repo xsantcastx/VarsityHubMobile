@@ -434,7 +434,7 @@ export default function OrganizationScreen() {
         {/* Back Button - Top Left */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top), left: 16 }]}>
           <Pressable onPress={() => void router.back()} style={styles.controlButton}>
-            <Ionicons name="arrow-back" size={18} color="#333" />
+            <Ionicons name="arrow-back" size={18} color={theme.text} />
           </Pressable>
         </View>
         
@@ -456,7 +456,7 @@ export default function OrganizationScreen() {
                 <Image source={{ uri: String(organization.avatar_url || organization.logo_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
                 <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="business" size={48} color="#9CA3AF" />
+                  <Ionicons name="business" size={48} color={theme.mutedText} />
                 </View>
               )}
             </View>

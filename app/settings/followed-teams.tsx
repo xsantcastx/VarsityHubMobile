@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/Colors';
 
 export default function FollowedTeamsScreen() {
   const colorScheme = useColorScheme();
@@ -20,23 +21,23 @@ export default function FollowedTeamsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Followed Teams', headerBackTitle: 'Back', headerShown: true }} />
       <View style={styles.content}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Followed Teams</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {loading ? <Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6b7280' }]}>Loading…</Text> : (
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Followed Teams</Text>
+        {error ? <Text style={[styles.error, { color: Colors[colorScheme ?? 'light'].destructive }]}>{error}</Text> : null}
+        {loading ? <Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Loading…</Text> : (
           <FlatList
             data={items}
             keyExtractor={(it) => String(it.id)}
             renderItem={({ item }) => (
               <View style={[styles.row, { 
-                backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
-                borderColor: isDark ? '#374151' : '#E5E7EB'
+                backgroundColor: Colors[colorScheme ?? 'light'].card,
+                borderColor: Colors[colorScheme ?? 'light'].border
               }]}>
-                <Text style={[styles.rowTitle, { color: isDark ? '#ECEDEE' : '#11181C' }]}>{item.name}</Text>
-                <Text style={[styles.mutedSmall, { color: isDark ? '#9CA3AF' : '#9CA3AF' }]}>{item.description || ''}</Text>
+                <Text style={[styles.rowTitle, { color: Colors[colorScheme ?? 'light'].text }]}>{item.name}</Text>
+                <Text style={[styles.mutedSmall, { color: Colors[colorScheme ?? 'light'].mutedText }]}>{item.description || ''}</Text>
               </View>
             )}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            ListEmptyComponent={<Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6b7280' }]}>No followed teams yet.</Text>}
+            ListEmptyComponent={<Text style={[styles.muted, { color: Colors[colorScheme ?? 'light'].mutedText }]}>No followed teams yet.</Text>}
           />
         )}
       </View>

@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
   search: { flex: 1, height: 44, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', paddingHorizontal: 10, backgroundColor: 'white' },
   toggle: { paddingHorizontal: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
   toggleOn: { backgroundColor: '#111827', borderColor: '#111827' },
-  toggleText: { fontWeight: '700', color: '#374151' },
-  toggleTextOn: { color: 'white' },
+  toggleText: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
+  toggleTextOn: { color: '#FFFFFF' }, // White text for active state
   row: { padding: 12, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
   title: { fontWeight: '800', fontSize: 16 },
   meta: { color: '#6b7280' },

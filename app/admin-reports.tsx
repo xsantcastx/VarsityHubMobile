@@ -267,7 +267,7 @@ export default function AdminReportsScreen() {
               color={isSelected ? '#3B82F6' : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280')} 
             />
             <View style={{ marginLeft: 12 }}>
-              <Text style={[styles.reporterName, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+              <Text style={[styles.reporterName, { color: Colors[colorScheme].text }]}>
                 {report.reporter_name}
               </Text>
               <Text style={[styles.reporterEmail, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
@@ -278,7 +278,7 @@ export default function AdminReportsScreen() {
           <StatusBadge status={report.status} />
         </View>
 
-        <Text style={[styles.reportSubject, { color: colorScheme === 'dark' ? '#ECEDEE' : '#111827' }]}>
+        <Text style={[styles.reportSubject, { color: Colors[colorScheme].text }]}>
           {report.subject}
         </Text>
         
@@ -290,7 +290,7 @@ export default function AdminReportsScreen() {
         </Text>
 
         <View style={styles.reportFooter}>
-          <Text style={[styles.reportDate, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>
+          <Text style={[styles.reportDate, { color: Colors[colorScheme].mutedText }]}>
             {new Date(report.created_at).toLocaleDateString()} {new Date(report.created_at).toLocaleTimeString()}
           </Text>
           <View style={styles.reportActions}>
@@ -329,7 +329,7 @@ export default function AdminReportsScreen() {
         edges={['top']}
         style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB' }}
       >
-        <Text style={{ color: colorScheme === 'dark' ? '#ECEDEE' : '#111827', fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
+        <Text style={{ color: Colors[colorScheme].text, fontSize: 18, fontWeight: '600', paddingHorizontal: 24, textAlign: 'center' }}>
           Admin access required
         </Text>
       </SafeAreaView>

@@ -7,9 +7,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function FollowersScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
   const { id, username } = useLocalSearchParams<{ id: string; username?: string }>();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
@@ -71,7 +74,7 @@ export default function FollowersScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top']}>
       <Stack.Screen options={{ 
         title: `${username}'s Followers`,
         headerLeft: () => (
@@ -96,7 +99,7 @@ export default function FollowersScreen() {
           onEndReached={() => nextCursor && void loadFollowers(nextCursor)}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loading ? <ActivityIndicator /> : null}
-          ListEmptyComponent={<Text style={styles.emptyText}>No followers yet.</Text>}
+          ListEmptyComponent={<Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No followers yet.</Text>}
         />
       )}
     </SafeAreaView>
@@ -104,7 +107,7 @@ export default function FollowersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1, backgroundColor: 'transparent' }, // Will be overridden with Colors[colorScheme].background
   backButton: { paddingLeft: 8 },
   searchInput: { margin: 16 },
   userRow: {
@@ -121,5 +124,5 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   userName: { flex: 1, fontWeight: '600' },
-  emptyText: { textAlign: 'center', marginTop: 32, color: '#6B7280' },
+  emptyText: { textAlign: 'center', marginTop: 32, color: 'transparent' }, // Will be overridden with Colors[colorScheme].mutedText
 });

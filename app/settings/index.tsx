@@ -29,7 +29,7 @@ const appConfig = getConfig();
                   backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB'
                 }]}> 
                   <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
+                    <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
                     <Text style={[styles.chev, open ? styles.chevOpen : null, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
                   </Pressable>
                   {open ? <View style={styles.cardBody}>{children}</View> : null}
@@ -99,7 +99,7 @@ const appConfig = getConfig();
                 <View>
                   <View style={styles.rowBetween}>
                     <View>
-                      <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
+                      <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
                       {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
                     </View>
                     <Text style={[styles.selectedValue, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6b7280' }]}>

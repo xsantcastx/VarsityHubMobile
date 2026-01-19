@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support } from '@/api/entities';
 import { useUserProfile } from '@/hooks/useUser';
+import { Colors } from '@/constants/Colors';
 
 export default function RequestHostEventScreen() {
   const router = useRouter();
@@ -44,15 +45,15 @@ export default function RequestHostEventScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Request to Host Event', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Basic Request</Text>
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Organization Name</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Basic Request</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Organization Name</Text>
         <Input value={org} onChangeText={setOrg} placeholder="Your organization" style={{ marginBottom: 8 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Contact</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Contact</Text>
         <Input value={name} onChangeText={setName} placeholder="Your name" style={{ marginBottom: 8 }} />
         <Input value={emailField} onChangeText={setEmail} placeholder="you@example.com" autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 8 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Venue</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Venue</Text>
         <Input value={venue} onChangeText={setVenue} placeholder="Gym or field" style={{ marginBottom: 8 }} />
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Proposed Dates</Text>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Proposed Dates</Text>
         <Textarea value={dates} onChangeText={setDates} placeholder="e.g., Oct 22 afternoon; Oct 29 morning" style={{ marginBottom: 12, minHeight: 80 }} />
         <Button onPress={onSubmit} disabled={sending}>{sending ? 'Sending…' : 'Submit Request'}</Button>
       </ScrollView>

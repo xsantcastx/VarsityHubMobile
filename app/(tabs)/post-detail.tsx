@@ -424,7 +424,7 @@ export default function PostDetailScreen() {
         <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#DC2626" />
+          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
@@ -441,7 +441,7 @@ export default function PostDetailScreen() {
         <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#DC2626" />
+          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Failed to load post</Text>
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
@@ -687,7 +687,7 @@ export default function PostDetailScreen() {
                     style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
                     onPress={() => void router.push(`/game-detail?id=${post.game.id}`)}
                   >
-                    <Ionicons name="basketball" size={18} color="#2563EB" />
+                    <Ionicons name="basketball" size={18} color={Colors[colorScheme].tint} />
                     <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
                       View Event
                     </Text>

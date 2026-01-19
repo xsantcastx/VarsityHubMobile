@@ -361,7 +361,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
     fontWeight: '500',
   },
   interestChipTextSelected: {
-    color: colorScheme === 'dark' ? '#000000' : '#FFFFFF',
+    color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF',
   },
   
   continueSection: {
@@ -371,7 +371,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   // Legacy styles (keeping for compatibility)
   label: { fontWeight: '700', marginBottom: 4, color: Colors[colorScheme].text },
   chip: { borderWidth: StyleSheet.hairlineWidth, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? '#000000' : 'white', borderColor: Colors[colorScheme].tint },
+  chipSelected: { backgroundColor: Colors[colorScheme].tint, color: colorScheme === 'dark' ? Colors[colorScheme].text : '#FFFFFF', borderColor: Colors[colorScheme].tint },
 });
 
 

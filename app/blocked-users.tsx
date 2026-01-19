@@ -74,8 +74,8 @@ export default function BlockedUsersScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Blocked Users', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Blocked Users</Text>
-        <Text style={[styles.subtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>People you won't receive messages from.</Text>
+        <Text style={[styles.title, { color: theme.text }]}>Blocked Users</Text>
+        <Text style={[styles.subtitle, { color: theme.mutedText }]}>People you won't receive messages from.</Text>
 
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
           <Input
@@ -92,9 +92,9 @@ export default function BlockedUsersScreen() {
         </View>
 
         {loading ? (
-          <Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Loading…</Text>
+          <Text style={[styles.muted, { color: theme.mutedText }]}>Loading…</Text>
         ) : list.length === 0 ? (
-          <Text style={[styles.muted, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>No blocked users.</Text>
+          <Text style={[styles.muted, { color: theme.mutedText }]}>No blocked users.</Text>
         ) : (
           <FlatList
             data={list}
@@ -106,8 +106,8 @@ export default function BlockedUsersScreen() {
                 borderColor: isDark ? '#374151' : '#E5E7EB'
               }]}>
                 <View>
-                  <Text style={[styles.email, { color: isDark ? '#ECEDEE' : '#11181C' }]}>{item.display_name || item.email}</Text>
-                  <Text style={[styles.muted, { fontSize: 12, color: isDark ? '#9CA3AF' : '#6B7280' }]}>{item.email}</Text>
+                  <Text style={[styles.email, { color: theme.text }]}>{item.display_name || item.email}</Text>
+                  <Text style={[styles.muted, { fontSize: 12, color: theme.mutedText }]}>{item.email}</Text>
                 </View>
                 <Pressable onPress={() => remove(item.id)} style={styles.removeBtn}>
                   <Text style={styles.removeText}>Unblock</Text>

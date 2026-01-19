@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Colors } from '@/constants/Colors';
 
 export default function ManageSubscription() {
   const colorScheme = useColorScheme();
@@ -123,15 +124,15 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Manage Subscription', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Subscription</Text>
-        <Text style={[styles.subtitle, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Manage your membership plan.</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Subscription</Text>
+        <Text style={[styles.subtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Manage your membership plan.</Text>
 
         <View style={[styles.card, { 
-          backgroundColor: isDark ? '#1F2937' : '#fff',
-          borderColor: isDark ? '#374151' : '#E5E7EB'
+          backgroundColor: Colors[colorScheme ?? 'light'].card,
+          borderColor: Colors[colorScheme ?? 'light'].border
         }]}>
-          <Text style={[styles.rowLabel, { color: isDark ? '#9CA3AF' : '#6b7280' }]}>Current plan</Text>
-          <Text style={[styles.rowValue, { color: isDark ? '#ECEDEE' : '#11181C' }]}>{plan || 'rookie'}</Text>
+          <Text style={[styles.rowLabel, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Current plan</Text>
+          <Text style={[styles.rowValue, { color: Colors[colorScheme ?? 'light'].text }]}>{plan || 'rookie'}</Text>
 
           {plan && plan !== 'rookie' ? (
             // Paid plans (veteran/legend) - show cancel option
@@ -143,7 +144,7 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
           ) : (
             // Free plan (rookie) or no plan - show upgrade options
             <>
-              <Text style={[styles.description, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Choose a plan to unlock organization features.</Text>
+              <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Choose a plan to unlock organization features.</Text>
               <View style={{ height: 12 }} />
               <Button onPress={() => onSubscribe('veteran')} disabled={loading}><Text>Upgrade to Veteran</Text></Button>
               <View style={{ height: 8 }} />

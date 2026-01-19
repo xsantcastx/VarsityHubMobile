@@ -185,8 +185,8 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: colorScheme === 'dark' ? '#FFFFFF' : palette.card,
-                shadowColor: colorScheme === 'dark' ? '#000000' : '#0f172a',
+                backgroundColor: palette.card,
+                shadowColor: colorScheme === 'dark' ? '#000000' : palette.background,
                 shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
                 shadowOffset: { width: 0, height: 2 },
                 shadowRadius: 8,
@@ -205,7 +205,7 @@ export default function SignInScreen() {
 
           <View style={[styles.card, { backgroundColor: palette.elevated, borderColor: palette.border }]}>
             {error ? (
-              <Text style={[styles.error, { color: '#b91c1c' }]}>{error}</Text>
+              <Text style={[styles.error, { color: palette.destructive }]}>{error}</Text>
             ) : null}
 
             {Platform.OS === 'ios' ? (
@@ -220,7 +220,7 @@ export default function SignInScreen() {
 
             {googleReady ? (
               <Pressable
-                style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+                style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: palette.card, borderColor: palette.border }]}
                 onPress={handleGoogleLogin}
                 disabled={googleLoading}
                 accessibilityRole="button"
@@ -229,16 +229,16 @@ export default function SignInScreen() {
                 {googleLoading ? (
                   <ActivityIndicator size="small" color="#4285F4" />
                 ) : (
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  <Text style={[styles.googleButtonText, { color: palette.text }]}>Continue with Google</Text>
                 )}
               </Pressable>
             ) : (
               <View
-                style={[styles.googleButton, styles.disabledGoogleButton]}
+                style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: palette.surface, borderColor: palette.border }]}
                 accessibilityRole="text"
                 accessibilityLabel="Google sign in not available"
               >
-                <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+                <Ionicons name="logo-google" size={20} color={palette.mutedText} style={styles.googleIcon} />
                 <View style={{ flex: 1 }}>
                 <Text style={[styles.googleButtonText, { color: palette.mutedText }]}>Google sign in unavailable</Text>
                   <Text style={[styles.googleButtonSubtext, { color: palette.mutedText }]}>
@@ -368,17 +368,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent', // Will be overridden with palette.card
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E5E7EB',
+    borderColor: 'transparent', // Will be overridden with palette.border
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 8,
   },
   disabledGoogleButton: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
+    backgroundColor: 'transparent', // Will be overridden with palette.surface
+    borderColor: 'transparent', // Will be overridden with palette.border
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: 'transparent', // Will be overridden with palette.text
   },
   googleButtonSubtext: {
     fontSize: 12,

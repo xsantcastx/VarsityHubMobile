@@ -654,8 +654,8 @@ export default function ProfileScreen() {
         
         {/* Settings Button - Top Right */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-          <Pressable onPress={() => void router.push('/settings')} style={styles.controlButton}>
-            <Ionicons name="settings-outline" size={18} color="#333" />
+          <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         </View>
         
@@ -667,8 +667,8 @@ export default function ProfileScreen() {
               {me.avatar_url ? (
                 <Image source={{ uri: String(me.avatar_url) }} style={styles.avatarImage} contentFit="cover" />
               ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={48} color="#9CA3AF" />
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colorScheme === 'dark' ? theme.surface || '#374151' : '#E5E7EB' }]}>
+                  <Ionicons name="person" size={48} color={theme.mutedText} />
                 </View>
               )}
               {isUploadingAvatar && (
@@ -702,8 +702,8 @@ export default function ProfileScreen() {
         {/* Username and Edit Profile Button Row */}
         <View style={styles.usernameRow}>
           {me?.username && <Text style={[styles.userHandle, { color: theme.text }]}>@{me.username}</Text>}
-          <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push('/edit-profile')}>
-            <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
+          <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+            <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
           </Pressable>
         </View>
 
@@ -716,8 +716,8 @@ export default function ProfileScreen() {
           {/* Joined Date */}
           {me?.created_at && (
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={14} color={theme.mutedText} />
-              <Text style={[styles.metaText, { color: theme.mutedText }]}>
+              <Ionicons name="calendar-outline" size={14} color={colorScheme === 'dark' ? theme.mutedText : '#4B5563'} />
+              <Text style={[styles.metaText, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}>
                 Joined {new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
             </View>
@@ -728,11 +728,11 @@ export default function ProfileScreen() {
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {me?._count?.following ?? 0}
             </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Following </Text>
+            <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Following </Text>
             <Text style={[styles.statNumber, { color: theme.text }]}>
               {me?._count?.followers ?? 0}
             </Text>
-            <Text style={[styles.statLabel, { color: theme.mutedText }]}> Followers</Text>
+            <Text style={[styles.statLabel, { color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' }]}> Followers</Text>
           </View>
         </View>
       </View>
@@ -763,9 +763,23 @@ export default function ProfileScreen() {
 
   const renderEmptyPosts = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyTitle}>No posts yet</Text>
-      <Text style={styles.emptySubtitle}>Share your first moment with the community!</Text>
-    <Button onPress={() => void router.push('/create-post')}><Text>Create Your First Post</Text></Button>
+      <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
+      <Text style={[styles.emptySubtitle, { 
+        color: colorScheme === 'dark' ? theme.mutedText : '#4B5563' // Darker grey for better contrast in light mode
+      }]}>Share your first moment with the community!</Text>
+      <Pressable 
+        onPress={() => void router.push('/create-post')} 
+        style={({ pressed }) => [
+          styles.createPostButton, 
+          { 
+            backgroundColor: theme.tint,
+            borderColor: theme.tint,
+            opacity: pressed ? 0.9 : 1,
+          }
+        ]}
+      >
+        <Text style={[styles.createPostButtonText, { color: '#FFFFFF', fontWeight: '700' }]}>Create Your First Post</Text>
+      </Pressable>
     </View>
   );
 
@@ -1092,7 +1106,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     overflow: 'visible', // Allow avatar to extend beyond banner
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent', // Will use theme.background from component
   },
   headerBackgroundPressable: {
     position: 'relative',
@@ -1170,7 +1184,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 46,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'transparent', // Will be overridden with theme color if needed
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1186,11 +1200,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
-    marginBottom: 4,
+    marginBottom: 0, // Removed margin to close gap
   },
   userInfo: {
     flex: 1,
-    paddingBottom: 4, // Reduced padding
+    paddingBottom: 0, // Removed padding to close gap
   },
   userName: {
     fontSize: 22,
@@ -1204,21 +1218,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'transparent', // Will be overridden with theme color
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: 'transparent', // Will be overridden with theme color
     alignItems: 'center',
     justifyContent: 'center',
   },
   editButtonBelowBannerText: {
-    color: '#374151',
+    color: 'transparent', // Will be overridden with theme color
     fontSize: 14,
     fontWeight: '600',
   },
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 30, // Minimal space for overlapping avatar
+    paddingTop: 8, // Reduced space for overlapping avatar - close the gap
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
   },
@@ -1238,7 +1252,7 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 0,
+    paddingTop: 4, // Reduced top padding to close gap
     paddingBottom: 4,
   },
   usernameRow: {
@@ -1246,29 +1260,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 4,
+    paddingBottom: 0, // Removed padding to close gap
     gap: 12,
   },
   userHandle: {
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: '500', // Slightly bolder for better readability
     flex: 1,
   },
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 4,
+    marginBottom: 2, // Reduced margin to close gap
     lineHeight: 20,
+    // Color will be set inline with theme.text
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 2,
+    marginBottom: 0, // Removed margin to close gap
+    marginTop: 2, // Small top margin instead
   },
   metaText: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '500', // Slightly bolder for better readability
   },
   statsRow: {
     flexDirection: 'row',
@@ -1282,7 +1298,7 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: '500', // Slightly bolder for better readability
   },
   athleteCredentialsCompact: {
     paddingHorizontal: 16,
@@ -1422,8 +1438,31 @@ const styles = StyleSheet.create({
   sortText: { fontWeight: '600', fontSize: 12 },
   sortTextActive: { color: 'white' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1f2937' },
-  emptySubtitle: { color: '#6B7280', textAlign: 'center', marginBottom: 20, fontSize: 15, lineHeight: 22 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: 'transparent' }, // Will be overridden with theme.text
+  emptySubtitle: { 
+    color: 'transparent', // Will be overridden with better contrast color
+    textAlign: 'center', 
+    marginBottom: 20, 
+    fontSize: 15, 
+    lineHeight: 22,
+    fontWeight: '500', // Slightly bolder for better readability
+  },
+  createPostButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'transparent', // Will be overridden with theme.tint
+    borderWidth: 1,
+    borderColor: 'transparent', // Will be overridden with theme.tint
+    minWidth: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createPostButtonText: {
+    fontSize: 16,
+    fontWeight: '700', // Bolder for better readability
+    color: '#FFFFFF', // White text for good contrast on tint background - always white
+  },
   activityItem: {
     padding: 16,
     borderBottomWidth: 1,

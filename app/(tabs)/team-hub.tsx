@@ -116,7 +116,7 @@ export default function TeamHubScreen() {
         title: 'Team Hub',
         headerLeft: () => (
           <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
           </Pressable>
         ),
       }} />
@@ -281,7 +281,7 @@ const createStyles = (palette: Palette) => StyleSheet.create({
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.md },
   tabOn: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-  tabLabel: { fontWeight: '700', color: '#374151' },
+  tabLabel: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
   tabLabelOn: { color: palette.text },
   card: {
     margin: 16, padding: 16, borderRadius: Radius.lg, backgroundColor: palette.surface,

@@ -500,7 +500,7 @@ export default function CreateTeamScreen() {
           {/* Team Name */}
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-              Team Name <Text style={{ color: '#EF4444' }}>*</Text>
+              Team Name <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
             </Text>
             <View style={[styles.inputContainer, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
               <Ionicons name="trophy-outline" size={20} color={Colors[colorScheme].mutedText} />
@@ -646,7 +646,7 @@ export default function CreateTeamScreen() {
           {/* Team Color Picker */}
           <View style={styles.fieldGroup}>
             <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>
-              Team Color <Text style={{ color: '#EF4444' }}>*</Text>
+              Team Color <Text style={{ color: Colors[colorScheme].destructive }}>*</Text>
             </Text>
             <Text style={[styles.fieldHint, { color: Colors[colorScheme].mutedText, marginBottom: 12 }]}>
               Select your team's primary color for branding
@@ -701,7 +701,7 @@ export default function CreateTeamScreen() {
           <View style={styles.fieldGroup}>
             <View style={styles.fieldLabelRow}>
               <Text style={[styles.fieldLabel, { color: Colors[colorScheme].text }]}>Description</Text>
-              <Text style={[styles.charCount, { color: description.length > 500 ? '#DC2626' : Colors[colorScheme].mutedText }]}>
+              <Text style={[styles.charCount, { color: description.length > 500 ? Colors[colorScheme].destructive : Colors[colorScheme].mutedText }]}>
                 {description.length}/500
               </Text>
             </View>
@@ -729,7 +729,7 @@ export default function CreateTeamScreen() {
         <View style={styles.actionSection}>
           {limitReached && (
             <View style={styles.limitWarning}>
-              <Ionicons name="alert-circle" size={18} color="#B45309" />
+              <Ionicons name="alert-circle" size={18} color={colorScheme === 'dark' ? Colors[colorScheme].tint : '#B45309'} />
               <Text style={styles.limitWarningText}>
                 You’ve reached the {planDisplayName} plan limit. Upgrade to create more teams.
               </Text>
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-    color: '#92400E',
+    color: 'transparent', // Will be overridden with theme color
   },
   createButton: {
     flexDirection: 'row',

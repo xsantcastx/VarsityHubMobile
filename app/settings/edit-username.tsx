@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { User } from '@/api/entities';
 import { useUser } from '@/hooks/useUser';
 import { useAuth } from '@/context/AuthProvider';
+import { Colors } from '@/constants/Colors';
 
 export default function EditUsernameScreen() {
   const router = useRouter();
@@ -97,12 +98,12 @@ export default function EditUsernameScreen() {
         }} 
       />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.label, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Username</Text>
-        <Text style={[styles.hint, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>
+        <Text style={[styles.label, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Username</Text>
+        <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
           This is your @ handle (e.g., @rwerwqer). Lowercase letters, numbers, dots, and underscores only.
         </Text>
         {userLoading ? (
-          <Text style={[styles.hint, { color: isDark ? '#6B7280' : '#9CA3AF' }]}>Loading...</Text>
+          <Text style={[styles.hint, { color: Colors[colorScheme ?? 'light'].mutedText }]}>Loading...</Text>
         ) : (
           <Input 
             value={username} 

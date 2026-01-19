@@ -199,7 +199,7 @@ export default function SignUpScreen() {
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
         
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text> : null}
 
         {!showEmailForm ? (
           <>
@@ -217,7 +217,7 @@ export default function SignUpScreen() {
           {/* Google Sign Up Option */}
           {googleReady ? (
             <Pressable
-              style={[styles.googleButton, googleLoading && styles.buttonDisabled]}
+              style={[styles.googleButton, googleLoading && styles.buttonDisabled, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={handleGoogleSignUp}
               disabled={googleLoading}
               accessibilityRole="button"
@@ -226,41 +226,41 @@ export default function SignUpScreen() {
               {googleLoading ? (
                 <ActivityIndicator size="small" color="#4285F4" />
               ) : (
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Continue with Google</Text>
               )}
             </Pressable>
           ) : (
             <View
-              style={[styles.googleButton, styles.disabledGoogleButton]}
+              style={[styles.googleButton, styles.disabledGoogleButton, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
               accessibilityRole="text"
               accessibilityLabel="Google sign up not available"
             >
-              <Ionicons name="logo-google" size={20} color="#94a3b8" style={styles.googleIcon} />
+              <Ionicons name="logo-google" size={20} color={Colors[colorScheme].mutedText} style={styles.googleIcon} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.googleButtonText}>Google sign up unavailable</Text>
-                <Text style={styles.googleButtonSubtext}>Add Google OAuth client IDs to enable this option.</Text>
+                <Text style={[styles.googleButtonText, { color: Colors[colorScheme].text }]}>Google sign up unavailable</Text>
+                <Text style={[styles.googleButtonSubtext, { color: Colors[colorScheme].mutedText }]}>Add Google OAuth client IDs to enable this option.</Text>
               </View>
             </View>
           )}
 
           <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
+            <View style={[styles.dividerLine, { backgroundColor: Colors[colorScheme].border }]} />
+            <Text style={[styles.dividerText, { color: Colors[colorScheme].mutedText }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: Colors[colorScheme].border }]} />
           </View>
 
           {/* Email Sign Up Option */}
           <Button onPress={() => setShowEmailForm(true)} variant="outline">
-            <Ionicons name="mail" size={16} color="#6b7280" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#374151', fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
+            <Ionicons name="mail" size={16} color={Colors[colorScheme].mutedText} style={{ marginRight: 8 }} />
+            <Text style={{ color: Colors[colorScheme].text, fontSize: 16, fontWeight: '600' }}>Sign up with Email</Text>
           </Button>
         </>
         ) : (
           <>
           {/* Back Button */}
           <Pressable style={styles.backButton} onPress={() => setShowEmailForm(false)}>
-            <Ionicons name="arrow-back" size={20} color="#6b7280" />
-            <Text style={styles.backText}>Back to options</Text>
+            <Ionicons name="arrow-back" size={20} color={Colors[colorScheme].mutedText} />
+            <Text style={[styles.backText, { color: Colors[colorScheme].mutedText }]}>Back to options</Text>
           </Pressable>
 
           {/* Email Form */}
@@ -296,14 +296,14 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
-  error: { color: '#b91c1c', marginBottom: 8, textAlign: 'center' },
+  error: { color: 'transparent', marginBottom: 8, textAlign: 'center' }, // Will be overridden with Colors[colorScheme].destructive
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'white',
+    backgroundColor: 'transparent', // Will be overridden with Colors[colorScheme].card
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'transparent', // Will be overridden with Colors[colorScheme].border
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -323,11 +323,11 @@ const styles = StyleSheet.create({
   googleButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: 'transparent', // Will be overridden with Colors[colorScheme].text
   },
   googleButtonSubtext: {
     fontSize: 12,
-    color: '#6b7280',
+    color: 'transparent', // Will be overridden with Colors[colorScheme].mutedText
     marginTop: 2,
   },
   divider: {
@@ -338,11 +338,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'transparent', // Will be overridden with Colors[colorScheme].border
   },
   dividerText: {
     marginHorizontal: 16,
-    color: '#6b7280',
+    color: 'transparent', // Will be overridden with Colors[colorScheme].mutedText
     fontSize: 14,
   },
   backButton: {
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     marginLeft: 8,
-    color: '#6b7280',
+    color: 'transparent', // Will be overridden with Colors[colorScheme].mutedText
     fontSize: 14,
   },
   signInLink: {

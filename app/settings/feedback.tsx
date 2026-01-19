@@ -7,6 +7,7 @@ import { Alert, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Support, User } from '@/api/entities';
+import { Colors } from '@/constants/Colors';
 
 export default function FeedbackScreen() {
   const router = useRouter();
@@ -42,7 +43,7 @@ export default function FeedbackScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#111827' : '#FFFFFF' }]} edges={['bottom']}>
       <Stack.Screen options={{ title: 'Leave Feedback', headerBackTitle: 'Back', headerShown: true }} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <Text style={[styles.title, { color: isDark ? '#ECEDEE' : '#11181C' }]}>Feedback</Text>
+        <Text style={[styles.title, { color: Colors[colorScheme ?? 'light'].text }]}>Feedback</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
           <Button variant={category === 'bug' ? 'default' : 'outline'} onPress={() => setCategory('bug')}><Text>Bug</Text></Button>
           <Button variant={category === 'idea' ? 'default' : 'outline'} onPress={() => setCategory('idea')}><Text>Idea</Text></Button>

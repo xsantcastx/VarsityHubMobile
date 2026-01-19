@@ -127,11 +127,11 @@ export default function NotificationsScreen() {
           )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={S.title}>{title}</Text>
+          <Text style={[S.title, { color: Colors[colorScheme].text }]}>{title}</Text>
           {item.post?.content ? (
-            <Text numberOfLines={1} style={S.subtitle}>{item.post.content}</Text>
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.post.content}</Text>
           ) : item.message?.content ? (
-            <Text numberOfLines={1} style={S.subtitle}>{item.message.content}</Text>
+            <Text numberOfLines={1} style={[S.subtitle, { color: Colors[colorScheme].mutedText }]}>{item.message.content}</Text>
           ) : null}
         </View>
       </Pressable>
@@ -160,8 +160,8 @@ export default function NotificationsScreen() {
         <View style={S.center}><ActivityIndicator /></View>
       ) : error && items.length === 0 ? (
         <View style={S.center}>
-          <Text style={{ color: '#EF4444', marginBottom: 12 }}>{error}</Text>
-          <Pressable style={S.retryButton} onPress={() => void load(null, false).catch(() => {})}>
+          <Text style={{ color: Colors[colorScheme].destructive, marginBottom: 12 }}>{error}</Text>
+          <Pressable style={[S.retryButton, { backgroundColor: Colors[colorScheme].tint }]} onPress={() => void load(null, false).catch(() => {})}>
             <Text style={S.retryText}>Retry</Text>
           </Pressable>
         </View>
@@ -173,7 +173,7 @@ export default function NotificationsScreen() {
           ListHeaderComponent={hasUnread ? (
             <View style={S.headerRow}>
               <Pressable style={S.markAllBtn} onPress={onMarkAllRead} disabled={markingAll}>
-                <Text style={S.markAllText}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
+                <Text style={[S.markAllText, { color: Colors[colorScheme].text }]}>{markingAll ? 'Marking…' : 'Mark all as read'}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -220,10 +220,10 @@ const S = StyleSheet.create({
   rowUnread: { backgroundColor: '#F9FAFB' },
   avatarWrap: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
-  title: { fontWeight: '700', color: '#111827' },
-  subtitle: { color: '#6B7280', marginTop: 2 },
+  title: { fontWeight: '700', color: 'transparent' }, // Will be overridden with Colors[colorScheme].text
+  subtitle: { color: 'transparent', marginTop: 2 }, // Will be overridden with Colors[colorScheme].mutedText
   markAllBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#F3F4F6', borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB' },
-  markAllText: { color: '#111827', fontWeight: '700' },
+  markAllText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
   retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
 });
