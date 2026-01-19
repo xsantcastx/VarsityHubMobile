@@ -279,11 +279,17 @@ export default function ProfileScreen() {
     }
   };
 
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (profileRequestInFlight.current) return;
     profileRequestInFlight.current = true;
-    setLoading(true);
+    
+    // Only show loading skeleton if we don't have data yet
+    const isInitialLoad = !me;
+    if (!options?.silent && isInitialLoad) {
+      setLoading(true);
+    }
     setError(null);
+    
     try {
       // Step 1: ensure session is valid
       const u: any = await User.me();
@@ -298,34 +304,55 @@ export default function ProfileScreen() {
       const themeColor = u?.preferences?.theme_color || '#3B82F6';
       setUserThemeColor(themeColor);
 
-      // Load first page for active tab
-      if (activeTab === 'posts') {
-        await refreshPosts(u.id);
-      } else if (activeTab === 'replies') {
-        await refreshReplies(u.id);
-      } else if (activeTab === 'upvotes') {
-        await refreshUpvotes(u.id);
+      // Load first page for active tab (only if initial load or tab changed)
+      if (isInitialLoad || !options?.silent) {
+        if (activeTab === 'posts') {
+          await refreshPosts(u.id);
+        } else if (activeTab === 'replies') {
+          await refreshReplies(u.id);
+        } else if (activeTab === 'upvotes') {
+          await refreshUpvotes(u.id);
+        }
       }
     } catch (e: any) {
       console.error('[Profile] Failed to load profile:', e);
-      // Always set error - don't leave blank state
-      if (e && e.status === 401) {
-        setError('You need to sign in to view your profile.');
-      } else if (e?.isNetworkError || e?.status === 0) {
-        setError('Unable to connect to server. Please check your internet connection.');
-      } else {
-        setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile. Please try again.');
+      // Only show error if not silent refresh
+      if (!options?.silent) {
+        if (e && e.status === 401) {
+          setError('You need to sign in to view your profile.');
+        } else if (e?.isNetworkError || e?.status === 0) {
+          setError('Unable to connect to server. Please check your internet connection.');
+        } else {
+          setError(e?.message ? `Unable to load profile: ${e.message}` : 'Unable to load profile. Please try again.');
+        }
+        // Clear me on error to prevent stale data
+        setMe(null);
       }
-      // Clear me on error to prevent stale data
-      setMe(null);
     } finally {
       profileRequestInFlight.current = false;
-      setLoading(false);
+      if (!options?.silent || isInitialLoad) {
+        setLoading(false);
+      }
     }
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes]);
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, me]);
 
-  // Refresh on mount and when screen regains focus (after creating a post, etc.)
-  useFocusEffect(useCallback(() => { void loadProfile(); }, [loadProfile]));
+  // Initial load on mount
+  useEffect(() => {
+    void loadProfile();
+  }, []);
+
+  // Silent refresh on focus (don't show loading skeleton if data exists)
+  useFocusEffect(
+    useCallback(() => {
+      // Only refresh silently if we already have data
+      if (me) {
+        void loadProfile({ silent: true });
+      } else {
+        // If no data, do a full load
+        void loadProfile();
+      }
+    }, [loadProfile, me])
+  );
 
   // Load organizations separately to avoid blocking profile render
   useEffect(() => {
