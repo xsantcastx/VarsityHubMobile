@@ -421,21 +421,11 @@ export default function HighlightsScreen() {
   }, [searchQuery, performGlobalSearch]);
 
   const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:448',message:'handleHighlightPress called',data:{itemId:item.id,index:index !== undefined ? index : -1,hasFilteredHighlights:getFilteredHighlights().length > 0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     try {
       // Navigate to post-detail with all highlights for swipe navigation
       const filtered = getFilteredHighlights();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:452',message:'Got filtered highlights',data:{filteredCount:filtered.length,itemInFiltered:filtered.some(h => h.id === item.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
       const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:457',message:'Navigating to post-detail',data:{postIdsLength:postIds.length,targetIndex,willUsePostIds:!!postIds,itemId:item.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       
       if (postIds && filtered.length > 0) {
         router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
@@ -444,9 +434,6 @@ export default function HighlightsScreen() {
         router.push(`/post-detail?id=${item.id}`);
       }
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/highlights.tsx:466',message:'Navigation error',data:{error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       console.error('Navigation error in handleHighlightPress:', error);
       // Fallback to single post navigation on error
       router.push(`/post-detail?id=${item.id}`);
