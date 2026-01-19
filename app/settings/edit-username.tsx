@@ -12,7 +12,7 @@ export default function EditUsernameScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, refresh: refreshUser } = useUser();
   const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +27,11 @@ export default function EditUsernameScreen() {
     if (!v) { 
       Alert.alert('Enter a username'); 
       return; 
+    }
+    // Check if username hasn't changed
+    if (user?.username && v === user.username.toLowerCase()) {
+      Alert.alert('No changes', 'Username is the same as current');
+      return;
     }
     // Validate username format (lowercase letters, numbers, dots, underscores only)
     if (!/^[a-z0-9_.]+$/.test(v)) {
@@ -43,17 +48,34 @@ export default function EditUsernameScreen() {
     }
     setSaving(true);
     try { 
+      console.log('[edit-username] Updating username to:', v);
       const result = await User.updateMe({ username: v });
       console.log('[edit-username] Update result:', result);
       // Refresh user data after successful update
-      if (user) {
-        await User.me().catch(() => {}); // Refresh user data
-      }
+      await refreshUser();
+      console.log('[edit-username] User data refreshed');
       Alert.alert('Success', 'Username updated successfully');
       router.back(); 
     } catch (e: any) { 
       console.error('[edit-username] Update failed:', e);
-      const errorMessage = e?.data?.message || e?.data?.error || e?.message || 'Could not save';
+      console.error('[edit-username] Error details:', {
+        message: e?.message,
+        data: e?.data,
+        response: e?.response,
+        status: e?.status,
+      });
+      let errorMessage = 'Could not save username';
+      if (e?.data?.message) {
+        errorMessage = e.data.message;
+      } else if (e?.data?.error) {
+        errorMessage = e.data.error;
+      } else if (e?.message) {
+        errorMessage = e.message;
+      } else if (e?.response?.data?.message) {
+        errorMessage = e.response.data.message;
+      } else if (e?.response?.data?.error) {
+        errorMessage = e.response.data.error;
+      }
       Alert.alert('Save failed', errorMessage); 
     } finally { 
       setSaving(false); 
