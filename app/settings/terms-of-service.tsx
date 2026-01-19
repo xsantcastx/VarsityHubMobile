@@ -15,7 +15,7 @@ export default function TermsOfServiceScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Terms of Service' }} />
+      <Stack.Screen options={{ title: 'Terms of Service', headerBackTitle: 'Back', headerShown: true }} />
       
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
@@ -134,6 +134,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   header: {

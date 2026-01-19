@@ -20,11 +20,13 @@ export default function CoreValuesScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: Colors[colorScheme ?? 'light'].background }]}
-      edges={['top']}
+      edges={['top', 'bottom']}
     >
       <Stack.Screen
         options={{
           title: 'Core Values',
+          headerBackTitle: 'Back',
+          headerShown: true,
           headerRight: () => (
             <Pressable
               onPress={() => void router.push('/settings/safe-zone-policy')}

@@ -15,7 +15,7 @@ export default function PrivacyPolicyScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Privacy Policy' }} />
+      <Stack.Screen options={{ title: 'Privacy Policy', headerBackTitle: 'Back', headerShown: true }} />
       
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   header: {

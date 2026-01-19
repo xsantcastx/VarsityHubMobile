@@ -85,7 +85,7 @@ export default function RsvpHistoryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'RSVP History' }} />
+      <Stack.Screen options={{ title: 'RSVP History', headerBackTitle: 'Back', headerShown: true }} />
       
       {/* Search and Filter Controls */}
       <View style={styles.filterSection}>

@@ -11,7 +11,7 @@ export default function SafeZonePolicyScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Safe Zone Policy' }} />
+      <Stack.Screen options={{ title: 'Safe Zone Policy', headerBackTitle: 'Back', headerShown: true }} />
       
       <ScrollView contentContainerStyle={styles.content}>
         {/* Mission Statement */}
@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   missionCard: {
