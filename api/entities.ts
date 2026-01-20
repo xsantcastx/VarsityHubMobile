@@ -220,7 +220,10 @@ export const Post = {
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
-  comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
+  comments: (id: string, cursor?: string | null) => {
+    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return httpGet(`/posts/${encodeURIComponent(id)}/comments${qs}`);
+  },
   addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),

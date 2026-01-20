@@ -653,7 +653,15 @@ export default function ProfileScreen() {
         
         {/* Settings Button - Top Right */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
-          <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+          <Pressable 
+            onPress={() => {
+              console.log('[Profile] Navigating to settings...');
+              router.push('/settings' as any);
+            }} 
+            style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}
+            accessibilityLabel="Settings"
+            accessibilityRole="button"
+          >
             <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
         </View>
@@ -698,14 +706,23 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Edit Profile Button Row */}
-        <View style={styles.usernameRow}>
-          <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+        {/* Edit Profile Button and User Details - Tight layout */}
+        <View style={styles.editButtonRow}>
+          <Pressable 
+            style={[
+              styles.editButtonBelowBanner, 
+              { 
+                backgroundColor: theme.surface || theme.background, 
+                borderColor: theme.border,
+              }
+            ]} 
+            onPress={() => void router.push('/edit-profile')}
+          >
             <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
           </Pressable>
         </View>
 
-        {/* User Details - Left aligned with avatar */}
+        {/* User Details - Left aligned with avatar, directly below edit button */}
         <View style={styles.userDetails}>
           {me?.bio && (
             <Text style={[styles.userBio, { color: theme.text }]}>{me.bio}</Text>
@@ -1105,16 +1122,26 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'visible', // Allow avatar to extend beyond banner
     backgroundColor: 'transparent', // Will use theme.background from component
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   headerBackgroundPressable: {
     position: 'relative',
     height: 200, // Match reference image
     width: '100%',
+    marginLeft: 0,
+    marginRight: 0,
+    left: 0,
+    right: 0,
   },
   headerBackgroundImage: {
     ...StyleSheet.absoluteFillObject,
     height: 200,
     width: '100%',
+    left: 0,
+    right: 0,
   },
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -1152,7 +1179,7 @@ const styles = StyleSheet.create({
     elevation: 100, // For Android
   },
   avatarSection: {
-    marginBottom: -40, // Overlap into content area to close gap
+    marginBottom: -50, // Overlap avatar into content area (half of 100px avatar)
     zIndex: 99999, // Highest z-index to ensure avatar is always on top
     elevation: 99999, // Highest elevation for Android
     position: 'relative',
@@ -1235,10 +1262,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Profile Details Below Banner - Tight spacing to match reference
+  // Profile Details Below Banner - Proper spacing to account for overlapping avatar
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 8, // Reduced space for overlapping avatar - close the gap
+    paddingTop: 70, // Increased spacing: avatar overlap (50px) + clear space (20px)
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
   },
@@ -1258,16 +1285,18 @@ const styles = StyleSheet.create({
   },
   userDetails: {
     paddingHorizontal: 16,
-    paddingTop: 4, // Reduced top padding to close gap
+    paddingTop: 0, // No gap - directly below edit button
     paddingBottom: 4,
+    marginTop: 0, // No margin needed
   },
-  usernameRow: {
+  editButtonRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'flex-end', // Align edit button to the right, away from avatar
     paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 0, // Removed padding to close gap
-    gap: 12,
+    paddingLeft: 116, // Start after avatar (100px avatar + 16px spacing)
+    paddingBottom: 4, // Minimal spacing - close the gap
+    marginTop: 0, // No extra margin needed with increased paddingTop
+    marginBottom: 0, // No margin between edit button and user details
   },
   userHandle: {
     fontSize: 15,

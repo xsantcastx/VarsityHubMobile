@@ -22,4 +22,7 @@ config.watchFolders = [
   path.resolve(__dirname, 'shims'),
 ];
 
+// Fast Refresh is enabled by default in Expo
+// No additional configuration needed - React Fast Refresh works automatically
+
 module.exports = config;

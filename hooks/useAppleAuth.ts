@@ -42,9 +42,11 @@ export function useAppleAuth() {
       let credential;
       if (isSimulator) {
         console.log('[Apple Auth] Using simulator mock credential');
-        // Create a mock credential for testing
+        // Use a stable user ID for simulator so the same account is reused
+        // This prevents creating a new account on every sign-in
+        const STABLE_SIMULATOR_USER_ID = 'sim-test-user-stable';
         credential = {
-          user: 'sim-test-user-' + Date.now(),
+          user: STABLE_SIMULATOR_USER_ID,
           authorizationCode: null,
           identityToken: null,
           email: null,
@@ -204,8 +206,9 @@ export function useAppleAuth() {
         try {
           console.log('[Apple Auth] Attempting dev fallback auth...');
           // Use the owner's email so the dev account is recognized as admin
+          // Use a stable token so the same account is reused
           const devEmail = 'emancero@varsityhub.app';
-          const devToken = `sim-dev-${devEmail}-${Date.now()}`;
+          const devToken = `sim-dev-${devEmail}-stable`;
           const res = await User.loginViaApple(devToken);
           if (res?.access_token) {
             console.log('[Apple Auth] Dev fallback succeeded');
