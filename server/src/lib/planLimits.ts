@@ -1,8 +1,15 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const planDefinitions = require('../../../shared/plan-definitions.json') as Record<
+// Resolve path relative to dist/lib/planLimits.js -> /app/shared/plan-definitions.json
+// From dist/lib: ../../shared/plan-definitions.json
+const planDefinitionsPath = path.resolve(__dirname, '../../shared/plan-definitions.json');
+const planDefinitions = require(planDefinitionsPath) as Record<
   PlanId,
   RawPlanDefinition
 >;
