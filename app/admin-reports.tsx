@@ -65,27 +65,12 @@ export default function AdminReportsScreen() {
       const token = await (await import('@/api/auth')).loadToken();
       const apiUrl = getApiBaseUrl();
       
-      const [reportsRes, statsRes] = await Promise.all([
-        fetch(`${apiUrl}/admin/reports?status=${filterStatus}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-        fetch(`${apiUrl}/admin/reports/stats`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }),
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      const [reportsData, statsData] = await Promise.all([
+        httpGet(`/admin/reports?status=${filterStatus}`),
+        httpGet('/admin/reports/stats'),
       ]);
-
-      if (!reportsRes.ok || !statsRes.ok) {
-        throw new Error('Failed to load reports');
-      }
-
-      const reportsData = await reportsRes.json();
-      const statsData = await statsRes.json();
       
       setReports(reportsData.reports || []);
       setStats(statsData);
@@ -125,21 +110,9 @@ export default function AdminReportsScreen() {
 
   const updateReportStatus = async (reportId: string, status: string, resolutionNote?: string) => {
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiUrl}/admin/reports/${reportId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status, resolution_note: resolutionNote }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update report');
-      }
+      // Use API client instead of direct fetch
+      const { httpPatch } = await import('@/api/http');
+      await httpPatch(`/admin/reports/${reportId}`, { status, resolution_note: resolutionNote });
 
       await loadReports(true);
       Alert.alert('Success', 'Report updated successfully');
@@ -155,26 +128,12 @@ export default function AdminReportsScreen() {
     }
 
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiUrl}/admin/reports/bulk-update`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          report_ids: Array.from(selectedReports), 
-          status 
-        }),
+      // Use API client instead of direct fetch
+      const { httpPost } = await import('@/api/http');
+      const data = await httpPost('/admin/reports/bulk-update', { 
+        report_ids: Array.from(selectedReports), 
+        status 
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update reports');
-      }
-
-      const data = await response.json();
       setSelectedReports(new Set());
       await loadReports(true);
       Alert.alert('Success', `Updated ${data.updated} reports`);
@@ -202,7 +161,9 @@ export default function AdminReportsScreen() {
               const token = await (await import('@/api/auth')).loadToken();
               const apiUrl = getApiBaseUrl();
               
-              const response = await fetch(`${apiUrl}/admin/reports/bulk-delete`, {
+              // Use API client instead of direct fetch
+      const { httpPost } = await import('@/api/http');
+      await httpPost('/admin/reports/bulk-delete', {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${token}`,

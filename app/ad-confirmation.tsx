@@ -24,17 +24,37 @@ export default function AdConfirmationScreen() {
 
   useEffect(() => {
     if (params.ad_id) {
-      Advertisement.get(params.ad_id)
+      // Validate ad_id format (should be a valid CUID or UUID)
+      const adId = params.ad_id.trim();
+      if (!adId || adId.length < 10) {
+        console.error('[AdConfirmation] Invalid ad_id format:', adId);
+        setLoading(false);
+        // Continue with defaults - user can still see confirmation
+        return;
+      }
+      
+      Advertisement.get(adId)
         .then(data => {
+          if (!data || !data.id) {
+            throw new Error('Invalid ad data received');
+          }
           setAdDetails(data);
           setLoading(false);
         })
         .catch(err => {
-          console.error('Failed to load ad details:', err);
+          console.error('[AdConfirmation] Failed to load ad details:', err);
           setLoading(false);
+          // Continue with params/defaults - non-blocking error
         });
+    } else {
+      // No ad_id provided - require manual params
+      if (!params.businessName && !params.selectedDates && !params.totalAmount) {
+        console.warn('[AdConfirmation] Missing ad_id and manual params');
+        // Still show confirmation with defaults - non-blocking
+      }
+      setLoading(false);
     }
-  }, [params.ad_id]);
+  }, [params.ad_id, params.businessName, params.selectedDates, params.totalAmount]);
   
   const businessName = adDetails?.business_name || params.businessName || 'Your Business';
   const selectedDates = params.selectedDates || 'your selected dates';

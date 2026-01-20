@@ -424,6 +424,10 @@ export default function EditProfileScreen() {
       }
       
       await User.updateMe(directFields);
+      
+      // Reload user data to reflect changes immediately
+      await loadUserData();
+      
       Alert.alert('Saved', 'Profile updated successfully.');
       
       // Redirect based on role

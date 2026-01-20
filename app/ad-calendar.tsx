@@ -205,22 +205,8 @@ export default function AdCalendarScreen() {
       const from = todayISO();
       const to = maxDateISO();
       
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const r = await fetch(
-        `${base.replace(/\/$/, '')}/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`,
-        { method: 'GET', headers }
-      );
-      
-      if (!r.ok) {
-        if (__DEV__) console.warn('Failed to load availability:', r.status);
-        return;
-      }
-      
-      const data = await r.json();
+      const { httpGet } = await import('@/api/http');
+      const data = await httpGet(`/ads/availability?zip=${encodeURIComponent(zip)}&from=${from}&to=${to}`);
       
       if (data?.availability) {
         const fullDatesSet = new Set<string>();
@@ -411,16 +397,8 @@ export default function AdCalendarScreen() {
     setPromoBusy(true);
     try {
       const subtotalCents = Math.round(price * 100);
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await fetch(`${base.replace(/\/$/, '')}/promos/preview`, {
-        method: 'POST', headers, body: JSON.stringify({ code: promo, subtotal_cents: subtotalCents, service: 'booking' })
-      });
-      const text = await r.text();
-      const data = text ? JSON.parse(text) : null;
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      const { httpPost } = await import('@/api/http');
+      const data = await httpPost('/promos/preview', { code: promo, subtotal_cents: subtotalCents, service: 'booking' });
       if (!data?.valid) { setPreview(null); setPromoError(data?.reason || 'invalid'); }
       else setPreview(data);
     } catch (e: any) {
@@ -433,23 +411,9 @@ export default function AdCalendarScreen() {
     if (!zipCode || dates.length === 0) return;
     
     try {
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
+      const { httpGet } = await import('@/api/http');
       const dateString = dates.join(',');
-      const r = await fetch(`${base.replace(/\/$/, '')}/ads/alternative-zips?zip=${zipCode}&dates=${dateString}`, {
-        method: 'GET',
-        headers,
-      });
-      
-      if (!r.ok) {
-        if (__DEV__) console.warn('Failed to fetch alternative zips:', r.status);
-        return;
-      }
-      
-      const data = await r.json();
+      const data = await httpGet(`/ads/alternative-zips?zip=${encodeURIComponent(zipCode)}&dates=${encodeURIComponent(dateString)}`);
       if (data?.alternatives && Array.isArray(data.alternatives)) {
         setAlternatives(data.alternatives);
         setShowingAlternatives(true);

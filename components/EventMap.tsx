@@ -153,7 +153,7 @@ export default function EventMap({
               longitude: event.longitude!,
             }}
             pinColor={getMarkerColor(event.type)}
-            onPress={() => onEventPress?.(event.id)}
+            onPress={() => onEventPress?.(event.id, event.type)}
           >
             <Callout>
               <View style={styles.callout}>

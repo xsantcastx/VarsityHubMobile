@@ -44,22 +44,15 @@ export default function AdminDashboardScreen() {
       const token = await (await import('@/api/auth')).loadToken();
       const apiUrl = getApiBaseUrl();
       
-      const response = await fetch(`${apiUrl}/admin/dashboard`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      const response = await httpGet('/admin/dashboard');
 
       if (response.status === 403) {
         throw new Error('Access denied (admin only)');
       }
 
-      if (!response.ok) {
-        throw new Error('Failed to load dashboard');
-      }
-
-      const data = await response.json();
+      const data = response;
       setStats(data);
     } catch (e: any) {
       setError(e?.message || 'Failed to load dashboard');

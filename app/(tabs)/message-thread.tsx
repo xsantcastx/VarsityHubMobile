@@ -71,7 +71,12 @@ export default function MessageThreadScreen() {
       try {
         if (conversation_id) await MessageApi.markReadByConversation(String(conversation_id));
         else if (withParam) await MessageApi.markReadWith(String(withParam));
-      } catch {}
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[MessageThread] Failed to mark as read:', error?.message || error);
+        }
+        // Non-critical - continue without marking read
+      }
     })();
   }, [conversation_id, withParam]);
 

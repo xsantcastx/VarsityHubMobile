@@ -20,6 +20,8 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional().transform(toOptional),
   STRIPE_PRICE_VETERAN: z.string().optional().transform(toOptional),
   STRIPE_PRICE_LEGEND: z.string().optional().transform(toOptional),
+  STRIPE_PRICE_AD_WEEKDAY: z.string().optional().transform(toOptional),
+  STRIPE_PRICE_AD_WEEKEND: z.string().optional().transform(toOptional),
   CLOUDINARY_CLOUD_NAME: z.string().optional().transform(toOptional),
   CLOUDINARY_API_KEY: z.string().optional().transform(toOptional),
   CLOUDINARY_API_SECRET: z.string().optional().transform(toOptional),

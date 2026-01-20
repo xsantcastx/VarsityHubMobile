@@ -41,22 +41,10 @@ export default function AdminActivityLogScreen() {
       if (filter !== 'all') params.append('type', filter);
       if (searchQuery) params.append('q', searchQuery);
       
-      const response = await fetch(`${apiUrl}/admin/activity-log?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 403) {
-        throw new Error('Access denied (admin only)');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to load activity log');
-      }
-
-      const data = await response.json();
+      // Use API client instead of direct fetch
+      const { httpGet } = await import('@/api/http');
+      try {
+        const data = await httpGet(`/admin/activity-log?${params}`);
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load activity log');

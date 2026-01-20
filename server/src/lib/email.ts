@@ -7,14 +7,62 @@ import sgMail from '@sendgrid/mail';
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.FROM_EMAIL || 'noreply@varsityhub.app';
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://varsityhub.app').replace(/\/$/, '');
+const CUSTOMER_SERVICE_EMAIL = process.env.CUSTOMER_SERVICE_EMAIL || 'support@varsityhub.app';
+
+// Common template data (social links, privacy policy, etc.) added to all emails
+const getCommonTemplateData = () => ({
+  privacy_policy_url: 'https://limeprod.com/VarsityHubPrivacy',
+  community_guidelines_url: 'https://limeprod.com/VarsityHubPrivacy',
+  instagram_url: 'https://www.instagram.com/varsityhub_?igsh=cGQ1ZDM2NzVxNm13',
+  tiktok_url: 'https://www.tiktok.com/@varsity.hub?_r=1&_t=ZT-92J1z0MRGpi',
+  youtube_url: 'https://youtube.com/@varsityhub?si=XTvXQD0P7GAeo9n-',
+  facebook_url: 'https://www.facebook.com/share/17t7MJa9vx/?mibextid=wwXIfr',
+  x_url: 'https://x.com/varsityhub00',
+  website_url: 'https://limeprod.com',
+  customer_service_email: CUSTOMER_SERVICE_EMAIL,
+});
 
 // Template IDs for SendGrid dynamic templates
 const TEMPLATE_IDS = {
+  // Auth & Security
   VERIFICATION: process.env.SENDGRID_VERIFICATION_TEMPLATE_ID || '',
-  TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
-  ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
   PASSWORD_RESET: process.env.SENDGRID_PASSWORD_RESET_TEMPLATE_ID || '',
   PASSWORD_CHANGED: process.env.SENDGRID_PASSWORD_CHANGED_TEMPLATE_ID || '',
+  ACCOUNT_RECOVERY: process.env.SENDGRID_ACCOUNT_RECOVERY_TEMPLATE_ID || '',
+  LOGIN_NEW_DEVICE: process.env.SENDGRID_LOGIN_NEW_DEVICE_TEMPLATE_ID || '',
+  
+  // Moderation & Trust
+  REPORT_RESOLVED: process.env.SENDGRID_REPORT_RESOLVED_TEMPLATE_ID || '',
+  REPORT_DISMISSED: process.env.SENDGRID_REPORT_DISMISSED_TEMPLATE_ID || '',
+  ACCOUNT_WARNING: process.env.SENDGRID_ACCOUNT_WARNING_TEMPLATE_ID || '',
+  CONTENT_REMOVED: process.env.SENDGRID_CONTENT_REMOVED_TEMPLATE_ID || '',
+  
+  // Suspensions
+  ACCOUNT_SUSPENSION_7_DAYS: process.env.SENDGRID_ACCOUNT_SUSPENSION_7_DAYS_TEMPLATE_ID || '',
+  ACCOUNT_SUSPENSION_45_DAYS: process.env.SENDGRID_ACCOUNT_SUSPENSION_45_DAYS_TEMPLATE_ID || '',
+  ACCOUNT_PERMANENT_BAN: process.env.SENDGRID_ACCOUNT_PERMANENT_BAN_TEMPLATE_ID || '',
+  
+  // Events
+  EVENT_SUBMISSION_RECEIVED: process.env.SENDGRID_EVENT_SUBMISSION_RECEIVED_TEMPLATE_ID || '',
+  EVENT_APPROVED: process.env.SENDGRID_EVENT_APPROVED_TEMPLATE_ID || '',
+  EVENT_DENIED: process.env.SENDGRID_EVENT_DENIED_TEMPLATE_ID || '',
+  EVENT_REMINDER: process.env.SENDGRID_EVENT_REMINDER_TEMPLATE_ID || '',
+  EVENT_UPDATED: process.env.SENDGRID_EVENT_UPDATED_TEMPLATE_ID || '',
+  EVENT_CANCELED: process.env.SENDGRID_EVENT_CANCELED_TEMPLATE_ID || '',
+  EVENT_RSVP_CONFIRMED: process.env.SENDGRID_EVENT_RSVP_CONFIRMED_TEMPLATE_ID || '',
+  
+  // Team & Organization
+  TEAM_INVITE: process.env.SENDGRID_TEAM_INVITE_TEMPLATE_ID || '',
+  ORG_INVITE: process.env.SENDGRID_ORG_INVITE_TEMPLATE_ID || '',
+  ATHLETE_INVITATION: process.env.SENDGRID_ATHLETE_INVITATION_TEMPLATE_ID || '',
+  ROLE_ASSIGNMENT: process.env.SENDGRID_ROLE_ASSIGNMENT_TEMPLATE_ID || '',
+  ROSTER_THRESHOLD: process.env.SENDGRID_ROSTER_THRESHOLD_TEMPLATE_ID || '',
+  INVITATION_DECLINED: process.env.SENDGRID_INVITATION_DECLINED_TEMPLATE_ID || '',
+  TEAM_ROSTER_UPDATE: process.env.SENDGRID_TEAM_ROSTER_UPDATE_TEMPLATE_ID || '',
+  STAFF_MEMBER_JOINED: process.env.SENDGRID_STAFF_MEMBER_JOINED_TEMPLATE_ID || '',
+  USER_CONFIRMATION: process.env.SENDGRID_USER_CONFIRMATION_TEMPLATE_ID || '',
+  
+  // Legacy/Deprecated (kept for backward compatibility)
   ABUSE_REPORT: process.env.SENDGRID_ABUSE_REPORT_TEMPLATE_ID || '',
   JOIN_REQUEST_ADMIN: process.env.SENDGRID_JOIN_REQUEST_ADMIN_TEMPLATE_ID || '',
   JOIN_REQUEST_APPROVED: process.env.SENDGRID_JOIN_REQUEST_APPROVED_TEMPLATE_ID || '',
@@ -23,6 +71,10 @@ const TEMPLATE_IDS = {
   ORG_DENIAL: process.env.SENDGRID_ORG_DENIAL_TEMPLATE_ID || '',
   CONTENT_MODERATION: process.env.SENDGRID_CONTENT_MODERATION_TEMPLATE_ID || '',
   BILLING_NOTICE: process.env.SENDGRID_BILLING_NOTICE_TEMPLATE_ID || '',
+  
+  // Billing
+  PAYMENT_FAILED: process.env.SENDGRID_PAYMENT_FAILED_TEMPLATE_ID || '',
+  SUBSCRIPTION_EXPIRING: process.env.SENDGRID_SUBSCRIPTION_EXPIRING_TEMPLATE_ID || '',
 };
 
 type TemplateKey = keyof typeof TEMPLATE_IDS;
@@ -124,23 +176,62 @@ const genericTemplateEmail = async (
 ): Promise<boolean> => sendEmail({ to, subject, text: formatLines(bodyLines) || subject });
 
 export async function sendSubscriptionExpiringEmail(params: any): Promise<boolean> {
-  const subject = `Your ${params?.planName || 'subscription'} expires soon`;
-  return genericTemplateEmail(params?.to, subject, [
-    `Hi ${params?.userName || 'there'},`,
-    `Your ${params?.planName || 'plan'} expires on ${params?.expiresDate || 'soon'}.`,
-    params?.daysRemaining ? `Days remaining: ${params.daysRemaining}` : null,
-    params?.renewalPrice ? `Renewal price: ${params.renewalPrice}` : null,
-    params?.renewLink ? `Renew: ${params.renewLink}` : null,
-    params?.manageSubscriptionLink ? `Manage: ${params.manageSubscriptionLink}` : null,
-  ]);
+  if (!TEMPLATE_IDS.SUBSCRIPTION_EXPIRING) {
+    console.warn('[email] SendGrid subscription expiring template not configured, using fallback');
+    const subject = `Your ${params?.planName || 'subscription'} expires soon`;
+    return genericTemplateEmail(params?.to, subject, [
+      `Hi ${params?.userName || 'there'},`,
+      `Your ${params?.planName || 'plan'} expires on ${params?.expiresDate || 'soon'}.`,
+      params?.daysRemaining ? `Days remaining: ${params.daysRemaining}` : null,
+      params?.renewalPrice ? `Renewal price: ${params.renewalPrice}` : null,
+      params?.renewLink ? `Renew: ${params.renewLink}` : null,
+      params?.manageSubscriptionLink ? `Manage: ${params.manageSubscriptionLink}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.SUBSCRIPTION_EXPIRING,
+    params.to,
+    `Your ${params?.planName || 'subscription'} expires soon`,
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName || 'VarsityHub user',
+      plan_name: params.planName || 'subscription',
+      expires_date: params.expiresDate || '',
+      days_remaining: params.daysRemaining || 0,
+      renewal_price: params.renewalPrice || '',
+      renew_link: params.renewLink || `${APP_BASE_URL}/settings/manage-subscription`,
+      manage_subscription_link: params.manageSubscriptionLink || `${APP_BASE_URL}/settings/manage-subscription`,
+    },
+    `Subscription expiring email sent to ${params.to}`
+  );
 }
 
-export async function sendAccountRecoveryEmail(...args: any[]): Promise<boolean> {
-  const [to, userName, recoveryTime] = args;
-  return genericTemplateEmail(to, 'Account recovery requested', [
-    `Hi ${userName || 'there'},`,
-    `A recovery action was requested at ${recoveryTime || 'recently'}.`,
-  ]);
+export async function sendAccountRecoveryEmail(to: string, userName?: string, recoveryTime?: string, params?: any): Promise<boolean> {
+  if (!TEMPLATE_IDS.ACCOUNT_RECOVERY) {
+    console.warn('[email] SendGrid account recovery template not configured, using fallback');
+    return genericTemplateEmail(to, 'Account recovery requested', [
+      `Hi ${userName || 'there'},`,
+      `A recovery action was requested at ${recoveryTime || 'recently'}.`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ACCOUNT_RECOVERY,
+    to,
+    'Account recovery requested',
+    {
+      ...getCommonTemplateData(),
+      user_name: userName || 'VarsityHub user',
+      recovery_type: params?.recoveryType || 'password_reset',
+      recovery_time: recoveryTime || new Date().toLocaleString(),
+      ip_address: params?.ipAddress || '',
+      undo_link: params?.undoLink || '',
+      undo_expiry_hours: params?.undoExpiryHours || 24,
+      support_url: params?.supportUrl || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+    },
+    `Account recovery email sent to ${to}`
+  );
 }
 
 export async function sendAdGoesLiveEmail(params: any): Promise<boolean> {
@@ -175,45 +266,178 @@ export async function sendDormantUserDigestEmail(params: any): Promise<boolean> 
 }
 
 export async function sendEventApprovedEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Your event was approved', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-    params?.eventDate ? `Date: ${params.eventDate}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_APPROVED) {
+    console.warn('[email] SendGrid event approved template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Your event was approved', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+      params?.eventDate ? `Date: ${params.eventDate}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_APPROVED,
+    params.to,
+    'Your event was approved',
+    {
+      ...getCommonTemplateData(),
+      coach_name: params.coachName || params.recipientName || 'Coach',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      event_date: params.eventDate || '',
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      opponent: params.opponent || '',
+      organization_name: params.organizationName || 'VarsityHub',
+      approval_notes: params.approvalNotes || '',
+      view_event_url: params.eventLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+      manage_event_url: params.manageLink || `${APP_BASE_URL}/events`,
+    },
+    `Event approved email sent to ${params.to}`
+  );
 }
 
 export async function sendEventCanceledEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Event canceled', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-    params?.eventDate ? `Date: ${params.eventDate}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_CANCELED) {
+    console.warn('[email] SendGrid event canceled template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Event canceled', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+      params?.eventDate ? `Date: ${params.eventDate}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_CANCELED,
+    params.to,
+    'Event canceled',
+    {
+      ...getCommonTemplateData(),
+      recipient_name: params.recipientName || 'Team Member',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      event_date: params.eventDate || '',
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      canceled_at: params.canceledAt || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      organization_name: params.organizationName || 'VarsityHub',
+      cancel_reason: params.cancelReason || '',
+      reschedule_info: params.rescheduleInfo || '',
+      upcoming_events_link: params.upcomingEventsLink || `${APP_BASE_URL}/events`,
+      contact_organizer_link: params.contactOrganizerLink || CUSTOMER_SERVICE_EMAIL,
+    },
+    `Event canceled email sent to ${params.to}`
+  );
 }
 
 export async function sendEventDeniedEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Event denied', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-    params?.reason ? `Reason: ${params.reason}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_DENIED) {
+    console.warn('[email] SendGrid event denied template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Event denied', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+      params?.reason ? `Reason: ${params.reason}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_DENIED,
+    params.to,
+    'Event not approved',
+    {
+      ...getCommonTemplateData(),
+      coach_name: params.coachName || params.recipientName || 'Coach',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      denial_reason: params.denialReason || params.reason || '',
+      submit_new_event_url: params.resubmitLink || `${APP_BASE_URL}/create-fan-event`,
+      contact_support_url: params.supportLink || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+      organization_name: params.organizationName || 'VarsityHub',
+    },
+    `Event denied email sent to ${params.to}`
+  );
 }
 
 export async function sendEventReminderEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Event reminder', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-    params?.eventDate ? `Date: ${params.eventDate}` : null,
-    params?.eventLink ? `Link: ${params.eventLink}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_REMINDER) {
+    console.warn('[email] SendGrid event reminder template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Event reminder', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+      params?.eventDate ? `Date: ${params.eventDate}` : null,
+      params?.eventLink ? `Link: ${params.eventLink}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_REMINDER,
+    params.to,
+    'Event reminder',
+    {
+      ...getCommonTemplateData(),
+      recipient_name: params.recipientName || 'Team Member',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      event_date: params.eventDate || '',
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      opponent: params.opponent || '',
+      organization_name: params.organizationName || 'VarsityHub',
+      check_in_url: params.checkInLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+      add_to_calendar_url: params.calendarLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+      get_directions_url: params.directionsLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+      preferences_url: params.preferencesLink || `${APP_BASE_URL}/settings`,
+    },
+    `Event reminder email sent to ${params.to}`
+  );
 }
 
 export async function sendEventSubmissionReceivedEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'We received your event submission', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_SUBMISSION_RECEIVED) {
+    console.warn('[email] SendGrid event submission received template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'We received your event submission', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_SUBMISSION_RECEIVED,
+    params.to,
+    'We received your event submission',
+    {
+      ...getCommonTemplateData(),
+      coach_name: params.coachName || 'Coach',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      event_date: params.eventDate || '',
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      submission_date: params.submissionDate || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      organization_name: params.organizationName || 'VarsityHub',
+      status_link: params.statusLink || `${APP_BASE_URL}/events/my-events`,
+      review_timeline_hours: params.reviewTimelineHours || 24,
+    },
+    `Event submission received email sent to ${params.to}`
+  );
 }
 
 export async function sendEventUpdatedEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Event updated', [
-    params?.eventTitle ? `Event: ${params.eventTitle}` : null,
-    params?.changes ? `Changes: ${params.changes}` : null,
-  ]);
+  if (!TEMPLATE_IDS.EVENT_UPDATED) {
+    console.warn('[email] SendGrid event updated template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Event updated', [
+      params?.eventTitle ? `Event: ${params.eventTitle}` : null,
+      params?.changes ? `Changes: ${params.changes}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_UPDATED,
+    params.to,
+    'Event updated',
+    {
+      ...getCommonTemplateData(),
+      recipient_name: params.recipientName || 'Team Member',
+      event_name: params.eventName || params.eventTitle || 'Event',
+      event_date: params.eventDate || '',
+      updated_at: params.updatedAt || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      change_summary: params.changeSummary || params.changes || 'Event details have been updated',
+      organization_name: params.organizationName || 'VarsityHub',
+      event_detail_link: params.eventDetailLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+      calendar_link: params.calendarLink || `${APP_BASE_URL}/event-detail?id=${params.eventId || ''}`,
+    },
+    `Event updated email sent to ${params.to}`
+  );
 }
 
 export async function sendPaymentRequiredEmail(params: any): Promise<boolean> {
@@ -238,16 +462,59 @@ export async function sendProfileCompletionNudgeEmail(params: any): Promise<bool
 }
 
 export async function sendReportResolutionEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Your report was processed', [
-    params?.resolution ? `Resolution: ${params.resolution}` : null,
-  ]);
+  const isResolved = params.resolutionStatus === 'resolved';
+  const templateId = isResolved ? TEMPLATE_IDS.REPORT_RESOLVED : TEMPLATE_IDS.REPORT_DISMISSED;
+  
+  if (!templateId) {
+    console.warn('[email] SendGrid report resolution template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Your report was processed', [
+      params?.resolution ? `Resolution: ${params.resolution}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    templateId,
+    params.to,
+    isResolved ? 'Report resolved' : 'Report dismissed',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName || 'User',
+      report_id: params.reportId || '',
+      report_type: params.reportType || '',
+      resolution_status: params.resolutionStatus || 'resolved',
+      resolution_reason: params.resolutionReason || '',
+      appeal_url: params.appealUrl || `${APP_BASE_URL}/report-appeal?id=${params.reportId || ''}`,
+      submit_date: params.submitDate || '',
+      resolution_date: params.resolutionDate || new Date().toLocaleDateString(),
+      report_detail_link: params.reportDetailLink || `${APP_BASE_URL}/reports/${params.reportId || ''}`,
+    },
+    `Report ${params.resolutionStatus || 'resolved'} email sent to ${params.to}`
+  );
 }
 
 export async function sendRosterThresholdAlertEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Roster threshold alert', [
-    params?.teamName ? `Team: ${params.teamName}` : null,
-    params?.rosterCount ? `Roster count: ${params.rosterCount}` : null,
-  ]);
+  if (!TEMPLATE_IDS.ROSTER_THRESHOLD) {
+    console.warn('[email] SendGrid roster threshold template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Roster threshold alert', [
+      params?.teamName ? `Team: ${params.teamName}` : null,
+      params?.rosterCount ? `Roster count: ${params.rosterCount}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ROSTER_THRESHOLD,
+    params.to,
+    'Roster Threshold Alert',
+    {
+      ...getCommonTemplateData(),
+      coach_name: params.coachName || 'Coach',
+      team_name: params.teamName || '',
+      roster_count: params.rosterCount || 0,
+      threshold_cost: params.thresholdCost || 0,
+      manage_billing_url: params.manageBillingUrl || `${APP_BASE_URL}/settings/manage-subscription`,
+    },
+    `Roster threshold alert sent to ${params.to}`
+  );
 }
 
 export async function sendSeasonWrapUpEmail(params: any): Promise<boolean> {
@@ -257,16 +524,54 @@ export async function sendSeasonWrapUpEmail(params: any): Promise<boolean> {
 }
 
 export async function sendStaffInvitationConfirmationEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'Your staff invitation was confirmed', [
-    params?.teamName ? `Team: ${params.teamName}` : null,
-  ]);
+  if (!TEMPLATE_IDS.STAFF_MEMBER_JOINED) {
+    console.warn('[email] SendGrid staff member joined template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'Your staff invitation was confirmed', [
+      params?.teamName ? `Team: ${params.teamName}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.STAFF_MEMBER_JOINED,
+    params.to,
+    'Staff Member Joined',
+    {
+      ...getCommonTemplateData(),
+      coach_name: params.coachName || 'Coach',
+      invitee_name: params.inviteeName || '',
+      invitee_email: params.inviteeEmail || '',
+      team_name: params.teamName || '',
+      manage_staff_url: params.manageStaffUrl || `${APP_BASE_URL}/team-hub`,
+    },
+    `Staff member joined confirmation sent to ${params.to}`
+  );
 }
 
 export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
-  return genericTemplateEmail(params?.to, 'You have been invited to a team', [
-    params?.teamName ? `Team: ${params.teamName}` : null,
-    params?.inviteLink ? `Join: ${params.inviteLink}` : null,
-  ]);
+  // Staff invitations use the team invite template
+  if (!TEMPLATE_IDS.TEAM_INVITE) {
+    console.warn('[email] SendGrid team invite template not configured, using fallback');
+    return genericTemplateEmail(params?.to, 'You have been invited to a team', [
+      params?.teamName ? `Team: ${params.teamName}` : null,
+      params?.inviteLink ? `Join: ${params.inviteLink}` : null,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.TEAM_INVITE,
+    params.to,
+    'You have been invited to a team',
+    {
+      ...getCommonTemplateData(),
+      recipient_name: params.inviteeName || '',
+      team_name: params.teamName || '',
+      org_name: params.organizationName || '',
+      role: params.role || 'staff',
+      inviter_name: params.inviterName || 'Coach',
+      invite_url: params.inviteLink || `${APP_BASE_URL}/invites`,
+    },
+    `Staff invitation sent to ${params.to}`
+  );
 }
 
 /**
@@ -291,6 +596,7 @@ export async function sendVerificationEmail(email: string, token: string, userNa
       subject: 'Verify your VarsityHub account',
       templateId: TEMPLATE_IDS.VERIFICATION,
       templateData: {
+        ...getCommonTemplateData(),
         verification_link: `${APP_BASE_URL}/verify?token=${encodeURIComponent(token)}`,
         user_name: userName || 'Varsity Hub user',
         verification_code: token,
@@ -332,6 +638,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       subject: 'Reset your VarsityHub password',
       templateId: TEMPLATE_IDS.PASSWORD_RESET,
       templateData: {
+        ...getCommonTemplateData(),
         reset_code: code,
         expires_in: '30 minutes',
       },
@@ -378,6 +685,7 @@ export async function sendPasswordChangedEmail(email: string, userName?: string)
       subject: 'Password Changed Successfully',
       templateId: TEMPLATE_IDS.PASSWORD_CHANGED,
       templateData: {
+        ...getCommonTemplateData(),
         user_name: userName || 'VarsityHub user',
         date: new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }),
         email: email,
@@ -431,6 +739,7 @@ export async function sendTeamInviteEmail(params: {
       subject: `You've been invited to join ${params.teamName}`,
       templateId: TEMPLATE_IDS.TEAM_INVITE,
       templateData: {
+        ...getCommonTemplateData(),
         recipient_name: params.recipientName || '',
         team_name: params.teamName,
         org_name: params.organizationName || '',
@@ -517,6 +826,7 @@ export async function sendOrganizationInviteEmail(params: {
     params.to,
     `You've been invited to join ${params.organizationName}`,
     {
+      ...getCommonTemplateData(),
       org_name: params.organizationName,
       role: prettyRole,
       inviter_name: params.inviterName || 'VarsityHub Admin',
@@ -541,9 +851,10 @@ export async function sendAbuseReportNotification(params: {
 }): Promise<boolean> {
   return sendTemplateEmail(
     TEMPLATE_IDS.ABUSE_REPORT,
-    process.env.CUSTOMER_SERVICE_EMAIL || 'customerservice@varsityhub.app',
+    CUSTOMER_SERVICE_EMAIL,
     'New Abuse Report',
     {
+      ...getCommonTemplateData(),
       reporter_name: params.reporterName,
       reporter_email: params.reporterEmail,
       subject: params.subject,
@@ -573,6 +884,7 @@ export async function sendJoinRequestToAdmin(params: {
     params.adminEmail,
     `New join request for ${params.organizationName}`,
     {
+      ...getCommonTemplateData(),
       admin_name: params.adminName,
       requester_name: params.requesterName,
       org_name: params.organizationName,
@@ -606,6 +918,7 @@ export async function sendJoinRequestApproved(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.JOIN_REQUEST_APPROVED,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         user_name: params.userName,
         org_name: params.organizationName,
         admin_name: params.adminName,
@@ -642,6 +955,7 @@ export async function sendJoinRequestDenied(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.JOIN_REQUEST_DENIED,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         user_name: params.userName,
         org_name: params.organizationName,
         reason: params.reason || '',
@@ -676,6 +990,7 @@ export async function sendOrganizationApprovalEmail(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.ORG_APPROVAL,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         org_name: params.organizationName,
         dashboard_url: params.dashboardLink || `${APP_BASE_URL}/team-hub`,
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
@@ -709,6 +1024,7 @@ export async function sendOrganizationDenialEmail(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.ORG_DENIAL,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         org_name: params.organizationName,
         reason: params.reason || '',
         logo_image: params.orgLogoUrl || `${APP_BASE_URL}/default-org-logo.jpg`,
@@ -744,6 +1060,7 @@ export async function sendContentModerationEmail(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.CONTENT_MODERATION,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         action: params.action,
         post_id: params.postId || '',
         reason: params.reason || '',
@@ -782,6 +1099,7 @@ export async function sendBillingNoticeEmail(params: {
       from: EMAIL_FROM,
       templateId: TEMPLATE_IDS.BILLING_NOTICE,
       dynamicTemplateData: {
+        ...getCommonTemplateData(),
         notice_type: params.type,
         plan_name: params.planName || 'VarsityHub Subscription',
         amount: params.amount || '',
@@ -809,6 +1127,276 @@ function formatCurrency(cents: number): string {
 /**
  * Send end-of-day transaction report
  */
+// Account Warning Email
+export async function sendAccountWarningEmail(params: {
+  to: string;
+  userName: string;
+  warningReason: string;
+  offenseCount?: number;
+  nextSteps?: string;
+  supportUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.ACCOUNT_WARNING) {
+    console.warn('[email] SendGrid account warning template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Account Warning', [
+      `Hi ${params.userName},`,
+      `Warning: ${params.warningReason}`,
+      params.nextSteps || 'Please review our community guidelines.',
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ACCOUNT_WARNING,
+    params.to,
+    'Account Warning',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      warning_reason: params.warningReason,
+      offense_count: params.offenseCount || 1,
+      next_steps: params.nextSteps || 'Please review our community guidelines to avoid further action.',
+      support_url: params.supportUrl || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+    },
+    `Account warning email sent to ${params.to}`
+  );
+}
+
+// Content Removed Email
+export async function sendContentRemovedEmail(params: {
+  to: string;
+  userName: string;
+  contentType: string;
+  contentTitle?: string;
+  removalReason: string;
+  appealUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.CONTENT_REMOVED) {
+    console.warn('[email] SendGrid content removed template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Content Removed', [
+      `Hi ${params.userName},`,
+      `Your ${params.contentType} has been removed: ${params.removalReason}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.CONTENT_REMOVED,
+    params.to,
+    'Content Removed',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      content_type: params.contentType,
+      content_title: params.contentTitle || '',
+      removal_reason: params.removalReason,
+      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+    },
+    `Content removed email sent to ${params.to}`
+  );
+}
+
+// Account Suspension Email (7 days)
+export async function sendAccountSuspension7DaysEmail(params: {
+  to: string;
+  userName: string;
+  suspensionReason: string;
+  suspensionEndDate: string;
+  appealUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.ACCOUNT_SUSPENSION_7_DAYS) {
+    console.warn('[email] SendGrid 7-day suspension template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Account Suspended', [
+      `Hi ${params.userName},`,
+      `Your account has been suspended for 7 days. Reason: ${params.suspensionReason}`,
+      `Suspension ends: ${params.suspensionEndDate}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ACCOUNT_SUSPENSION_7_DAYS,
+    params.to,
+    'Account Suspended',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      suspension_reason: params.suspensionReason,
+      suspension_end_date: params.suspensionEndDate,
+      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+    },
+    `Account suspension (7 days) email sent to ${params.to}`
+  );
+}
+
+// Account Suspension Email (45 days)
+export async function sendAccountSuspension45DaysEmail(params: {
+  to: string;
+  userName: string;
+  suspensionReason: string;
+  suspensionEndDate: string;
+  appealUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.ACCOUNT_SUSPENSION_45_DAYS) {
+    console.warn('[email] SendGrid 45-day suspension template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Account Suspended', [
+      `Hi ${params.userName},`,
+      `Your account has been suspended for 45 days. Reason: ${params.suspensionReason}`,
+      `Suspension ends: ${params.suspensionEndDate}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ACCOUNT_SUSPENSION_45_DAYS,
+    params.to,
+    'Account Suspended',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      suspension_reason: params.suspensionReason,
+      suspension_end_date: params.suspensionEndDate,
+      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+    },
+    `Account suspension (45 days) email sent to ${params.to}`
+  );
+}
+
+// Permanent Ban Email
+export async function sendAccountPermanentBanEmail(params: {
+  to: string;
+  userName: string;
+  banReason: string;
+  appealUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.ACCOUNT_PERMANENT_BAN) {
+    console.warn('[email] SendGrid permanent ban template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Account Permanently Banned', [
+      `Hi ${params.userName},`,
+      `Your account has been permanently banned. Reason: ${params.banReason}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.ACCOUNT_PERMANENT_BAN,
+    params.to,
+    'Account Permanently Banned',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      ban_reason: params.banReason,
+      appeal_url: params.appealUrl || `${APP_BASE_URL}/support`,
+    },
+    `Account permanent ban email sent to ${params.to}`
+  );
+}
+
+// Login from New Device Email
+export async function sendLoginFromNewDeviceEmail(params: {
+  to: string;
+  userName: string;
+  deviceType: string;
+  deviceLocation?: string;
+  loginTime: string;
+  secureAccountUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.LOGIN_NEW_DEVICE) {
+    console.warn('[email] SendGrid login from new device template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Login from New Device', [
+      `Hi ${params.userName},`,
+      `We detected a login from a new device: ${params.deviceType}`,
+      `Time: ${params.loginTime}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.LOGIN_NEW_DEVICE,
+    params.to,
+    'Login from New Device',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      device_type: params.deviceType,
+      device_location: params.deviceLocation || 'Unknown location',
+      login_time: params.loginTime,
+      secure_account_url: params.secureAccountUrl || `${APP_BASE_URL}/settings/reset-password`,
+    },
+    `Login from new device email sent to ${params.to}`
+  );
+}
+
+// Event RSVP Confirmed Email
+export async function sendEventRsvpConfirmedEmail(params: {
+  to: string;
+  userName: string;
+  eventName: string;
+  eventDate: string;
+  eventTime?: string;
+  eventLocation?: string;
+  eventLink?: string;
+  calendarLink?: string;
+  cancelRsvpLink?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.EVENT_RSVP_CONFIRMED) {
+    console.warn('[email] SendGrid event RSVP confirmed template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'RSVP Confirmed', [
+      `Hi ${params.userName},`,
+      `You've RSVP'd to: ${params.eventName}`,
+      `Date: ${params.eventDate}`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.EVENT_RSVP_CONFIRMED,
+    params.to,
+    'RSVP Confirmed',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      event_name: params.eventName,
+      event_date: params.eventDate,
+      event_time: params.eventTime || '',
+      event_location: params.eventLocation || '',
+      event_detail_link: params.eventLink || `${APP_BASE_URL}/event-detail`,
+      calendar_link: params.calendarLink || `${APP_BASE_URL}/event-detail`,
+      cancel_rsvp_link: params.cancelRsvpLink || `${APP_BASE_URL}/event-detail`,
+    },
+    `Event RSVP confirmed email sent to ${params.to}`
+  );
+}
+
+// Payment Failed Email
+export async function sendPaymentFailedEmail(params: {
+  to: string;
+  userName: string;
+  amount: string;
+  paymentDate: string;
+  retryUrl?: string;
+  updatePaymentMethodUrl?: string;
+  supportUrl?: string;
+}): Promise<boolean> {
+  if (!TEMPLATE_IDS.PAYMENT_FAILED) {
+    console.warn('[email] SendGrid payment failed template not configured, using fallback');
+    return genericTemplateEmail(params.to, 'Payment Failed', [
+      `Hi ${params.userName},`,
+      `Payment of ${params.amount} failed on ${params.paymentDate}`,
+      `Please update your payment method.`,
+    ]);
+  }
+  
+  return sendTemplateEmail(
+    TEMPLATE_IDS.PAYMENT_FAILED,
+    params.to,
+    'Payment Failed',
+    {
+      ...getCommonTemplateData(),
+      user_name: params.userName,
+      amount: params.amount,
+      payment_date: params.paymentDate,
+      retry_url: params.retryUrl || `${APP_BASE_URL}/settings/manage-subscription`,
+      update_payment_method_url: params.updatePaymentMethodUrl || `${APP_BASE_URL}/settings/manage-subscription`,
+      support_url: params.supportUrl || `mailto:${CUSTOMER_SERVICE_EMAIL}`,
+    },
+    `Payment failed email sent to ${params.to}`
+  );
+}
+
 export async function sendEndOfDayTransactionReport(params: {
   to: string;
   report: {

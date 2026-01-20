@@ -254,7 +254,12 @@ const FeedCard = memo(
         if (perm.status !== 'granted') return;
         const uri = await captureRef(collageRef, { format: 'jpg', quality: 0.92 } as any);
         await MediaLibrary.saveToLibraryAsync(uri as any);
-      } catch {}
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[GameVerticalFeed] Failed to save collage:', error?.message || error);
+        }
+        // Non-critical - user can try again
+      }
     }, [post?.collage]);
 
     return (
@@ -696,7 +701,12 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         flatListRef.current?.scrollToIndex({ index: target, animated: false });
         setActiveIndex(target);
       });
-    } catch {}
+    } catch (error: any) {
+      if (__DEV__) {
+        console.warn('[GameVerticalFeed] Failed to load posts:', error?.message || error);
+      }
+      // Continue with existing posts
+    }
   }, [gameId, posts.length, startIndex, usingInitial]);
 
   const onEndReached = useCallback(() => {
@@ -856,7 +866,12 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
           try {
             const me: any = await User.me();
             setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
-          } catch {}
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
+            }
+            // Continue without user info
+          }
         }
         const res: any = await fetchCommentsPage(post.id);
         const items = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];

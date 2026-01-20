@@ -653,103 +653,179 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     console.warn('[teams][rookie-limit] check failed', e);
   }
   
-  // Validate organization_id if provided (fail fast if invalid)
-  if (data.organization_id) {
+  // CRITICAL: Team creation must associate an organization
+  // If organization_id not provided, create organization from team name
+  let organizationId = data.organization_id;
+  
+  if (!organizationId) {
+    // Auto-create organization if missing (fail fast on errors)
+    try {
+      const orgName = data.name; // Use team name as organization name
+      const normalizedOrgName = orgName.trim();
+      
+      // Check for duplicate organization
+      const possibleDuplicates = await prisma.organization.findMany({
+        where: {
+          name: { equals: normalizedOrgName, mode: 'insensitive' },
+          status: 'active'
+        },
+        select: { id: true, name: true }
+      });
+      
+      if (possibleDuplicates.length > 0) {
+        // Use existing organization
+        organizationId = possibleDuplicates[0].id;
+      } else {
+        // Create new organization
+        const newOrg = await prisma.organization.create({
+          data: {
+            name: normalizedOrgName,
+            description: data.description || undefined,
+            sport: data.sport || undefined,
+            org_type: 'club', // Default org type
+            location: data.city || data.venue_address || undefined,
+            zip_code: undefined, // Can be added later
+          }
+        });
+        organizationId = newOrg.id;
+        
+        // Add creator as organization owner
+        await prisma.organizationMembership.create({
+          data: {
+            organization_id: newOrg.id,
+            user_id: me.id,
+            role: 'owner'
+          }
+        });
+      }
+    } catch (orgError: any) {
+      console.error('[Teams] Failed to create/associate organization:', orgError);
+      return res.status(500).json({
+        error: 'Failed to create organization',
+        message: 'Unable to associate team with organization. Please try again.',
+        detail: orgError?.message || String(orgError)
+      });
+    }
+  } else {
+    // Validate organization_id if provided (fail fast if invalid)
     try {
       const orgExists = await prisma.organization.findUnique({
-        where: { id: data.organization_id },
+        where: { id: organizationId },
         select: { id: true, status: true }
       });
-      if (!orgExists) {
-        return res.status(400).json({
-          error: 'Invalid organization',
-          message: 'The specified organization does not exist.',
+      
+      if (!orgExists || orgExists.status !== 'active') {
+        return res.status(404).json({
+          error: 'Organization not found',
+          message: 'The specified organization does not exist or is not active.',
           code: 'ORGANIZATION_NOT_FOUND'
         });
       }
-      if (orgExists.status !== 'active') {
-        return res.status(400).json({
-          error: 'Inactive organization',
-          message: 'The specified organization is not active.',
-          code: 'ORGANIZATION_INACTIVE'
-        });
-      }
-    } catch (err) {
-      console.error('[Teams] Failed to verify organization:', err);
+    } catch (orgError: any) {
+      console.error('[Teams] Failed to validate organization:', orgError);
       return res.status(500).json({
-        error: 'Organization verification failed',
-        message: 'Unable to verify organization. Please try again or contact support.',
+        error: 'Failed to validate organization',
+        message: 'Unable to verify organization. Please try again.',
+        detail: orgError?.message || String(orgError)
       });
     }
   }
   
-  const team = await prisma.team.create({ 
-    data: {
-      name: data.name,
-      description: data.description,
-      sport: data.sport,
-      club_type: data.club_type || 'sport',
-      extracurricular_category: data.extracurricular_category,
-      season_start: data.season_start ? new Date(data.season_start) : null,
-      season_end: data.season_end ? new Date(data.season_end) : null,
-      organization_id: data.organization_id,
-      logo_url: data.logo_url,
-      city: data.city,
-      state: data.state,
-      league: data.league,
-      venue_place_id: data.venue_place_id,
-      venue_lat: data.venue_lat,
-      venue_lng: data.venue_lng,
-      venue_address: data.venue_address,
-      venue_updated_at: data.venue_place_id ? new Date() : null,
-    }
-  });
-  
-  // Add creator as owner
-  await prisma.teamMembership.create({ 
-    data: { 
-      team_id: team.id, 
-      user_id: me.id, 
-      role: 'owner' 
-    } 
-  });
-  
-  // Send invites to authorized users
-  if (data.authorized_users && data.authorized_users.length > 0) {
-    const invites = data.authorized_users
-      .filter(user => user.email)
-      .map(user => ({
-        team_id: team.id,
-        email: user.email!,
-        role: user.role || 'member',
-      }));
+  // Now create team with guaranteed organization_id
+  try {
+    const team = await prisma.team.create({
+      data: {
+        name: data.name.trim(),
+        description: data.description?.trim() || null,
+        sport: data.sport?.trim() || null,
+        club_type: data.club_type || 'sport',
+        extracurricular_category: data.extracurricular_category?.trim() || null,
+        season_start: data.season_start ? new Date(data.season_start) : null,
+        season_end: data.season_end ? new Date(data.season_end) : null,
+        organization_id: organizationId, // Now guaranteed to exist
+        logo_url: data.logo_url || null,
+        city: data.city?.trim() || null,
+        state: data.state?.trim() || null,
+        league: data.league?.trim() || null,
+        venue_place_id: data.venue_place_id || null,
+        venue_lat: data.venue_lat || null,
+        venue_lng: data.venue_lng || null,
+        venue_address: data.venue_address?.trim() || null,
+      }
+    });
     
-    if (invites.length > 0) {
-      await prisma.teamInvite.createMany({
-        data: invites,
-        skipDuplicates: true,
-      });
-        const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
-        await Promise.all(invites.map(async (inv) => {
+    // Create team membership (owner)
+    await prisma.teamMembership.create({
+      data: {
+        team_id: team.id,
+        user_id: me.id,
+        role: 'owner',
+        status: 'active'
+      }
+    });
+    
+    // Handle authorized users if provided
+    if (data.authorized_users && Array.isArray(data.authorized_users) && data.authorized_users.length > 0) {
+      try {
+        const invites = data.authorized_users
+          .filter(user => user.email)
+          .map(user => ({
+            team_id: team.id,
+            email: user.email!,
+            role: (user.role || 'member') as any,
+            invited_by: me.id,
+          }));
+        
+        if (invites.length > 0) {
+          await prisma.teamInvite.createMany({
+            data: invites,
+            skipDuplicates: true,
+          });
+          
+          // Send invite emails (non-blocking)
           try {
-            await sendTeamInviteEmail({
-              to: inv.email,
-              teamName: team.name,
-              organizationName: null,
-              role: inv.role,
-              inviterName: inviter?.display_name || 'Team Owner',
-              teamHeroUrl: team.logo_url || undefined,
-              teamLogoUrl: team.avatar_url || undefined,
-            });
-          } catch (error) {
-            console.warn('[Teams] Failed to send team invite email:', error);
-            // Continue - email failure shouldn't block team creation
+            const inviter = await prisma.user.findUnique({ where: { id: me.id }, select: { display_name: true } });
+            await Promise.all(invites.map(async (inv) => {
+              try {
+                await sendTeamInviteEmail({
+                  to: inv.email,
+                  teamName: team.name,
+                  organizationName: null,
+                  role: inv.role,
+                  inviterName: inviter?.display_name || 'Team Owner',
+                  teamHeroUrl: team.logo_url || undefined,
+                  teamLogoUrl: team.avatar_url || undefined,
+                });
+              } catch (error) {
+                console.warn('[Teams] Failed to send team invite email:', error);
+              }
+            }));
+          } catch (emailError) {
+            console.warn('[Teams] Failed to send invite emails (non-blocking):', emailError);
           }
-        }));
+        }
+      } catch (inviteError: any) {
+        console.warn('[Teams] Failed to create invites (non-blocking):', inviteError);
+        // Non-blocking - team is already created
+      }
     }
+    
+    return res.status(201).json({
+      ok: true,
+      team: {
+        id: team.id,
+        name: team.name,
+        organization_id: team.organization_id,
+      }
+    });
+  } catch (teamError: any) {
+    console.error('[Teams] Failed to create team:', teamError);
+    return res.status(500).json({
+      error: 'Failed to create team',
+      message: 'Unable to create team. Please try again.',
+      detail: teamError?.message || String(teamError)
+    });
   }
-  
-  return res.status(201).json(team);
 });
 
 // Invite user by email to a team

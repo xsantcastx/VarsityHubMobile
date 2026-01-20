@@ -257,7 +257,12 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch {}
+        } catch (error: any) {
+          if (__DEV__) {
+            console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+          }
+          // Continue with original URI if manipulation fails
+        }
       }
       setPicked({ uri, type: media, mime: mimeType });
     }
@@ -313,7 +318,12 @@ export default function CreatePostScreen() {
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
           );
           uri = result.uri;
-        } catch {}
+        } catch (error: any) {
+          if (__DEV__) {
+            console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+          }
+          // Continue with original URI if manipulation fails
+        }
       }
       setPicked({ uri, type: media, mime: mimeType });
     }

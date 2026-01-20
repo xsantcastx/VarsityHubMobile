@@ -58,7 +58,7 @@ function getBaseUrl(): string {
   return getApiBaseUrl();
 }
 
-async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000, retries: number = 0): Promise<any> {
+async function request(path: string, options: RequestInit = {}, timeoutMs: number = 30000, retries: number = 1): Promise<any> {
   const base = getBaseUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as any) };
   const token = getAuthToken();
@@ -176,7 +176,13 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     
     // Add more context to network errors with better retry logic
     if (error.message === 'Network request failed' || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
-      const err: any = new Error(`Cannot connect to server. Please check your internet connection and try again.`);
+      // Provide helpful error message if trying to connect to localhost
+      let errorMessage = `Cannot connect to server. Please check your internet connection and try again.`;
+      if (base.includes('127.0.0.1') || base.includes('localhost')) {
+        errorMessage = `Cannot connect to local server at ${base}. Make sure the server is running with "npm run server:dev", or configure EXPO_PUBLIC_API_URL to use the production server.`;
+      }
+      
+      const err: any = new Error(errorMessage);
       err.originalError = error;
       err.status = 0;
       err.isNetworkError = true;
@@ -198,18 +204,20 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   }
 }
 
-export function httpGet(path: string, options: RequestInit = {}) {
+export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number) {
   // Allow 2 retries for GET requests (helps with rate limits and network errors)
-  return request(path, { ...options, method: 'GET' }, 30000, 2);
+  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, 2);
 }
 // Default POST with moderate timeout
 export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 1); }
 // Long-timeout POST for heavy endpoints like register/reset
 export function httpPostLongTimeout(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000, 1); }
-export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }); }
-export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }); }
+// PUT/PATCH/DELETE should NOT retry - they are state-changing operations
+// Retrying could cause duplicate updates or delete operations on already-deleted resources
+export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0); }
+export function httpPatch(path: string, body?: any) { return request(path, { method: 'PATCH', body: JSON.stringify(body || {}) }, 15000, 0); }
 export function httpDelete(path: string, body?: any) {
   const payload = typeof body === 'undefined' ? undefined : JSON.stringify(body);
   const options: RequestInit = payload ? { method: 'DELETE', body: payload } : { method: 'DELETE' };
-  return request(path, options);
+  return request(path, options, 15000, 0);
 }

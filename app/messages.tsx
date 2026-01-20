@@ -73,7 +73,12 @@ export default function MessagesScreen() {
       try {
         const u = await User.me();
         setMe(u);
-      } catch {}
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[Messages] Failed to load user:', error?.message || error);
+        }
+        // Continue without user data
+      }
 
       const result: UIMsg[] | { _isNotModified: boolean } = await (Message.list
         ? Message.list('-created_at', 50)

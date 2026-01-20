@@ -1158,6 +1158,8 @@ const styles = StyleSheet.create({
     zIndex: 99999, // Highest z-index to ensure avatar is always on top
     elevation: 99999, // Highest elevation for Android
     position: 'relative',
+    marginRight: 0, // Ensure no right margin pushes text
+    flexShrink: 0, // Prevent avatar from shrinking
   },
   avatarContainer: {
     position: 'relative',
@@ -1201,10 +1203,14 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
     marginBottom: 0, // Removed margin to close gap
+    flexShrink: 1, // Allow wrapping if needed
   },
   userInfo: {
     flex: 1,
     paddingBottom: 0, // Removed padding to close gap
+    minWidth: 0, // Allow flex to work properly
+    marginLeft: 8, // Ensure spacing from avatar
+    paddingRight: 8, // Prevent text from touching screen edge
   },
   userName: {
     fontSize: 22,
@@ -1213,6 +1219,8 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    flexShrink: 1, // Allow text to shrink if needed
+    maxWidth: '100%', // Prevent overflow
   },
   editButtonBelowBanner: {
     paddingHorizontal: 16,

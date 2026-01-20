@@ -469,12 +469,12 @@ const appConfig = getConfig();
                             const v = String(val || '').trim();
                             if (v !== 'DELETE') { Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.'); return; }
                             try {
-                              const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
-                              const ok = res.ok;
-                              if (!ok) throw new Error('Failed');
+                              // Use API client instead of direct fetch
+                              const { httpDelete } = await import('@/api/http');
+                              await httpDelete('/users/me');
                             } catch (error: any) {
                               console.error('[settings] Account deletion failed:', error);
-                              Alert.alert('Delete failed', 'Could not delete your account.');
+                              Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
                               return;
                             }
                             try { 
@@ -493,11 +493,11 @@ const appConfig = getConfig();
                             { text: 'Confirm', style: 'destructive', onPress: async () => {
                               // Simple confirm-only for Android fallback
                               try {
-                                const res = await fetch(`${appConfig.apiUrl}/users/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${(await (await import('@/api/auth')).loadToken()) || ''}` } as any });
-                                if (!res.ok) throw new Error('Failed');
+                                const { httpDelete } = await import('@/api/http');
+                                await httpDelete('/users/me');
                               } catch (error: any) {
                                 console.error('[settings] Account deletion failed (Android):', error);
-                                Alert.alert('Delete failed', 'Could not delete your account.');
+                                Alert.alert('Delete failed', error?.message || 'Could not delete your account.');
                                 return;
                               }
                               try { 

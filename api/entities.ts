@@ -438,12 +438,19 @@ export const Notification = {
       if (cursor) params.push('cursor=' + encodeURIComponent(cursor));
       if (unreadOnly) params.push('unread=1');
       const qs = params.length ? '?' + params.join('&') : '';
-      return await httpGet('/notifications' + qs);
+      // Use shorter timeout for notification polling (10 seconds)
+      const timeout = limit === 1 && unreadOnly ? 10000 : 30000;
+      return await httpGet('/notifications' + qs, {}, timeout);
     } catch (error: any) {
       // If unauthorized (not logged in), return empty page
       if (error?.message?.includes('Unauthorized') || error?.status === 401) {
         console.log('[Notification.listPage] Not authenticated, returning empty results');
-        return { items: [], cursor: null };
+        return { items: [], cursor: null, nextCursor: null };
+      }
+      // If timeout or network error, return empty page for polling requests
+      if (limit === 1 && unreadOnly && (error?.message?.includes('timeout') || error?.message?.includes('Aborted'))) {
+        if (__DEV__) console.warn('[Notification.listPage] Poll timeout, returning empty results');
+        return { items: [], cursor: null, nextCursor: null };
       }
       throw error;
     }

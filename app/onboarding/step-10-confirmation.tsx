@@ -159,7 +159,12 @@ export default function Step10Confirmation() {
             // eslint-disable-next-line no-console
             // Merge server prefs into onboarding state if present
             if (me?.preferences) setOB((prev) => ({ ...(prev || {}), ...(me.preferences || {}) } as any));
-          } catch {}
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[OnboardingStep10] Failed to load user preferences:', error?.message || error);
+            }
+            // Continue without merging preferences
+          }
       } catch (e) {
         // best-effort; continue to complete onboarding
         // eslint-disable-next-line no-console

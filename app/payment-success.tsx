@@ -35,6 +35,22 @@ export default function PaymentSuccessScreen() {
     const verifyPayment = async () => {
       try {
         setLastVerificationAt(new Date());
+        
+        // Validate session_id format (Stripe session IDs start with 'cs_' or 'sess_')
+        if (params.session_id) {
+          const sessionId = params.session_id.trim();
+          if (!sessionId || (!sessionId.startsWith('cs_') && !sessionId.startsWith('sess_'))) {
+            setError('Invalid payment session. Please contact support if you completed payment.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Missing session_id - show error with recovery options
+          setError('Payment session information is missing. If you completed payment, please contact support.');
+          setLoading(false);
+          return;
+        }
+        
         if (params.session_id) {
           // For ad payments, manually finalize the session
           if (isAdPayment) {

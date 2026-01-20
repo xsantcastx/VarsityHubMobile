@@ -19,8 +19,7 @@
         "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
-        "resourceClass": "m-medium",
-        "appleTeamId": null
+        "resourceClass": "m-medium"
       },
       "android": {
         "resourceClass": "medium"
@@ -39,8 +38,7 @@
         "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0"
       },
       "ios": {
-        "resourceClass": "m-medium",
-        "appleTeamId": null
+        "resourceClass": "m-medium"
       },
       "android": {
         "resourceClass": "medium"
@@ -63,8 +61,7 @@
         "SENTRY_ALLOW_FAILURE": "true"
       },
       "ios": {
-        "resourceClass": "m-medium",
-        "appleTeamId": null
+        "resourceClass": "m-medium"
       },
       "android": {
         "resourceClass": "medium"

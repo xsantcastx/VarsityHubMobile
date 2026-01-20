@@ -379,10 +379,19 @@ export default function FeedScreen() {
       // Check for unread notifications when feed gains focus
       void (async () => {
         try {
-          const page = await NotificationApi.listPage(null, 1, true);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Notification check timeout')), 10000)
+          );
+          const page = await Promise.race([
+            NotificationApi.listPage(null, 1, true),
+            timeoutPromise
+          ]) as any;
           setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-        } catch {
-          // ignore notification poll errors
+        } catch (err: any) {
+          // ignore notification poll errors, but log in dev
+          if (__DEV__ && err?.message !== 'Notification check timeout') {
+            console.warn('[Feed] Notification check error:', err?.message);
+          }
         }
       })();
     }, [load]),
@@ -393,14 +402,24 @@ export default function FeedScreen() {
     let mounted = true;
     const tick = async () => {
       try {
-        const page = await NotificationApi.listPage(null, 1, true);
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Notification poll timeout')), 10000)
+        );
+        const page = await Promise.race([
+          NotificationApi.listPage(null, 1, true),
+          timeoutPromise
+        ]) as any;
         if (!mounted) return;
         setHasUnreadAlerts(Array.isArray(page.items) && page.items.length > 0);
-      } catch {
-        // ignore notification poll errors
+      } catch (err: any) {
+        // ignore notification poll errors, but log in dev
+        if (__DEV__ && err?.message !== 'Notification poll timeout') {
+          console.warn('[Feed] Notification poll error:', err?.message);
+        }
       }
     };
-    const id = setInterval(tick, 30000); // ~30s
+    const id = setInterval(tick, 60000); // Poll every 60 seconds (reduced frequency to prevent timeouts)
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
@@ -671,7 +690,7 @@ export default function FeedScreen() {
       )}
       {/* Maps Button - Navigate to nearby games/teams/events */}
       <Pressable 
-        style={[styles.mapsButton, { backgroundColor: Colors[colorScheme].tint }]}
+        style={[styles.mapsButton, { backgroundColor: '#0A84FF' }]}
         onPress={async () => {
           // Get user's current location and navigate to game map view
           try {
@@ -699,9 +718,9 @@ export default function FeedScreen() {
         accessibilityRole="button"
         accessibilityLabel="View nearby games on map"
       >
-        <Ionicons name="map" size={24} color={Colors[colorScheme].tint} />
-        <Text style={[styles.mapsButtonText, { color: Colors[colorScheme].text }]}>View Nearby Games on Map</Text>
-        <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].tint} />
+        <Ionicons name="map" size={24} color="#FFFFFF" />
+        <Text style={styles.mapsButtonText}>View Nearby Games on Map</Text>
+        <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
       </Pressable>
 
       <Text style={[styles.helper, { color: Colors[colorScheme].mutedText }]}>Showing upcoming and recent games in your area.</Text>

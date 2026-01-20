@@ -1,15 +1,16 @@
 import expressPkg, { Router } from 'express';
 import Stripe from 'stripe';
+import { debugLog } from '../lib/debugLog.js';
 import { sendBillingNoticeEmail } from '../lib/email.js';
+import { getMaxTeamsForPlan } from '../lib/planLimits.js';
 import { prisma } from '../lib/prisma.js';
 import { previewPromo, redeemPromo } from '../lib/promos.js';
+import { captureException } from '../lib/sentry.js';
 import { calculateSalesTax } from '../lib/taxCalculator.js';
 import { calculateStripeFee, getTransactionBySession, logTransaction, updateTransactionStatus } from '../lib/transactionLogger.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
-import { captureException } from '../lib/sentry.js';
-import { getMaxTeamsForPlan } from '../lib/planLimits.js';
+import { calculateAdPriceCents } from '../utils/adPricing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -92,29 +93,9 @@ async function sendSubscriptionEmail({
   }
 }
 
-function calculatePriceCents(isoDates: string[]): number {
-  if (!isoDates.length) return 0;
-  
-  // Weekly slot pricing: $8/week (Mon-Thu slot), $10/week (Fri-Sun slot)
-  const weekdayPrice = 800; // $8.00 per week in cents
-  const weekendPrice = 1000; // $10.00 per week in cents
-  let total = 0;
-  
-  for (const s of isoDates) {
-    const d = new Date(s + 'T00:00:00');
-    const day = d.getDay(); // 0 Sun .. 6 Sat
-    
-    // Mon=1, Tue=2, Wed=3, Thu=4 are weekdays
-    // Fri=5, Sat=6, Sun=0 are weekend
-    if (day >= 1 && day <= 4) {
-      total += weekdayPrice;
-    } else {
-      total += weekendPrice;
-    }
-  }
-  
-  return total;
-}
+// Ad pricing now uses the shared helper from utils/adPricing.ts
+// This ensures consistent pricing calculation ($5 weekday, $8 weekend per week block)
+// and proper week-block grouping (multiple dates in same week = single charge)
 
 const membershipPlans = ['veteran', 'legend'] as const;
 type MembershipPlan = typeof membershipPlans[number];
@@ -305,7 +286,10 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
 
   // No global conflicts: allow multiple ads on the same date.
 
-  const subtotal = calculatePriceCents(isoDates);
+  // Use shared ad pricing helper for consistent calculation
+  // Groups dates into week blocks: $5/week for Mon-Thu, $8/week for Fri-Sun
+  const pricingResult = calculateAdPriceCents(isoDates);
+  const subtotal = pricingResult.totalCents;
   if (subtotal <= 0) return res.status(400).json({ error: 'Invalid amount' });
 
   // Calculate sales tax based on ad's target zip code
@@ -347,12 +331,42 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
   const success = `${appScheme}://payment-success?session_id={CHECKOUT_SESSION_ID}&type=ad`;
   const cancel = `${appScheme}://payment-cancel`;
 
-  const session = await stripe.checkout.sessions.create(({
-    mode: 'payment',
-    success_url: success,
-    cancel_url: cancel,
-    line_items: [
-      {
+  // Check if Stripe Price IDs are configured for ads (optional, fallback to price_data)
+  const weekdayPriceId = process.env.STRIPE_PRICE_AD_WEEKDAY?.trim() || '';
+  const weekendPriceId = process.env.STRIPE_PRICE_AD_WEEKEND?.trim() || '';
+  const hasPriceIds = weekdayPriceId && weekendPriceId && 
+                      /^price_/.test(weekdayPriceId) && /^price_/.test(weekendPriceId);
+
+  // CRITICAL: When using Price IDs, Stripe doesn't automatically add tax/discount
+  // If tax or discount exists, we must use price_data to include them in the total
+  // Otherwise we'd underbill by charging only base price without tax/discount
+  const hasTaxOrDiscount = taxCents > 0 || discount > 0;
+
+  let lineItems: any[] = [];
+
+  if (hasPriceIds && !hasTaxOrDiscount) {
+    // Use Stripe Price IDs when available AND no tax/discount (can't add tax/discount to Price IDs easily)
+    debugLog('[payments] Using Stripe Price IDs for ad checkout', {
+      weekdayBlocks: pricingResult.weekdayBlocks,
+      weekendBlocks: pricingResult.weekendBlocks,
+      tax: taxCents,
+      discount,
+    });
+    lineItems = [
+      ...(pricingResult.weekdayBlocks > 0 ? [{
+        price: weekdayPriceId,
+        quantity: pricingResult.weekdayBlocks,
+      }] : []),
+      ...(pricingResult.weekendBlocks > 0 ? [{
+        price: weekendPriceId,
+        quantity: pricingResult.weekendBlocks,
+      }] : []),
+    ];
+    
+    // If no blocks selected (shouldn't happen, but defensive), fall back to price_data
+    if (lineItems.length === 0) {
+      debugLog('[payments] No blocks found, falling back to price_data');
+      lineItems = [{
         quantity: 1,
         price_data: {
           currency: 'usd',
@@ -362,8 +376,41 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
             description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}`,
           },
         },
+      }];
+    }
+  } else {
+    // Use dynamic price_data when:
+    // - Price IDs not configured, OR
+    // - Tax or discount exists (Price IDs can't easily include tax/discount)
+    if (hasTaxOrDiscount && hasPriceIds) {
+      debugLog('[payments] Tax/discount detected - using price_data instead of Price IDs to include tax/discount in total', {
+        tax: taxCents,
+        discount,
+        total,
+        subtotal,
+      });
+    } else {
+      debugLog('[payments] Using dynamic price_data for ad checkout (Price IDs not configured)');
+    }
+    
+    lineItems = [{
+      quantity: 1,
+      price_data: {
+        currency: 'usd',
+        unit_amount: total, // Total includes tax and discount already calculated
+        product_data: {
+          name: 'Ad Reservation',
+          description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
+        },
       },
-    ] as any,
+    }];
+  }
+
+  const sessionConfig: Stripe.Checkout.SessionCreateParams = {
+    mode: 'payment',
+    success_url: success,
+    cancel_url: cancel,
+    line_items: lineItems as any,
     // Useful metadata for webhook
     metadata: {
       ad_id: String(ad_id),
@@ -373,8 +420,20 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
       tax_cents: String(taxCents),
       promo_code: appliedCode || '',
       discount_cents: String(discount || 0),
+      weekday_blocks: String(pricingResult.weekdayBlocks),
+      weekend_blocks: String(pricingResult.weekendBlocks),
     },
-  } as Stripe.Checkout.SessionCreateParams));
+  };
+
+  // If using Price IDs and there's a tax, we can't easily add it to Price ID line items
+  // Stripe's automatic_tax feature could be used if enabled, but for now we fall back to price_data
+  // This is already handled above (hasTaxOrDiscount check)
+  
+  // Note: If Stripe automatic tax is enabled in your Stripe account, you could set:
+  // sessionConfig.automatic_tax = { enabled: true };
+  // This would calculate and add tax automatically for Price IDs
+
+  const session = await stripe.checkout.sessions.create(sessionConfig);
 
   // Log transaction
   const currentUser = await prisma.user.findUnique({ 

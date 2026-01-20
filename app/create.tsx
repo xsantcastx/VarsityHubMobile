@@ -11,7 +11,21 @@ export default function CreateScreen() {
   const colorScheme = useColorScheme();
   const [me, setMe] = useState<any>(null);
   const verified = !!me?.email_verified;
-  useEffect(() => { void (async () => { try { const u = await User.me(); setMe(u); } catch {} })(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const u = await User.me();
+        if (mounted) setMe(u);
+      } catch (error: any) {
+        if (__DEV__) {
+          console.warn('[CreateScreen] Failed to load user:', error?.message || error);
+        }
+        // Silently fail - user can still use create screen
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
   const go = (path: string) => {
     if (!verified) return router.push('/verify-identity?method=email');
     router.push(path as any);
