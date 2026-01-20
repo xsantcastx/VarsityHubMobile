@@ -43,8 +43,7 @@ export default function AdminActivityLogScreen() {
       
       // Use API client instead of direct fetch
       const { httpGet } = await import('@/api/http');
-      try {
-        const data = await httpGet(`/admin/activity-log?${params}`);
+      const data = await httpGet(`/admin/activity-log?${params}`);
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e?.message || 'Failed to load activity log');

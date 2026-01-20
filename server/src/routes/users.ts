@@ -15,14 +15,14 @@ usersRouter.get('/', requireAdmin as any, async (req, res) => {
   const where: any = {};
   if (q) where.OR = [
     { email: { contains: q, mode: 'insensitive' } },
-    { display_name: { contains: q, mode: 'insensitive' } },
+    { username: { contains: q, mode: 'insensitive' } }, // Search by username only
   ];
   if (banned) where.banned = true;
   const rows = await prisma.user.findMany({
     where,
     take: limit,
     orderBy: { created_at: 'desc' },
-    select: { id: true, email: true, display_name: true, email_verified: true, banned: true, created_at: true },
+    select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true },
   });
   return res.json(rows);
 });
@@ -43,7 +43,7 @@ usersRouter.post('/:id/unban', requireAdmin as any, async (req, res) => {
 // Full user detail with ads and their reservation dates (admin only)
 usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true, email_verified: true, banned: true, created_at: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true, email_verified: true, banned: true, created_at: true } });
   if (!user) return res.status(404).json({ error: 'Not found' });
   const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
   const adIds = ads.map(a => a.id);
@@ -60,7 +60,7 @@ usersRouter.get('/:id/full', requireAdmin as any, async (req, res) => {
 // CSV export of user's ads and reservations
 usersRouter.get('/:id/export', requireAdmin as any, async (req, res) => {
   const id = String(req.params.id);
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, display_name: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, username: true } });
   if (!user) return res.status(404).send('Not found');
   const ads = await prisma.ad.findMany({ where: { user_id: id }, orderBy: { created_at: 'desc' } });
   const adIds = ads.map(a => a.id);
@@ -117,7 +117,7 @@ function mapPostForPayload(post: any) {
     bookmarks_count: post._count?.bookmarks ?? 0,
     created_at: post.created_at instanceof Date ? post.created_at.toISOString() : post.created_at,
     author: post.author
-      ? { id: post.author.id, display_name: post.author.display_name, avatar_url: post.author.avatar_url }
+      ? { id: post.author.id, username: post.author.username, avatar_url: post.author.avatar_url }
       : null,
   };
 }
@@ -135,7 +135,7 @@ usersRouter.get('/:id/posts', async (req, res) => {
     take: limit + 1,
     orderBy,
     include: {
-      author: { select: { id: true, display_name: true, avatar_url: true } },
+      author: { select: { id: true, username: true, avatar_url: true } },
       _count: { select: { comments: true, bookmarks: true } },
     },
   };
@@ -479,8 +479,6 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
           OR: [
             // Search by username
             { username: { contains: query, mode: 'insensitive' } },
-            // Search by display name
-            { display_name: { contains: query, mode: 'insensitive' } },
             // Search by email (for team invites)
             { email: { contains: query, mode: 'insensitive' } }
           ]

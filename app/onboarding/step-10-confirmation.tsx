@@ -51,7 +51,7 @@ export default function Step10Confirmation() {
       },
       {
         label: 'Basic Info',
-        completed: !!(ob.display_name && ob.dob && (ob.zip || ob.zip_code)),
+        completed: !!(ob.username && ob.dob && (ob.zip || ob.zip_code)),
         required: true,
         route: '/onboarding/step-2-basic',
         description: 'Set username, date of birth, and location'
@@ -144,11 +144,28 @@ export default function Step10Confirmation() {
       // Debug: log final payload
       try { // eslint-disable-next-line no-console
       } catch {}
-      // Ensure basic preferences (role etc.) persisted before finalizing onboarding
+      // CRITICAL: Ensure role is persisted before finalizing onboarding
+      // This is a safety net in case step-1 didn't save it properly
       try {
         const prefsPatch: any = {};
-        if (ob.role) prefsPatch.role = ob.role;
-        if (ob.display_name) prefsPatch.display_name = ob.display_name;
+        // Role is REQUIRED - must be set before completing onboarding
+        if (ob.role) {
+          prefsPatch.role = ob.role;
+        } else {
+          // If role is missing from onboarding state, fetch from server
+          try {
+            const me: any = await User.me();
+            if (me?.preferences?.role) {
+              prefsPatch.role = me.preferences.role;
+              setOB((prev) => ({ ...prev, role: me.preferences.role }));
+            } else {
+              throw new Error('Role not set. Please go back to step 1 and select your role.');
+            }
+          } catch (fetchErr: any) {
+            throw new Error('Failed to verify role. Please go back to step 1 and select your role.');
+          }
+        }
+        // Username is saved directly to user.username, not preferences
         if (ob.dob) prefsPatch.dob = ob.dob;
         if (typeof ob.zip_code !== 'undefined') prefsPatch.zip_code = ob.zip_code;
         if (Object.keys(prefsPatch).length > 0) {
@@ -173,11 +190,15 @@ export default function Step10Confirmation() {
       
       // Send complete onboarding state - all fields
       // IMPORTANT: Fans should NOT have plans
+      // CRITICAL: Role MUST be included - fail if missing
+      if (!ob.role) {
+        throw new Error('Role is required. Please go back to step 1 and select your role (Fan or Coach).');
+      }
+      
       const completionPayload = {
         // Core identity fields
-        role: ob.role,
-        username: ob.username,
-        display_name: ob.display_name,
+        role: ob.role, // REQUIRED - must be 'fan' or 'coach'
+        username: ob.username, // Only username (with @) - no display_name
         affiliation: ob.affiliation,
         dob: ob.dob,
         zip: ob.zip,

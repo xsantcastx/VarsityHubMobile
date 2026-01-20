@@ -36,8 +36,7 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Profile fields
-  const [displayName, setDisplayName] = useState('');
+  // Profile fields - username is edited separately via /settings/edit-username
   const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
@@ -71,6 +70,7 @@ export default function EditProfileScreen() {
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
+  const [me, setMe] = useState<any>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
   const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -134,25 +134,25 @@ export default function EditProfileScreen() {
         prefs?.team_roles,
         prefs?.memberships,
         prefs?.teams,
-        me?.team_roles,
-        me?.teams,
-        me?.memberships,
-        me?.team_memberships,
+        userData?.team_roles,
+        userData?.teams,
+        userData?.memberships,
+        userData?.team_memberships,
       ];
       const membershipHints = [
         prefs?.team_role,
         prefs?.team_id,
         prefs?.primary_team_id,
-        me?.team_role,
-        me?.team_id,
-        me?.primary_team_id,
+        userData?.team_role,
+        userData?.team_id,
+        userData?.primary_team_id,
       ];
       const detectedMembership =
         membershipArrays.some((value) => Array.isArray(value) && value.length > 0) ||
         membershipHints.some((value) => Boolean(value));
       setHasTeamMembership(detectedMembership);
 
-      let derivedRole = prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
+      let derivedRole = prefs?.role || userData?.role || userData?.user_role || userData?.initial_role_selection || null;
       if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
         derivedRole = 'team_member';
       }
@@ -366,16 +366,11 @@ export default function EditProfileScreen() {
   }), [headerImageUrl, headerImageOffset, headerImageAnimatedOffset]);
 
   const onSave = async () => {
-    if (!displayName.trim()) {
-      Alert.alert('Error', 'Display name is required.');
-      return;
-    }
-    
     setSaving(true);
     try {
       // Prepare data for server - split into direct fields and preferences
+      // Username is edited separately via /settings/edit-username
       const directFields: any = {
-        display_name: displayName.trim(),
         bio: bio.trim() || undefined,
       };
 
@@ -638,19 +633,29 @@ export default function EditProfileScreen() {
                 {' '}Basic Information
               </Text>
               
+              {/* Username is edited via Settings > Edit Username */}
               <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Display Name *</Text>
-                <Input 
-                  value={displayName} 
-                  onChangeText={setDisplayName} 
-                  placeholder="How you want to appear to others" 
-                  placeholderTextColor={Colors[colorScheme].mutedText}
+                <Text style={[styles.label, { color: Colors[colorScheme].mutedText }]}>Username</Text>
+                <Pressable 
+                  onPress={() => router.push('/settings/edit-username')}
                   style={[styles.input, { 
                     borderColor: Colors[colorScheme].border,
                     backgroundColor: Colors[colorScheme].surface,
-                    color: Colors[colorScheme].text,
-                  }]} 
-                />
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 12,
+                    minHeight: 44,
+                  }]}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    @{(me as any)?.username || 'not set'}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={20} color={Colors[colorScheme].mutedText} />
+                </Pressable>
+                <Text style={[styles.hint, { color: Colors[colorScheme].mutedText, marginTop: 4, fontSize: 12 }]}>
+                  Tap to edit your username
+                </Text>
               </View>
 
               <View style={styles.fieldGroup}>

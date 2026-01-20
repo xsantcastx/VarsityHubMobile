@@ -137,7 +137,23 @@ export default function Step1Role() {
   }, [user, router]);
 
   useEffect(() => {
-    if (ob.role) setRole(ob.role);
+    // Load role from onboarding state if available
+    if (ob.role) {
+      setRole(ob.role);
+    } else {
+      // If not in onboarding state, check server preferences
+      void (async () => {
+        try {
+          const me: any = await User.me();
+          if (me?.preferences?.role && (me.preferences.role === 'fan' || me.preferences.role === 'coach')) {
+            setRole(me.preferences.role);
+            setOB((prev) => ({ ...prev, role: me.preferences.role }));
+          }
+        } catch {
+          // ignore - user will select role
+        }
+      })();
+    }
   }, [ob.role]);
 
   // Check email verification status on mount and when screen focuses

@@ -61,11 +61,17 @@ export default function CreateScreen() {
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-post?type=highlight')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Share Highlight</Text>
         </Pressable>
-        <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
-        </Pressable>
+        {/* Team creation - COACH ONLY */}
+        {me?.preferences?.role === 'coach' && (
+          <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-team')}>
+            <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Team</Text>
+          </Pressable>
+        )}
+        {/* Event creation - ALL USERS (fans pitch, coaches auto-approve) */}
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/create-fan-event')}>
-          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Create Event</Text>
+          <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>
+            {me?.preferences?.role === 'coach' ? 'Create Event' : 'Pitch Event'}
+          </Text>
         </Pressable>
         <Pressable style={[styles.item, { borderColor: Colors[colorScheme].border }]} onPress={() => go('/submit-ad')}>
           <Text style={[styles.itemText, { color: Colors[colorScheme].text }]}>Submit Ad</Text>

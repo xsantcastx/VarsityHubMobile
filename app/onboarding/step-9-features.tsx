@@ -138,7 +138,7 @@ export default function Step9Features() {
         // Only add fields that exist in onboarding state
         if (ob.role) payload.role = ob.role;
         if (ob.username) payload.username = ob.username;
-        if (ob.display_name) payload.display_name = ob.display_name;
+        // Username is saved separately, not in this payload
         if (ob.dob) payload.dob = ob.dob;
         if (ob.zip) payload.zip = ob.zip;
         if (ob.zip_code) payload.zip_code = ob.zip_code;

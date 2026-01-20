@@ -266,8 +266,8 @@ export default function PostDetailScreen() {
     if (post?.game?.home_team && post?.game?.away_team) {
       lines.push(`${post.game.home_team} vs ${post.game.away_team}`);
     }
-    if (post?.author?.display_name) {
-      lines.push(`Posted by ${post.author.display_name}`);
+    if (post?.author?.username) {
+      lines.push(`Posted by @${post.author.username}`);
     }
     return lines;
   }, [post]);
@@ -791,7 +791,7 @@ export default function PostDetailScreen() {
                       )}
                       <View style={styles.commentAuthorInfo}>
                         <Text style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}>
-                          {c.author?.display_name || 'User'}
+                          {c.author?.username ? `@${c.author.username}` : c.author?.display_name ? `@${c.author.display_name}` : 'User'}
                         </Text>
                         <Text style={[styles.commentDate, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(c.created_at)}</Text>
                       </View>

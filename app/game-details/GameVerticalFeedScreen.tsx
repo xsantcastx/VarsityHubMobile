@@ -57,7 +57,7 @@ export type FeedPost = {
   comments_count: number;
   bookmarks_count: number;
   created_at: string | null;
-  author: { id: string; display_name: string | null; avatar_url: string | null } | null;
+  author: { id: string; username: string | null; avatar_url: string | null } | null;
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
@@ -70,7 +70,7 @@ export type FeedPost = {
 type CommentItem = {
   id: string;
   content: string;
-  author?: { display_name?: string | null } | null;
+  author?: { username?: string | null } | null;
   created_at?: string | null;
   optimistic?: boolean;
 };
@@ -98,7 +98,7 @@ export const mapHighlightToFeedPost = (item: any): FeedPost | null => {
     created_at: item?.created_at ?? null,
     author: item?.author ? {
       id: String(item.author.id ?? item.author.user_id ?? id),
-      display_name: item.author.display_name ?? item.author.name ?? null,
+      username: item.author.username ?? item.author.display_name ?? null,
       avatar_url: item.author.avatar_url ?? item.author.avatarUrl ?? null,
     } : null,
     has_upvoted: Boolean(item?.has_upvoted),
@@ -245,7 +245,7 @@ const FeedCard = memo(
       lastTapRef.current = now;
     };
 
-    const authorLabel = post.author?.display_name || 'Anonymous';
+    const authorLabel = post.author?.username ? `@${post.author.username}` : 'Anonymous';
 
     const onLongPressExport = useCallback(async () => {
       if (!post?.collage) return;
@@ -865,7 +865,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!meInfo) {
           try {
             const me: any = await User.me();
-            setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
+            setMeInfo({ id: me?.id ? String(me.id) : undefined, username: me?.username ?? null });
           } catch (error: any) {
             if (__DEV__) {
               console.warn('[GameVerticalFeed] Failed to load user:', error?.message || error);
@@ -908,7 +908,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       content: commentInput,
       optimistic: true,
       created_at: new Date().toISOString(),
-  author: { display_name: (meInfo?.display_name || meInfo?.username || 'You') as any },
+  author: { username: (meInfo?.username || 'you') as any },
     };
     setComments((prev) => [optimistic, ...prev]);
     setCommentInput('');
@@ -916,7 +916,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
     try {
       const res: any = await Post.addComment(commentTarget.id, optimistic.content);
       const withAuthor = res && typeof res === 'object'
-        ? { ...res, author: { display_name: res?.author?.display_name ?? (meInfo?.display_name || meInfo?.username || 'You') } }
+        ? { ...res, author: { username: res?.author?.username ?? (meInfo?.username || 'you') } }
         : res;
       setComments((prev) => [withAuthor, ...prev.filter((c) => !c.optimistic)]);
       updatePost(commentTarget.id, (p) => ({ ...p, comments_count: p.comments_count + 1 }));
@@ -1064,7 +1064,9 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
                 <View style={[styles.commentRow, { borderBottomColor: Colors[colorScheme].border }]}>
-                  <Text style={[styles.commentAuthor, { color: Colors[colorScheme].text }]}>{item.author?.display_name || (item.optimistic ? (meInfo?.display_name || meInfo?.username || 'You') : 'Anonymous')}</Text>
+                  <Text style={[styles.commentAuthor, { color: Colors[colorScheme].text }]}>
+                    {item.author?.username ? `@${item.author.username}` : (item.optimistic ? (meInfo?.username ? `@${meInfo.username}` : 'You') : 'Anonymous')}
+                  </Text>
                   <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>{item.content}</Text>
                   {item.created_at ? <Text style={[styles.commentTimestamp, { color: Colors[colorScheme].mutedText }]}>{new Date(item.created_at).toLocaleString()}</Text> : null}
                 </View>

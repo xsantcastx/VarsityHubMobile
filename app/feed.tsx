@@ -572,8 +572,8 @@ export default function FeedScreen() {
   const verticalFeedSubtitleText = highlightPreview?.title
     ? `Featured: ${highlightPreview.title}`
     : 'Tap to watch top plays from every game.';
-  const verticalFeedAuthorText = highlightPreview?.author?.display_name
-    ? `By ${highlightPreview.author.display_name}`
+  const verticalFeedAuthorText = highlightPreview?.author?.username
+    ? `By @${highlightPreview.author.username}`
     : null;
 
   const openInstagram = useCallback(async () => {
@@ -1117,13 +1117,13 @@ export default function FeedScreen() {
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => {
                       const title = item.type === 'FOLLOW'
-                        ? `${item.actor?.display_name || 'Someone'} followed you`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} followed you`
                         : item.type === 'UPVOTE'
-                        ? `${item.actor?.display_name || 'Someone'} upvoted your post`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} upvoted your post`
                         : item.type === 'COMMENT'
-                        ? `${item.actor?.display_name || 'Someone'} commented on your post`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} commented on your post`
                         : item.type === 'TEAM_INVITE'
-                        ? `${item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
+                        ? `${item.actor?.username ? `@${item.actor.username}` : item.actor?.display_name || 'Someone'} invited you to join ${item.meta?.team_name || 'a team'}`
                         : 'Notification';
                       
                       return (

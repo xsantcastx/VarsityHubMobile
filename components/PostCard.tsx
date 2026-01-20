@@ -165,7 +165,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         <View style={styles.authorRow}>
           <Pressable
             style={styles.authorInfo}
-            onPress={() => { if (!author?.id) return; void void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.display_name || 'User' } });
+            onPress={() => { if (!author?.id) return; void void router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
           >
             <View style={styles.authorAvatarWrap}>
@@ -175,7 +175,9 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
                 <LinearGradient colors={["#1e293b", "#0f172a"]} style={styles.authorAvatar} />
               )}
             </View>
-            <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>{author?.display_name || 'User'}</Text>
+            <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
+              {author?.username ? `@${author.username}` : 'User'}
+            </Text>
           </Pressable>
           {isAuthor && (
             <Pressable

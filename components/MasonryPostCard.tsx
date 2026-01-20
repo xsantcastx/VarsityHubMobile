@@ -97,7 +97,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
             style={styles.authorInfo}
             onPress={() => {
               if (!author?.id) return;
-              router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.display_name || 'User' } });
+              router.push({ pathname: '/user-profile', params: { id: String(author.id), username: author.username || 'User' } });
             }}
           >
             <View style={styles.authorAvatarWrap}>
@@ -108,7 +108,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
               )}
             </View>
             <Text numberOfLines={1} style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-              {author?.display_name || 'User'}
+              {author?.username ? `@${author.username}` : 'User'}
             </Text>
           </Pressable>
         </View>

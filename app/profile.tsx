@@ -74,7 +74,7 @@ const toFeedPost = (item: any): FeedPost | null => {
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), display_name: item.author.display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
+    author: item?.author ? { id: String(item.author.id ?? id), username: item.author.username ?? null, avatar_url: item.author.avatar_url ?? null } : null,
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),
@@ -83,10 +83,8 @@ const toFeedPost = (item: any): FeedPost | null => {
 
 type CurrentUser = {
   id?: string | number;
-  username?: string;
+  username?: string; // Only username (with @) - no display_name
   email?: string;
-  full_name?: string;
-  display_name?: string;
   avatar_url?: string;
   bio?: string;
   preferences?: {
@@ -308,7 +306,7 @@ export default function ProfileScreen() {
       // Step 1: ensure session is valid
       // Force fresh data by adding cache-busting header
       const u: any = await User.me();
-      console.log('[profile] Loaded user data:', { id: u?.id, username: u?.username, display_name: u?.display_name });
+      console.log('[profile] Loaded user data:', { id: u?.id, username: u?.username });
       if (u && !u._isNotModified) {
         setMe(u ?? null);
         console.log('[profile] Updated me state with username:', u?.username);
@@ -565,7 +563,8 @@ export default function ProfileScreen() {
   const rawRole = preferences?.role ?? (me as any)?.role ?? '';
   const roleRaw = typeof rawRole === 'string' ? rawRole.toLowerCase() : '';
   const roleLabel = roleRaw === 'coach' ? 'Coach / Organizer' : roleRaw === 'fan' ? 'Fan' : null;
-  const name = me?.display_name || me?.username || 'User';
+  // Use ONLY username (with @) - no display_name
+  const displayUsername = me?.username ? `@${me.username}` : 'User';
   
   // Athlete-specific data from preferences
   const isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
@@ -682,7 +681,7 @@ export default function ProfileScreen() {
           {/* User Info - Next to Avatar ON BANNER */}
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: userNameTextColor }]}>{name}</Text>
+              <Text style={[styles.userName, { color: userNameTextColor }]}>{displayUsername}</Text>
               {roleLabel && (
                 <View style={[styles.roleBadge, 
                   roleRaw === 'coach' && styles.coachBadge,
@@ -699,9 +698,8 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Username and Edit Profile Button Row */}
+        {/* Edit Profile Button Row */}
         <View style={styles.usernameRow}>
-          {me?.username && <Text style={[styles.userHandle, { color: theme.text }]}>@{me.username}</Text>}
           <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
             <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
           </Pressable>

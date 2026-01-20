@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import jwt from 'jsonwebtoken';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { sendPasswordResetEmail, sendPasswordChangedEmail, sendVerificationEmail } from '../lib/email.js';
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
@@ -291,25 +291,33 @@ authRouter.post('/apple', async (req, res) => {
 
         const { header, payload } = decoded;
         
+        // Type guard: payload must be an object (JwtPayload), not a string
+        if (!payload || typeof payload === 'string') {
+          return res.status(400).json({ error: 'Invalid token payload' });
+        }
+        
+        // TypeScript now knows payload is JwtPayload (object), not string
+        const jwtPayload = payload as JwtPayload;
+        
         // Verify token claims
-        if (payload.iss !== 'https://appleid.apple.com') {
+        if (jwtPayload.iss !== 'https://appleid.apple.com') {
           return res.status(400).json({ error: 'Invalid token issuer' });
         }
 
         // Check audience (should be your app's client ID)
         const appleClientId = process.env.APPLE_CLIENT_ID;
-        if (appleClientId && payload.aud !== appleClientId) {
+        if (appleClientId && jwtPayload.aud !== appleClientId) {
           debugLog('[auth/apple] Token audience mismatch, but continuing for compatibility');
         }
 
         // Check expiration
-        if (payload.exp && payload.exp < Date.now() / 1000) {
+        if (jwtPayload.exp && jwtPayload.exp < Date.now() / 1000) {
           return res.status(400).json({ error: 'Token has expired' });
         }
 
         // Extract user identifier from subject
-        appleId = payload.sub as string;
-        email = (payload.email as string) || null;
+        appleId = jwtPayload.sub as string;
+        email = (jwtPayload.email as string) || null;
 
         if (!appleId) {
           return res.status(400).json({ error: 'Missing user identifier in token' });
@@ -845,10 +853,18 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
   }
   
+  // Get current preferences FIRST to preserve role if not in payload
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const currentPrefs = current?.preferences as any || {};
+  
   // Prepare preferences update
+  // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
+  // If role is undefined in payload, use existing role from preferences (set during step-1)
+  const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
+  
   const preferencesUpdate: any = {
     onboarding_completed: true,
-    role: data.role,
+    role: finalRole, // Always set role explicitly - never leave undefined
     plan: data.plan,
     affiliation: data.affiliation,
     dob: data.dob,
@@ -871,15 +887,18 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     team_count_total: data.team_count_total,
   };
   
-  // Clean up undefined values
+  // CRITICAL: Role must NEVER be undefined - preserve from current preferences if not in payload
+  // This ensures OAuth-created users (who start as 'fan') can properly become 'coach' during onboarding
+  if (preferencesUpdate.role === undefined) {
+    preferencesUpdate.role = currentPrefs.role || 'fan'; // Use existing role or default to fan
+  }
+  
+  // Clean up undefined values (but keep role - it's already set above)
   Object.keys(preferencesUpdate).forEach(key => {
-    if (preferencesUpdate[key] === undefined) {
+    if (preferencesUpdate[key] === undefined && key !== 'role') {
       delete preferencesUpdate[key];
     }
   });
-  
-  // Get current preferences and merge
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
   // Normalize any legacy 'rookie' role values to 'coach' during merge
   const basePreferences = current?.preferences;
   const normalizedCurrent =
@@ -889,6 +908,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   if (normalizedCurrent.role === 'rookie') {
     normalizedCurrent.role = 'coach';
   }
+  // CRITICAL: Ensure role from preferencesUpdate takes precedence (user's choice during onboarding)
   const merged = mergePreferences(normalizedCurrent || {}, preferencesUpdate);
   updateData.preferences = merged;
   

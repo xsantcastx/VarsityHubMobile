@@ -10,7 +10,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { checkDMRestriction } from '@/utils/dmRestrictions';
 
-type MiniUser = { id: string; email?: string; display_name?: string; avatar_url?: string };
+type MiniUser = { id: string; email?: string; username?: string; display_name?: string; avatar_url?: string };
 type Msg = {
   id: string | number;
   conversation_id?: string | null;
@@ -332,7 +332,7 @@ export default function MessageThreadScreen() {
               <Pressable
                 style={[styles.sheetRow, { backgroundColor: Colors[colorScheme].surface }]}
                 onPress={() => { setSafetyOpen(false);
-                  if (otherParticipant?.id) { void void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.display_name || otherParticipant.email || 'User')}`);
+                  if (otherParticipant?.id) { void void router.push(`/report-abuse?userId=${otherParticipant.id}&userName=${encodeURIComponent(otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'User')}`);
                   } else {
                     router.push('/report-abuse');
                   }
@@ -349,7 +349,7 @@ export default function MessageThreadScreen() {
 
                   Alert.alert(
                     'Block User',
-                    `Are you sure you want to block ${otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
+                    `Are you sure you want to block ${otherParticipant.username ? `@${otherParticipant.username}` : otherParticipant.display_name || otherParticipant.email || 'this user'}? They will no longer be able to message you.`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {

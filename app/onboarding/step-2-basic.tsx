@@ -54,18 +54,17 @@ export default function Step2Basic() {
     void (async () => { 
       try { 
         const me: any = await User.me();
-        const displayName = me?.display_name || '';
-        // Normalize display name to a username-friendly format (underscores, lowercase)
-        const normalized = displayName.trim().toLowerCase().replace(/\s+/g, '_');
+        // Use username if available, otherwise try to normalize from display_name (legacy)
+        const existingUsername = me?.username || '';
+        const legacyDisplayName = me?.display_name || '';
+        const normalized = existingUsername || legacyDisplayName.trim().toLowerCase().replace(/\s+/g, '_');
         setUsername(normalized);
         setZip(me?.preferences?.zip_code || '');
         
         // Check username availability immediately if it exists
-        // Normalize display name before checking (spaces -> underscores, lowercase)
-        const normalizedDisplayName = normalized.replace(/\s+/g, '_');
-        if (normalizedDisplayName && usernameRe.test(normalizedDisplayName)) {
+        if (normalized && usernameRe.test(normalized)) {
           try {
-            const r: any = await User.usernameAvailable(normalizedDisplayName);
+            const r: any = await User.usernameAvailable(normalized);
             setAvailable(!!r?.available);
           } catch (error) {
             console.warn('[step-2-basic] Username availability check failed:', error);
@@ -140,8 +139,9 @@ export default function Step2Basic() {
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
     try {
-      setOB((prev) => ({ ...prev, display_name: finalUsername, affiliation, dob, zip_code: zip || null }));
-      await User.patchMe({ display_name: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
+      setOB((prev) => ({ ...prev, username: finalUsername, affiliation, dob, zip_code: zip || null }));
+      // Save username (not display_name) - this is the single identifier
+      await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {

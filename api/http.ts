@@ -8,50 +8,17 @@ export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
 export function getApiBaseUrl(): string {
-  const config = getConfig();
-  const envUrl = getEnvValue('EXPO_PUBLIC_API_URL');
-  const forceRemote = config.forceRemoteApi;
+  // HARDCODE production URL - NEVER use localhost, EVER
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
   
-  // Always use Railway production server - easier to manage
-  // If forceRemote is true or we have a configured URL, use it; otherwise use production
-  let url = forceRemote ? (envUrl || PRODUCTION_URL) : (config.apiUrl || envUrl || PRODUCTION_URL);
-  
-  // Ensure we always use Railway production in production mode
-  if (config.nodeEnv === 'production' || forceRemote) {
-    url = envUrl || PRODUCTION_URL;
-  }
-  
-  // Handle simulator networking (only for actual localhost in dev mode)
-  if (__DEV__ && !forceRemote && url.startsWith('http://localhost')) {
-    if (Platform.OS === 'android') {
-      // Android simulator uses 10.0.2.2 to reach host machine
-      url = url.replace('http://localhost', 'http://10.0.2.2');
-    }
-    if (Platform.OS === 'ios') {
-      // iOS simulator can use 127.0.0.1 for localhost
-      url = url.replace('http://localhost', 'http://127.0.0.1');
-    }
-  }
-  
-  // Safeguard: If URL is a private IP (not localhost/127.0.0.1/10.0.2.2), fall back to production
-  const isAllowedLocalIP = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('10.0.2.2');
-  const isPrivateIP = /^http:\/\/192\.168\.\d+\.\d+/.test(url) || 
-    (/^http:\/\/10\.\d+\.\d+\.\d+/.test(url) && !url.includes('10.0.2.2')) ||
-    /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+/.test(url);
-  if (isPrivateIP && !isAllowedLocalIP) {
-    console.warn('[http] Detected cached private IP URL:', url, '- Falling back to Railway production URL');
-    url = PRODUCTION_URL;
-  }
-  
-  const finalUrl = url.replace(/\/$/, '');
-  
+  // IGNORE ALL CONFIG - ALWAYS RETURN PRODUCTION
+  // This prevents any localhost override from .env, app.json, or anywhere else
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
-    // eslint-disable-next-line no-console
-    console.log('[http] API base:', finalUrl, { envUrl, forceRemote, platform: Platform.OS, nodeEnv: config.nodeEnv });
+    console.log('[http] API base (HARDCODED PRODUCTION):', PRODUCTION_URL);
   }
-  return finalUrl;
+  
+  return PRODUCTION_URL;
 }
 
 function getBaseUrl(): string {
@@ -176,11 +143,8 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     
     // Add more context to network errors with better retry logic
     if (error.message === 'Network request failed' || error.message?.includes('NetworkError') || error.message?.includes('Failed to fetch')) {
-      // Provide helpful error message if trying to connect to localhost
-      let errorMessage = `Cannot connect to server. Please check your internet connection and try again.`;
-      if (base.includes('127.0.0.1') || base.includes('localhost')) {
-        errorMessage = `Cannot connect to local server at ${base}. Make sure the server is running with "npm run server:dev", or configure EXPO_PUBLIC_API_URL to use the production server.`;
-      }
+      // Always show production server error (we never use localhost)
+      const errorMessage = `Cannot connect to server at ${base}. Please check your internet connection and try again.`;
       
       const err: any = new Error(errorMessage);
       err.originalError = error;

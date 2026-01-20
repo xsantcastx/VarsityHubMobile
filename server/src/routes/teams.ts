@@ -844,6 +844,24 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) return res.status(404).json({ error: 'Team not found' });
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  // CRITICAL: Verify requester is team owner/manager/coach (can invite members)
+  const requesterMembership = await prisma.teamMembership.findFirst({
+    where: {
+      team_id: id,
+      user_id: req.user.id,
+      role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+      status: 'active'
+    }
+  });
+  
+  if (!requesterMembership) {
+    return res.status(403).json({
+      error: 'PERMISSION_DENIED',
+      message: 'Only team owners, managers, or coaches can invite members to teams.'
+    });
+  }
+  
   // PLAN LIMITS: Enforce authorized user caps (per-team limits)
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });

@@ -96,7 +96,7 @@ export function MentionInput({
     
     const beforeMention = value.substring(0, mentionStart);
     const afterMention = value.substring(mentionStart + currentMention.length + 1);
-    const newText = `${beforeMention}@${user.display_name} ${afterMention}`;
+    const newText = `${beforeMention}@${user.username || user.display_name || 'user'} ${afterMention}`;
     
     onChangeText(newText);
     setShowSuggestions(false);
@@ -150,7 +150,7 @@ export function MentionInput({
                   )}
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.displayName}>@{item.display_name}</Text>
+                  <Text style={styles.displayName}>@{item.username || item.display_name || 'user'}</Text>
                 </View>
               </Pressable>
             ))}
