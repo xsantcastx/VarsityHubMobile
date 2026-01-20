@@ -65,7 +65,7 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
 
 
 const getSportCategory = (title?: string | null, content?: string | null) => {
-  const text = (title + ' ' + content || '').toLowerCase();
+  const text = ((title || '') + ' ' + (content || '')).toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
   if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
   if (text.includes('baseball') || text.includes('mlb')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
@@ -307,7 +307,13 @@ export default function HighlightsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const me: any = await User.me().catch(() => null);
+      const me: any = await User.me().catch((error: any) => {
+        if (__DEV__) {
+          console.warn('[Highlights] Failed to load user:', error?.message || error);
+        }
+        return null;
+      });
+      
       const country = (me?.preferences?.country_code || 'US').toUpperCase();
       
       // Location preference lookup: coordinates live under me.preferences
@@ -352,8 +358,10 @@ export default function HighlightsScreen() {
       
       setHighlights(uniqueHighlights);
     } catch (e: any) {
-      console.error('Highlights load failed', e);
-      console.error('Error details:', e?.response?.data || e?.message || e);
+      if (__DEV__) {
+        console.error('[Highlights] Load failed:', e);
+        console.error('[Highlights] Error details:', e?.response?.data || e?.message || e);
+      }
       setError('Unable to load highlights.');
       setHighlights([]);
     } finally {
@@ -368,7 +376,13 @@ export default function HighlightsScreen() {
   }, [load]);
 
   useEffect(() => {
-    void load();
+    let mounted = true;
+    const loadData = async () => {
+      await load();
+      if (!mounted) return;
+    };
+    void loadData();
+    return () => { mounted = false; };
   }, [load]);
 
   // Global search function for teams, events, users, and posts
@@ -382,10 +396,22 @@ export default function HighlightsScreen() {
     setSearching(true);
     try {
       const [teamsRes, eventsRes, usersRes, orgsRes] = await Promise.all([
-        Team.list(query, false, { limit: 5 }).catch(() => []),
-        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch(() => []),
-        User.listAll(query, 5).catch(() => []),
-        Organization.list(query, 5).catch(() => []),
+        Team.list(query, false, { limit: 5 }).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Team search failed:', error?.message || error);
+          return [];
+        }),
+        Event.filter({ q: query, approval_status: 'approved' }, 'date', 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Event search failed:', error?.message || error);
+          return [];
+        }),
+        User.listAll(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] User search failed:', error?.message || error);
+          return [];
+        }),
+        Organization.list(query, 5).catch((error: any) => {
+          if (__DEV__) console.warn('[Highlights] Organization search failed:', error?.message || error);
+          return [];
+        }),
       ]);
 
       const teams = Array.isArray(teamsRes) ? teamsRes.slice(0, 5) : [];
@@ -405,8 +431,11 @@ export default function HighlightsScreen() {
       }).slice(0, 10);
 
       setSearchResults({ teams, events, users, organizations, posts });
-    } catch (err) {
-      console.error('Search failed:', err);
+    } catch (err: any) {
+      if (__DEV__) {
+        console.error('[Highlights] Search failed:', err?.message || err);
+      }
+      setSearchResults({ teams: [], events: [], users: [], organizations: [], posts: [] });
     } finally {
       setSearching(false);
     }

@@ -1,4 +1,5 @@
 import { getConfig } from '@/config/env';
+import { httpGet } from '@/api/http';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -28,9 +29,7 @@ export default function OrganizationsIndexScreen() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}/organizations?limit=20`);
-        if (!res.ok) throw new Error(`Failed to load organizations (${res.status})`);
-        const data = await res.json();
+        const data = await httpGet(`/organizations?limit=20`);
         if (!cancelled) {
           const orgList = Array.isArray(data) ? data : data.items || [];
           const combined = ensureSeededOrganizations(orgList as Organization[]);

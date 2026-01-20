@@ -5,7 +5,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
-import { getApiBaseUrl, getAuthToken } from '@/api/http';
+import { httpPost } from '@/api/http';
 import { addWeeks, format, startOfToday } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -451,18 +451,7 @@ export default function AdCalendarScreen() {
     setSubmitting(true);
     try {
       const dates = Array.from(selected).sort((a, b) => (a < b ? -1 : 1));
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      const r = await fetch(`${base.replace(/\/$/, '')}/payments/checkout`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ ad_id: String(adId), dates, promo_code: promo || undefined }),
-      });
-      const txt = await r.text();
-      const data = txt ? JSON.parse(txt) : null;
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      const data: any = await httpPost('/payments/checkout', { ad_id: String(adId), dates, promo_code: promo || undefined });
       if (data?.free) {
         Alert.alert('Success!', 'Your ad reservation was completed with the promo discount.', [
           { text: 'View My Ads', onPress: () => router.replace('/(tabs)/my-ads') }

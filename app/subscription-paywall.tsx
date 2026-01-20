@@ -5,7 +5,7 @@
  * Allows coaches to select and upgrade their subscription
  */
 
-import { getApiBaseUrl, getAuthToken } from '@/api/http';
+import { httpPost } from '@/api/http';
 import { CoachTier, CoachTierBadge, CoachTierBenefits } from '@/components/CoachTierBadge';
 import CustomActionModal from '@/components/CustomActionModal';
 import { Colors } from '@/constants/Colors';
@@ -62,27 +62,10 @@ export default function SubscriptionPaywallScreen() {
 
     setLoading(true);
     try {
-      // Call backend to create Stripe checkout session
-      const base = getApiBaseUrl();
-      const headers: any = { 'Content-Type': 'application/json' };
-      const token = getAuthToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
-      
-      const response = await fetch(`${base.replace(/\/$/, '')}/payments/subscribe`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ 
-          plan: selectedTier,
-          promo_code: promoCode.trim() || undefined 
-        }),
+      const data: any = await httpPost('/payments/subscribe', { 
+        plan: selectedTier,
+        promo_code: promoCode.trim() || undefined 
       });
-      
-      const text = await response.text();
-      const data = text ? JSON.parse(text) : null;
-      
-      if (!response.ok) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
-      }
       
       if (data?.url) {
         // Open Stripe checkout in browser

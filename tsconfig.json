@@ -37,6 +37,12 @@
       "@/ui/*": [
         "components/ui/*"
       ],
+      "@/features/*": [
+        "app/features/*"
+      ],
+      "@/shared/*": [
+        "shared/*"
+      ],
       "react-native-calendars": [
         "types/react-native-calendars.d.ts"
       ]

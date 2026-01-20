@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import PrimaryButton from '@/components/ui/PrimaryButton';
 import { useAuth } from '@/context/AuthProvider';
 import { Type } from '@/ui/tokens';
-import { getApiBaseUrl } from '../../api/http';
+import { httpPost } from '../../api/http';
 
 export default function OnboardingFinish() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function OnboardingFinish() {
 
   const sendCode = async () => {
     setSending(true);
-    try { await fetch(getApiBaseUrl() + '/auth/verify/send', { method: 'POST', headers: { 'Cache-Control': 'no-store', 'If-None-Match': '' } }); setCooldown(30); }
+    try { await httpPost('/auth/verify/send', {}); setCooldown(30); }
     catch (e: any) { Alert.alert('Failed to send', e?.message || 'Try again'); }
     finally { setSending(false); }
   };

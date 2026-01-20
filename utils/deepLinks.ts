@@ -41,6 +41,10 @@ const ROUTE_MAP: Record<string, string> = {
   team: '/team-detail',
   profile: '/public-profile',
   user: '/public-profile',
+  // Auth-related routes
+  'reset-password': '/reset-password',
+  'verify-email': '/verify-email',
+  'verify': '/verify',
 };
 
 /**

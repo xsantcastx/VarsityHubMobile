@@ -162,24 +162,13 @@ export default function AdminReportsScreen() {
               const apiUrl = getApiBaseUrl();
               
               // Use API client instead of direct fetch
-      const { httpPost } = await import('@/api/http');
-      await httpPost('/admin/reports/bulk-delete', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ report_ids: Array.from(selectedReports) }),
+              const { httpPost } = await import('@/api/http');
+              const data: any = await httpPost('/admin/reports/bulk-delete', {
+                report_ids: Array.from(selectedReports),
               });
-
-              if (!response.ok) {
-                throw new Error('Failed to delete reports');
-              }
-
-              const data = await response.json();
               setSelectedReports(new Set());
               await loadReports(true);
-              Alert.alert('Success', `Deleted ${data.deleted} reports`);
+              Alert.alert('Success', `Deleted ${data?.deleted ?? selectedReports.size} reports`);
             } catch (e: any) {
               Alert.alert('Error', e?.message || 'Failed to delete reports');
             }
