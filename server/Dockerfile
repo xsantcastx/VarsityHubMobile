@@ -26,6 +26,8 @@ RUN npx prisma generate
 COPY ./server/src ./src
 COPY ./server/tsconfig.json ./
 COPY ./server/start.sh ./start.sh
+# Copy shared directory (needed for plan-definitions.json)
+COPY ./shared ./shared
 
 # Remove expo extends and ensure noEmit is false (use python for reliable JSON manipulation)
 RUN python3 << 'PYTHON_SCRIPT' && \
