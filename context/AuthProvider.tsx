@@ -179,6 +179,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
   // Check authentication
   const checkAuth = useCallback(
     async (options?: { email?: string; pendingVerification?: boolean }) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:181',message:'checkAuth called',data:{pendingVerification:!!options?.pendingVerification},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       try {
         // If pending verification flag is set, store email and don't try to fetch user
         if (options?.pendingVerification && options?.email) {
@@ -187,14 +190,26 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
           return;
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:191',message:'Getting token',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         // Try to fetch current user only if we have a token
         const token = await auth.getToken();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:193',message:'Token check result',data:{hasToken:!!token},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         if (!token) {
           setUser(null);
           return;
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:197',message:'Calling User.me',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         const me: any = await User.me();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:198',message:'User.me response received',data:{hasUser:!!me,userId:me?.id,hasEmail:!!me?.email},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         setUser(me);
         setPendingVerificationEmail(null); // Clear pending email after successful auth
 
@@ -214,6 +229,9 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
 
         return me;
       } catch (err: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:217',message:'checkAuth error',data:{message:err?.message,status:err?.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         setUser(null);
         // Don't clear onboarding flag on auth error - keep it for when user logs back in
         throw err;

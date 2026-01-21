@@ -127,25 +127,46 @@ export default function SignInScreen() {
   };
 
   const handleAppleLogin = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:129',message:'handleAppleLogin called',data:{platform:Platform.OS},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (Platform.OS !== 'ios') {
       setError('Apple sign in is only available on iOS.');
       return;
     }
     setError(null);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:136',message:'Calling signInWithApple',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const response: any = await signInWithApple();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:138',message:'signInWithApple response received',data:{hasUser:!!response?.user,hasEmail:!!response?.email,hasAccessToken:!!response?.access_token,responseKeys:Object.keys(response||{})},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       if (!response?.user && !response?.email) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:141',message:'Response missing user/email',data:{response:JSON.stringify(response).substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         const errMsg = `Apple sign-in: missing user in response. Response: ${JSON.stringify(response).substring(0, 200)}`;
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
         setError('Failed to complete sign-in. Please try again.');
         return;
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:146',message:'Calling checkAuth',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       // Call checkAuth to set user state; AuthProvider will handle routing
       await checkAuth();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:148',message:'checkAuth completed',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       // AuthProvider will detect onboarding_completed and route accordingly
     } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-in.tsx:150',message:'Apple login error caught',data:{message:e?.message,code:e?.code,status:e?.status},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
       const message = e?.message || 'Apple sign in failed';
       const code = String(e?.code || '').toLowerCase();
 

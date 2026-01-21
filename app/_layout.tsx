@@ -44,6 +44,11 @@ if (Platform.OS === 'web' && __DEV__) {
 }
 
 export default function RootLayout() {
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'_layout.tsx:46',message:'RootLayout rendered',data:{__DEV__,nodeEnv:process.env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+  } catch (e) {}
+  // #endregion
   const colorScheme = useColorScheme();
   const router = useRouter();
   const [loaded] = useFonts({

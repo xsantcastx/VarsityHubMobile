@@ -37,6 +37,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     headers['If-None-Match'] = headers['If-None-Match'] || '';
   }
 
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:28',message:'Request initiated',data:{path,method:options.method||'GET',base,hasAuth:!!token,timeoutMs,retries},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+  } catch (e) {}
+  // #endregion
+
   // Add timeout to prevent hanging requests
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -59,6 +65,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       return { _status: 304, _isNotModified: true };
     }
 
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:62',message:'Response received BEFORE parsing',data:{status:res.status,statusText:res.statusText,path,method:options.method||'GET',isOk:res.ok,contentType:(res.headers&&res.headers.get&&res.headers.get('content-type'))||'unknown'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    } catch (e) {}
+    // #endregion
+
     const text = await res.text();
     const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
     let data: any = null;
@@ -73,6 +85,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     }
 
     if (!res.ok) {
+      // #region agent log
+      try {
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:75',message:'HTTP error response',data:{status:res.status,path,method:options.method||'GET',contentType:ct,textLength:text?.length||0,textPreview:text?.substring(0,200)||'',isJson:ct.includes('application/json'),hasData:!!data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      } catch (e) {}
+      // #endregion
+
       const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
       const err: any = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
@@ -87,6 +105,13 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:89',message:'Request error caught',data:{path,method:options.method||'GET',base,status:error?.status,statusText:error?.statusText,name:error?.name,message:error?.message,isNetworkError:error?.message==='Network request failed'||error?.message?.includes('NetworkError')||error?.message?.includes('Failed to fetch'),isTimeout:error?.name==='AbortError',timeoutMs,retries},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+    } catch (e) {}
+    // #endregion
+
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
@@ -110,6 +135,27 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       };
       console.error('[http] Request failed:', errorDetails);
     }
+
+    // #region agent log - 502 Bad Gateway specific
+    if (error.status === 502) {
+      console.error('[http] 502 Bad Gateway on', path, '- retries left:', retries);
+      try {
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:105',message:'502 Bad Gateway detected',data:{path,method:options.method||'GET',base,retries,errorMessage:error?.message,errorData:error?.data,isRetrying:retries>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      } catch (e) {}
+      // Retry 502 Bad Gateway errors - backend may be temporarily down
+      if (retries > 0) {
+        const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
+        console.log('[http] Retrying 502 Bad Gateway after', delay, 'ms...');
+        await new Promise(r => setTimeout(r, delay));
+        return request(path, options, timeoutMs, retries - 1);
+      }
+      // If all retries exhausted, provide user-friendly error
+      const err: any = new Error('Server temporarily unavailable. Please try again in a moment.');
+      err.status = 502;
+      err.data = error.data;
+      throw err;
+    }
+    // #endregion
     
     // Handle 429 Rate Limit errors with retry
     if (error.status === 429) {

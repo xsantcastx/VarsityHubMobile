@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -100,7 +100,15 @@ type CurrentUser = {
   [key: string]: any;
 };
 
-export default function ProfileScreen() {
+function ProfileScreen() {
+  // #region agent log
+  try {
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'profile.tsx:103',message:'ProfileScreen component rendered',data:{__DEV__,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  } catch (e) {}
+  // #endregion
+  
+  // Fast Refresh test - this will change on save
+  const fastRefreshTest = 'FAST_REFRESH_TEST_v2';
   const colorScheme = useCustomColorScheme();
   const theme = Colors[colorScheme];
   const router = useRouter();
@@ -619,37 +627,53 @@ export default function ProfileScreen() {
     { label: 'following', value: me?._count?.following ?? 0 },
   ];
 
-  const renderHeader = () => (
-    <>
-      {/* Banner Header - Exact Match to Reference */}
-      <View style={[styles.headerContainer, { backgroundColor: theme.background }]}>
-        {/* Background Image / Gradient */}
-        <Pressable 
-          onPress={handleBackgroundImagePress} 
-          style={styles.headerBackgroundPressable}
-          disabled={isUploadingAvatar}
-        >
-          {headerBackgroundImage ? (
-            <Image
-              source={{ uri: headerBackgroundImage }}
-              style={[
-                styles.headerBackgroundImage,
-                { transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] },
-              ]}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={styles.headerBackgroundImage} />
-          )}
-        </Pressable>
-        {!headerBackgroundImage && (
-          <LinearGradient
-            colors={heroGradientColors}
-            style={styles.headerGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        )}
+  const renderHeader = () => {
+    const screenWidth = Dimensions.get('window').width;
+    // #region agent log
+    try {
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'profile.tsx:624',message:'renderHeader called',data:{screenWidth},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    } catch (e) {}
+    // #endregion
+    return (
+      <View>
+        {/* Banner Header - TRUE Edge-to-Edge Full Width - Fills entire screen width */}
+        <View style={styles.headerOuterWrapper}>
+          {/* Background layer - fills entire width with NO gaps - extends beyond container */}
+          <View style={styles.headerBackgroundAbsolute} pointerEvents="box-none">
+            <Pressable 
+              onPress={handleBackgroundImagePress} 
+              style={styles.headerBackgroundPressable}
+              disabled={isUploadingAvatar}
+            >
+              {headerBackgroundImage ? (
+                <Image
+                  source={{ uri: headerBackgroundImage }}
+                  style={[
+                    styles.headerBackgroundImage,
+                    { 
+                      width: screenWidth,
+                      height: 200,
+                      transform: [{ translateY: headerImageFocusY * HEADER_IMAGE_DRAG_LIMIT }] 
+                    },
+                  ]}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.headerBackgroundImage, { width: screenWidth, height: 200 }]} />
+              )}
+            </Pressable>
+            {!headerBackgroundImage && (
+              <LinearGradient
+                colors={heroGradientColors}
+                style={[styles.headerGradient, { width: screenWidth, height: 200 }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+            )}
+          </View>
+          
+          {/* Content layer - positioned normally over background */}
+          <View style={styles.headerContainer}>
         
         {/* Settings Button - Top Right */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
@@ -700,12 +724,17 @@ export default function ProfileScreen() {
                 </View>
               )}
             </View>
+            </View>
           </View>
         </View>
       </View>
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
+        {/* Fast Refresh Test Indicator */}
+        {__DEV__ && (
+          <Text style={{ padding: 8, fontSize: 10, color: '#666' }}>{fastRefreshTest}</Text>
+        )}
         {/* Edit Profile Button and User Details - Tight layout */}
         <View style={styles.editButtonRow}>
           <Pressable 
@@ -773,7 +802,7 @@ export default function ProfileScreen() {
           <Text style={[styles.tabText, { color: activeTab === 'upvotes' ? theme.tint : theme.mutedText }]}>Upvotes</Text>
         </Pressable>
       </View>
-    </>
+      </View>
   );
 
   const renderEmptyPosts = () => (
@@ -890,7 +919,30 @@ export default function ProfileScreen() {
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyPosts}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ 
+            paddingBottom: Math.max(32, insets.bottom + 16), 
+            paddingHorizontal: 0,
+            paddingTop: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            marginHorizontal: 0,
+            marginLeft: 0,
+            marginRight: 0,
+          }}
+          style={{ 
+            paddingHorizontal: 0, 
+            marginHorizontal: 0, 
+            paddingLeft: 0, 
+            paddingRight: 0,
+            marginLeft: 0,
+            marginRight: 0,
+            width: '100%',
+          }}
+          scrollIndicatorInsets={{ right: 0 }}
+          bounces={false}
+          bouncesZoom={false}
+          removeClippedSubviews={false}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedPosts}
           renderItem={({ item, index }) => {
@@ -962,7 +1014,12 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyReplies}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ 
+            paddingBottom: Math.max(32, insets.bottom + 16), 
+            paddingHorizontal: 0,
+            paddingTop: 0 
+          }}
+          style={{ paddingHorizontal: 0, marginHorizontal: 0, width: '100%' }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedReplies}
           renderItem={({ item, index }) => {
@@ -1034,7 +1091,12 @@ export default function ProfileScreen() {
           }}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmptyUpvotes}
-          contentContainerStyle={{ paddingBottom: Math.max(32, insets.bottom + 16), paddingHorizontal: 8 }}
+          contentContainerStyle={{ 
+            paddingBottom: Math.max(32, insets.bottom + 16), 
+            paddingHorizontal: 0,
+            paddingTop: 0 
+          }}
+          style={{ paddingHorizontal: 0, marginHorizontal: 0, width: '100%' }}
           onEndReachedThreshold={0.5}
           onEndReached={onEndReachedUpvotes}
           renderItem={({ item, index }) => {
@@ -1109,6 +1171,9 @@ export default function ProfileScreen() {
   );
 }
 
+// Named export for Fast Refresh
+export default ProfileScreen;
+
 const styles = StyleSheet.create({
   container: { 
     flex: 1
@@ -1116,36 +1181,81 @@ const styles = StyleSheet.create({
   center: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   error: { color: '#b91c1c', textAlign: 'center' },
   
-  // Header Styles - Exact Match to Reference
+  // Header Styles - TRUE Edge-to-Edge Full Width Background - FILLS ENTIRE SCREEN WIDTH
+  headerOuterWrapper: {
+    position: 'relative',
+    width: Dimensions.get('window').width, // Exact screen width
+    height: 200,
+    marginLeft: -1000, // Massive negative to break out of ALL container constraints
+    marginRight: -1000, // Massive negative to break out of ALL container constraints
+    paddingLeft: 1000, // Offset to center content
+    paddingRight: 1000, // Offset to center content
+    overflow: 'visible',
+    alignSelf: 'stretch',
+  },
+  headerBackgroundAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 1000, // Center within extended wrapper (counteracts wrapper's -1000 margin)
+    right: 1000, // Center within extended wrapper (counteracts wrapper's -1000 margin)
+    width: Dimensions.get('window').width, // Exact screen width - NO GAPS
+    height: 200,
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
+    zIndex: 1,
+  },
   headerContainer: {
     position: 'relative',
-    width: '100%',
+    width: Dimensions.get('window').width, // Exact screen width
+    height: 200,
     overflow: 'visible', // Allow avatar to extend beyond banner
-    backgroundColor: 'transparent', // Will use theme.background from component
+    backgroundColor: 'transparent',
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
+    zIndex: 10, // Above background
+    alignSelf: 'stretch',
+  },
+  headerBackgroundPressable: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 200,
+    width: Dimensions.get('window').width, // Exact screen width - fills visible area
     marginLeft: 0,
     marginRight: 0,
     paddingLeft: 0,
     paddingRight: 0,
   },
-  headerBackgroundPressable: {
-    position: 'relative',
-    height: 200, // Match reference image
-    width: '100%',
+  headerBackgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 200,
+    width: '100%', // Fill parent pressable
     marginLeft: 0,
     marginRight: 0,
-    left: 0,
-    right: 0,
-  },
-  headerBackgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    height: 200,
-    width: '100%',
-    left: 0,
-    right: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   headerGradient: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     height: 200,
+    width: '100%', // Fill parent pressable
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   headerControls: {
     position: 'absolute',
@@ -1262,12 +1372,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Profile Details Below Banner - Proper spacing to account for overlapping avatar
+  // Profile Details Below Banner - Minimal spacing, no gaps
   profileDetailsContainer: {
     backgroundColor: 'transparent',
-    paddingTop: 70, // Increased spacing: avatar overlap (50px) + clear space (20px)
+    paddingTop: 52, // Tight spacing: avatar overlap (50px) + tiny space (2px)
     marginBottom: 0, // No gap before tabs
     paddingBottom: 0, // No padding at bottom
+    marginTop: 0, // No top margin
   },
   editButton: {
     paddingHorizontal: 20,
@@ -1287,16 +1398,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 0, // No gap - directly below edit button
     paddingBottom: 4,
-    marginTop: 0, // No margin needed
+    marginTop: -10, // More negative margin to close gap with edit button
   },
   editButtonRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end', // Align edit button to the right, away from avatar
     paddingHorizontal: 16,
     paddingLeft: 116, // Start after avatar (100px avatar + 16px spacing)
-    paddingBottom: 4, // Minimal spacing - close the gap
-    marginTop: 0, // No extra margin needed with increased paddingTop
-    marginBottom: 0, // No margin between edit button and user details
+    paddingBottom: 0, // Zero spacing - close the gap completely
+    paddingTop: 0, // Zero top padding
+    marginTop: 0, // No extra margin needed
+    marginBottom: -6, // Negative margin to close gap with user details
   },
   userHandle: {
     fontSize: 15,
@@ -1306,7 +1418,8 @@ const styles = StyleSheet.create({
   userBio: {
     fontSize: 15,
     fontWeight: '400',
-    marginBottom: 2, // Reduced margin to close gap
+    marginBottom: 0, // Zero margin to close gap
+    marginTop: 0, // Zero top margin
     lineHeight: 20,
     // Color will be set inline with theme.text
   },
@@ -1315,7 +1428,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 0, // Removed margin to close gap
-    marginTop: 2, // Small top margin instead
+    marginTop: 0, // Zero top margin
   },
   metaText: {
     fontSize: 14,
@@ -1505,8 +1618,9 @@ const styles = StyleSheet.create({
   },
   gridRow: { 
     gap: 12, // Spacing between cards like event page
-    paddingHorizontal: 0,
+    paddingHorizontal: 8, // Add padding back to grid items only
     marginBottom: 12, // Vertical spacing between rows
+    width: '100%',
   },
   gridItem: { 
     flex: 1, 

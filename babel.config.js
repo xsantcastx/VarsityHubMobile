@@ -1,7 +1,13 @@
 module.exports = function (api) {
   api.cache(true);
+  
   return {
-    presets: ['babel-preset-expo'],
+    presets: [
+      ['babel-preset-expo', {
+        // Explicitly enable Fast Refresh
+        jsxRuntime: 'automatic',
+      }],
+    ],
     plugins: [
       ['module-resolver', {
         extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
@@ -19,8 +25,9 @@ module.exports = function (api) {
           'is-arrayish': './shims/is-arrayish',
         }
       }],
-      // Reanimated must be listed last
-      'react-native-reanimated/plugin',
-    ],
+      // NOTE: react-native-reanimated/plugin is automatically included by babel-preset-expo in SDK 54
+      // Explicitly listing it causes conflicts that break Fast Refresh
+      // If you need to customize it, configure it via babel-preset-expo options
+    ].filter(Boolean), // Remove false/undefined plugins
   };
 };

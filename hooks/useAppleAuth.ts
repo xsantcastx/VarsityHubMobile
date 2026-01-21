@@ -130,10 +130,19 @@ export function useAppleAuth() {
       // or a stable dev-only token derived from credential.user so local auth works.
       const fallbackToken = credential.authorizationCode || (credential.user ? `sim-${credential.user}` : null);
       const identityToken = credential.identityToken || fallbackToken;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:133',message:'Credential obtained, token extracted',data:{hasIdentityToken:!!credential.identityToken,hasAuthorizationCode:!!credential.authorizationCode,hasUser:!!credential.user,hasEmail:!!credential.email,hasIdentityTokenFinal:!!identityToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       if (!identityToken) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:135',message:'No token from Apple',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         throw new Error('Apple sign-in did not provide a token');
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:139',message:'Starting API call to loginViaApple',data:{hasIdentityToken:!!identityToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       // Send token to your backend (mock accepts any non-empty string in dev)
       // Retry logic for network issues and timeouts
       let res: any = null;
@@ -143,7 +152,13 @@ export function useAppleAuth() {
       
       while (attempts < maxAttempts) {
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:147',message:'Calling User.loginViaApple',data:{attempt:attempts+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           res = await User.loginViaApple(identityToken);
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:149',message:'loginViaApple response received',data:{hasAccessToken:!!res?.access_token,responseKeys:Object.keys(res||{})},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           if (res?.access_token) {
             return res;
           }
@@ -151,6 +166,9 @@ export function useAppleAuth() {
           lastError = new Error('No access token in response');
           attempts++;
         } catch (networkErr: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:156',message:'loginViaApple error',data:{message:networkErr?.message,status:networkErr?.status,attempt:attempts+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           lastError = networkErr;
           attempts++;
           const isRetryable = 

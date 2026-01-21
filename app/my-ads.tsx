@@ -2,6 +2,7 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -374,19 +375,30 @@ export default function MyAdsScreen() {
         borderColor={Colors[colorScheme].border}
       />
       
-      {/* Custom Header */}
-      <View style={[styles.header, { 
-        backgroundColor: Colors[colorScheme].card,
-        borderBottomColor: Colors[colorScheme].border 
-      }]}>
-        <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
-        <Pressable 
-          style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
-          onPress={() => { void router.push('/submit-ad'); }}
-        >
-          <Ionicons name="add" size={24} color="#FFFFFF" />
-        </Pressable>
-      </View>
+      {/* Custom Header with Gradient */}
+      <LinearGradient
+        colors={colorScheme === 'dark' 
+          ? ['#1e293b', '#0f172a'] 
+          : ['#ffffff', '#f8fafc']}
+        style={styles.headerGradient}
+      >
+        <View style={[styles.header, { 
+          borderBottomColor: Colors[colorScheme].border 
+        }]}>
+          <View>
+            <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>My Ads</Text>
+            <Text style={[styles.headerSubtitle, { color: Colors[colorScheme].mutedText }]}>
+              Manage your advertisements
+            </Text>
+          </View>
+          <Pressable 
+            style={[styles.addButton, { backgroundColor: Colors[colorScheme].tint }]}
+            onPress={() => { void router.push('/submit-ad'); }}
+          >
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </LinearGradient>
 
       <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
         {loading && (
@@ -398,18 +410,63 @@ export default function MyAdsScreen() {
         
         {!loading && ads.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="megaphone-outline" size={80} color={Colors[colorScheme].mutedText} />
-            <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No Ads Yet</Text>
-            <Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>
-              Create your first advertisement to start promoting your business to local teams and families.
-            </Text>
-            <Pressable 
-              style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
-              onPress={() => { void router.push('/submit-ad'); }}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
-            </Pressable>
+            {/* Modern Empty State Card */}
+            <View style={[styles.emptyCard, { 
+              backgroundColor: Colors[colorScheme].card,
+              borderColor: Colors[colorScheme].border 
+            }]}>
+              <LinearGradient
+                colors={colorScheme === 'dark'
+                  ? ['#1e3a8a', '#1e40af']
+                  : ['#3b82f6', '#2563eb']}
+                style={styles.emptyIconContainer}
+              >
+                <Ionicons name="megaphone" size={48} color="#FFFFFF" />
+              </LinearGradient>
+              
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>
+                No Ads Yet
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                Create your first advertisement to start promoting your business to local teams and families.
+              </Text>
+              
+              <View style={styles.emptyFeatures}>
+                <View style={styles.emptyFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.emptyFeatureText, { color: Colors[colorScheme].text }]}>
+                    Reach local sports communities
+                  </Text>
+                </View>
+                <View style={styles.emptyFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.emptyFeatureText, { color: Colors[colorScheme].text }]}>
+                    Schedule flexible ad dates
+                  </Text>
+                </View>
+                <View style={styles.emptyFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.emptyFeatureText, { color: Colors[colorScheme].text }]}>
+                    Track performance and engagement
+                  </Text>
+                </View>
+              </View>
+              
+              <Pressable 
+                style={[styles.emptyButton, { backgroundColor: Colors[colorScheme].tint }]} 
+                onPress={() => { void router.push('/submit-ad'); }}
+              >
+                <LinearGradient
+                  colors={colorScheme === 'dark'
+                    ? ['#3b82f6', '#2563eb']
+                    : ['#3b82f6', '#2563eb']}
+                  style={styles.emptyButtonGradient}
+                >
+                  <Ionicons name="add-circle" size={22} color="#FFFFFF" />
+                  <Text style={styles.emptyButtonText}>Create Your First Ad</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
         ) : null}
         
@@ -465,39 +522,52 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerGradient: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'android' ? 14 : 8,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: 4,
+    paddingBottom: 16,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
   },
   addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   card: {
     marginHorizontal: 16,
     marginVertical: 8,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   bannerContainer: {
     width: '100%',
@@ -669,30 +739,86 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 80,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+  },
+  emptyCard: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  emptyIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 20,
-    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
-  emptyText: {
+  emptySubtitle: {
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  emptyFeatures: {
+    width: '100%',
+    gap: 12,
     marginBottom: 28,
   },
+  emptyFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptyFeatureText: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
   emptyButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 12,
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    gap: 8,
   },
   emptyButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFF',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 });
