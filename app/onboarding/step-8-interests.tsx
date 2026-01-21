@@ -49,10 +49,13 @@ export default function Step8Interests() {
       // Then save to backend
       await User.updatePreferences({ primary_intents: sel });
       
-      setProgress(6); // step-9 is index 6
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-8-interests.tsx:52',message:'Progress advancing to step 9',data:{currentStep:8,nextProgress:7},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      setProgress(7); // step-9-features is index 7 in stepRoutes array
       
       // Continue to step 9 (features)
-      router.push('/onboarding/step-9-features');
+      router.replace('/onboarding/step-9-features');
     } catch (e: any) {
       // Revert state if backend save fails
       console.error('[Step8] Failed to save interests:', e);

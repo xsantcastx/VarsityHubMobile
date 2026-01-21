@@ -19,8 +19,9 @@ module.exports = function (api) {
           'is-arrayish': './shims/is-arrayish',
         }
       }],
-      // Reanimated must be listed last (after react-refresh)
-      'react-native-reanimated/plugin',
+      // Reanimated v4 (SDK 54) requires react-native-worklets/plugin instead
+      // This MUST be last to avoid breaking Fast Refresh
+      'react-native-worklets/plugin',
     ],
     // Ensure Fast Refresh is enabled in development
     env: {

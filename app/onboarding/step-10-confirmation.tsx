@@ -161,7 +161,7 @@ export default function Step10Confirmation() {
             } else {
               throw new Error('Role not set. Please go back to step 1 and select your role.');
             }
-          } catch (fetchErr: any) {
+          } catch {
             throw new Error('Failed to verify role. Please go back to step 1 and select your role.');
           }
         }

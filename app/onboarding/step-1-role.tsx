@@ -154,7 +154,7 @@ export default function Step1Role() {
         }
       })();
     }
-  }, [ob.role]);
+  }, [ob.role, setOB]);
 
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
@@ -173,16 +173,36 @@ export default function Step1Role() {
   const returnToConfirmation = params.returnToConfirmation === 'true';
 
   const onContinue = async () => {
-    if (!role) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:175',message:'Continue button pressed',data:{role,returnToConfirmation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    if (!role) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:177',message:'No role selected, returning early',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
     setSaving(true);
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:181',message:'Saving role to context',data:{role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setOB((prev) => ({ ...prev, role }));
       // Persist role to server so the schema/preferences reflect the user's selection
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:184',message:'Calling User.updatePreferences',data:{role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         await User.updatePreferences({ role });
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:186',message:'Role saved to server successfully',data:{role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         // Re-fetch me to confirm server saved the preference and help downstream code react
         try {
           const me: any = await User.me();
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:189',message:'Fetched user info',data:{serverRole:me?.preferences?.role,onboardingCompleted:me?.preferences?.onboarding_completed},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           // eslint-disable-next-line no-console
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
           if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
@@ -190,6 +210,9 @@ export default function Step1Role() {
           // ignore; best-effort
         }
       } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:195',message:'Failed to save role to server',data:{error:(error as any)?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         if (__DEV__) {
           // eslint-disable-next-line no-console
           console.warn('[Onboarding][Step1] failed to persist role to server', error);
@@ -201,17 +224,26 @@ export default function Step1Role() {
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:203',message:'Navigating to confirmation',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Route based on role selection for normal onboarding flow
         if (role === 'fan') {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:209',message:'Fan selected, navigating to step-7',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           // Fan gets lightest setup - skip to profile
           setProgress(5); // step-7 is index 5
-          router.push('/onboarding/step-7-profile');
+          router.replace('/onboarding/step-7-profile');
         } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-1-role.tsx:213',message:'Coach selected, navigating to step-2',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           // Coach/Organizer gets full onboarding with teams and subscriptions
           setProgress(1); // step-2 is index 1
-          router.push('/onboarding/step-2-basic');
+          router.replace('/onboarding/step-2-basic');
         }
       }
     } finally {

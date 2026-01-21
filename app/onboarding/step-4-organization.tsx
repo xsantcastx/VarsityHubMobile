@@ -86,6 +86,9 @@ export default function Step4Organization() {
           
           // Auto-skip this step if team already exists
           if (!e2e) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:89',message:'Team exists, auto-skipping to step 6',data:{teamId:firstTeam.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
             setProgress(5); // step-6
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
@@ -326,11 +329,11 @@ export default function Step4Organization() {
               }));
               
               if (returnToConfirmation) {
-                setProgress(7);
+                setProgress(8); // step-10-confirmation is index 8
                 router.replace('/onboarding/step-10-confirmation');
               } else {
                 setProgress(5);
-                router.push('/onboarding/step-6-authorized-users');
+                router.replace('/onboarding/step-6-authorized-users');
               }
             }
           }
@@ -347,10 +350,21 @@ export default function Step4Organization() {
   };
 
   const onContinue = async () => {
-    if (!canContinue) return;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:349',message:'Continue button pressed',data:{canContinue,emailVerified,alreadyExists,hasOrgName:!!orgName,hasLocation:!!location,orgType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    if (!canContinue) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:352',message:'Continue blocked - canContinue is false',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
     
     // Guard: require email verification before creating org
     if (emailVerified === false && !alreadyExists) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:355',message:'Email verification required alert shown',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       Alert.alert(
         'Email Verification Required',
         'Please verify your email address before creating an organization.',
@@ -367,11 +381,14 @@ export default function Step4Organization() {
       // If team/org already exists, just navigate to next step
       if (alreadyExists) {
         if (returnToConfirmation) {
-          setProgress(7);
+          setProgress(8); // step-10-confirmation is index 8
           router.replace('/onboarding/step-10-confirmation');
         } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:373',message:'Organization created, navigating to step 6',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           setProgress(5); // step-6
-          router.push('/onboarding/step-6-authorized-users');
+          router.replace('/onboarding/step-6-authorized-users');
         }
         return;
       }
@@ -392,7 +409,13 @@ export default function Step4Organization() {
       // include plan if present in onboarding state
       if (ob.plan) payload.plan = ob.plan;
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:401',message:'Calling Organization.createOrganization',data:{orgName:orgName.trim(),orgType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const org = await Organization.createOrganization(payload);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:401',message:'Organization created successfully',data:{orgId:org?.id,orgName:orgName.trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       setOB((prev) => ({ 
         ...prev, 
         organization_id: org?.id, 
@@ -417,17 +440,23 @@ export default function Step4Organization() {
             }
             
             // Navigate to next step
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:426',message:'Navigating after organization creation success',data:{returnToConfirmation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
             if (returnToConfirmation) {
-              setProgress(7);
+              setProgress(8); // step-10-confirmation is index 8
               router.replace('/onboarding/step-10-confirmation');
             } else {
               setProgress(5); // step-6
-              router.push('/onboarding/step-6-authorized-users');
+              router.replace('/onboarding/step-6-authorized-users');
             }
           })();
         }}]
       );
-    } catch (e: any) { 
+    } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-4-organization.tsx:456',message:'Error in onContinue',data:{error:e?.message,status:e?.status,data:e?.data},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       // Check if duplicate organization error
       if (e?.message?.includes('DUPLICATE_ORGANIZATION') || e?.message?.toLowerCase().includes('duplicate')) {
         Alert.alert(

@@ -2,7 +2,7 @@
  * Banner Spec Upload Component
  * 
  * Handles banner/logo upload for advertisements with preview and fit options
- * Supports letterbox, fill, and stretch transformations
+ * Supports rotate, fill, and stretch transformations with pinch-to-zoom and pan
  */
 
 import { Colors } from '@/constants/Colors';
@@ -20,14 +20,27 @@ import {
     Text,
     View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import ReanimatedAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
-type BannerFitMode = 'letterbox' | 'fill' | 'stretch';
+type BannerFitMode = 'rotate' | 'fill' | 'stretch';
 
 type BannerPosition = { x: number; y: number }; // percent 0-100
+type BannerTransform = {
+  scale: number;
+  translateX: number;
+  translateY: number;
+  rotation: number;
+};
 
 interface BannerUploadProps {
   value?: string; // Current banner URL
-  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition) => void;
+  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition, transform?: BannerTransform) => void;
   aspectRatio?: number; // Target aspect ratio (width/height), e.g., 16/9
   maxWidth?: number; // Max width for preview
   required?: boolean;
@@ -48,6 +61,16 @@ export function BannerUpload({
   const panStart = useRef<BannerPosition>({ x: 50, y: 50 });
   const [showHint, setShowHint] = useState(false);
   const hintOpacity = useRef(new Animated.Value(0)).current;
+
+  // Transform values for pinch-to-zoom and pan
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const rotation = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const savedRotation = useSharedValue(0);
 
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
@@ -110,14 +133,42 @@ export function BannerUpload({
 
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
+    if (newMode === 'rotate') {
+      // Reset transform when switching to rotate mode
+      scale.value = withSpring(1);
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      rotation.value = withSpring(0);
+      savedScale.value = 1;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+      savedRotation.value = 0;
+    }
     if (value) {
       onChange(value, newMode, position);
     }
   };
 
+  const handleRotate = () => {
+    // Rotate 90 degrees
+    const newRotation = (savedRotation.value + 90) % 360;
+    rotation.value = withTiming(newRotation, { duration: 300 });
+    savedRotation.value = newRotation;
+    // Save transform when rotating
+    if (value) {
+      const transform: BannerTransform = {
+        scale: savedScale.value,
+        translateX: savedTranslateX.value,
+        translateY: savedTranslateY.value,
+        rotation: savedRotation.value,
+      };
+      onChange(value, fitMode, position, transform);
+    }
+  };
+
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
     switch (fitMode) {
-      case 'letterbox':
+      case 'rotate':
         return 'contain'; // Fits entire image, may show bars
       case 'stretch':
         return 'fill'; // Stretches to fill, may distort
@@ -127,9 +178,52 @@ export function BannerUpload({
     }
   };
 
-  // Quick, minimal hint when Fill mode is active
+  // Pinch gesture for zoom
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = savedScale.value * e.scale;
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      // Clamp scale between 0.5 and 3
+      if (scale.value < 0.5) {
+        scale.value = withSpring(0.5);
+        savedScale.value = 0.5;
+      } else if (scale.value > 3) {
+        scale.value = withSpring(3);
+        savedScale.value = 3;
+      }
+    });
+
+  // Pan gesture for moving image
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  // Combined gesture (pinch + pan)
+  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  // Animated style for image transform
+  const imageAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: scale.value },
+        { rotate: `${rotation.value}deg` },
+      ],
+    };
+  });
+
+  // Quick, minimal hint when Fill or Rotate mode is active
   useEffect(() => {
-    if (value && fitMode === 'fill') {
+    if (value && (fitMode === 'fill' || fitMode === 'rotate')) {
       setShowHint(true);
       hintOpacity.setValue(0);
       Animated.sequence([
@@ -139,6 +233,20 @@ export function BannerUpload({
       ]).start(() => setShowHint(false));
     }
   }, [value, fitMode, hintOpacity]);
+
+  // Reset transforms when image changes
+  useEffect(() => {
+    if (value) {
+      scale.value = 1;
+      translateX.value = 0;
+      translateY.value = 0;
+      rotation.value = 0;
+      savedScale.value = 1;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+      savedRotation.value = 0;
+    }
+  }, [value]);
 
   return (
     <View style={styles.container}>
@@ -160,14 +268,20 @@ export function BannerUpload({
       >
         {value ? (
           <>
-            <Image
-              source={{ uri: value }}
-              style={styles.previewImage}
-              contentFit={getContentFit()}
-              contentPosition={
-                fitMode === 'fill' ? `${position.x}% ${position.y}%` as any : 'center'
-              }
-            />
+            <View style={styles.imageContainer}>
+              <GestureDetector gesture={fitMode === 'fill' || fitMode === 'rotate' ? composedGesture : undefined}>
+                <ReanimatedAnimated.View style={[styles.imageWrapper, imageAnimatedStyle]} collapsable={false}>
+                  <Image
+                    source={{ uri: value }}
+                    style={styles.previewImage}
+                    contentFit={getContentFit()}
+                    contentPosition={
+                      fitMode === 'fill' ? `${position.x}% ${position.y}%` as any : 'center'
+                    }
+                  />
+                </ReanimatedAnimated.View>
+              </GestureDetector>
+            </View>
             {/* Visual nudge hint */}
             {showHint && (
               <Animated.View
@@ -178,31 +292,10 @@ export function BannerUpload({
                 ]}
               >
                 <Ionicons name="hand-left-outline" size={16} color="#111827" />
-                <Text style={styles.hintText}>Drag to adjust</Text>
+                <Text style={styles.hintText}>
+                  {fitMode === 'rotate' ? 'Pinch to zoom, drag to move' : 'Pinch to zoom, drag to adjust'}
+                </Text>
               </Animated.View>
-            )}
-            {/* Drag overlay for reposition when Fill mode */}
-            {fitMode === 'fill' && (
-              <View
-                style={StyleSheet.absoluteFill}
-                onStartShouldSetResponder={() => true}
-                onMoveShouldSetResponder={() => true}
-                onResponderGrant={() => {
-                  panStart.current = { ...position };
-                }}
-                onResponderMove={(e) => {
-                  const { locationX, locationY } = e.nativeEvent;
-                  const { width, height } = containerSize.current;
-                  if (!width || !height) return;
-                  // Convert location to percentage and clamp
-                  const xPct = clamp((locationX / width) * 100, 0, 100);
-                  const yPct = clamp((locationY / height) * 100, 0, 100);
-                  setPosition({ x: xPct, y: yPct });
-                }}
-                onResponderRelease={() => {
-                  if (value) onChange(value, fitMode, position);
-                }}
-              />
             )}
             <Pressable style={styles.removeButton} onPress={handleRemove}>
               <Ionicons name="close-circle" size={28} color="#FFFFFF" />
@@ -235,7 +328,7 @@ export function BannerUpload({
             Banner Fit:
           </Text>
           <View style={styles.fitModeButtons}>
-            {(['letterbox', 'fill', 'stretch'] as BannerFitMode[]).map((mode) => (
+            {(['rotate', 'fill', 'stretch'] as BannerFitMode[]).map((mode) => (
               <Pressable
                 key={mode}
                 style={[
@@ -248,7 +341,13 @@ export function BannerUpload({
                     borderColor: Colors[colorScheme].border,
                   },
                 ]}
-                onPress={() => handleFitModeChange(mode)}
+                onPress={() => {
+                  if (mode === 'rotate') {
+                    handleRotate();
+                  } else {
+                    handleFitModeChange(mode);
+                  }
+                }}
               >
                 <Ionicons
                   name={getFitModeIcon(mode)}
@@ -270,7 +369,7 @@ export function BannerUpload({
                     },
                   ]}
                 >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  {mode === 'rotate' ? 'Rotate' : mode.charAt(0).toUpperCase() + mode.slice(1)}
                 </Text>
               </Pressable>
             ))}
@@ -284,8 +383,12 @@ export function BannerUpload({
           <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
             {getFitModeDescription(fitMode)}
           </Text>
-          {fitMode === 'fill' && (
-            <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>Drag image to reposition</Text>
+          {(fitMode === 'fill' || fitMode === 'rotate') && (
+            <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
+              {fitMode === 'rotate' 
+                ? 'Pinch to zoom, drag to move, tap Rotate to rotate 90°' 
+                : 'Pinch to zoom, drag to reposition'}
+            </Text>
           )}
         </View>
       )}
@@ -318,8 +421,8 @@ export function BannerUpload({
 
 function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
   switch (mode) {
-    case 'letterbox':
-      return 'scan-outline';
+    case 'rotate':
+      return 'refresh-outline';
     case 'stretch':
       return 'resize-outline';
     case 'fill':
@@ -330,13 +433,13 @@ function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
 
 function getFitModeDescription(mode: BannerFitMode): string {
   switch (mode) {
-    case 'letterbox':
-      return 'Fits entire image with padding bars (no cropping, no distortion)';
+    case 'rotate':
+      return 'Pinch to zoom, drag to move, tap Rotate to rotate 90°';
     case 'stretch':
       return 'Stretches image to fill entire space (may distort aspect ratio)';
     case 'fill':
     default:
-      return 'Fills entire space by cropping edges (maintains aspect ratio)';
+      return 'Fills entire space by cropping edges (maintains aspect ratio). Pinch to zoom, drag to reposition.';
   }
 }
 
@@ -351,6 +454,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     position: 'relative',
+  },
+  imageContainer: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+  },
+  imageWrapper: {
+    width: '100%',
+    height: '100%',
   },
   previewImage: {
     width: '100%',

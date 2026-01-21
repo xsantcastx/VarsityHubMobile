@@ -81,45 +81,84 @@ export default function Step7Profile() {
   };
 
   const onContinue = async () => {
+    // Normalize username (lowercase, replace spaces with underscores)
+    const normalizedUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:83',message:'Continue button pressed',data:{username:username?.length,usernameValue:username,normalizedUsername,hasAvatar:!!avatar,hasBio:!!bio,interestsCount:interests.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    
     // Validate username is required
-    if (!username || username.trim().length === 0) {
+    if (!normalizedUsername || normalizedUsername.length === 0) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:88',message:'Validation failed: username empty',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       Alert.alert('Username Required', 'Please enter a username to continue.');
       return;
     }
 
-    if (username.trim().length < 3) {
+    if (normalizedUsername.length < 3) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:94',message:'Validation failed: username too short',data:{length:normalizedUsername.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       Alert.alert('Username Too Short', 'Username must be at least 3 characters.');
       return;
     }
 
     setSaving(true);
     try {
-      // Save to context
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:100',message:'Starting save process',data:{normalizedUsername,avatar:!!avatar,bio:!!bio,interests:interests},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Save to context (use normalized username)
       setOB((prev) => ({ 
         ...prev, 
         avatar_url: avatar || undefined,
-        username: username || undefined,
+        username: normalizedUsername,
         bio: bio || undefined,
         sports_interests: interests as any
       }));
       
-      // Save to backend
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:110',message:'Context updated, calling API',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Save to backend (use normalized username)
       await User.patchMe({ 
         avatar_url: avatar || undefined,
-        username: username || undefined, 
+        username: normalizedUsername, 
         bio: bio || undefined, 
         preferences: { sports_interests: interests } 
       });
       
-      setProgress(5); // step-8 is index 5
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:120',message:'API call successful, navigating',data:{returnToConfirmation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:124',message:'Progress advancing to step 8',data:{currentStep:7,nextProgress:6,hasInterests:interests.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      setProgress(6); // step-8-interests is index 6 in stepRoutes array
       if (returnToConfirmation) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:128',message:'Navigating to confirmation',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Continue to interests
-        router.push('/onboarding/step-8-interests');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:132',message:'Navigating to step-8-interests',data:{progress:6},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+        // Continue to interests - use replace to avoid back navigation issues
+        console.log('[step-7-profile] Navigating to step-8-interests, progress set to:', 6);
+        router.replace('/onboarding/step-8-interests');
       }
-    } catch (e: any) { 
-      Alert.alert('Failed to save profile', e?.message || 'Please try again'); 
+    } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-7-profile.tsx:138',message:'Error saving profile',data:{error:e?.message,status:e?.status,data:e?.data,stack:e?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      console.error('[step-7-profile] Failed to save:', e);
+      Alert.alert('Failed to save profile', e?.message || e?.data?.error || 'Please try again'); 
     } finally { 
       setSaving(false); 
     }

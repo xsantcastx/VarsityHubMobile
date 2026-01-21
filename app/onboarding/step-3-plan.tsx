@@ -164,10 +164,19 @@ export default function Step3Plan() {
   }, []);
 
   const navigateNext = () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:166',message:'navigateNext called',data:{returnToConfirmation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (returnToConfirmation) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:168',message:'Navigating to confirmation',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-4-organization');
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:170',message:'Navigating to step-4-organization',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      router.replace('/onboarding/step-4-organization');
     }
   };
 
@@ -262,6 +271,9 @@ export default function Step3Plan() {
         } catch (err) {
           console.warn('Failed to persist rookie plan to backend:', err);
         }
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:265',message:'Rookie plan selected, setting progress to 3',data:{plan},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setProgress(3);
         navigateNext();
         return;
@@ -284,6 +296,9 @@ export default function Step3Plan() {
           } catch (err) {
             console.warn('Failed to persist free plan to backend:', err);
           }
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:287',message:'Free plan selected, setting progress to 3',data:{plan},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
           setProgress(3);
           navigateNext();
           return;
@@ -292,6 +307,9 @@ export default function Step3Plan() {
           // Stripe checkout was successful, user will pay through Stripe
           // The plan will be saved by the payment finalization process
           await WebBrowser.openBrowserAsync(String(res.url));
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-3-plan.tsx:295',message:'Stripe checkout opened, setting progress to 3',data:{plan},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
           setProgress(3);
           navigateNext();
           return;

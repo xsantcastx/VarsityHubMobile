@@ -85,11 +85,20 @@ export default function SignUpScreen() {
     
     try {
       const res: any = await attemptRegistration();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-up.tsx:87',message:'Registration successful',data:{hasDevCode:!!res?.dev_verification_code,devCode:res?.dev_verification_code,email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       // After successful signup, redirect to email verification screen
       // Pass dev code if available for easier testing
       if (res?.dev_verification_code) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-up.tsx:91',message:'Redirecting with dev code',data:{devCode:res.dev_verification_code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         router.replace(`/verify-identity?method=email&devCode=${res.dev_verification_code}`);
       } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'sign-up.tsx:94',message:'Redirecting without dev code',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         router.replace('/verify-identity?method=email');
       }
     } catch (e: any) {

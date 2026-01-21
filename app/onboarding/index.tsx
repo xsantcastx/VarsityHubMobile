@@ -1,11 +1,12 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 export default function OnboardingIndex() {
   const router = useRouter();
+  const segments = useSegments();
   const { user } = useAuth();
   const { progress, state, isLoaded } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
@@ -23,7 +24,7 @@ export default function OnboardingIndex() {
   
   useEffect(() => { 
     // Don't navigate until AsyncStorage has loaded and user is authenticated
-    if (!isLoaded || hasNavigated || !user) {
+    if (!isLoaded || !user) {
       return;
     }
     
@@ -43,10 +44,25 @@ export default function OnboardingIndex() {
     // Progress is 0-based index, so progress=8 means step 10
     const targetRoute = stepRoutes[progress] || stepRoutes[0];
     
+    // Reset hasNavigated when progress changes to allow re-navigation
+    // This ensures when progress updates, we can navigate to the new step
+    if (hasNavigated) {
+      const currentSegments = Array.isArray(segments) ? segments : [];
+      const targetSegment = targetRoute.replace('/onboarding/', '').split('/')[0];
+      const isOnTargetRoute = currentSegments.includes('onboarding') && 
+        (currentSegments.includes(targetSegment) || 
+         currentSegments[currentSegments.length - 1] === targetSegment);
+      if (isOnTargetRoute) {
+        // Already on the target route, don't navigate again
+        return;
+      }
+      // Progress changed, reset flag and navigate
+      setHasNavigated(false);
+    }
     
     setHasNavigated(true);
     router.replace(targetRoute as any);
-  }, [hasNavigated, isLoaded, progress, router, state, user]);
+  }, [hasNavigated, isLoaded, progress, router, segments, state, user]);
   
   // Show loading indicator while waiting for state to load
   return (

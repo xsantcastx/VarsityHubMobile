@@ -162,7 +162,10 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      setProgress(7);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-9-features.tsx:165',message:'Progress advancing to step 10',data:{currentStep:9,nextProgress:8,role:ob.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      setProgress(8); // step-10-confirmation is index 8 in stepRoutes array
       await AsyncStorage.setItem('@onboarding_progress', '8');
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {

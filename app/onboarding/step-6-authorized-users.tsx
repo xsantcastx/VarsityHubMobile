@@ -172,13 +172,22 @@ export default function Step6AuthorizedUsers() {
   };
 
   const onContinue = () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-6-authorized-users.tsx:174',message:'Continue button pressed',data:{authorizedCount:list.length,returnToConfirmation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     setOB((prev) => ({ ...prev, authorized: list }));
     if (returnToConfirmation) {
-      setProgress(7);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-6-authorized-users.tsx:177',message:'Navigating to confirmation',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      setProgress(8); // step-10-confirmation is index 8
       router.replace('/onboarding/step-10-confirmation');
     } else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-6-authorized-users.tsx:180',message:'Navigating to step-7-profile',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       setProgress(5); // Advance to Step 7
-      router.push('/onboarding/step-7-profile');
+      router.replace('/onboarding/step-7-profile');
     }
   };
 
@@ -186,11 +195,11 @@ export default function Step6AuthorizedUsers() {
     if (isOptional) {
       setOB((prev) => ({ ...prev, authorized: [] }));
       if (returnToConfirmation) {
-        setProgress(7);
+        setProgress(8); // step-10-confirmation is index 8
         router.replace('/onboarding/step-10-confirmation');
       } else {
         setProgress(5); // Advance to Step 7
-        router.push('/onboarding/step-7-profile');
+        router.replace('/onboarding/step-7-profile');
       }
     }
   };

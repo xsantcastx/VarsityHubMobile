@@ -46,10 +46,16 @@ export default function VerifyScreen() {
   // Load dev code from params if available
   useEffect(() => {
     const fromParams = toSingleValue(params.devCode);
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-identity.tsx:48',message:'Checking dev code from params',data:{hasDevCode:!!fromParams,devCode:fromParams},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (fromParams) {
       setDevCode(fromParams);
       setCode(fromParams);
       console.log('[verify] Dev code loaded from params:', fromParams);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'verify-identity.tsx:52',message:'Dev code set in form',data:{code:fromParams},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
     }
   }, [params.devCode]);
 
@@ -118,7 +124,9 @@ export default function VerifyScreen() {
     console.log('[verify] User clicked Continue, proceeding immediately...');
     try {
       const userInfo = await User.me();
-      const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
+      // Check if onboarding is explicitly incomplete (false) or undefined/null (new user)
+      const onboardingCompleted = userInfo?.preferences?.onboarding_completed === true;
+      const needsOnboarding = !onboardingCompleted;
       
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');

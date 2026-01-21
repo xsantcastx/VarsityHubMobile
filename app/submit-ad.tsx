@@ -32,7 +32,7 @@ export default function SubmitAdScreen() {
   const [business, setBusiness] = useState('');
   const [zip, setZip] = useState('');
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [bannerFitMode, setBannerFitMode] = useState<'letterbox' | 'fill' | 'stretch'>('fill');
+  const [bannerFitMode, setBannerFitMode] = useState<'rotate' | 'fill' | 'stretch'>('fill');
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
@@ -47,8 +47,9 @@ export default function SubmitAdScreen() {
 
   const handleBannerChange = (
     uri: string,
-    fitMode: 'letterbox' | 'fill' | 'stretch',
-    _position?: { x: number; y: number }
+    fitMode: 'rotate' | 'fill' | 'stretch',
+    _position?: { x: number; y: number },
+    _transform?: { scale: number; translateX: number; translateY: number; rotation: number }
   ) => {
     setBannerUrl(uri);
     setBannerFitMode(fitMode);

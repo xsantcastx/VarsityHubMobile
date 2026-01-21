@@ -147,7 +147,7 @@ export default function Step2Basic() {
       
       // Navigate back to confirmation if we came from there, otherwise continue based on role
       if (returnToConfirmation) {
-        setProgress(7); // step-10 is index 7
+        setProgress(8); // step-10 is index 8
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Determine role from onboarding state or fallback to server
@@ -156,13 +156,16 @@ export default function Step2Basic() {
         // Fan: light path → profile setup
         if (userRole === 'fan') {
           setProgress(5); // step-7 is index 5
-          router.push('/onboarding/step-7-profile');
+          router.replace('/onboarding/step-7-profile');
           return;
         }
 
         // Coach: go to plan selection
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step-2-basic.tsx:164',message:'Progress advancing to step 3',data:{currentStep:2,nextProgress:2,userRole},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         setProgress(2); // step-3 is index 2
-        router.push('/onboarding/step-3-plan');
+        router.replace('/onboarding/step-3-plan');
       }
     } catch (e: any) { 
       console.error('[step-2-basic] Failed to save:', e);

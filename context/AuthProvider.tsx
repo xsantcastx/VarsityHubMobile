@@ -377,14 +377,23 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // SERVER IS SOURCE OF TRUTH for onboarding completion
       // Admin accounts always have onboarding_completed=true on server, so they bypass onboarding
       // Regular users are marked false if they haven't completed onboarding
-      const serverSaysIncomplete = user.preferences?.onboarding_completed === false;
+      // CRITICAL: Check if onboarding_completed is explicitly true (not undefined/null)
+      const onboardingCompleted = user.preferences?.onboarding_completed === true;
+      const onboardingIncomplete = user.preferences?.onboarding_completed === false;
       
-      // Onboarding is only required if server explicitly says false
-      // Remove dependency on AsyncStorage to avoid race conditions on app restart
-      const needsOnboarding = serverSaysIncomplete;
+      // If onboarding_completed is undefined/null, treat as incomplete (new user)
+      // Only consider onboarding complete if explicitly set to true
+      const needsOnboarding = !onboardingCompleted && (onboardingIncomplete || user.preferences?.onboarding_completed === undefined || user.preferences?.onboarding_completed === null);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:381',message:'Checking onboarding status',data:{onboardingCompleted,onboardingIncomplete,needsOnboarding,onboardingValue:user.preferences?.onboarding_completed,firstSegment},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
 
       // If needs onboarding and not already there, redirect to start onboarding
       if (needsOnboarding && firstSegment !== 'onboarding') {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:388',message:'User needs onboarding, redirecting to step 1',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         console.log('[AuthProvider] User needs onboarding, redirecting to step 1');
         if (lastRedirectRef.current !== '/onboarding/step-1-role') {
           lastRedirectRef.current = '/onboarding/step-1-role';
@@ -394,7 +403,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       }
 
       // If onboarding is complete and user is still on onboarding route, send to main app
-      if (!needsOnboarding && firstSegment === 'onboarding') {
+      if (onboardingCompleted && firstSegment === 'onboarding') {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AuthProvider.tsx:397',message:'Onboarding complete, redirecting to main app',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         console.log('[AuthProvider] User completed onboarding, redirecting to main app');
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
@@ -404,8 +416,8 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
         return;
       }
 
-      // If on public route and doesn't need onboarding (but NOT verify-email)
-      if (isPublic && !needsOnboarding && firstSegment !== 'verify-email') {
+      // If on public route and onboarding is complete (but NOT verify-email)
+      if (isPublic && onboardingCompleted && firstSegment !== 'verify-email') {
         const landingRoute = '/(tabs)';
         if (lastRedirectRef.current !== landingRoute) {
           lastRedirectRef.current = landingRoute;

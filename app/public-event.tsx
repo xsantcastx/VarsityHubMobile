@@ -2,9 +2,10 @@ import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
@@ -23,6 +24,15 @@ export default function PublicEventScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.id]);
+
+  // Refresh posts when screen comes into focus (after creating a post)
+  useFocusEffect(
+    useCallback(() => {
+      if (params?.id) {
+        void loadEventData();
+      }
+    }, [params?.id])
+  );
 
   const loadEventData = async () => {
     setLoading(true);
@@ -104,9 +114,27 @@ export default function PublicEventScreen() {
         </View>
 
         <View style={styles.postsSection}>
-          <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-            Event Feed
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+              Event Feed
+            </Text>
+            <Pressable
+              style={[styles.createPostButton, { backgroundColor: Colors[colorScheme].tint }]}
+              onPress={() => {
+                if (params?.id) {
+                  router.push({
+                    pathname: '/(tabs)/create-post',
+                    params: { gameId: params.id }
+                  });
+                } else {
+                  router.push('/(tabs)/create-post');
+                }
+              }}
+            >
+              <Ionicons name="add" size={20} color="#FFFFFF" />
+              <Text style={styles.createPostButtonText}>Create Post</Text>
+            </Pressable>
+          </View>
           
           {loading ? (
             <View style={styles.loadingContainer}>
@@ -165,11 +193,29 @@ const styles = StyleSheet.create({
   postsSection: {
     marginTop: 8,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  },
+  createPostButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  createPostButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     paddingVertical: 24,

@@ -29,10 +29,14 @@ export default function Index() {
 
       if (!user) {
         router.replace('/sign-in');
-      } else if (user.preferences?.onboarding_completed === false) {
-        router.replace('/onboarding/step-1-role');
       } else {
-        router.replace('/(tabs)' as any);
+        // Only treat as complete if explicitly true, otherwise need onboarding
+        const onboardingCompleted = user.preferences?.onboarding_completed === true;
+        if (onboardingCompleted) {
+          router.replace('/(tabs)' as any);
+        } else {
+          router.replace('/onboarding/step-1-role');
+        }
       }
     }, 3000);
 
