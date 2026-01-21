@@ -90,18 +90,23 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
     // Use id as cursor (simpler and works with our where clause)
     const nextCursor = rows.length > limit ? rows[limit].id : null;
 
-    const payload = items.map((n: any) => ({
-      id: n.id,
-      type: n.type,
-      created_at: n.created_at,
-      read_at: n.read_at,
-      actor: n.actor ? { id: n.actor.id, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
-      post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
-      comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
-      // message relation removed - message_id column doesn't exist in database yet
-      message: null,
-      meta: { ...((n.meta as any) || {}), summary: summarize(n) },
-    }));
+    const payload = items.map((n: any) => {
+      const meta = (n.meta as any) || {};
+      // Extract message_id from meta if it exists (stored there temporarily until migration)
+      const messageId = meta.message_id;
+      return {
+        id: n.id,
+        type: n.type,
+        created_at: n.created_at,
+        read_at: n.read_at,
+        actor: n.actor ? { id: n.actor.id, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
+        post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
+        comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
+        // message_id column doesn't exist in database yet, but we can extract from meta
+        message: messageId ? { id: messageId } : null,
+        meta: { ...meta, summary: summarize(n) },
+      };
+    });
 
     return res.json({ items: payload, nextCursor });
   } catch (error: any) {
