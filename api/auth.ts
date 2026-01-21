@@ -45,23 +45,9 @@ export const auth = {
     return res;
   },
   async loginWithApple(identityToken: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:47',message:'loginWithApple called',data:{hasToken:!!identityToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     // Apple auth can be slow on real devices; allow longer timeout
     const res = await httpPostLongTimeout('/auth/apple', { identity_token: identityToken });
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:50',message:'loginWithApple API response',data:{hasAccessToken:!!res?.access_token,responseKeys:Object.keys(res||{})},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    if (res?.access_token) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:52',message:'Saving access token',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
-      await saveToken(res.access_token);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:54',message:'Token saved',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
-    }
+    if (res?.access_token) await saveToken(res.access_token);
     return res;
   },
   async me() {
@@ -97,14 +83,6 @@ export const auth = {
   async verifyEmail(code: string) {
     await loadToken();
     return httpPost('/auth/verify/confirm', { code });
-  },
-  async requestPhoneVerification(phone: string) {
-    await loadToken();
-    return httpPost('/auth/verify/phone/request', { phone });
-  },
-  async verifyPhone(phone: string, code: string) {
-    await loadToken();
-    return httpPost('/auth/verify/phone/confirm', { phone, code });
   },
   async requestPasswordReset(email: string) {
     return httpPost('/auth/password/forgot', { email });

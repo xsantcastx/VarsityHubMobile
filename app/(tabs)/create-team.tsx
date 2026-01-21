@@ -231,23 +231,6 @@ export default function CreateTeamScreen() {
       const userRole = user?.preferences?.role; // Already guaranteed coach above
       const userPlan = user?.preferences?.plan || 'rookie'; // Default to rookie if not set
 
-      // CRITICAL: Validate extracurricular Legend requirement before proceeding
-      if (clubType === 'extracurricular' && userPlan !== 'legend') {
-        Alert.alert(
-          'Legend Plan Required',
-          'Extracurricular clubs (Theater, Chess, Debate, etc.) require the Legend plan ($19.99/year). Please upgrade to create clubs beyond sports teams.',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => setSubmitting(false) },
-            { 
-              text: 'View Plans', 
-              onPress: () => { setSubmitting(false); router.push('/subscription-paywall'); },
-              style: 'default'
-            }
-          ]
-        );
-        return;
-      }
-
       let latestLimits: TeamLimitSummary | null = teamLimits;
       try {
         const refreshedLimits: TeamLimitSummary = await Team.limits();

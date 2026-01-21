@@ -1,12 +1,11 @@
-name: CI/CD - Lint, Type Check, and Tests (DISABLED)
+name: CI/CD - Extended Checks with Server Tests
 
 on:
   workflow_dispatch:
-  # Temporarily disabled to stop email spam
-  # pull_request:
-  #   branches: [main, develop]
-  # push:
-  #   branches: [main, develop]
+  # Re-enabled but only for PRs to reduce noise (main CI handles push)
+  pull_request:
+    branches: [main, develop]
+  # Push triggers are handled by ci.yml to avoid duplicate runs
 
 jobs:
   lint-and-typecheck:

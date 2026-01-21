@@ -18,10 +18,10 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import MapView, { Callout, Marker } from 'react-native-maps';
+import MapView, { Callout, Marker, Region } from 'react-native-maps';
 import { getMapProvider } from '@/utils/maps';
 
-import type { EventMapProps, Region } from './EventMap.types';
+import { EventMapProps } from './EventMap.types';
 
 export type { EventMapData, EventMapProps } from './EventMap.types';
 

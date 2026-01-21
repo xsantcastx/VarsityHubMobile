@@ -1,10 +1,4 @@
-// Region type - compatible with react-native-maps but defined here for web support
-export interface Region {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
+import type { Region } from 'react-native-maps';
 
 export interface EventMapData {
   id: string;

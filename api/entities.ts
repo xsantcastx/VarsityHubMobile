@@ -68,9 +68,6 @@ export const User = {
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
   blockedUsers: () => httpGet('/users/blocked'),
-  // Phone verification
-  requestPhoneVerification: (phone: string) => auth.requestPhoneVerification(phone),
-  verifyPhone: (phone: string, code: string) => auth.verifyPhone(phone, code),
 };
 
 export const Game = {
@@ -220,10 +217,7 @@ export const Post = {
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
   get: (id: string) => httpGet('/posts/' + encodeURIComponent(id)),
-  comments: (id: string, cursor?: string | null) => {
-    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-    return httpGet(`/posts/${encodeURIComponent(id)}/comments${qs}`);
-  },
+  comments: (id: string) => httpGet(`/posts/${encodeURIComponent(id)}/comments`),
   addComment: (id: string, content: string) => httpPost(`/posts/${encodeURIComponent(id)}/comments`, { content }),
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),

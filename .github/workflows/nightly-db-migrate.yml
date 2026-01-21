@@ -33,10 +33,14 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          cd server && npm ci
 
       - name: Setup Prisma
-        run: npx prisma generate
+        run: |
+          cd server
+          npx prisma generate
 
       - name: Wait for Postgres
         run: |
@@ -48,15 +52,21 @@ jobs:
       - name: Run DB Migrations
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/varsityhub
-        run: npx prisma migrate deploy
+        run: |
+          cd server
+          npx prisma migrate deploy
 
       - name: Run Seed Script
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/varsityhub
           SEED_PASSWORD: ci
-        run: node prisma/seed.ts
+        run: |
+          cd server
+          npm run seed
 
       - name: Verify Schema
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/varsityhub
-        run: npx prisma db pull
+        run: |
+          cd server
+          npx prisma db pull

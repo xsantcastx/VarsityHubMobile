@@ -6,7 +6,6 @@ import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BackHeader } from '@/components/ui/BackHeader';
 
 type Policy = 'everyone' | 'following' | 'no_one';
 
@@ -47,30 +46,25 @@ export default function DMRestrictionsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ 
         title: 'DM Restrictions',
-        headerShown: false, // Use custom header
+        headerLeft: () => (
+          <Pressable onPress={() => router.back()} style={{ paddingLeft: 8 }}>
+            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].tint} />
+          </Pressable>
+        ),
       }} />
-      <BackHeader 
-        title="DM Restrictions"
-        backgroundColor={Colors[colorScheme].background}
-        textColor={Colors[colorScheme].text}
-        borderColor={Colors[colorScheme].border}
-      />
-      <View style={styles.content}>
-        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Who can message you?</Text>
-        <Row k="everyone" title="Everyone" desc="Anyone can send you a direct message." />
-        <Row k="following" title="People you follow" desc="Only people you follow can message you." />
-        <Row k="no_one" title="No one" desc="Direct messages to you are disabled." />
-      </View>
+      <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Who can message you?</Text>
+      <Row k="everyone" title="Everyone" desc="Anyone can send you a direct message." />
+      <Row k="following" title="People you follow" desc="Only people you follow can message you." />
+      <Row k="no_one" title="No one" desc="Direct messages to you are disabled." />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, padding: 16, gap: 12 },
-  title: { fontSize: 22, fontWeight: '800', marginBottom: 8, letterSpacing: -0.3 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, marginBottom: 8 },
-  rowTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  muted: { fontSize: 14, lineHeight: 20 },
-  badge: { fontSize: 14, fontWeight: '700' },
+  container: { flex: 1, padding: 16, gap: 8 },
+  title: { fontSize: 20, fontWeight: '800', marginBottom: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  rowTitle: { fontWeight: '700' },
+  muted: {},
+  badge: { fontWeight: '700' },
 });

@@ -27,9 +27,15 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
     const where: any = { user_id: userId };
     if (unreadOnly) where.read_at = null;
 
+    // When using cursor with multiple orderBy, Prisma requires cursor to match orderBy structure
+    // Use id as primary sort when cursor is present (for stable pagination)
+    const orderBy = cursor 
+      ? [{ id: 'desc' as const }] // Cursor-based pagination uses id
+      : [{ created_at: 'desc' as const }, { id: 'desc' as const }]; // Initial load uses created_at + id
+
     const query: any = {
       where,
-      orderBy: [{ created_at: 'desc' as const }, { id: 'desc' as const }],
+      orderBy,
       take: limit + 1,
       select: {
         id: true,
@@ -43,7 +49,12 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         comment: { select: { id: true, content: true, post_id: true, created_at: true } },
       },
     };
-    if (cursor) { query.cursor = { id: cursor }; query.skip = 1; }
+    
+    // Cursor pagination - Prisma requires cursor field to be in orderBy
+    if (cursor) {
+      query.cursor = { id: cursor };
+      query.skip = 1;
+    }
 
     // Add timeout to prevent hanging queries
     const queryPromise = (prisma as any).notification.findMany(query);

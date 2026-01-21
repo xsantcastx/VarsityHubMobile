@@ -11,8 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-type VerificationMethod = 'email' | 'phone';
-
 type ParamValue = string | string[] | undefined;
 
 const toSingleValue = (value: ParamValue): string | undefined => {
@@ -22,25 +20,11 @@ const toSingleValue = (value: ParamValue): string | undefined => {
   return value;
 };
 
-const normalizeMethodParam = (value: ParamValue): VerificationMethod => {
-  const normalized = toSingleValue(value);
-  return normalized === 'phone' ? 'phone' : 'email';
-};
-
-const normalizePhoneNumber = (value: string): string | null => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  return `+${digits}`;
-};
-
 export default function VerifyScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const params = useLocalSearchParams<{ devCode?: ParamValue; phone?: ParamValue; method?: ParamValue }>();
+  const params = useLocalSearchParams<{ devCode?: ParamValue }>();
   
-  const [method, setMethod] = useState<VerificationMethod>(() => normalizeMethodParam(params.method));
-  const [phone, setPhone] = useState(() => toSingleValue(params.phone) || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
@@ -48,34 +32,16 @@ export default function VerifyScreen() {
   const [devCode, setDevCode] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
 
-  const handleMethodChange = (nextMethod: VerificationMethod) => {
-    if (nextMethod === method) return;
-    setMethod(nextMethod);
-    setCode('');
-    setInfo(null);
+  // Clear any errors from previous screens on mount
+  useEffect(() => {
     setError(null);
-    setIsVerified(false);
-  };
+    setInfo(null);
+  }, []);
 
-  const methodCopy = method === 'email'
-    ? {
-        icon: 'mail-outline' as const,
-        title: 'Check Your Email',
-        description: 'We sent a 6-digit verification code to your email address.',
-        verifyCta: 'Verify Email',
-        helper: 'Need to update your email? Edit it from settings.',
-      }
-    : {
-        icon: 'chatbubble-ellipses-outline' as const,
-        title: 'Verify Your Phone',
-        description: 'Enter your phone number and we will text you a 6-digit code.',
-        verifyCta: 'Verify Phone',
-        helper: 'Include your country code (e.g. +1 for the US).',
-      };
-
-  const isPhoneReady = method === 'phone' ? Boolean(normalizePhoneNumber(phone)) : true;
-  const canVerify = !loading && code.trim().length >= 4 && isPhoneReady;
-  const isResendDisabled = loading || (method === 'phone' && !isPhoneReady);
+  // Require exactly 6-digit code for email verification
+  const codeValid = code.trim().length === 6;
+  const canVerify = !loading && codeValid;
+  const isResendDisabled = loading;
 
   // Load dev code from params if available
   useEffect(() => {
@@ -91,23 +57,10 @@ export default function VerifyScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      let result;
-      if (method === 'email') {
-        console.log('[verify] Attempting to verify email with code:', code.trim());
-        result = await User.verifyEmail(code.trim());
-        console.log('[verify] Email verification result:', result);
-        setInfo('✅ Email verified successfully!');
-      } else {
-        const sanitizedPhone = normalizePhoneNumber(phone);
-        if (!sanitizedPhone) {
-          setError('Please enter a valid phone number including country code.');
-          return;
-        }
-        console.log('[verify] Attempting to verify phone with code:', code.trim(), 'phone:', sanitizedPhone);
-        result = await User.verifyPhone(sanitizedPhone, code.trim());
-        console.log('[verify] Phone verification result:', result);
-        setInfo('✅ Phone verified successfully!');
-      }
+      console.log('[verify] Attempting to verify email with code:', code.trim());
+      const result = await User.verifyEmail(code.trim());
+      console.log('[verify] Email verification result:', result);
+      setInfo('✅ Email verified successfully!');
       
       setCode(''); // Clear the code input
       setIsVerified(true);
@@ -137,7 +90,7 @@ export default function VerifyScreen() {
         }, 3000);
       }
     } catch (e: any) {
-      console.error(`[verify] ${method} verification failed:`, e);
+      console.error('[verify] Email verification failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
     } finally {
@@ -148,23 +101,12 @@ export default function VerifyScreen() {
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
     try {
-      if (method === 'email') {
-        console.log('[verify] Requesting new email verification code...');
-        const res: any = await User.requestVerification();
-        console.log('[verify] Resend email response:', res);
-        setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
-      } else {
-        const sanitizedPhone = normalizePhoneNumber(phone);
-        if (!sanitizedPhone) {
-          setError('Please enter a valid phone number including country code.');
-          return;
-        }
-        console.log('[verify] Requesting new SMS verification code for:', sanitizedPhone);
-        const res: any = await User.requestPhoneVerification(sanitizedPhone);
-        setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : `Text sent to ${sanitizedPhone}`);
-      }
+      console.log('[verify] Requesting new email verification code...');
+      const res: any = await User.requestVerification();
+      console.log('[verify] Resend email response:', res);
+      setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
-      console.error(`[verify] Resend ${method} failed:`, e);
+      console.error('[verify] Resend email failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);
     } finally {
@@ -189,32 +131,6 @@ export default function VerifyScreen() {
     }
   };
 
-  const MethodToggle = () => (
-    <View style={styles.toggleContainer}>
-      <Pressable 
-        style={[
-          styles.toggleButton, 
-          method === 'email' && styles.toggleButtonActive, 
-          { backgroundColor: method === 'email' ? Colors[colorScheme].tint : 'transparent' }
-        ]}
-        onPress={() => handleMethodChange('email')}
-      >
-        <Ionicons name="mail-outline" size={20} color={method === 'email' ? 'white' : Colors[colorScheme].mutedText} />
-        <Text style={[styles.toggleText, { color: method === 'email' ? 'white' : Colors[colorScheme].text }]}>Email</Text>
-      </Pressable>
-      <Pressable 
-        style={[
-          styles.toggleButton, 
-          method === 'phone' && styles.toggleButtonActive, 
-          { backgroundColor: method === 'phone' ? Colors[colorScheme].tint : 'transparent' }
-        ]}
-        onPress={() => handleMethodChange('phone')}
-      >
-        <Ionicons name="call-outline" size={20} color={method === 'phone' ? 'white' : Colors[colorScheme].mutedText} />
-        <Text style={[styles.toggleText, { color: method === 'phone' ? 'white' : Colors[colorScheme].text }]}>Phone</Text>
-      </Pressable>
-    </View>
-  );
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
@@ -237,48 +153,28 @@ export default function VerifyScreen() {
         {/* Header Icon */}
         <View style={styles.iconContainer}>
           <Ionicons 
-            name={methodCopy.icon} 
+            name="mail-outline" 
             size={64} 
             color={colorScheme === 'dark' ? '#60A5FA' : '#2563EB'} 
           />
         </View>
         
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>
-          {methodCopy.title}
+          Check Your Email
         </Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>
-          {methodCopy.description}
+          We sent a 6-digit verification code to your email address.
         </Text>
-        
-        <MethodToggle />
         
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {info ? <Text style={styles.info}>{info}</Text> : null}
         
-        {method === 'email' && devCode ? (
+        {devCode ? (
           <View style={styles.devCodeContainer}>
             <Ionicons name="bug-outline" size={16} color="#059669" />
             <Text style={styles.devCodeText}>Dev Code: {devCode}</Text>
           </View>
         ) : null}
-        
-        {method === 'phone' && (
-          <View style={styles.codeSection}>
-            <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Phone Number</Text>
-            <Input 
-              placeholder="+1 (555) 123-4567" 
-              value={phone} 
-              onChangeText={setPhone} 
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              autoComplete="tel"
-              style={styles.phoneInput}
-            />
-            <Text style={[styles.helperText, { color: Colors[colorScheme].mutedText }]}>
-              {methodCopy.helper}
-            </Text>
-          </View>
-        )}
 
         <View style={styles.codeSection}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Verification Code</Text>
@@ -298,7 +194,7 @@ export default function VerifyScreen() {
           </Button>
         ) : (
           <Button onPress={onVerify} disabled={!canVerify} style={styles.verifyButton}>
-            {loading ? <ActivityIndicator color="#fff" /> : methodCopy.verifyCta}
+            {loading ? <ActivityIndicator color="#fff" /> : 'Verify Email'}
           </Button>
         )}
         
@@ -350,38 +246,8 @@ const styles = StyleSheet.create({
   iconContainer: { alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
   subtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 24,
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 8,
-  },
-  toggleButtonActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  toggleText: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   codeSection: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  helperText: { fontSize: 12, marginTop: 6 },
-  phoneInput: { fontSize: 16, letterSpacing: 1 },
   codeInput: { fontSize: 24, textAlign: 'center', letterSpacing: 8 },
   verifyButton: { marginBottom: 16 },
   footer: { alignItems: 'center', marginTop: 8, gap: 8 },

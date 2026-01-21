@@ -31,6 +31,7 @@ export default function SignUpScreen() {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     setRetryCount(attempt > 1 ? attempt : 0);
@@ -80,7 +81,7 @@ export default function SignUpScreen() {
     if (!email.includes('@') || !email.includes('.')) { setError('Please enter a valid email address'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
     trackTap('auth_email_submit', { screen: 'sign_up' });
-    setLoading(true); setError(null); setRetryCount(0);
+    setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
     
     try {
       const res: any = await attemptRegistration();
@@ -100,10 +101,14 @@ export default function SignUpScreen() {
       
       // Handle specific error types with better messaging
       let errorMessage = 'Sign up failed';
+      let promptSignIn = false;
+      
       if (e?.message?.includes('Registration may have partially succeeded')) {
         errorMessage = 'Your account may have been created but there was an issue signing you in. Please try signing in directly.';
-      } else if (e?.message?.includes('Email already registered')) {
-        errorMessage = 'This email is already registered. Try signing in instead.';
+        promptSignIn = true;
+      } else if (e?.message?.includes('Email already registered') || e?.status === 409 || e?.data?.errorCode === 'EMAIL_ALREADY_REGISTERED') {
+        errorMessage = 'This email is already registered. Please sign in instead.';
+        promptSignIn = true;
       } else if (e?.message?.includes('Request timeout')) {
         errorMessage = 'Registration is taking longer than expected. Our servers might be busy. Please try again in a few minutes.';
       } else if (e?.message?.includes('Network request failed')) {
@@ -117,6 +122,7 @@ export default function SignUpScreen() {
       }
       
       setError(errorMessage);
+      setShowSignInPrompt(promptSignIn);
     } finally { setLoading(false); }
   };
 
@@ -199,7 +205,20 @@ export default function SignUpScreen() {
         <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Create Account</Text>
         <Text style={[styles.subtitle, { color: Colors[colorScheme].mutedText }]}>Choose how you'd like to sign up</Text>
         
-        {error ? <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={[styles.error, { color: Colors[colorScheme].destructive }]}>{error}</Text>
+            {showSignInPrompt && (
+              <Button 
+                variant="outline" 
+                onPress={() => router.replace('/sign-in')}
+                style={{ marginTop: 12 }}
+              >
+                <Text style={{ color: Colors[colorScheme].tint, fontSize: 16, fontWeight: '600' }}>Go to Sign In</Text>
+              </Button>
+            )}
+          </View>
+        ) : null}
 
         {!showEmailForm ? (
           <>
@@ -296,6 +315,10 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 16, marginBottom: 24, textAlign: 'center' },
+  errorContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
   error: { color: 'transparent', marginBottom: 8, textAlign: 'center' }, // Will be overridden with Colors[colorScheme].destructive
   googleButton: {
     flexDirection: 'row',
