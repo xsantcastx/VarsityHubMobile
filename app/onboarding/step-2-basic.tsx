@@ -115,7 +115,9 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  const canContinue = usernameRe.test(username) && available && affiliation && dob && !dobError;
+  // canContinue requires: valid username, available username, affiliation selected, DOB entered, no DOB errors
+  // Note: zip code is optional, so it's not in canContinue check
+  const canContinue = usernameRe.test(username) && available === true && affiliation && dob && !dobError;
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -148,8 +150,11 @@ export default function Step2Basic() {
         setProgress(7); // step-10 is index 7
         router.replace('/onboarding/step-10-confirmation');
       } else {
+        // Determine role from onboarding state or fallback to server
+        const userRole = ob.role || 'coach'; // Default to coach if role not set
+        
         // Fan: light path → profile setup
-        if (ob.role === 'fan') {
+        if (userRole === 'fan') {
           setProgress(5); // step-7 is index 5
           router.push('/onboarding/step-7-profile');
           return;
@@ -160,7 +165,11 @@ export default function Step2Basic() {
         router.push('/onboarding/step-3-plan');
       }
     } catch (e: any) { 
-      Alert.alert('Failed to save', e?.message || 'Please try again'); 
+      console.error('[step-2-basic] Failed to save:', e);
+      const errorMessage = e?.message || e?.data?.error || 'Please try again';
+      Alert.alert('Failed to save', errorMessage, [
+        { text: 'OK', style: 'default' }
+      ]); 
     } finally { 
       setSaving(false); 
     }

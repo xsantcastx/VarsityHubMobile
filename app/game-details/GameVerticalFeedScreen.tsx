@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 
 import { Game, Highlights, Post, User } from '@/api/entities';
+import { httpGet } from '@/api/http';
 import events from '@/utils/events';
 import { AppLinks } from '@/utils/links';
 
@@ -126,8 +127,8 @@ type GameVerticalFeedScreenProps = {
 
 
 const fetchCommentsPage = async (postId: string, cursor?: string | null) => {
-  // Use Post.comments API client (now supports cursor parameter)
-  return Post.comments(postId, cursor);
+  const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  return httpGet(`/posts/${encodeURIComponent(postId)}/comments${qs}`);
 };
 
 const FeedCard = memo(

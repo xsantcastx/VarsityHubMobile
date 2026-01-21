@@ -85,7 +85,7 @@ export default function EditProfileScreen() {
       const prefs = me?.preferences || {};
       
       // Direct fields
-      setFullName(me?.display_name || me?.full_name || '');
+      setDisplayName(me?.display_name || '');
       setBio(me?.bio || '');
       setAvatarUrl(me?.avatar_url || null);
       const headerImagePref = prefs?.header_image_url || prefs?.profile_header_image_url || me?.header_image_url;

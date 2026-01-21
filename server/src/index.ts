@@ -275,7 +275,6 @@ process.on('unhandledRejection', (reason, promise) => {
 export { app };
 
 // Only start server if not in test environment
-// Railway auto-sets PORT env var - defaults to 4000 if not set
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, HOST, () => {
     debugLog(`API listening on http://${HOST}:${PORT}`);

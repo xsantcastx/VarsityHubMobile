@@ -1,11 +1,14 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Use absolute path for plan-definitions.json in Docker container
-// In Railway Docker container, this resolves to /app/shared/plan-definitions.json
-const planDefinitionsPath = path.resolve('/app/shared/plan-definitions.json');
+// Resolve path relative to dist/lib/planLimits.js -> /app/shared/plan-definitions.json
+// From dist/lib: ../../shared/plan-definitions.json
+const planDefinitionsPath = path.resolve(__dirname, '../../shared/plan-definitions.json');
 const planDefinitions = require(planDefinitionsPath) as Record<
   PlanId,
   RawPlanDefinition

@@ -42,11 +42,9 @@ export function useAppleAuth() {
       let credential;
       if (isSimulator) {
         console.log('[Apple Auth] Using simulator mock credential');
-        // Use a stable user ID for simulator so the same account is reused
-        // This prevents creating a new account on every sign-in
-        const STABLE_SIMULATOR_USER_ID = 'sim-test-user-stable';
+        // Create a mock credential for testing
         credential = {
-          user: STABLE_SIMULATOR_USER_ID,
+          user: 'sim-test-user-' + Date.now(),
           authorizationCode: null,
           identityToken: null,
           email: null,
@@ -130,19 +128,10 @@ export function useAppleAuth() {
       // or a stable dev-only token derived from credential.user so local auth works.
       const fallbackToken = credential.authorizationCode || (credential.user ? `sim-${credential.user}` : null);
       const identityToken = credential.identityToken || fallbackToken;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:133',message:'Credential obtained, token extracted',data:{hasIdentityToken:!!credential.identityToken,hasAuthorizationCode:!!credential.authorizationCode,hasUser:!!credential.user,hasEmail:!!credential.email,hasIdentityTokenFinal:!!identityToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       if (!identityToken) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:135',message:'No token from Apple',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         throw new Error('Apple sign-in did not provide a token');
       }
 
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:139',message:'Starting API call to loginViaApple',data:{hasIdentityToken:!!identityToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       // Send token to your backend (mock accepts any non-empty string in dev)
       // Retry logic for network issues and timeouts
       let res: any = null;
@@ -152,13 +141,7 @@ export function useAppleAuth() {
       
       while (attempts < maxAttempts) {
         try {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:147',message:'Calling User.loginViaApple',data:{attempt:attempts+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           res = await User.loginViaApple(identityToken);
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:149',message:'loginViaApple response received',data:{hasAccessToken:!!res?.access_token,responseKeys:Object.keys(res||{})},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           if (res?.access_token) {
             return res;
           }
@@ -166,9 +149,6 @@ export function useAppleAuth() {
           lastError = new Error('No access token in response');
           attempts++;
         } catch (networkErr: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useAppleAuth.ts:156',message:'loginViaApple error',data:{message:networkErr?.message,status:networkErr?.status,attempt:attempts+1},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           lastError = networkErr;
           attempts++;
           const isRetryable = 
@@ -224,9 +204,8 @@ export function useAppleAuth() {
         try {
           console.log('[Apple Auth] Attempting dev fallback auth...');
           // Use the owner's email so the dev account is recognized as admin
-          // Use a stable token so the same account is reused
           const devEmail = 'emancero@varsityhub.app';
-          const devToken = `sim-dev-${devEmail}-stable`;
+          const devToken = `sim-dev-${devEmail}-${Date.now()}`;
           const res = await User.loginViaApple(devToken);
           if (res?.access_token) {
             console.log('[Apple Auth] Dev fallback succeeded');

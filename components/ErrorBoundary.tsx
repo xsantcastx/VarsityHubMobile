@@ -1,6 +1,6 @@
-import * as Sentry from '@sentry/react-native';
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { captureException } from '@/utils/sentry';
 
 interface Props {
   children: ReactNode;
@@ -38,24 +38,14 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // Send to Sentry for production error tracking
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        Sentry.captureException(error, {
-          contexts: {
-            react: {
-              componentStack: errorInfo.componentStack,
-            },
-          },
-          tags: { component: 'ErrorBoundary' },
-        });
-      } catch (sentryError) {
-        if (__DEV__) {
-          // eslint-disable-next-line no-console
-          console.warn('[ErrorBoundary] Failed to send to Sentry', sentryError);
-        }
-      }
-    }
+    // Always send to Sentry (utility function handles dev/prod filtering)
+    captureException(error, {
+      tags: { component: 'ErrorBoundary' },
+      extra: {
+        componentStack: errorInfo.componentStack,
+        errorBoundary: true,
+      },
+    });
   }
 
   handleReset = () => {

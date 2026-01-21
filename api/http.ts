@@ -1,6 +1,4 @@
-import { getConfig, getEnvValue } from '@/config/env';
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
-import { Platform } from 'react-native';
 
 let tokenCache: string | null = null;
 export function setAuthToken(token: string | null) { tokenCache = token || null; }
@@ -37,12 +35,6 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     headers['If-None-Match'] = headers['If-None-Match'] || '';
   }
 
-  // #region agent log
-  try {
-    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:28',message:'Request initiated',data:{path,method:options.method||'GET',base,hasAuth:!!token,timeoutMs,retries},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-  } catch (e) {}
-  // #endregion
-
   // Add timeout to prevent hanging requests
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -65,12 +57,6 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       return { _status: 304, _isNotModified: true };
     }
 
-    // #region agent log
-    try {
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:62',message:'Response received BEFORE parsing',data:{status:res.status,statusText:res.statusText,path,method:options.method||'GET',isOk:res.ok,contentType:(res.headers&&res.headers.get&&res.headers.get('content-type'))||'unknown'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    } catch (e) {}
-    // #endregion
-
     const text = await res.text();
     const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
     let data: any = null;
@@ -85,16 +71,33 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     }
 
     if (!res.ok) {
-      // #region agent log
-      try {
-        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:75',message:'HTTP error response',data:{status:res.status,path,method:options.method||'GET',contentType:ct,textLength:text?.length||0,textPreview:text?.substring(0,200)||'',isJson:ct.includes('application/json'),hasData:!!data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-      } catch (e) {}
-      // #endregion
-
-      const msg = ct.includes('application/json') ? (data && (data.error || data.message)) : (typeof data === 'string' ? data : null);
+      // Detect Bad Gateway HTML responses (Railway error pages with Correlation Key)
+      // Railway correlation keys are 27 uppercase alphanumeric characters
+      // Pattern: "Correlation Key: [27 alphanumeric chars]" (case-insensitive, flexible whitespace)
+      const hasCorrelationKey = typeof data === 'string' && 
+        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(data) || 
+         /[A-Z0-9]{27}/.test(data)); // Also match standalone 27-char keys
+      const isRailwayErrorPage = res.status === 502 && 
+        (ct.includes('text/html') || 
+         (typeof data === 'string' && (
+           data.includes('Bad Gateway') || 
+           data.includes('502') ||
+           data.includes('Correlation Key') ||
+           hasCorrelationKey ||
+           /[A-Z0-9]{27}/.test(data) // Match any 27-char alphanumeric (likely correlation key)
+         )));
+      
+      const msg = ct.includes('application/json') 
+        ? (data && (data.error || data.message)) 
+        : isRailwayErrorPage 
+          ? 'Server temporarily unavailable' 
+          : (typeof data === 'string' ? data : null);
+      
       const err: any = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
       err.data = data;
+      err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
+      
       // Clear token on auth errors and let AuthProvider handle session loss
       if (err.status === 401 || err.status === 403) {
         try { clearAuthToken(); } catch {}
@@ -105,13 +108,6 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     return data;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    
-    // #region agent log
-    try {
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:89',message:'Request error caught',data:{path,method:options.method||'GET',base,status:error?.status,statusText:error?.statusText,name:error?.name,message:error?.message,isNetworkError:error?.message==='Network request failed'||error?.message?.includes('NetworkError')||error?.message?.includes('Failed to fetch'),isTimeout:error?.name==='AbortError',timeoutMs,retries},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    } catch (e) {}
-    // #endregion
-
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
@@ -134,28 +130,72 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
         ...(error.data && { responseData: error.data }),
       };
       console.error('[http] Request failed:', errorDetails);
-    }
-
-    // #region agent log - 502 Bad Gateway specific
-    if (error.status === 502) {
-      console.error('[http] 502 Bad Gateway on', path, '- retries left:', retries);
-      try {
-        fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'http.ts:105',message:'502 Bad Gateway detected',data:{path,method:options.method||'GET',base,retries,errorMessage:error?.message,errorData:error?.data,isRetrying:retries>0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      } catch (e) {}
-      // Retry 502 Bad Gateway errors - backend may be temporarily down
-      if (retries > 0) {
-        const delay = Math.min(2000, 500 * Math.pow(2, 1 - retries)); // Exponential backoff
-        console.log('[http] Retrying 502 Bad Gateway after', delay, 'ms...');
-        await new Promise(r => setTimeout(r, delay));
-        return request(path, options, timeoutMs, retries - 1);
+      
+      // Capture non-network errors to Sentry (network errors already handled below)
+      if (error.status && error.status >= 500) {
+        captureException(error, { 
+          tags: { component: 'http-client', endpoint: path },
+          extra: errorDetails 
+        });
       }
-      // If all retries exhausted, provide user-friendly error
-      const err: any = new Error('Server temporarily unavailable. Please try again in a moment.');
+    }
+    
+    // Handle 502 Bad Gateway errors with retry - backend may be temporarily down
+    // Railway infrastructure errors show HTML error pages with Correlation Keys
+    // Since ALL our API calls go to Railway, ANY 502 error is a Railway infrastructure issue
+    if (error.status === 502 || error.isRailwayErrorPage) {
+      // Improved Railway error detection - check for correlation key pattern (27 uppercase alphanumeric)
+      // More flexible pattern matching to catch all Railway error formats
+      const hasCorrelationKey = typeof error.data === 'string' && 
+        (/Correlation Key:?\s*[A-Z0-9]{27}/i.test(error.data) ||
+         /[A-Z0-9]{27}/.test(error.data)); // Match standalone 27-char keys
+      
+      // ALL 502 errors from our Railway backend should be treated as infrastructure errors
+      // This ensures maximum retries and proper handling
+      const isRailwayInfraError = error.status === 502 || error.isRailwayErrorPage || hasCorrelationKey;
+      
+      console.error('[http] 502 Bad Gateway on', path, '- Railway infra error:', isRailwayInfraError, '- retries left:', retries);
+      captureException(error, { 
+        tags: { 
+          component: 'http-client', 
+          endpoint: path, 
+          errorType: 'bad-gateway',
+          railwayInfraError: String(isRailwayInfraError)
+        },
+        extra: { path, method: options.method || 'GET', base, retries, isRailwayErrorPage: error.isRailwayErrorPage, hasCorrelationKey } 
+      });
+      
+      // Aggressive retry for 502 errors - Railway infrastructure can be temporarily unstable
+      // For critical endpoints (payments, auth), allow more retries
+      // For Railway infrastructure errors, be even more aggressive
+      const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
+      const maxRetriesFor502 = isRailwayInfraError 
+        ? (isCriticalEndpoint ? 5 : 4) // More retries for Railway infra errors
+        : (isCriticalEndpoint ? 3 : 2); // Standard retries for app-level 502
+      const effectiveRetries = Math.min(retries, maxRetriesFor502);
+      
+      if (effectiveRetries > 0) {
+        // Longer delays for Railway infrastructure errors (they need more time to recover)
+        const baseDelay = isRailwayInfraError ? 1000 : 500;
+        const delay = Math.min(3000, baseDelay * Math.pow(2, 1 - effectiveRetries)); // Exponential backoff
+        
+        console.log(`[http] Retrying 502 Bad Gateway after ${delay}ms... (${effectiveRetries}/${maxRetriesFor502} retries left)`);
+        await new Promise(r => setTimeout(r, delay));
+        // Retry with original retries count but ensure we don't exceed maxRetriesFor502
+        return request(path, options, timeoutMs, Math.min(retries - 1, maxRetriesFor502 - 1));
+      }
+      
+// If all retries exhausted, provide user-friendly error
+      const err: any = new Error(
+        isRailwayInfraError 
+          ? 'Our servers are temporarily unavailable. Please try again in a few moments.'
+          : 'Server temporarily unavailable. Please try again in a moment.'
+      );
       err.status = 502;
       err.data = error.data;
+      err.isRailwayErrorPage = error.isRailwayErrorPage;
       throw err;
     }
-    // #endregion
     
     // Handle 429 Rate Limit errors with retry
     if (error.status === 429) {
@@ -215,13 +255,24 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
 }
 
 export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number) {
-  // Allow 2 retries for GET requests (helps with rate limits and network errors)
-  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, 2);
+  // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
+  // Critical endpoints get additional retries automatically in 502 handler
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
+  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
-// Default POST with moderate timeout
-export function httpPost(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, 1); }
-// Long-timeout POST for heavy endpoints like register/reset
-export function httpPostLongTimeout(path: string, body?: any) { return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000, 1); }
+// Default POST with moderate timeout - increased retries for reliability
+export function httpPost(path: string, body?: any) { 
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
+  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
+}
+// Long-timeout POST for heavy endpoints like register/reset - increased retries
+export function httpPostLongTimeout(path: string, body?: any) { 
+  const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
+  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000, retries); 
+}
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources
 export function httpPut(path: string, body?: any) { return request(path, { method: 'PUT', body: JSON.stringify(body || {}) }, 15000, 0); }

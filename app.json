@@ -10,7 +10,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "varsityhubmobile",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "orientation": "portrait",
     "locales": {
       "en": "./locales/en.json"
@@ -119,7 +119,8 @@
       "expo-apple-authentication",
       "expo-asset",
       "./plugins/withAndroidManifestCleanup",
-      "./plugins/withAndroidBuildConfig"
+      "./plugins/withAndroidBuildConfig",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
@@ -131,7 +132,7 @@
       },
       "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
       "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-      "EXPO_PUBLIC_NODE_ENV": "development",
+      "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
       "EXPO_PUBLIC_SENTRY_DSN": "",
