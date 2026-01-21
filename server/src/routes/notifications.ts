@@ -24,16 +24,23 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
     const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : null;
     const unreadOnly = String((req.query as any).unread || '') === '1';
 
+    // Build where clause
     const where: any = { user_id: userId };
-    if (unreadOnly) where.read_at = null;
+    if (unreadOnly) {
+      where.read_at = null;
+    }
 
-    // When using cursor with multiple orderBy, Prisma requires cursor to match orderBy structure
-    // Use id as primary sort when cursor is present (for stable pagination)
-    const orderBy = cursor 
-      ? [{ id: 'desc' as const }] // Cursor-based pagination uses id
-      : [{ created_at: 'desc' as const }, { id: 'desc' as const }]; // Initial load uses created_at + id
+    // Handle cursor pagination
+    if (cursor) {
+      // For cursor pagination, use id-based cursor (simpler and more reliable)
+      where.id = { lt: cursor };
+    }
 
-    const query: any = {
+    // Standard orderBy - always use created_at desc, id desc for consistency
+    const orderBy = [{ created_at: 'desc' as const }, { id: 'desc' as const }];
+
+    // Build Prisma query
+    const query = {
       where,
       orderBy,
       take: limit + 1,
@@ -43,27 +50,44 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         created_at: true,
         read_at: true,
         meta: true,
-        message_id: true,
-        actor: { select: { id: true, display_name: true, avatar_url: true } },
-        post: { select: { id: true, content: true, media_url: true, upvotes_count: true, created_at: true, author_id: true } },
-        comment: { select: { id: true, content: true, post_id: true, created_at: true } },
+        // message_id removed - column doesn't exist in database yet
+        actor: { 
+          select: { 
+            id: true, 
+            display_name: true, 
+            avatar_url: true 
+          } 
+        },
+        post: { 
+          select: { 
+            id: true, 
+            content: true, 
+            media_url: true, 
+            upvotes_count: true, 
+            created_at: true, 
+            author_id: true 
+          } 
+        },
+        comment: { 
+          select: { 
+            id: true, 
+            content: true, 
+            post_id: true, 
+            created_at: true 
+          } 
+        },
       },
     };
-    
-    // Cursor pagination - Prisma requires cursor field to be in orderBy
-    if (cursor) {
-      query.cursor = { id: cursor };
-      query.skip = 1;
-    }
 
-    // Add timeout to prevent hanging queries
-    const queryPromise = (prisma as any).notification.findMany(query);
+    // Execute query with timeout
+    const queryPromise = prisma.notification.findMany(query);
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Query timeout')), 25000)
     );
 
     const rows = await Promise.race([queryPromise, timeoutPromise]) as any[];
     const items = rows.slice(0, limit);
+    // Use id as cursor (simpler and works with our where clause)
     const nextCursor = rows.length > limit ? rows[limit].id : null;
 
     const payload = items.map((n: any) => ({
@@ -74,8 +98,8 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
       actor: n.actor ? { id: n.actor.id, display_name: n.actor.display_name, avatar_url: n.actor.avatar_url } : null,
       post: n.post ? { id: n.post.id, content: n.post.content, media_url: n.post.media_url } : null,
       comment: n.comment ? { id: n.comment.id, content: n.comment.content, post_id: n.comment.post_id } : null,
-      // message relation removed - use message_id from notification if needed
-      message: n.message_id ? { id: n.message_id } : null,
+      // message relation removed - message_id column doesn't exist in database yet
+      message: null,
       meta: { ...((n.meta as any) || {}), summary: summarize(n) },
     }));
 
@@ -91,6 +115,15 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
         nextCursor: null 
       });
     }
+    // Log full error details for debugging
+    console.error('[notifications] Full error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n')
+    });
+    
+    // Return graceful error response - don't crash the app
     return res.status(500).json({ 
       error: 'Failed to fetch notifications',
       message: error.message || 'Unknown error',
@@ -102,16 +135,32 @@ notificationsRouter.get('/', requireAuth as any, async (req: AuthedRequest, res)
 
 // POST /notifications/:id/read
 notificationsRouter.post('/:id/read', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  const id = String(req.params.id);
-  const result = await (prisma as any).notification.updateMany({ where: { id, user_id: userId }, data: { read_at: new Date() } });
-  if (result.count === 0) return res.status(404).json({ error: 'Not found' });
-  return res.json({ ok: true, id });
+  try {
+    const userId = req.user!.id;
+    const id = String(req.params.id);
+    const result = await prisma.notification.updateMany({ 
+      where: { id, user_id: userId }, 
+      data: { read_at: new Date() } 
+    });
+    if (result.count === 0) return res.status(404).json({ error: 'Not found' });
+    return res.json({ ok: true, id });
+  } catch (error: any) {
+    console.error('[notifications] Error marking notification as read:', error);
+    return res.status(500).json({ error: 'Failed to mark notification as read', message: error.message });
+  }
 });
 
 // POST /notifications/mark-read-all
 notificationsRouter.post('/mark-read-all', requireAuth as any, async (req: AuthedRequest, res) => {
-  const userId = req.user!.id;
-  await (prisma as any).notification.updateMany({ where: { user_id: userId, read_at: null }, data: { read_at: new Date() } });
-  return res.json({ ok: true });
+  try {
+    const userId = req.user!.id;
+    await prisma.notification.updateMany({ 
+      where: { user_id: userId, read_at: null }, 
+      data: { read_at: new Date() } 
+    });
+    return res.json({ ok: true });
+  } catch (error: any) {
+    console.error('[notifications] Error marking all notifications as read:', error);
+    return res.status(500).json({ error: 'Failed to mark all notifications as read', message: error.message });
+  }
 });
