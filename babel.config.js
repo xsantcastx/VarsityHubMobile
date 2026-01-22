@@ -19,16 +19,8 @@ module.exports = function (api) {
           'is-arrayish': './shims/is-arrayish',
         }
       }],
-      // Reanimated must be listed last (after react-refresh)
+      // CRITICAL: Reanimated plugin MUST be last for Fast Refresh to work
       'react-native-reanimated/plugin',
     ],
-    // Ensure Fast Refresh is enabled in development
-    env: {
-      development: {
-        plugins: [
-          // react-refresh is included by babel-preset-expo automatically
-        ],
-      },
-    },
   };
 };

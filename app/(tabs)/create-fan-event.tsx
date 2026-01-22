@@ -1,10 +1,9 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { useTeamOptions } from '@/hooks/useTeamOptions';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -21,6 +20,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Game } from '@/api/entities';
+import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
+import { httpGet } from '@/api/http';
 
 const EVENT_TYPES = [
   { value: 'game', label: 'Game/Match', icon: 'trophy' },
@@ -34,12 +35,36 @@ const EVENT_TYPES = [
 export default function CreateFanEventScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-  const { teams: rawTeams } = useTeamOptions(true);
+  
+  // Load followed teams (teams user is a member of)
+  const [rawTeams, setRawTeams] = useState<any[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadFollowedTeams = async () => {
+      try {
+        setTeamsLoading(true);
+        const teams = await httpGet('/follows/teams?user_id=me');
+        setRawTeams(Array.isArray(teams) ? teams : []);
+      } catch (error: any) {
+        console.warn('[CreateFanEvent] Failed to load followed teams:', error);
+        setRawTeams([]);
+      } finally {
+        setTeamsLoading(false);
+      }
+    };
+    loadFollowedTeams();
+  }, []);
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [eventType, setEventType] = useState<string>('game'); // Default to game
   const [location, setLocation] = useState('');
+  const [locationSuggestions, setLocationSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [locationQuerying, setLocationQuerying] = useState(false);
+  const [locationTouched, setLocationTouched] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [date, setDate] = useState(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)); // Default to next week
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -60,16 +85,17 @@ export default function CreateFanEventScreen() {
   
   const teams = useMemo(() => {
     if (!Array.isArray(rawTeams) || rawTeams.length === 0) {
-      return [{ id: 'my-team', name: 'My Team' }];
+      return [{ id: 'my-team', name: 'My Team', logo: undefined as string | undefined }];
     }
     return rawTeams.map((team: any) => ({
       id: String(team.id),
-      name: team.name,
-      logo: team.logo_url || team.avatar_url,
+      name: team.name || 'Unknown Team',
+      logo: (team.logo_url || team.avatar_url || undefined) as string | undefined,
     }));
   }, [rawTeams]);
   
   const getFilteredOpponentTeams = () => {
+    // Only filter from followed teams (already loaded from /follows/teams)
     return teams
       .filter(team => team.name !== currentTeam)
       .filter(team => 
@@ -77,6 +103,64 @@ export default function CreateFanEventScreen() {
         team.name.toLowerCase().includes(opponentSearchText.toLowerCase())
       );
   };
+
+  // Google Maps location autocomplete
+  const requestLocationSuggestions = useCallback((text: string) => {
+    if (locationTimerRef.current) {
+      clearTimeout(locationTimerRef.current);
+      locationTimerRef.current = null;
+    }
+    
+    if (text.length < 3) {
+      setLocationSuggestions([]);
+      setLocationQuerying(false);
+      return;
+    }
+    
+    setLocationQuerying(true);
+    locationTimerRef.current = setTimeout(async () => {
+      try {
+        const suggestions = await autocompleteLocations(text, 6);
+        setLocationSuggestions(suggestions);
+      } catch (error) {
+        console.warn('Location autocomplete failed:', error);
+        setLocationSuggestions([]);
+      } finally {
+        setLocationQuerying(false);
+      }
+    }, 300); // Debounce 300ms
+  }, []);
+
+  const handleLocationChange = useCallback((text: string) => {
+    setLocation(text);
+    setLocationTouched(true);
+    setSelectedPlace(null);
+    setErrors(prev => ({ ...prev, location: '' }));
+    
+    if (text.length >= 3) {
+      requestLocationSuggestions(text);
+    } else {
+      setLocationSuggestions([]);
+    }
+  }, [requestLocationSuggestions]);
+
+  const handleSelectLocation = useCallback((suggestion: PlaceSuggestion) => {
+    setLocation(suggestion.description);
+    setSelectedPlace(suggestion);
+    setLocationSuggestions([]);
+    setLocationQuerying(false);
+    setLocationTouched(true);
+    setErrors(prev => ({ ...prev, location: '' }));
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (locationTimerRef.current) {
+        clearTimeout(locationTimerRef.current);
+      }
+    };
+  }, []);
   
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {};
@@ -99,6 +183,8 @@ export default function CreateFanEventScreen() {
     if (!location.trim()) {
       newErrors.location = 'Location is required';
     }
+    // Note: We allow manual location entry even if not selected from suggestions
+    // The backend will handle geocoding if needed
     
     if (date < new Date()) {
       newErrors.date = 'Event date cannot be in the past';
@@ -127,7 +213,9 @@ export default function CreateFanEventScreen() {
         const gamePayload: Record<string, any> = {
           title: `${gameType === 'home' ? currentTeam : opponent} vs ${gameType === 'home' ? opponent : currentTeam}`,
           date: gameDateTime.toISOString(),
-          location,
+          location: selectedPlace?.description || location,
+          venue_address: selectedPlace?.description || location,
+          venue_place_id: selectedPlace?.place_id,
           description: description || undefined,
           event_type: 'game',
         };
@@ -150,7 +238,9 @@ export default function CreateFanEventScreen() {
           title,
           description,
           event_type: eventType,
-          location,
+          location: selectedPlace?.description || location,
+          venue_address: selectedPlace?.description || location,
+          venue_place_id: selectedPlace?.place_id,
           date: gameDateTime.toISOString(),
         };
         
@@ -177,7 +267,15 @@ export default function CreateFanEventScreen() {
           ]
         );
       } else {
-        Alert.alert('Error', errorMessage || 'Failed to create event. Please try again.');
+        // Show more detailed error message
+        const detailedError = errorMessage || e?.data?.message || e?.message || 'Failed to create event. Please try again.';
+        console.error('[CreateFanEvent] Create event error:', {
+          error: e,
+          errorMessage,
+          errorCode,
+          payload: eventType === 'game' ? gamePayload : eventData,
+        });
+        Alert.alert('Error', detailedError);
       }
     } finally {
       setSubmitting(false);
@@ -470,24 +568,63 @@ export default function CreateFanEventScreen() {
           />
         )}
         
-        {/* Location */}
+        {/* Location with Google Maps Autocomplete */}
         <View style={styles.section}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Location *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              { 
-                backgroundColor: Colors[colorScheme].card,
-                borderColor: errors.location ? '#DC2626' : Colors[colorScheme].border,
-                color: Colors[colorScheme].text,
-              },
-            ]}
-            placeholder="e.g., Campus Pub, Stamford CT"
-            placeholderTextColor={Colors[colorScheme].mutedText}
-            value={location}
-            onChangeText={setLocation}
-          />
+          <View style={styles.locationFieldWrapper}>
+            <TextInput
+              style={[
+                styles.input,
+                { 
+                  backgroundColor: Colors[colorScheme].card,
+                  borderColor: errors.location ? '#DC2626' : Colors[colorScheme].border,
+                  color: Colors[colorScheme].text,
+                },
+              ]}
+              placeholder="Start typing an address, venue, or city"
+              placeholderTextColor={Colors[colorScheme].mutedText}
+              value={location}
+              onChangeText={handleLocationChange}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            {locationQuerying && (
+              <ActivityIndicator size="small" color={Colors[colorScheme].tint} style={styles.locationSpinner} />
+            )}
+            {locationSuggestions.length > 0 && (
+              <View style={[styles.locationSuggestionList, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+                {locationSuggestions.map((suggestion, index) => (
+                  <Pressable
+                    key={suggestion.place_id}
+                    style={[
+                      styles.locationSuggestionItem,
+                      { borderBottomColor: Colors[colorScheme].border },
+                      index === locationSuggestions.length - 1 && styles.locationSuggestionItemLast,
+                    ]}
+                    onPress={() => handleSelectLocation(suggestion)}
+                  >
+                    <Ionicons name="location" size={16} color={Colors[colorScheme].tint} style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.locationSuggestionMain, { color: Colors[colorScheme].text }]}>
+                        {suggestion.structured_formatting?.main_text || suggestion.description}
+                      </Text>
+                      {suggestion.structured_formatting?.secondary_text && (
+                        <Text style={[styles.locationSuggestionSecondary, { color: Colors[colorScheme].mutedText }]}>
+                          {suggestion.structured_formatting.secondary_text}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+          {!selectedPlace && locationTouched && location.length >= 3 && locationSuggestions.length === 0 && !locationQuerying && (
+            <Text style={[styles.inputHelperText, { color: Colors[colorScheme].mutedText }]}>
+              Tip: Select a suggested location for better accuracy, or continue typing to enter manually
+            </Text>
+          )}
         </View>
         
         {/* Info Box */}
@@ -594,12 +731,12 @@ export default function CreateFanEventScreen() {
               <View style={{ width: 50 }} />
             </View>
             
-            {/* Search Bar */}
+            {/* Search Bar - Only searches teams, not users */}
             <View style={[styles.searchContainer, { borderBottomColor: Colors[colorScheme].border }]}>
               <Ionicons name="search-outline" size={20} color={Colors[colorScheme].mutedText} />
               <TextInput
                 style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-                placeholder="Search teams..."
+                placeholder="Search teams you follow..."
                 placeholderTextColor={Colors[colorScheme].mutedText}
                 value={opponentSearchText}
                 onChangeText={setOpponentSearchText}
@@ -987,5 +1124,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  locationFieldWrapper: {
+    position: 'relative',
+  },
+  locationSpinner: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  locationSuggestionList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    maxHeight: 200,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  locationSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  locationSuggestionItemLast: {
+    borderBottomWidth: 0,
+  },
+  locationSuggestionMain: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  locationSuggestionSecondary: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  inputHelperText: {
+    fontSize: 12,
+    marginTop: 4,
   },
 });

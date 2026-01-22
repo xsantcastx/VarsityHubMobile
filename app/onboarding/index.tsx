@@ -7,7 +7,7 @@ import { ActivityIndicator, View } from 'react-native';
 export default function OnboardingIndex() {
   const router = useRouter();
   const { user } = useAuth();
-  const { progress, state, isLoaded } = useOnboarding();
+  const { progress, state, isLoaded, setProgress } = useOnboarding();
   const [hasNavigated, setHasNavigated] = useState(false);
 
   // CRITICAL: User must be authenticated to access onboarding
@@ -27,7 +27,6 @@ export default function OnboardingIndex() {
       return;
     }
     
-    // Resume from saved progress, or start at step 1
     const stepRoutes = [
       '/onboarding/step-1-role',           // 0
       '/onboarding/step-2-basic',          // 1
@@ -40,13 +39,60 @@ export default function OnboardingIndex() {
       '/onboarding/step-10-confirmation',  // 8
     ];
     
-    // Progress is 0-based index, so progress=8 means step 10
-    const targetRoute = stepRoutes[progress] || stepRoutes[0];
+    // CRITICAL: For coaches, VALIDATE FIRST before any navigation
+    // NEVER allow coaches to reach step 7+ without completing steps 2-6
+    if (state?.role === 'coach') {
+      // Force validation - check what step they should be on
+      const hasStep2 = !!(state.username && state.dob && (state.zip || state.zip_code));
+      const hasStep3 = !!state.plan;
+      const hasStep4 = !!(state.team_id || state.organization_id);
+      
+      // If missing ANY required step, force to first incomplete step
+      if (!hasStep2) {
+        setProgress(1);
+        setHasNavigated(true);
+        router.replace('/onboarding/step-2-basic');
+        return;
+      }
+      if (!hasStep3) {
+        setProgress(2);
+        setHasNavigated(true);
+        router.replace('/onboarding/step-3-plan');
+        return;
+      }
+      if (!hasStep4) {
+        setProgress(3);
+        setHasNavigated(true);
+        router.replace('/onboarding/step-4-organization');
+        return;
+      }
+      
+      // If all required steps complete, ensure progress doesn't skip step 6
+      if (hasStep2 && hasStep3 && hasStep4) {
+        // If progress jumped past step 6 (authorized-users), force back to step 6
+        // Step 6 is at index 4 in stepRoutes
+        if (progress > 4) {
+          // They're past step 6, but we want to make sure they went through it
+          // Force them to step 6 first
+          setProgress(4);
+          setHasNavigated(true);
+          router.replace('/onboarding/step-6-authorized-users');
+          return;
+        }
+        // Progress is at or before step 6, allow normal flow
+        const targetRoute = stepRoutes[progress] || stepRoutes[0];
+        setHasNavigated(true);
+        router.replace(targetRoute as any);
+        return;
+      }
+    }
     
+    // For non-coaches or after validation, resume from saved progress
+    const targetRoute = stepRoutes[progress] || stepRoutes[0];
     
     setHasNavigated(true);
     router.replace(targetRoute as any);
-  }, [hasNavigated, isLoaded, progress, router, state, user]);
+  }, [hasNavigated, isLoaded, progress, router, state, user, setProgress]);
   
   // Show loading indicator while waiting for state to load
   return (

@@ -74,6 +74,5 @@
     "sound": "off"
   },
   "terminal.integrated.enableVisualBell": false,
-  "snyk.advanced.organization": "bb413ec9-7e4a-4ce1-b702-da7334037a77",
-  "snyk.advanced.autoSelectOrganization": true
+  "snyk.advanced.autoSelectOrganization": false
 }

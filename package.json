@@ -4,8 +4,11 @@
   "version": "1.0.1",
   "scripts": {
     "start": "expo start",
-    "dev": "expo start --dev-client --tunnel --clear",
-    "dev:local": "expo start --dev-client",
+    "dev": "expo start --dev-client --scheme varsityhubmobile --host localhost --port 8081 --clear",
+    "dev:local": "expo start --dev-client --scheme varsityhubmobile --host localhost --port 8081",
+    "dev:server": "bash scripts/start-dev-server.sh",
+    "dev:xcode": "bash scripts/build-dev-client-xcode.sh",
+    "dev:ios": "expo run:ios --device",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

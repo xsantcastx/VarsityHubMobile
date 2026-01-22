@@ -280,17 +280,32 @@ export default function TeamScreen() {
       let teamData: LeagueTeam | null = null;
 
       try {
-        const allTeams = await Team.list();
-        const teamsList = Array.isArray(allTeams) ? allTeams : [];
-        
+        // If we have a team ID, use Team.get() to get full details including organization_id
         if (teamId) {
-          teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
+          try {
+            const fullTeamData = await Team.get(teamId);
+            if (fullTeamData) {
+              teamData = fullTeamData as LeagueTeam;
+            }
+          } catch (getErr: any) {
+            console.warn('[team-page] Failed to get team by ID, trying list:', getErr);
+          }
         }
         
-        if (!teamData && teamName) {
-          teamData = teamsList.find((t: LeagueTeam) => 
-            t.name?.toLowerCase() === teamName.toLowerCase()
-          ) || null;
+        // Fallback to list if get() didn't work or we only have teamName
+        if (!teamData) {
+          const allTeams = await Team.list();
+          const teamsList = Array.isArray(allTeams) ? allTeams : [];
+          
+          if (teamId && !teamData) {
+            teamData = teamsList.find((t: LeagueTeam) => t.id === teamId) || null;
+          }
+          
+          if (!teamData && teamName) {
+            teamData = teamsList.find((t: LeagueTeam) => 
+              t.name?.toLowerCase() === teamName.toLowerCase()
+            ) || null;
+          }
         }
       } catch (apiErr: any) {
         console.error('[team-page] Failed to fetch teams from API:', apiErr);
@@ -310,6 +325,21 @@ export default function TeamScreen() {
       }
 
       if (!mounted.current) return;
+      
+      // Extract organization_id from team data (could be direct or nested in organization object)
+      const orgId = (teamData as any)?.organization_id || (teamData as any)?.organization?.id;
+      if (orgId) {
+        teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
+      }
+      
+      // Log for debugging
+      console.log('[team-page] Team loaded:', {
+        id: teamData?.id,
+        name: teamData?.name,
+        organization_id: teamData?.organization_id || orgId || 'NONE',
+        hasOrg: !!(teamData?.organization_id || orgId),
+      });
+      
       setTeam(teamData);
 
       // Load current user to check permissions
@@ -629,6 +659,35 @@ export default function TeamScreen() {
             </Text>
             <Text style={[styles.statLabel, { color: theme.mutedText }]}> Games</Text>
           </View>
+          
+          {/* Organization Link Button - ALWAYS VISIBLE */}
+          <Pressable
+            style={[styles.orgButton, { borderColor: theme.border, backgroundColor: theme.card }]}
+            onPress={() => {
+              const orgId = team?.organization_id;
+              if (orgId) {
+                router.push(`/organizations/${orgId}` as any);
+              } else {
+                console.log('[team-page] No organization_id for team:', team?.id);
+              }
+            }}
+            disabled={!team?.organization_id}
+          >
+            <Ionicons 
+              name="business-outline" 
+              size={16} 
+              color={team?.organization_id ? theme.tint : theme.mutedText} 
+            />
+            <Text style={[
+              styles.orgButtonText, 
+              { color: team?.organization_id ? theme.tint : theme.mutedText }
+            ]}>
+              {team?.organization_id ? 'View Organization' : 'No Organization'}
+            </Text>
+            {team?.organization_id && (
+              <Ionicons name="chevron-forward" size={14} color={theme.mutedText} />
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -1248,4 +1307,19 @@ const styles = StyleSheet.create({
   },
   gridCountItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   gridCountText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  orgButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  orgButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
