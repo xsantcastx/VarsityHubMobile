@@ -51,8 +51,21 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
   }
 
   try {
+    // For ZIP codes, try with country code if it looks like a US/Canadian ZIP
+    let query = location.trim();
+    const zipPattern = /^\d{5}(-\d{4})?$/; // US ZIP: 12345 or 12345-6789
+    const canadianZipPattern = /^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/; // Canadian: A1A 1A1
+    
+    if (zipPattern.test(query)) {
+      // US ZIP code - try with "USA" suffix for better results
+      query = `${query}, USA`;
+    } else if (canadianZipPattern.test(query.replace(/\s/g, ''))) {
+      // Canadian postal code - try with "Canada" suffix
+      query = `${query}, Canada`;
+    }
+    
     // Call Google Geocoding API
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location)}&key=${apiKey}`;
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -64,7 +77,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
         formatted_address: result.formatted_address,
       };
 
-      // Update in-memory cache
+      // Update in-memory cache (use original location for cache key)
       geocodeCache.set(normalizedLocation, {
         lat: coords.latitude,
         lng: coords.longitude,
@@ -73,6 +86,30 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
 
       return coords;
     } else {
+      // If first attempt failed and we added country, try without it
+      if (query !== location.trim() && (zipPattern.test(location.trim()) || canadianZipPattern.test(location.trim().replace(/\s/g, '')))) {
+        const fallbackUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(location.trim())}&key=${apiKey}`;
+        const fallbackResponse = await fetch(fallbackUrl);
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackData.status === 'OK' && fallbackData.results && fallbackData.results.length > 0) {
+          const result = fallbackData.results[0];
+          const coords = {
+            latitude: result.geometry.location.lat,
+            longitude: result.geometry.location.lng,
+            formatted_address: result.formatted_address,
+          };
+          
+          geocodeCache.set(normalizedLocation, {
+            lat: coords.latitude,
+            lng: coords.longitude,
+            timestamp: Date.now(),
+          });
+          
+          return coords;
+        }
+      }
+      
       console.warn(`Geocoding failed for "${location}": ${data.status}`);
       return null;
     }

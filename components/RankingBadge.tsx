@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-export type RankingType = 'trending' | 'national' | 'hot' | 'rising' | 'local' | 'viral' | 'live' | 'recent';
+export type RankingType = 'trending' | 'national' | 'hot' | 'rising' | 'local' | 'viral' | 'live' | 'recent' | 'top';
 
 interface RankingBadgeProps {
   type: RankingType;
@@ -15,37 +15,37 @@ const getRankingConfig = (type: RankingType, position?: number) => {
     case 'trending':
       return {
         colors: ['#F59E0B', '#D97706'] as const, // Amber/Orange gradient
-        text: position ? `#${position} TRENDING` : '#TRENDING',
+        text: 'TRENDING',
         icon: '🔥'
       };
     case 'national':
       return {
         colors: ['#3B82F6', '#1D4ED8'] as const, // Blue gradient
-        text: position ? `#${position} NATIONAL` : '# NATIONAL',
+        text: 'NATIONAL',
         icon: '🇺🇸'
       };
     case 'hot':
       return {
         colors: ['#EF4444', '#DC2626'] as const, // Red gradient
-        text: '#HOT',
+        text: 'HOT',
         icon: '🌶️'
       };
     case 'rising':
       return {
         colors: ['#10B981', '#059669'] as const, // Green gradient
-        text: '#RISING',
+        text: 'RISING',
         icon: '📈'
       };
     case 'local':
       return {
         colors: ['#8B5CF6', '#7C3AED'] as const, // Purple gradient
-        text: '#LOCAL',
+        text: 'LOCAL',
         icon: '📍'
       };
     case 'viral':
       return {
         colors: ['#EC4899', '#DB2777'] as const, // Pink gradient
-        text: '#VIRAL',
+        text: 'VIRAL',
         icon: '💥'
       };
     case 'live':
@@ -57,13 +57,19 @@ const getRankingConfig = (type: RankingType, position?: number) => {
     case 'recent':
       return {
         colors: ['#06B6D4', '#0891B2'] as const, // Cyan gradient
-        text: '#RECENT',
+        text: 'RECENT',
         icon: '⚡'
+      };
+    case 'top':
+      return {
+        colors: ['#8B5CF6', '#7C3AED'] as const, // Purple gradient
+        text: 'TOP',
+        icon: '👑'
       };
     default:
       return {
         colors: ['#6B7280', '#4B5563'] as const, // Gray gradient
-        text: '#FEATURED',
+        text: 'FEATURED',
         icon: '✨'
       };
   }

@@ -20,6 +20,9 @@ interface TeamMember {
   status: string;
   position?: string;
   jersey_number?: string;
+  user?: {
+    is_parent?: boolean;
+  };
 }
 
 interface Game {
@@ -484,9 +487,16 @@ export default function TeamViewerScreen() {
                     )}
                     
                     <View style={styles.fullMemberDetails}>
-                      <Text style={[styles.fullMemberName, { color: Colors[colorScheme].text }]}>
-                        {member.display_name}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={[styles.fullMemberName, { color: Colors[colorScheme].text }]}>
+                          {member.display_name}
+                        </Text>
+                        {member.user?.is_parent && (
+                          <View style={{ backgroundColor: '#FFF3E0', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '600', color: '#F57C00' }}>PARENT</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={[styles.fullMemberUsername, { color: Colors[colorScheme].mutedText }]}>
                         @{member.username}
                       </Text>

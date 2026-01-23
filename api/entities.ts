@@ -229,6 +229,7 @@ export const Post = {
 };
 
 export const Event = {
+  create: (data: any) => httpPost('/events', data),
   filter: (where: { status?: string; approval_status?: string; event_type?: string; q?: string } = {}, sort?: string, limit?: number) => {
     const q: string[] = [];
     if (where.status) q.push('status=' + encodeURIComponent(where.status));

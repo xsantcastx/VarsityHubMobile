@@ -841,6 +841,21 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   const data = parsed.data;
   
+  // CRITICAL: For coaches, validate required steps are completed
+  const finalRole = data.role || (req.user.preferences as any)?.role || 'fan';
+  if (finalRole === 'coach') {
+    // Coaches MUST have: username, plan, and team/org
+    if (!data.username) {
+      return res.status(400).json({ error: 'Username required for coach onboarding' });
+    }
+    if (!data.plan) {
+      return res.status(400).json({ error: 'Plan selection required for coach onboarding' });
+    }
+    if (!data.team_id && !data.organization_id) {
+      return res.status(400).json({ error: 'Team or organization required for coach onboarding' });
+    }
+  }
+  
   // Update user with direct fields
   const updateData: any = {};
   if (data.username) updateData.username = data.username;

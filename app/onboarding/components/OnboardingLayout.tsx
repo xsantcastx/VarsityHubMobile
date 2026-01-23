@@ -22,7 +22,7 @@ interface OnboardingLayoutProps {
 
 export default function OnboardingLayout({
   step,
-  totalSteps = 9,
+  totalSteps = 10,
   title,
   subtitle,
   children,

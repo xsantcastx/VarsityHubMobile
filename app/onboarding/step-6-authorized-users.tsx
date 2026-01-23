@@ -177,8 +177,31 @@ export default function Step6AuthorizedUsers() {
       setProgress(7);
       router.replace('/onboarding/step-10-confirmation');
     } else {
+      // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+      if (ob.role === 'coach') {
+        const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+        const hasStep3 = !!ob.plan;
+        const hasStep4 = !!(ob.team_id || ob.organization_id);
+        
+        if (!hasStep2) {
+          setProgress(1);
+          router.replace('/onboarding/step-2-basic');
+          return;
+        }
+        if (!hasStep3) {
+          setProgress(2);
+          router.replace('/onboarding/step-3-plan');
+          return;
+        }
+        if (!hasStep4) {
+          setProgress(3);
+          router.replace('/onboarding/step-4-organization');
+          return;
+        }
+      }
+      
       setProgress(5); // Advance to Step 7
-      router.push('/onboarding/step-7-profile');
+      router.replace('/onboarding/step-7-profile');
     }
   };
 
@@ -189,15 +212,38 @@ export default function Step6AuthorizedUsers() {
         setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
       } else {
+        // CRITICAL: Validate coach has completed steps 2-4 before allowing step 7
+        if (ob.role === 'coach') {
+          const hasStep2 = !!(ob.username && ob.dob && (ob.zip || ob.zip_code));
+          const hasStep3 = !!ob.plan;
+          const hasStep4 = !!(ob.team_id || ob.organization_id);
+          
+          if (!hasStep2) {
+            setProgress(1);
+            router.replace('/onboarding/step-2-basic');
+            return;
+          }
+          if (!hasStep3) {
+            setProgress(2);
+            router.replace('/onboarding/step-3-plan');
+            return;
+          }
+          if (!hasStep4) {
+            setProgress(3);
+            router.replace('/onboarding/step-4-organization');
+            return;
+          }
+        }
+        
         setProgress(5); // Advance to Step 7
-        router.push('/onboarding/step-7-profile');
+        router.replace('/onboarding/step-7-profile');
       }
     }
   };
 
   return (
     <OnboardingLayout
-      step={5}
+      step={6}
       title="Add Authorized Users"
       subtitle={planInfo.description}
     >

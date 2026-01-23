@@ -146,13 +146,31 @@ organizationsRouter.get('/:id/members', async (req, res) => {
     where: { organization_id: id, status: 'active' },
     include: {
       user: {
-        select: { id: true, display_name: true, username: true, avatar_url: true }
+        select: { 
+          id: true, 
+          display_name: true, 
+          username: true, 
+          avatar_url: true,
+          preferences: true
+        }
       }
     },
     orderBy: { created_at: 'desc' }
   });
   
-  return res.json(members);
+  const list = members.map((m) => {
+    const user = (m as any).user;
+    const prefs = (user?.preferences || {}) as any;
+    return {
+      ...m,
+      user: {
+        ...user,
+        is_parent: prefs?.is_parent === true,
+      }
+    };
+  });
+  
+  return res.json(list);
 });
 
 const createOrganizationSchema = z.object({

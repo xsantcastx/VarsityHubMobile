@@ -84,9 +84,11 @@ export default function Step4Organization() {
             team_name: firstTeam.name 
           }));
           
-          // Auto-skip this step if team already exists
-          if (!e2e) {
-            setProgress(5); // step-6
+          // DON'T auto-skip - let user see step 4 even if team exists
+          // They can still review/update organization info
+          // Only skip in E2E tests
+          if (e2e) {
+            setProgress(4); // step-6 is index 4
             if (returnToConfirmation) {
               router.replace('/onboarding/step-10-confirmation');
             } else {
@@ -109,9 +111,11 @@ export default function Step4Organization() {
               organization_name: firstOrg.name 
             }));
             
-            // Auto-skip this step if org already exists
-            if (!e2e) {
-              setProgress(5); // step-6
+            // DON'T auto-skip - let user see step 4 even if org exists
+            // They can still review/update organization info
+            // Only skip in E2E tests
+            if (e2e) {
+              setProgress(4); // step-6 is index 4
               if (returnToConfirmation) {
                 router.replace('/onboarding/step-10-confirmation');
               } else {
@@ -329,8 +333,8 @@ export default function Step4Organization() {
                 setProgress(7);
                 router.replace('/onboarding/step-10-confirmation');
               } else {
-                setProgress(5);
-                router.push('/onboarding/step-6-authorized-users');
+                setProgress(4); // step-6 is index 4 (NOT step 7)
+                router.replace('/onboarding/step-6-authorized-users');
               }
             }
           }
@@ -364,13 +368,14 @@ export default function Step4Organization() {
     
     setSaving(true);
     try {
-      // If team/org already exists, just navigate to next step
+      // If team/org already exists, still navigate to step 6 (not step 7)
+      // User should still see step 4 to review, but can continue to step 6
       if (alreadyExists) {
         if (returnToConfirmation) {
           setProgress(7);
           router.replace('/onboarding/step-10-confirmation');
         } else {
-          setProgress(5); // step-6
+          setProgress(4); // step-6 is index 4 (NOT step 7 which is index 5)
           router.push('/onboarding/step-6-authorized-users');
         }
         return;
@@ -421,8 +426,8 @@ export default function Step4Organization() {
               setProgress(7);
               router.replace('/onboarding/step-10-confirmation');
             } else {
-              setProgress(5); // step-6
-              router.push('/onboarding/step-6-authorized-users');
+              setProgress(4); // step-6 is index 4 in stepRoutes array
+              router.replace('/onboarding/step-6-authorized-users');
             }
           })();
         }}]

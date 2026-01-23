@@ -27,7 +27,7 @@ export default function ZipCodeScreen() {
     if (zipCode && !zip) {
       setZip(zipCode);
     }
-  }, [zipCode]);
+  }, [zipCode, zip]);
 
   const onSave = async () => {
     const v = zip.trim();

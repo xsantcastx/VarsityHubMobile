@@ -161,7 +161,7 @@ export default function Step10Confirmation() {
             } else {
               throw new Error('Role not set. Please go back to step 1 and select your role.');
             }
-          } catch (fetchErr: any) {
+          } catch {
             throw new Error('Failed to verify role. Please go back to step 1 and select your role.');
           }
         }
@@ -193,6 +193,84 @@ export default function Step10Confirmation() {
       // CRITICAL: Role MUST be included - fail if missing
       if (!ob.role) {
         throw new Error('Role is required. Please go back to step 1 and select your role (Fan or Coach).');
+      }
+      
+      // CRITICAL: For paid plans, verify payment completed before allowing onboarding completion
+      if (isCoach && ob.plan !== 'rookie') {
+        try {
+          const me: any = await User.me();
+          const prefs = me?.preferences || {};
+          
+          // Check if payment is still pending
+          if (prefs.payment_pending === true) {
+            Alert.alert(
+              'Payment Required',
+              'Please complete your payment before finishing setup. You can complete payment in Settings → Manage Subscription, or return to Step 3 to select the free Rookie plan.',
+              [
+                {
+                  text: 'Go to Settings',
+                  onPress: () => router.push('/settings/manage-subscription'),
+                },
+                {
+                  text: 'Select Free Plan',
+                  onPress: () => router.push('/onboarding/step-3-plan?returnToConfirmation=true'),
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+            setCompleting(false);
+            return;
+          }
+          
+          // Check if subscription ID exists (payment completed)
+          // For Veteran/Legend plans, we need either subscription_id or payment_pending: false
+          if (!prefs.subscription_id && ob.plan !== 'rookie' && prefs.payment_pending !== false) {
+            // Payment might still be processing - give user options
+            Alert.alert(
+              'Payment Processing',
+              'Your payment is still processing. Please wait a moment and try again, or check your subscription status in Settings.',
+              [
+                {
+                  text: 'Check Status',
+                  onPress: () => router.push('/settings/manage-subscription'),
+                },
+                { 
+                  text: 'Retry', 
+                  onPress: () => {
+                    setCompleting(false);
+                    setTimeout(() => void onComplete(), 500);
+                  }
+                },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+            setCompleting(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to check payment status:', err);
+          // If we can't check payment status, warn user but allow them to proceed
+          // This prevents blocking users due to network issues
+          Alert.alert(
+            'Payment Status Unavailable',
+            'Unable to verify payment status. If you have completed payment, you can proceed. Otherwise, please check your subscription in Settings.',
+            [
+              {
+                text: 'Check Settings',
+                onPress: () => router.push('/settings/manage-subscription'),
+              },
+              {
+                text: 'Proceed Anyway',
+                onPress: () => {
+                  // Continue with completion
+                },
+                style: 'default',
+              },
+              { text: 'Cancel', style: 'cancel' },
+            ]
+          );
+          // Don't return - allow user to proceed if they choose
+        }
       }
       
       const completionPayload = {
@@ -237,6 +315,13 @@ export default function Step10Confirmation() {
       // Log the payload before sending
       
       // Final submission to backend - mark onboarding as complete
+      // PATCH: Guarantee coach role and onboarding_completed for coach users
+      if (isCoach) {
+        if (!completionPayload.role || completionPayload.role !== 'coach') {
+          completionPayload.role = 'coach';
+        }
+        completionPayload.onboarding_completed = true;
+      }
       await User.completeOnboarding(completionPayload);
       
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
@@ -278,7 +363,7 @@ export default function Step10Confirmation() {
 
   return (
     <OnboardingLayout
-      step={9}
+      step={10}
       title="Almost Ready!"
       subtitle="Review your setup before completing onboarding"
       showBackButton={false}

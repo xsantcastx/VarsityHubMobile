@@ -254,7 +254,13 @@ eventsRouter.post('/:id/rsvp', async (req: AuthedRequest, res) => {
 // Create event (fans & coaches)
 const createEventSchema = z.object({
   title: z.string().trim().min(1),
-  date: z.string(),
+  date: z.string().refine((dateStr) => {
+    const eventDate = new Date(dateStr);
+    const now = new Date();
+    return eventDate >= now;
+  }, {
+    message: 'Event date must be in the future'
+  }),
   location: z.string().trim().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),

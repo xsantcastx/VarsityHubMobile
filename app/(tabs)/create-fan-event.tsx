@@ -38,7 +38,7 @@ export default function CreateFanEventScreen() {
   
   // Load followed teams (teams user is a member of)
   const [rawTeams, setRawTeams] = useState<any[]>([]);
-  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [_teamsLoading, setTeamsLoading] = useState(true);
   
   useEffect(() => {
     const loadFollowedTeams = async () => {
@@ -53,7 +53,7 @@ export default function CreateFanEventScreen() {
         setTeamsLoading(false);
       }
     };
-    loadFollowedTeams();
+    void loadFollowedTeams();
   }, []);
   
   const [title, setTitle] = useState('');
@@ -313,7 +313,14 @@ export default function CreateFanEventScreen() {
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Create Event', headerShown: true }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Create Event', 
+          headerShown: true,
+          headerBackTitle: 'Back',
+          headerBackVisible: true,
+        }} 
+      />
       
       <KeyboardAwareScreen style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}

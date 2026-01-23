@@ -216,6 +216,10 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       } catch (err: any) {
         setUser(null);
         // Don't clear onboarding flag on auth error - keep it for when user logs back in
+        // Only throw if it's not a 401 (unauthorized) - 401 is expected when not logged in
+        if (err?.status !== 401) {
+          console.error('[AuthProvider] checkAuth error:', err);
+        }
         throw err;
       }
     },

@@ -32,7 +32,7 @@ export default function PublicEventScreen() {
       if (params?.id) {
         void loadEventData();
       }
-    }, [params?.id])
+    }, [params?.id, loadEventData])
   );
 
   const loadEventData = async () => {
@@ -123,7 +123,7 @@ export default function PublicEventScreen() {
               style={[styles.createPostButton, { backgroundColor: Colors[colorScheme].tint }]}
               onPress={() => {
                 // For sample events, use the event's game_id if it exists, otherwise use event ID
-                // The create-post screen accepts gameId and will use it for event posts
+                // The create-post screen accepts gameId and will handle sample events appropriately
                 const targetGameId = event?.game_id || params?.id || '';
                 router.push({
                   pathname: '/create-post',
@@ -132,7 +132,9 @@ export default function PublicEventScreen() {
               }}
             >
               <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.createPostButtonText}>Create Post</Text>
+              <Text style={styles.createPostButtonText}>
+                {params?.id && /^sample-/i.test(String(params.id)) ? 'Add Sample Post' : 'Create Post'}
+              </Text>
             </Pressable>
           </View>
           

@@ -243,9 +243,38 @@ teamsRouter.get('/:id/members', async (req, res) => {
   const mems = await prisma.teamMembership.findMany({
     where: { team_id: id },
     orderBy: { created_at: 'asc' },
-    include: { user: true },
+    include: { 
+      user: {
+        select: {
+          id: true,
+          email: true,
+          display_name: true,
+          avatar_url: true,
+          username: true,
+          preferences: true,
+        }
+      }
+    },
   });
-  const list = mems.map((m) => ({ id: m.id, role: m.role, status: m.status, user: { id: m.user_id, email: (m as any).user?.email || null, display_name: (m as any).user?.display_name || null } }));
+  const list = mems.map((m) => {
+    const user = (m as any).user;
+    const prefs = (user?.preferences || {}) as any;
+    return {
+      id: m.id,
+      role: m.role,
+      status: m.status,
+      position: (m as any).position || null,
+      jersey_number: (m as any).jersey_number || null,
+      user: {
+        id: m.user_id,
+        email: user?.email || null,
+        display_name: user?.display_name || null,
+        avatar_url: user?.avatar_url || null,
+        username: user?.username || null,
+        is_parent: prefs?.is_parent === true,
+      }
+    };
+  });
   return res.json(list);
 });
 
@@ -555,6 +584,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   }
   
   // Rookie plan: max 2 teams as owner
+  // NOTE: This check is duplicated inside the transaction below for race condition protection
   if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
     const ownedTeamsCount = await prisma.teamMembership.count({
       where: {
@@ -563,9 +593,9 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
         status: 'active',
       },
     });
-    
+
     if (ownedTeamsCount >= 2) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Team limit reached',
         message: "You've reached your free limit (2 teams). Upgrade to add more.",
         code: 'TEAM_LIMIT_EXCEEDED',
@@ -630,29 +660,7 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
       });
     }
   }
-  
-  // Create team
-  // PLAN LIMITS: Enforce Rookie 2-team maximum (owned teams only)
-  try {
-    const userPrefs = me.preferences as any;
-    const userPlan = (userPrefs?.plan || userPrefs?.role === 'coach' && 'rookie') || 'rookie';
-    if (userPlan === 'rookie') {
-      const ownedCount = await prisma.teamMembership.count({
-        where: { user_id: me.id, role: 'owner' }
-      });
-      if (ownedCount >= 2) {
-        return res.status(403).json({
-          error: 'TEAM_LIMIT_REACHED',
-          message: 'Rookie plan allows a maximum of 2 teams. Upgrade to Veteran or Legend for more.',
-          limit: 2,
-          current: ownedCount
-        });
-      }
-    }
-  } catch (e) {
-    console.warn('[teams][rookie-limit] check failed', e);
-  }
-  
+
   // CRITICAL: Team creation must associate an organization
   // If organization_id not provided, create organization from team name
   let organizationId = data.organization_id;
@@ -732,36 +740,57 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
   }
   
   // Now create team with guaranteed organization_id
+  // CRITICAL: Use transaction to prevent race condition bypassing team limits
   try {
-    const team = await prisma.team.create({
-      data: {
-        name: data.name.trim(),
-        description: data.description?.trim() || null,
-        sport: data.sport?.trim() || null,
-        club_type: data.club_type || 'sport',
-        extracurricular_category: data.extracurricular_category?.trim() || null,
-        season_start: data.season_start ? new Date(data.season_start) : null,
-        season_end: data.season_end ? new Date(data.season_end) : null,
-        organization_id: organizationId, // Now guaranteed to exist
-        logo_url: data.logo_url || null,
-        city: data.city?.trim() || null,
-        state: data.state?.trim() || null,
-        league: data.league?.trim() || null,
-        venue_place_id: data.venue_place_id || null,
-        venue_lat: data.venue_lat || null,
-        venue_lng: data.venue_lng || null,
-        venue_address: data.venue_address?.trim() || null,
+    const team = await prisma.$transaction(async (tx) => {
+      // Re-check team limit atomically within transaction to prevent race conditions
+      if (userPlan === 'rookie' || !userPlan || userPlan === 'free') {
+        const ownedTeamsCount = await tx.teamMembership.count({
+          where: {
+            user_id: me.id,
+            role: 'owner',
+            status: 'active',
+          },
+        });
+
+        if (ownedTeamsCount >= 2) {
+          throw new Error('TEAM_LIMIT_EXCEEDED:Rookie plan allows maximum 2 teams');
+        }
       }
-    });
-    
-    // Create team membership (owner)
-    await prisma.teamMembership.create({
-      data: {
-        team_id: team.id,
-        user_id: me.id,
-        role: 'owner',
-        status: 'active'
-      }
+
+      // Create team
+      const newTeam = await tx.team.create({
+        data: {
+          name: data.name.trim(),
+          description: data.description?.trim() || null,
+          sport: data.sport?.trim() || null,
+          club_type: data.club_type || 'sport',
+          extracurricular_category: data.extracurricular_category?.trim() || null,
+          season_start: data.season_start ? new Date(data.season_start) : null,
+          season_end: data.season_end ? new Date(data.season_end) : null,
+          organization_id: organizationId, // Now guaranteed to exist
+          logo_url: data.logo_url || null,
+          city: data.city?.trim() || null,
+          state: data.state?.trim() || null,
+          league: data.league?.trim() || null,
+          venue_place_id: data.venue_place_id || null,
+          venue_lat: data.venue_lat || null,
+          venue_lng: data.venue_lng || null,
+          venue_address: data.venue_address?.trim() || null,
+        }
+      });
+
+      // Create team membership (owner) in same transaction
+      await tx.teamMembership.create({
+        data: {
+          team_id: newTeam.id,
+          user_id: me.id,
+          role: 'owner',
+          status: 'active'
+        }
+      });
+
+      return newTeam;
     });
     
     // Handle authorized users if provided
@@ -820,6 +849,17 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     });
   } catch (teamError: any) {
     console.error('[Teams] Failed to create team:', teamError);
+
+    // Handle specific transaction errors
+    if (teamError?.message?.includes('TEAM_LIMIT_EXCEEDED')) {
+      return res.status(403).json({
+        error: 'Team limit reached',
+        message: "You've reached your free limit (2 teams). Upgrade to add more.",
+        code: 'TEAM_LIMIT_EXCEEDED',
+        limit: 2
+      });
+    }
+
     return res.status(500).json({
       error: 'Failed to create team',
       message: 'Unable to create team. Please try again.',
@@ -863,34 +903,48 @@ teamsRouter.post('/:id/invite', async (req: AuthedRequest, res) => {
   }
   
   // PLAN LIMITS: Enforce authorized user caps (per-team limits)
+  // CRITICAL: Use transaction to prevent race condition bypassing user limits
+  let invite;
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const prefs = (user?.preferences || {}) as any;
     const plan = prefs.plan || 'rookie';
-    
+
     // Get per-team limit from plan definitions
     const limit = getAuthorizedUsersPerTeam(plan);
-    
-    if (limit !== null) {
-      const inviteCount = await prisma.teamInvite.count({ where: { team_id: id, status: 'pending' } });
-      const memberCount = await prisma.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
-      const totalAuthorized = inviteCount + memberCount;
-      if (totalAuthorized >= limit) {
-        return res.status(403).json({
-          error: 'USER_LIMIT_REACHED',
-          message: `Plan limit reached. This ${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team.`,
-          limit,
-          current: totalAuthorized
-        });
+
+    // Create invite within transaction to prevent race conditions
+    invite = await prisma.$transaction(async (tx) => {
+      if (limit !== null) {
+        // Count atomically within transaction
+        const inviteCount = await tx.teamInvite.count({ where: { team_id: id, status: 'pending' } });
+        const memberCount = await tx.teamMembership.count({ where: { team_id: id, role: { in: ['manager','coach','assistant_coach','equipment','health_wellness'] } } });
+        const totalAuthorized = inviteCount + memberCount;
+
+        if (totalAuthorized >= limit) {
+          throw new Error(`USER_LIMIT_REACHED:${plan} plan allows ${limit} authorized user${limit === 1 ? '' : 's'} per team`);
+        }
       }
+
+      // Create invite within same transaction
+      return await tx.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
+    });
+  } catch (e: any) {
+    // Handle specific limit errors
+    if (e?.message?.includes('USER_LIMIT_REACHED')) {
+      const [, message] = e.message.split(':');
+      return res.status(403).json({
+        error: 'USER_LIMIT_REACHED',
+        message: message || 'Plan limit reached for authorized users.'
+      });
     }
-    // If limit is null, plan has unlimited authorized users (Legend tier)
-  } catch (e) {
+
     console.warn('[teams][invite-limit] check failed', e);
+    return res.status(500).json({
+      error: 'Failed to create invite',
+      message: 'Unable to create team invite. Please try again.'
+    });
   }
-  
-  // Create the invite
-  const invite = await prisma.teamInvite.create({ data: { team_id: id, email, role: role || 'member' } });
   // Send invite email (best effort)
   const inviter = await prisma.user.findUnique({ where: { id: req.user.id }, select: { display_name: true } });
   try {

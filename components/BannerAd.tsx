@@ -16,7 +16,7 @@ interface BannerAdProps {
   targetUrl?: string | null;
   businessName?: string;
   description?: string;
-  fitMode?: 'letterbox' | 'fill' | 'stretch';
+  fitMode?: 'rotate' | 'fill' | 'stretch';
   aspectRatio?: number;
   onPress?: () => void; // Optional override for click behavior
 }
@@ -82,7 +82,7 @@ export function BannerAd({
 
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
     switch (fitMode) {
-      case 'letterbox':
+      case 'rotate':
         return 'contain'; // Fits entire image, may show bars
       case 'stretch':
         return 'fill'; // Stretches to fill, may distort

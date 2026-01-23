@@ -54,12 +54,18 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
   }
 };
 
+// Helper to detect sample events (IDs starting with "sample-")
+const isSampleEvent = (id?: string | null): boolean => {
+  return !!id && /^sample-/i.test(String(id));
+};
+
 export default function CreatePostScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ gameId?: string; type?: string }>();
   const gameId = params?.gameId ? String(params.gameId) : undefined;
   const postType = params?.type === 'highlight' ? 'highlight' : 'post';
+  const _isSample = isSampleEvent(gameId);
   const { location, loading: _locLoading, error: _locError, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings } = useDeviceLocation();
   
   const [content, setContent] = useState('');
@@ -376,22 +382,36 @@ export default function CreatePostScreen() {
         type: postType,
         location: locationPayload,
       };
-      if (selectedGameId) {
+      
+      // For sample events, allow posting without game_id validation
+      // Sample events are demo content that don't exist in the database
+      const isSelectedSample = isSampleEvent(selectedGameId);
+      if (selectedGameId && !isSelectedSample) {
+        // Only set game_id for real events (not sample events)
         payload.game_id = selectedGameId;
       }
+      
       // Require event link for highlight posts to ensure they surface on the event page
-      if (postType === 'highlight' && !payload.game_id) {
+      // But allow sample events to bypass this requirement
+      if (postType === 'highlight' && !payload.game_id && !isSelectedSample) {
         throw new Error('Please attach an event to share a highlight.');
       }
+      
       await Post.create(payload);
       
       // Show success message based on where post will appear
-      const postDestination = payload.game_id ? 'event page' : 'profile';
+      const postDestination = (payload.game_id || isSelectedSample) ? 'event page' : 'profile';
+      const successMessage = isSelectedSample
+        ? (postType === 'highlight' 
+            ? 'Your highlight has been shared to the sample event!' 
+            : 'Your post has been created for the sample event!')
+        : (postType === 'highlight' 
+            ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
+            : `Your post has been created and will appear on the ${postDestination}.`);
+      
       Alert.alert(
         postType === 'highlight' ? 'Highlight shared' : 'Posted successfully!',
-        postType === 'highlight' 
-          ? (payload.game_id ? 'Your highlight has been shared to the event.' : 'Your highlight has been shared to your profile.') 
-          : `Your post has been created and will appear on the ${postDestination}.`
+        successMessage
       );
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -400,7 +420,7 @@ export default function CreatePostScreen() {
         setError(issues.map(i => i.message).join('\n'));
       } else {
         // Provide more helpful error messages
-        if (e?.status === 404 && selectedGameId) {
+        if (e?.status === 404 && selectedGameId && !isSampleEvent(selectedGameId)) {
           setError('Event not found. Please remove the event attachment and try again, or select a different event.');
         } else if (e?.status === 403) {
           setError(e?.data?.message || 'You do not have permission to post to this event.');
@@ -552,8 +572,10 @@ export default function CreatePostScreen() {
         {suggestedGame && selectedGameId && (
           <View style={styles.gameSection}>
             <View style={styles.sectionTitleRow}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>Attached Event</Text>
-              {nearbyGames.length > 1 && (
+              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
+                {isSampleEvent(selectedGameId) ? 'Sample Event' : 'Attached Event'}
+              </Text>
+              {nearbyGames.length > 1 && !isSampleEvent(selectedGameId) && (
                 <Pressable onPress={() => setEventSelectorVisible(true)}>
                   <Text style={[styles.changeEventButton, { color: Colors[colorScheme].tint }]}>Change</Text>
                 </Pressable>
@@ -562,35 +584,39 @@ export default function CreatePostScreen() {
             
             <Pressable 
               style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-              onPress={() => nearbyGames.length > 1 ? setEventSelectorVisible(true) : null}
+              onPress={() => nearbyGames.length > 1 && !isSampleEvent(selectedGameId) ? setEventSelectorVisible(true) : null}
             >
               <View style={styles.gameIconContainer}>
-                <Ionicons name="trophy" size={20} color={Colors[colorScheme].tint} />
+                <Ionicons name={isSampleEvent(selectedGameId) ? "sparkles" : "trophy"} size={20} color={Colors[colorScheme].tint} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
-                  Selected Event
+                  {isSampleEvent(selectedGameId) ? 'Sample Event (Demo)' : 'Selected Event'}
                 </Text>
                 <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
                   {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
                 </Text>
-                <View style={styles.gameMetaRow}>
-                  {suggestedGame.distance !== null && suggestedGame.distance !== undefined && (
-                    <Text style={[styles.gameDistance, { color: Colors[colorScheme].tint }]}>
-                      {suggestedGame.distance < 1 
-                        ? `${Math.round(suggestedGame.distance * 1000)}m away` 
-                        : `${suggestedGame.distance.toFixed(1)}km away`}
-                    </Text>
-                  )}
-                  {suggestedGame.date && (
-                    <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
-                      {suggestedGame.distance !== null && suggestedGame.distance !== undefined && ' • '}
-                      {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  )}
-                </View>
+                {!isSampleEvent(selectedGameId) && (
+                  <View style={styles.gameMetaRow}>
+                    {suggestedGame.distance !== null && suggestedGame.distance !== undefined && (
+                      <Text style={[styles.gameDistance, { color: Colors[colorScheme].tint }]}>
+                        {suggestedGame.distance < 1 
+                          ? `${Math.round(suggestedGame.distance * 1000)}m away` 
+                          : `${suggestedGame.distance.toFixed(1)}km away`}
+                      </Text>
+                    )}
+                    {suggestedGame.date && (
+                      <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
+                        {suggestedGame.distance !== null && suggestedGame.distance !== undefined && ' • '}
+                        {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    )}
+                  </View>
+                )}
                 <Text style={[styles.eventConfirmation, { color: Colors[colorScheme].tint, marginTop: 4 }]}>
-                  ✓ This post will appear in this event
+                  {isSampleEvent(selectedGameId) 
+                    ? '✨ This is a sample event - your post will be a sample post!' 
+                    : '✓ This post will appear in this event'}
                 </Text>
               </View>
               <Ionicons name="checkmark-circle" size={24} color={Colors[colorScheme].tint} />

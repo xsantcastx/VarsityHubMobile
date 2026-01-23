@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { userLookupLimiter } from '../middleware/rateLimiters.js';
 
 export const usersRouter = Router();
 
@@ -314,10 +315,20 @@ usersRouter.get('/username-available', requireAuth as any, async (req: AuthedReq
 });
 
 // Lookup user by email (for onboarding authorized users flow)
-usersRouter.get('/lookup', async (req, res) => {
+// CRITICAL: Requires authentication and rate limiting to prevent email enumeration
+usersRouter.get('/lookup', requireAuth as any, userLookupLimiter, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
   const email = String((req.query as any).email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
-  const u = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, display_name: true } });
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+
+  const u = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, display_name: true }
+  });
+
   if (!u) return res.status(404).json({ error: 'Not found' });
   return res.json(u);
 });
@@ -527,6 +538,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       avatar_url: true,
       bio: true,
       created_at: true,
+      preferences: true,
     },
   });
   if (!user) return res.status(404).json({ error: 'Not found' });
@@ -543,12 +555,20 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
       : Promise.resolve(null),
   ]);
 
+  const prefs = (user.preferences || {}) as any;
+  const is_parent = prefs?.is_parent === true;
+
   return res.json({
-    ...user,
+    id: user.id,
+    display_name: user.display_name,
+    avatar_url: user.avatar_url,
+    bio: user.bio,
+    created_at: user.created_at,
     posts_count,
     followers_count,
     following_count,
     is_following: Boolean(rel),
+    is_parent, // Include parent status for coaches viewing profiles
   });
 });
 

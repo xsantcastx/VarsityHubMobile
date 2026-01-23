@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
@@ -154,7 +155,7 @@ export default function Step1Role() {
         }
       })();
     }
-  }, [ob.role]);
+  }, [ob.role, setOB]);
 
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
@@ -176,7 +177,24 @@ export default function Step1Role() {
     if (!role) return;
     setSaving(true);
     try {
-      setOB((prev) => ({ ...prev, role }));
+      // CRITICAL: For coaches, ALWAYS reset progress and clear state
+      // This ensures they go through ALL steps from the beginning
+      if (role === 'coach') {
+        // Clear ALL onboarding state to force fresh start
+        setOB({ role });
+        // Force progress to step 2 (index 1) - CRITICAL: Don't allow any other progress
+        setProgress(1);
+        // Clear AsyncStorage to remove any saved progress
+        try {
+          await AsyncStorage.removeItem('onboarding_progress');
+          await AsyncStorage.removeItem('onboarding_state');
+        } catch (e) {
+          console.warn('Failed to clear AsyncStorage:', e);
+        }
+      } else {
+        setOB((prev) => ({ ...prev, role }));
+      }
+      
       // Persist role to server so the schema/preferences reflect the user's selection
       try {
         await User.updatePreferences({ role });
@@ -207,11 +225,16 @@ export default function Step1Role() {
         if (role === 'fan') {
           // Fan gets lightest setup - skip to profile
           setProgress(5); // step-7 is index 5
-          router.push('/onboarding/step-7-profile');
+          router.replace('/onboarding/step-7-profile');
+        } else if (role === 'coach') {
+          // Coach MUST go through all steps - NEVER skip
+          setProgress(1); // step-2 is index 1
+          router.replace('/onboarding/step-2-basic');
         } else {
           // Coach/Organizer gets full onboarding with teams and subscriptions
+          // CRITICAL: Always start at step 2, never skip
           setProgress(1); // step-2 is index 1
-          router.push('/onboarding/step-2-basic');
+          router.replace('/onboarding/step-2-basic'); // Use replace to prevent back navigation issues
         }
       }
     } finally {

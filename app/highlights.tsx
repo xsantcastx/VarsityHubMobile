@@ -59,12 +59,33 @@ const mapHighlightItem = (input: any): HighlightItem | null => {
     lat: typeof input.lat === 'number' ? input.lat : undefined,
     lng: typeof input.lng === 'number' ? input.lng : undefined,
     country_code: typeof input.country_code === 'string' ? input.country_code : undefined,
+    sport: typeof input.sport === 'string' ? input.sport : undefined,
     _score: typeof input._score === 'number' ? input._score : undefined,
   };
 };
 
 
-const getSportCategory = (title?: string | null, content?: string | null) => {
+const getSportCategory = (sport?: string, title?: string | null, content?: string | null) => {
+  // First, check if sport is explicitly provided from backend
+  if (sport) {
+    const sportLower = sport.toLowerCase();
+    if (sportLower.includes('football')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
+    if (sportLower.includes('basketball')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
+    if (sportLower.includes('baseball')) return { name: 'Baseball', icon: '⚾', color: '#2E8B57' };
+    if (sportLower.includes('soccer')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
+    if (sportLower.includes('hockey')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
+    if (sportLower.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+    if (sportLower.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+    if (sportLower.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+    if (sportLower.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+    if (sportLower.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+    if (sportLower.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+    if (sportLower.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+    // Return the sport name as-is if it doesn't match known patterns
+    return { name: sport, icon: '🏆', color: '#FF6B35' };
+  }
+
+  // Fallback: Parse from title/content
   const text = ((title || '') + ' ' + (content || '')).toLowerCase();
   if (text.includes('football') || text.includes('nfl')) return { name: 'Football', icon: '🏈', color: '#8B5A2B' };
   if (text.includes('basketball') || text.includes('nba')) return { name: 'Basketball', icon: '🏀', color: '#FF6B35' };
@@ -72,6 +93,13 @@ const getSportCategory = (title?: string | null, content?: string | null) => {
   if (text.includes('soccer') || text.includes('fifa')) return { name: 'Soccer', icon: '⚽', color: '#4169E1' };
   if (text.includes('hockey') || text.includes('nhl')) return { name: 'Hockey', icon: '🏒', color: '#1C1C1C' };
   if (text.includes('tennis')) return { name: 'Tennis', icon: '🎾', color: '#228B22' };
+  if (text.includes('volleyball')) return { name: 'Volleyball', icon: '🏐', color: '#FF1744' };
+  if (text.includes('wrestling')) return { name: 'Wrestling', icon: '🤼', color: '#7B1FA2' };
+  if (text.includes('track')) return { name: 'Track & Field', icon: '🏃', color: '#FF9800' };
+  if (text.includes('swimming')) return { name: 'Swimming', icon: '🏊', color: '#0288D1' };
+  if (text.includes('golf')) return { name: 'Golf', icon: '⛳', color: '#558B2F' };
+  if (text.includes('lacrosse')) return { name: 'Lacrosse', icon: '🥍', color: '#D32F2F' };
+
   return { name: 'Sports', icon: '🏆', color: '#FF6B35' };
 };
 
@@ -97,7 +125,7 @@ const HighlightCard = ({
   colorScheme: 'light' | 'dark' 
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
-  const category = getSportCategory(item.title, item.content);
+  const category = getSportCategory(item.sport, item.title, item.content);
   const hasMedia = !!item.media_url;
   
   // Calculate ranking for this item
@@ -133,13 +161,6 @@ const HighlightCard = ({
                   </View>
                 </View>
               )}
-              {/* Ranking Badge */}
-              {ranking.show && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
-              )}
               {/* Live badge for recent posts */}
               {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
                 <View style={styles.liveBadge}>
@@ -156,13 +177,6 @@ const HighlightCard = ({
                 <Text style={styles.categoryIcon}>{category.icon}</Text>
                 <Text style={styles.noMediaText}>Text Post</Text>
               </View>
-              {/* Ranking Badge for text posts */}
-              {ranking.show && (
-                <RankingBadge 
-                  type={ranking.type} 
-                  position={ranking.position}
-                />
-              )}
             </LinearGradient>
           )}
         </View>

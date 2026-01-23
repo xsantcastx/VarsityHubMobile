@@ -634,20 +634,38 @@ paymentsRouter.post('/update-subscription-quantity', expressPkg.json(), requireV
     if (!subscriptionId) {
       return res.status(400).json({ error: 'No active subscription found' });
     }
-    
+
+    // CRITICAL: Verify user actually owns this many teams before updating payment
+    const actualTeamCount = await prisma.teamMembership.count({
+      where: {
+        user_id: userId,
+        role: 'owner',
+        status: 'active'
+      }
+    });
+
+    if (team_count !== actualTeamCount) {
+      return res.status(400).json({
+        error: 'Team count mismatch',
+        message: `You currently own ${actualTeamCount} team${actualTeamCount !== 1 ? 's' : ''} but requested to pay for ${team_count}. You can only pay for teams you own.`,
+        owned_teams: actualTeamCount,
+        requested_teams: team_count
+      });
+    }
+
     try {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      
+
       if (subscription.status !== 'active' && subscription.status !== 'trialing') {
         return res.status(400).json({ error: 'Subscription is not active' });
       }
-      
+
       // Update the quantity of the subscription item
       const subscriptionItem = subscription.items.data[0];
       if (!subscriptionItem) {
         return res.status(400).json({ error: 'No subscription item found' });
       }
-      
+
       await stripe.subscriptionItems.update(subscriptionItem.id, {
         quantity: billable,
       });

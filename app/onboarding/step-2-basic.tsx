@@ -150,19 +150,26 @@ export default function Step2Basic() {
         setProgress(7); // step-10 is index 7
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Determine role from onboarding state or fallback to server
-        const userRole = ob.role || 'coach'; // Default to coach if role not set
+        // Determine role from onboarding state
+        const userRole = ob.role;
+        
+        if (!userRole) {
+          // No role set - go back to step 1
+          setProgress(0);
+          router.replace('/onboarding/step-1-role');
+          return;
+        }
         
         // Fan: light path → profile setup
         if (userRole === 'fan') {
           setProgress(5); // step-7 is index 5
-          router.push('/onboarding/step-7-profile');
+          router.replace('/onboarding/step-7-profile');
           return;
         }
 
-        // Coach: go to plan selection
+        // Coach: MUST go to plan selection - NEVER skip to step 7
         setProgress(2); // step-3 is index 2
-        router.push('/onboarding/step-3-plan');
+        router.replace('/onboarding/step-3-plan');
       }
     } catch (e: any) { 
       console.error('[step-2-basic] Failed to save:', e);

@@ -1,232 +1,96 @@
-
-            import Switch from '@/components/ui/switch';
-import { getConfig } from '@/config/env';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { useThemePreference } from '@/hooks/useCustomColorScheme';
 import { Stack, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-            // @ts-ignore JS exports
-            import { User } from '@/api/entities';
-import { useOnboardingOptional } from '@/context/OnboardingContext';
+// @ts-ignore JS exports
+import { Event, User } from '@/api/entities';
+import { getConfig } from '@/config/env';
 import { useAuth } from '@/context/AuthProvider';
+import { useOnboardingOptional } from '@/context/OnboardingContext';
 
-const appConfig = getConfig();
+interface Preferences {
+  notifications: {
+    game_event_reminders: boolean;
+    team_updates: boolean;
+    comments_upvotes: boolean;
+  };
+  is_parent: boolean;
+  zip_code: string | null;
+}
 
-            type Preferences = {
-              notifications: { game_event_reminders: boolean; team_updates: boolean; comments_upvotes: boolean };
-              is_parent: boolean;
-              zip_code?: string | null;
-            };
+// Inline components for settings
+function SectionCard({ title, initiallyOpen = false, children }: { title: string; initiallyOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(initiallyOpen);
+  return (
+    <View style={styles.card}>
+      <Pressable style={styles.cardHeader} onPress={() => setOpen(!open)}>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={[styles.chev, open && styles.chevOpen]}>›</Text>
+      </Pressable>
+      {open && <View style={styles.cardBody}>{children}</View>}
+    </View>
+  );
+}
 
-            function SectionCard({ title, initiallyOpen, children }: { title: string; initiallyOpen?: boolean; children: React.ReactNode }) {
-              const [open, setOpen] = useState(!!initiallyOpen);
-              const colorScheme = useColorScheme();
-              return (
-                <View style={[styles.card, { 
-                  borderColor: colorScheme === 'dark' ? '#1F2937' : '#E5E7EB',
-                  backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#F9FAFB'
-                }]}> 
-                  <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                    <Text style={[styles.chev, open ? styles.chevOpen : null, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
-                  </Pressable>
-                  {open ? <View style={styles.cardBody}>{children}</View> : null}
-                </View>
-              );
-            }
+function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
+  return (
+    <Pressable onPress={onPress} style={styles.rowBetween}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, destructive && styles.destructive]}>{title}</Text>
+        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+      </View>
+      <Text style={styles.chev}>›</Text>
+    </Pressable>
+  );
+}
 
-            function NavRow({ title, subtitle, onPress, destructive }: { title: string; subtitle?: string; onPress: () => void; destructive?: boolean }) {
-              const colorScheme = useColorScheme();
-              return (
-                <Pressable onPress={onPress} style={styles.rowBetween} android_ripple={{ color: '#e5e7eb' }}>
-                  <View>
-                    <Text style={[
-                      styles.rowTitle, 
-                      destructive ? styles.destructive : null,
-                      { color: destructive ? '#DC2626' : (colorScheme === 'dark' ? '#ECEDEE' : '#11181C') }
-                    ]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
-                  </View>
-                  <Text style={[styles.chev, { color: colorScheme === 'dark' ? '#9BA1A6' : '#6b7280' }]}>›</Text>
-                </Pressable>
-              );
-            }
+function SwitchRow({ title, subtitle, value, onValueChange }: { title: string; subtitle?: string; value: boolean; onValueChange: (v: boolean) => void }) {
+  return (
+    <View style={styles.rowBetween}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        {subtitle && <Text style={styles.mutedSmall}>{subtitle}</Text>}
+      </View>
+      <Switch value={value} onValueChange={onValueChange} />
+    </View>
+  );
+}
 
-            function SwitchRow({
-              title,
-              subtitle,
-              value,
-              onValueChange,
-            }: {
-              title: string;
-              subtitle?: string;
-              value: boolean;
-              onValueChange: (v: boolean) => void;
-            }) {
-              const colorScheme = useColorScheme();
-              return (
-                <View style={styles.rowBetween}>
-                  <View>
-                    <Text style={[styles.rowTitle, { color: colorScheme === 'dark' ? '#ECEDEE' : '#11181C' }]}>{title}</Text>
-                    {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
-                  </View>
-                  <Switch value={value} onValueChange={onValueChange} />
-                </View>
-              );
-            }
+export default function SettingsScreen() {
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const { checkAuth } = useAuth();
+  const obCtx = useOnboardingOptional();
+  const setOB = obCtx?.setState;
+  const appConfig = getConfig();
 
-            function ThemeRow({
-              title,
-              subtitle,
-              selectedValue,
-              onValueChange,
-            }: {
-              title: string;
-              subtitle?: string;
-              selectedValue: 'light' | 'dark' | 'system';
-              onValueChange: (v: 'light' | 'dark' | 'system') => void;
-            }) {
-              const colorScheme = useColorScheme();
-              const options = [
-                { value: 'system', label: 'System' },
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
-              ] as const;
+  const [_loading, setLoading] = useState(true);
+  const [_error, setError] = useState<string | null>(null);
+  const [_email, setEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [prefs, setPrefs] = useState<Preferences>({
+    notifications: {
+      game_event_reminders: false,
+      team_updates: false,
+      comments_upvotes: false,
+    },
+    is_parent: false,
+    zip_code: null,
+  });
+  const [plan, setPlan] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
+  const [_pendingLoading, setPendingLoading] = useState(false);
+  const [_pendingError, setPendingError] = useState<string | null>(null);
+  const timers = useRef<Record<string, NodeJS.Timeout>>({});
 
-              return (
-                <View>
-                  <View style={styles.rowBetween}>
-                    <View>
-                      <Text style={[styles.rowTitle, { color: Colors[colorScheme].text }]}>{title}</Text>
-                      {subtitle ? <Text style={[styles.mutedSmall, { color: colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF' }]}>{subtitle}</Text> : null}
-                    </View>
-                    <Text style={[styles.selectedValue, { color: colorScheme === 'dark' ? '#9CA3AF' : '#6b7280' }]}>
-                      {options.find(opt => opt.value === selectedValue)?.label}
-                    </Text>
-                  </View>
-                  <View style={styles.themeOptions}>
-                    {options.map((option) => (
-                      <Pressable
-                        key={option.value}
-                        style={[
-                          styles.themeOption,
-                          selectedValue === option.value && [
-                            styles.themeOptionSelected,
-                            { backgroundColor: colorScheme === 'dark' ? '#1F2937' : '#f3f4f6' }
-                          ],
-                        ]}
-                        onPress={() => onValueChange(option.value)}
-                        android_ripple={{ color: colorScheme === 'dark' ? '#1F2937' : '#e5e7eb' }}
-                      >
-                        <View style={[
-                          styles.themeOptionIndicator,
-                          { borderColor: colorScheme === 'dark' ? '#374151' : '#d1d5db' },
-                          selectedValue === option.value && styles.themeOptionIndicatorSelected,
-                        ]} />
-                        <Text style={[
-                          styles.themeOptionText,
-                          { color: colorScheme === 'dark' ? '#D1D5DB' : '#374151' },
-                        ]}>
-                          {option.label}
-                        </Text>
-                        {option.value === 'system' && <Text style={[styles.themeOptionSubtext, { color: colorScheme === 'dark' ? '#6B7280' : '#9CA3AF' }]}>Follow device setting</Text>}
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              );
-            }
-
-            export default function SettingsScreen() {
-              const router = useRouter();
-              // use non-throwing optional onboarding context (may be null if not within OBProvider)
-              const obCtx = useOnboardingOptional();
-              const setOB = obCtx?.setState ?? null;
-              const colorScheme = useColorScheme();
-              const { themePreference, setThemePreference } = useThemePreference();
-              const { checkAuth } = useAuth();
-              const [loading, setLoading] = useState(true);
-              const [error, setError] = useState<string | null>(null);
-              const [email, setEmail] = useState<string | null>(null);
-              const [prefs, setPrefs] = useState<Preferences>({
-                notifications: { game_event_reminders: false, team_updates: false, comments_upvotes: false },
-                is_parent: false,
-                zip_code: null,
-              });
-              const [plan, setPlan] = useState<string | null>(null);
-              const [role, setRole] = useState<string | null>(null);
-              const [isAdmin, setIsAdmin] = useState(false);
-
-              // Debounce timer refs for PATCH batching
-              const timers = useRef<{ [k: string]: any }>({});
-
-              useEffect(() => {
-                let mounted = true;
-                void (async () => {
-                  setLoading(true);
-                  setError(null);
-                  try {
-                    const me: any = await User.me();
-                    if (!mounted) return;
-                    setEmail(me?.email || null);
-                    
-                    // Check if user is admin (email-based)
-                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
-                      .map((e) => e.toLowerCase());
-                    setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
-                    
-                    const serverPrefs = (me && me.preferences) || {};
-                    setPrefs({
-                      notifications: {
-                        game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
-                        team_updates: !!serverPrefs?.notifications?.team_updates,
-                        comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
-                      },
-                      is_parent: !!serverPrefs?.is_parent,
-                      zip_code: serverPrefs?.zip_code ?? null,
-                    });
-                    setPlan(serverPrefs?.plan ?? null);
-                    const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
-                    setRole(effectiveRole);
-                  } catch (e: any) {
-                    if (!mounted) return;
-                    // Handle authentication errors gracefully - don't show "Unauthorized" to user
-                    // AuthProvider will handle redirecting to sign-in
-                    const isAuthError = e?.status === 401 || e?.status === 403 || 
-                                      (typeof e?.message === 'string' && 
-                                       (e.message.toLowerCase().includes('unauthorized') || 
-                                        e.message.toLowerCase().includes('forbidden')));
-                    if (isAuthError) {
-                      console.warn('[settings] Authentication error - refreshing auth state');
-                      // Trigger auth check to let AuthProvider handle redirect
-                      try {
-                        await checkAuth();
-                      } catch (authErr) {
-                        console.warn('[settings] Auth check failed:', authErr);
-                      }
-                      // Don't set error - let AuthProvider redirect to sign-in
-                      // The error state will be cleared when user is redirected
-                      return;
-                    }
-                    // Only show non-auth errors to the user
-                    setError(e?.message || 'Failed to load settings');
-                  } finally {
-                    if (!mounted) return;
-                    setLoading(false);
-                  }
-                })();
-                return () => { mounted = false; };
-              }, []);
-
-              // Debounced PATCH updater for preferences
-              const patchPrefs = (patch: Partial<Preferences>) => {
-                const key = JSON.stringify(patch);
-                if (timers.current[key]) clearTimeout(timers.current[key]);
-                
-                // Use functional update to get the latest state
-                setPrefs(cur => {
+  // Debounced PATCH updater for preferences
+  const patchPrefs = (patch: Partial<Preferences>) => {
+    const key = JSON.stringify(patch);
+    if (timers.current[key]) clearTimeout(timers.current[key]);
+    
+    // Use functional update to get the latest state
+    setPrefs(cur => {
                   // Deep merge notifications, shallow merge the rest
                   const newPrefs = {
                     ...cur,
@@ -293,53 +157,92 @@ const appConfig = getConfig();
                 }
               };
 
+              // Move the async logic into useEffect
+              useEffect(() => {
+                let mounted = true;
+                (async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    const me: any = await User.me();
+                    if (!mounted) return;
+                    setEmail(me?.email || null);
+                    // Check if user is admin (email-based)
+                    const adminEmails = (appConfig.adminEmails.length ? appConfig.adminEmails : ['emilmancero@gmail.com'])
+                      .map((e) => e.toLowerCase());
+                    setIsAdmin(adminEmails.includes((me?.email || '').toLowerCase()));
+                    const serverPrefs = (me && me.preferences) || {};
+                    setPrefs({
+                      notifications: {
+                        game_event_reminders: !!serverPrefs?.notifications?.game_event_reminders,
+                        team_updates: !!serverPrefs?.notifications?.team_updates,
+                        comments_upvotes: !!serverPrefs?.notifications?.comments_upvotes,
+                      },
+                      is_parent: !!serverPrefs?.is_parent,
+                      zip_code: serverPrefs?.zip_code ?? null,
+                    });
+                    setPlan(serverPrefs?.plan ?? null);
+                    const effectiveRole = (serverPrefs?.role || me?.role || null) as string | null;
+                    setRole(effectiveRole);
+
+                    // Fetch pending host event requests for coaches
+                    if (effectiveRole === 'coach') {
+                      setPendingLoading(true);
+                      setPendingError(null);
+                      try {
+                        const events = await Event.filter({ event_type: 'host_request', approval_status: 'pending' });
+                        if (mounted) setPendingHostRequests(Array.isArray(events) ? events : (events?.items || []));
+                      } catch (e: any) {
+                        if (mounted) setPendingError(e?.message || 'Failed to load event requests');
+                      } finally {
+                        if (mounted) setPendingLoading(false);
+                      }
+                    }
+                  } catch (e: any) {
+                    if (!mounted) return;
+                    // Handle authentication errors gracefully - don't show "Unauthorized" to user
+                    // AuthProvider will handle redirecting to sign-in
+                    const isAuthError = e?.status === 401 || e?.status === 403 ||
+                      (typeof e?.message === 'string' &&
+                        (e.message.toLowerCase().includes('unauthorized') ||
+                          e.message.toLowerCase().includes('forbidden')));
+                    if (isAuthError) {
+                      console.warn('[settings] Authentication error - refreshing auth state');
+                      // Trigger auth check to let AuthProvider handle redirect
+                      try {
+                        void checkAuth();
+                      } catch (authErr) {
+                        console.warn('[settings] Auth check failed:', authErr);
+                      }
+                      // Don't set error - let AuthProvider redirect to sign-in
+                      // The error state will be cleared when user is redirected
+                      return;
+                    }
+                    // Only show non-auth errors to the user
+                    setError(e?.message || 'Failed to load settings');
+                  } finally {
+                    if (!mounted) return;
+                    setLoading(false);
+                  }
+                })();
+                return () => { mounted = false; };
+              }, [appConfig.adminEmails, checkAuth]);
+
               return (
-                <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
-                  <Stack.Screen options={{ 
-                    title: 'Settings', 
-                    headerBackTitle: 'Back',
-                    headerShown: true,
-                  }} />
-                  <ScrollView 
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ paddingBottom: 28 }}
-                    showsVerticalScrollIndicator={true}
-                  >
-                    {error ? <Text style={styles.error}>{error}</Text> : null}
-                    
-                    {/* Quick Billing CTA (coaches only) */}
-                    {role === 'coach' && (
-                      <View style={{ paddingHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
-                        <Pressable onPress={() => void router.push('/settings/manage-subscription')} style={{ padding: 12, borderRadius: 12, backgroundColor: plan ? '#F3F4F6' : '#0A84FF' }}>
-                          <Text style={{ color: plan ? '#111827' : '#fff', fontWeight: '800', textAlign: 'center' }}>{plan ? `Manage Billing — ${String(plan)}` : 'Subscribe — Upgrade to Veteran or Legend'}</Text>
-                        </Pressable>
-                      </View>
-                    )}
+                <>
+                  <Stack.Screen 
+                    options={{ 
+                      title: 'Settings',
+                      headerShown: true,
+                      headerBackTitle: 'Back',
+                    }} 
+                  />
+                  <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#0B1120' : 'white' }]} edges={['top', 'bottom']}>
+                    <ScrollView>
                     {/* Account */}
                     <SectionCard title="Account" initiallyOpen>
                       <NavRow title="Edit Username" onPress={() => void router.push('/settings/edit-username')} />
                       <NavRow title="Reset Password" onPress={() => void router.push('/settings/reset-password')} />
-                      <NavRow
-                        title="Add ZIP Code"
-                        subtitle={prefs.zip_code ? String(prefs.zip_code) : 'For local event discovery'}
-                        onPress={() => void router.push('/settings/zip-code')}
-                      />
-                      <NavRow title="Followed Teams" onPress={() => void router.push('/settings/followed-teams')} />
-                    </SectionCard>
-
-                    {/* Appearance */}
-                    <SectionCard title="Appearance" initiallyOpen>
-                      <ThemeRow
-                        title="Theme"
-                        subtitle="Choose your preferred color scheme"
-                        selectedValue={themePreference}
-                        onValueChange={setThemePreference}
-                      />
-                    </SectionCard>
-
-                    {/* Events */}
-                    <SectionCard title="Events">
-                      <NavRow title="Request to Host Event" onPress={() => void router.push('/settings/request-host-event')} />
                       <NavRow title="RSVP History" onPress={() => void router.push('/settings/rsvp-history')} />
                     </SectionCard>
 
@@ -452,7 +355,7 @@ const appConfig = getConfig();
                               // Continue with navigation even if logout fails
                             }
                             try { 
-                              obCtx?.clearOnboarding?.(); 
+                              void obCtx?.clearOnboarding?.(); 
                             } catch (error: any) {
                               console.warn('[settings] Failed to clear onboarding:', error);
                               // Non-critical - continue with logout
@@ -525,8 +428,9 @@ const appConfig = getConfig();
                         © 2025 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
-                  </ScrollView>
-                </SafeAreaView>
+                    </ScrollView>
+                  </SafeAreaView>
+                </>
               );
             }
 

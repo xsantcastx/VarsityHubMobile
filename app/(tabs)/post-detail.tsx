@@ -46,7 +46,9 @@ export default function PostDetailScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   
   // Parse params for multi-post navigation
-  const postIdsArray = params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
+  const postIdsArray = useMemo(() => {
+    return params.postIds ? params.postIds.split(',').filter(Boolean) : params.id ? [params.id] : [];
+  }, [params.postIds, params.id]);
   const initialIndex = params.index ? parseInt(params.index, 10) : 0;
   
   // State for current post in swipe sequence
@@ -57,7 +59,8 @@ export default function PostDetailScreen() {
   
   // FlatList ref for programmatic scrolling
   const flatListRef = useRef<FlatList>(null);
-  
+  const isInitialLoad = useRef(true);
+
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
@@ -148,7 +151,7 @@ export default function PostDetailScreen() {
     void loadUser();
   }, []);
 
-  const load = useCallback(async (postId?: string) => {
+  const load = useCallback(async (postId?: string, showLoading = true) => {
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:177',message:'load called',data:{postId:postId || null,currentPostId,postIdsArrayLength:postIdsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
     // #endregion
@@ -161,7 +164,10 @@ export default function PostDetailScreen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Only show loading skeleton on initial load, not when swiping
+    if (showLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       // #region agent log
@@ -205,7 +211,9 @@ export default function PostDetailScreen() {
 
   // Reload when params or currentPostIndex changes
   useEffect(() => {
-    void load();
+    const shouldShowLoading = isInitialLoad.current;
+    isInitialLoad.current = false;
+    void load(undefined, shouldShowLoading);
   }, [load, params.id, params.postIds, currentPostIndex]);
 
   // Handle post change when swiping
@@ -214,10 +222,7 @@ export default function PostDetailScreen() {
       const visibleIndex = viewableItems[0].index;
       if (visibleIndex !== undefined && visibleIndex !== currentPostIndex) {
         setCurrentPostIndex(visibleIndex);
-        const newPostId = postIdsArray[visibleIndex];
-        if (newPostId) {
-          void load(newPostId);
-        }
+        // Don't call load() here - the useEffect will handle it automatically
       }
     }
   }).current;
@@ -461,7 +466,10 @@ export default function PostDetailScreen() {
 
   // Render single post content (reusable for both single and multi-post views)
   const renderPostContent = () => (
-    <ScrollView style={[styles.content, { backgroundColor: Colors[colorScheme].background }]} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
+      showsVerticalScrollIndicator={false}
+    >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
           {hasMedia ? (
@@ -642,23 +650,23 @@ export default function PostDetailScreen() {
             </View>
             
             <View style={styles.actions}>
-              <Pressable 
+              <Pressable
                 style={[
-                  styles.actionButton, 
+                  styles.actionButton,
                   styles.upvoteButton,
                   post?.has_upvoted && styles.upvoteButtonActive
-                ]} 
+                ]}
                 onPress={onUpvote}
                 disabled={voting}
               >
-                <Ionicons 
-                  name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"} 
-                  size={20} 
-                  color={post?.has_upvoted ? "#fff" : Colors[colorScheme].tint} 
+                <Ionicons
+                  name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"}
+                  size={20}
+                  color="#fff"
                 />
                 <Text style={[
-                  styles.actionText, 
-                  { color: post?.has_upvoted ? "#fff" : Colors[colorScheme].text },
+                  styles.actionText,
+                  { color: "#fff" },
                   post?.has_upvoted && styles.actionTextActive
                 ]}>
                   {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
@@ -675,51 +683,6 @@ export default function PostDetailScreen() {
             </View>
           </View>
 
-          {/* Quick Links */}
-          {(post.game?.id || post.team_id || post.team?.id || post.author_id) && (
-            <View style={[styles.quickLinks, { borderTopColor: Colors[colorScheme].border }]}>
-              <Text style={[styles.quickLinksTitle, { color: Colors[colorScheme].text }]}>
-                Quick Links
-              </Text>
-              <View style={styles.quickLinksRow}>
-                {post.game?.id && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => void router.push(`/game-detail?id=${post.game.id}`)}
-                  >
-                    <Ionicons name="basketball" size={18} color={Colors[colorScheme].tint} />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Event
-                    </Text>
-                  </Pressable>
-                )}
-                {(post.team_id || post.team?.id) && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => { const teamId = post.team_id || post.team?.id;
-                      if (teamId) void void router.push(`/team-profile?id=${teamId}`);
-                    }}
-                  >
-                    <Ionicons name="people" size={18} color="#10B981" />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Team
-                    </Text>
-                  </Pressable>
-                )}
-                {post.author_id && (
-                  <Pressable
-                    style={[styles.quickLinkButton, { backgroundColor: Colors[colorScheme].surface }]}
-                    onPress={() => void router.push(`/user-profile?id=${post.author_id}`)}
-                  >
-                    <Ionicons name="person" size={18} color="#8B5CF6" />
-                    <Text style={[styles.quickLinkText, { color: Colors[colorScheme].text }]}>
-                      View Profile
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            </View>
-          )}
         </View>
 
         {/* Comments Section */}
@@ -851,24 +814,11 @@ export default function PostDetailScreen() {
               <Ionicons name="trash-outline" size={22} color="#DC2626" />
             </Pressable>
           )}
-          <Pressable style={styles.headerActionButton} onPress={onSendToFriend}>
-            <Ionicons name="send-outline" size={22} color={Colors[colorScheme].text} />
-          </Pressable>
           <Pressable style={styles.headerActionButton} onPress={onShare}>
             <Ionicons name="share-outline" size={22} color={Colors[colorScheme].text} />
           </Pressable>
         </View>
       </View>
-
-      {/* Swipe Navigation Hint */}
-      {hasMultiplePosts && (
-        <View style={[styles.swipeHint, { backgroundColor: Colors[colorScheme].surface, borderBottomColor: Colors[colorScheme].border }]}>
-          <Ionicons name="swap-horizontal" size={16} color={Colors[colorScheme].mutedText} />
-          <Text style={[styles.swipeHintText, { color: Colors[colorScheme].mutedText }]}>
-            Swipe left or right to view more posts
-          </Text>
-        </View>
-      )}
 
       {/* Horizontal Swipe FlatList for Multiple Posts */}
       {hasMultiplePosts ? (
@@ -877,7 +827,10 @@ export default function PostDetailScreen() {
           data={postIdsArray}
           horizontal
           pagingEnabled
+          scrollEnabled={true}
           showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
           keyExtractor={(item) => item}
           initialScrollIndex={initialIndex}
           getItemLayout={(data, index) => ({

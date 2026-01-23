@@ -158,12 +158,11 @@ export function ReachMapPreview({ zipCode, radiusKm = 15 }: ReachMapPreviewProps
               latitudeDelta: 0.5, // Adjust zoom level to show the full circle
               longitudeDelta: 0.5,
             }}
-            region={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: 0.5,
-              longitudeDelta: 0.5,
-            }}
+            scrollEnabled={true}
+            zoomEnabled={true}
+            pitchEnabled={false}
+            rotateEnabled={false}
+            followsUserLocation={false}
           >
             {/* Center Marker */}
             <Marker

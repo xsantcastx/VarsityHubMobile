@@ -14,7 +14,7 @@ export default function ContactScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { displayName, email: profileEmail, loading: userLoading } = useUserProfile();
+  const { displayName, email: profileEmail, loading: _userLoading } = useUserProfile();
   const [name, setName] = useState(displayName);
   const [emailField, setEmail] = useState(profileEmail);
   const [subject, setSubject] = useState('');
@@ -25,7 +25,7 @@ export default function ContactScreen() {
   useEffect(() => {
     if (displayName && !name) setName(displayName);
     if (profileEmail && !emailField) setEmail(profileEmail);
-  }, [displayName, profileEmail]);
+  }, [displayName, profileEmail, name, emailField]);
 
   const onSubmit = async () => {
     if (!subject.trim() || !message.trim()) { Alert.alert('Please fill subject and message'); return; }

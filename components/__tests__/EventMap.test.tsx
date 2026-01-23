@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react-native';
+import { render, waitFor } from '@testing-library/react-native';
 import EventMap from '../EventMap';
 import type { EventMapProps } from '../EventMap.types';
 
@@ -45,7 +45,7 @@ const mockEvents = [
 ];
 
 describe('EventMap', () => {
-  it('renders without crashing with events', () => {
+  it('renders without crashing with events', async () => {
     const props: EventMapProps = {
       events: mockEvents,
       onEventPress: jest.fn(),
@@ -57,23 +57,22 @@ describe('EventMap', () => {
       },
     };
     const { getByText } = render(<EventMap {...props} />);
-    expect(getByText('Test Event')).toBeTruthy();
+    await waitFor(() => expect(getByText('Test Event')).toBeTruthy());
   });
 
-  it('renders empty state when no events', () => {
+  it('renders empty state when no events', async () => {
     const props: EventMapProps = {
       events: [],
       onEventPress: jest.fn(),
       initialRegion: {
-        latitude: 0,
-        longitude: 0,
-        latitudeDelta: 1,
-        longitudeDelta: 1,
+        latitude: 37.7749,
+        longitude: -122.4194,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
       },
     };
     const { getByText } = render(<EventMap {...props} />);
-    // Adjust this if you have a specific empty state message
-    expect(getByText(/no events/i)).toBeTruthy();
+    await waitFor(() => expect(getByText(/no games with locations yet/i)).toBeTruthy());
   });
 
   // Add more tests for user location, marker press, etc.

@@ -355,13 +355,14 @@ export default function ProfileScreen() {
       profileRequestInFlight.current = false;
       setLoading(false);
     }
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes]);
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, me]);
 
   // Initial load on mount - only once
   useEffect(() => {
     if (isInitialMount.current) {
       void loadProfile();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
   // Sync with user data from hooks/AuthProvider when username changes

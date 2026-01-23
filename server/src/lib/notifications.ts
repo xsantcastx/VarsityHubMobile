@@ -129,6 +129,19 @@ export async function notifyPostInteraction(
     return;
   }
 
+  // Check if user has disabled comments & upvotes notifications
+  if (interactionType === 'like' || interactionType === 'comment') {
+    const user = await prisma.user.findUnique({
+      where: { id: postAuthorId },
+      select: { preferences: true },
+    });
+    const prefs = user?.preferences as any;
+    if (prefs?.notifications?.comments_upvotes === false) {
+      debugLog(`Comments & upvotes notifications disabled for user ${postAuthorId}`);
+      return;
+    }
+  }
+
   const titles = {
     like: `${actorName} liked your post`,
     comment: `${actorName} commented on your post`,
@@ -215,6 +228,14 @@ export async function notifyUpcomingGames(hoursBeforeGame: number): Promise<void
   for (const event of upcomingEvents) {
     for (const rsvp of event.rsvps) {
       const user = rsvp.user;
+      
+      // Check if user has disabled game/event reminders
+      const prefs = user.preferences as any;
+      if (prefs?.notifications?.game_event_reminders === false) {
+        debugLog(`Game reminders disabled for user ${user.id}, skipping notification`);
+        continue;
+      }
+      
       const title = hoursBeforeGame === 12 
         ? `Game reminder: ${event.title}` 
         : `Game starting soon: ${event.title}`;

@@ -70,7 +70,7 @@ export default function EditProfileScreen() {
   // User info
   const [userRole, setUserRole] = useState<string | null>(null);
   const [hasTeamMembership, setHasTeamMembership] = useState(false);
-  const [me, setMe] = useState<any>(null);
+  const [me, _setMe] = useState<any>(null);
 
   const HEADER_IMAGE_DRAG_LIMIT = 120;
   const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

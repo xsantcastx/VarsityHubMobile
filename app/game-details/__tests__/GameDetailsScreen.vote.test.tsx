@@ -1,24 +1,68 @@
-import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
-import GameDetailsScreen from '../GameDetailsScreen';
-import { Game } from '@/api/entities';
-
-jest.mock('expo-router', () => {
-  const actual = jest.requireActual('expo-router');
-  const Stack = () => null;
-  Stack.Screen = () => null;
+// Always use fake timers for this test file
+jest.useFakeTimers();
+// Mock Animated.timing and related methods to complete animations instantly in tests
+jest.mock('react-native/Libraries/Animated/Animated', () => {
+  const ActualAnimated = jest.requireActual('react-native/Libraries/Animated/Animated');
   return {
-    ...actual,
-    Stack,
-    useLocalSearchParams: () => ({ id: 'game-1' }),
-    useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+    ...ActualAnimated,
+    timing: (value: any, config: any) => {
+      return {
+        start: (cb?: () => void) => {
+          value.setValue(config.toValue);
+          if (cb) cb();
+        },
+      };
+    },
+    parallel: (animations: any[]) => {
+      return {
+        start: (cb?: () => void) => {
+          animations.forEach((anim) => anim.start && anim.start());
+          if (cb) cb();
+        },
+      };
+    },
+    sequence: (animations: any[]) => {
+      return {
+        start: (cb?: () => void) => {
+          animations.forEach((anim) => anim.start && anim.start());
+          if (cb) cb();
+        },
+      };
+    },
   };
 });
 
+// Mock requestAnimationFrame and cancelAnimationFrame for React Native animations
+beforeAll(() => {
+  global.requestAnimationFrame = (cb: FrameRequestCallback): number => setTimeout(cb, 16) as unknown as number;
+  global.cancelAnimationFrame = (id: number) => clearTimeout(id);
+});
+
+afterAll(() => {
+  delete global.requestAnimationFrame;
+  delete global.cancelAnimationFrame;
+});
+// Use fake timers for all tests in this file
+
+
+
+import { Game } from '@/api/entities';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import GameDetailsScreen from '../GameDetailsScreen';
+// Disable setInterval and setTimeout in tests to prevent polling loops
+// Remove global setTimeout/setInterval mocks; rely on jest fake timers
+
+
+jest.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
+  useLocalSearchParams: () => ({ id: 'game-1', eventId: 'event-1' }),
+}));
+
 jest.mock('@react-navigation/native', () => ({
   useFocusEffect: (cb: any) => {
-    const cleanup = cb();
-    if (typeof cleanup === 'function') cleanup();
+    // Only call the callback once, do not set up intervals
+    cb();
   },
 }));
 
@@ -99,10 +143,12 @@ jest.mock('@/api/entities', () => ({
     deleteMedia: jest.fn(),
   },
   Event: {
+    get: jest.fn().mockResolvedValue({ id: 'event-1', title: 'Event', date: new Date(Date.now() + 60 * 60 * 1000).toISOString(), location: 'Test Field', banner_url: null, cover_image_url: null, capacity: 100, attendees_count: 0 }),
     rsvp: jest.fn(),
+    rsvpStatus: jest.fn().mockResolvedValue({ count: 0, capacity: 100, going: false }),
   },
   Team: {
-    list: jest.fn(),
+    list: jest.fn().mockResolvedValue([]),
   },
   User: {
     me: jest.fn(),
@@ -112,6 +158,7 @@ jest.mock('@/api/entities', () => ({
 const baseSummary = {
   id: 'game-1',
   gameId: 'game-1',
+  eventId: 'event-1',
   title: 'Home vs Away',
   date: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   homeTeam: 'Home',
@@ -120,11 +167,19 @@ const baseSummary = {
   posts: [],
   media: [],
   isPast: false,
+  location: 'Test Field',
+  rsvpCount: 0,
+  capacity: 100,
+  userRsvped: false,
+  reviewsCount: 0,
+  userVote: null,
+  // Add any other fields your GameVM expects
 };
 
 describe('GameDetailsScreen voting UI', () => {
   beforeEach(() => {
     (Game.summary as jest.Mock).mockResolvedValue(baseSummary);
+    (Game.get as jest.Mock).mockResolvedValue(baseSummary);
     (Game.posts as jest.Mock).mockResolvedValue([]);
     (Game.media as jest.Mock).mockResolvedValue([]);
   });
@@ -134,26 +189,53 @@ describe('GameDetailsScreen voting UI', () => {
   });
 
   it('casts a vote when pressing team A', async () => {
-    (Game.votesSummary as jest.Mock).mockResolvedValue({ teamA: 0, teamB: 0, userVote: null });
+    // First call: before voting, Second call: after voting
+    (Game.votesSummary as jest.Mock)
+      .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null })
+      .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' });
 
+    console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
+    console.log('Rendered GameDetailsScreen');
+    // Flush timers and microtasks to allow all effects to run
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await Promise.resolve();
+    });
+
     const voteAButton = await screen.findByLabelText('Vote for Home');
 
     fireEvent.press(voteAButton);
-
+    await act(async () => {
+      jest.runAllTimers();
+      await Promise.resolve();
+    });
     await waitFor(() => {
       expect(Game.castVote).toHaveBeenCalledWith('game-1', 'A');
     });
   });
 
   it('clears a vote on long press when already selected', async () => {
-    (Game.votesSummary as jest.Mock).mockResolvedValue({ teamA: 1, teamB: 0, userVote: 'A' });
+    // First call: before clearing, Second call: after clearing
+    (Game.votesSummary as jest.Mock)
+      .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' })
+      .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null });
 
+    console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
+    console.log('Rendered GameDetailsScreen');
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await Promise.resolve();
+    });
+
     const voteAButton = await screen.findByLabelText('Vote for Home');
 
     fireEvent(voteAButton, 'longPress');
-
+    await act(async () => {
+      jest.runAllTimers();
+      await Promise.resolve();
+    });
     await waitFor(() => {
       expect(Game.clearVote).toHaveBeenCalledWith('game-1');
     });

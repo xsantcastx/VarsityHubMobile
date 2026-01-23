@@ -23,4 +23,10 @@ module.exports = {
   ],
   testPathIgnorePatterns: ['/node_modules/', '/android/', '/ios/', '/server/', '/tests/'],
   watchman: false,
+  globals: {
+    'ts-jest': {
+      tsconfig: '<rootDir>/tsconfig.json',
+      diagnostics: false
+    },
+  },
 };

@@ -18,6 +18,7 @@ export interface HighlightItem {
   lat?: number;
   lng?: number;
   country_code?: string;
+  sport?: string;
   _count?: {
     comments: number;
   };
@@ -57,76 +58,26 @@ export const calculateRanking = (
   const totalEngagement = upvotes + (comments * 2);
   const score = item._score || 0;
 
-  // Determine ranking based on tab and position
+  // Simplified ranking: each tab shows its own badge type
+  // Position numbers are handled separately in the UI (yellow circle badges)
   switch (currentTab) {
     case 'trending':
-      // Top 3 trending posts get trending badges with position
-      if (index === 0 && isNationalTop) {
-        return { type: 'trending', position: 1, show: true };
-      }
-      if (index < 3 && isNationalTop) {
-        return { type: 'trending', position: index + 1, show: true };
-      }
-      // Very recent posts (under 1 hour) get live badge
-      if (hoursSincePost < 1) {
-        return { type: 'live', show: true };
-      }
-      // Posts with high scores get hot badge
-      if (score > 50 || totalEngagement > 30) {
-        return { type: 'hot', show: true };
-      }
-      // Rising posts (1-6 hours old with good engagement)
-      if (hoursSincePost >= 1 && hoursSincePost < 6 && totalEngagement > 10) {
-        return { type: 'rising', show: true };
-      }
-      break;
+      // All posts in Trending tab show "TRENDING" badge
+      // Top 3 also get numbered yellow badges (#1, #2, #3) - handled in UI
+      return { type: 'trending', show: true };
 
     case 'recent':
-      // Very recent posts get live badge
-      if (hoursSincePost < 1) {
-        return { type: 'live', show: true };
-      }
-      // Recent trending posts
-      if (daysSincePost < 1 && isNationalTop) {
-        return { type: 'recent', show: true };
-      }
-      // Rising posts with good engagement in last 3 days
-      if (daysSincePost < 3 && totalEngagement > 8) {
-        return { type: 'rising', show: true };
-      }
-      // Hot posts in recent timeframe
-      if (daysSincePost < 2 && totalEngagement > 20) {
-        return { type: 'hot', show: true };
-      }
-      break;
+      // All posts in Recent tab show "RECENT" badge
+      // No numbered badges - this is pure chronological feed
+      return { type: 'recent', show: true };
 
     case 'top':
-      // National top posts get national badges with position
-      if (isNationalTop && nationalTopIndex < 5) {
-        return { type: 'national', position: nationalTopIndex + 1, show: true };
-      }
-      // Viral posts with extremely high engagement
-      if (upvotes > 100 || comments > 50 || totalEngagement > 80) {
-        return { type: 'viral', show: true };
-      }
-      // Local top posts (nearby with good engagement)
-      if (userLocation && item.lat && item.lng) {
-        const distance = calculateDistance(
-          userLocation.lat, userLocation.lng,
-          item.lat, item.lng
-        );
-        if (distance < 50 && upvotes > 5) { // Within 50km with decent engagement
-          return { type: 'local', show: true };
-        }
-      }
-      // Hot posts that didn't make national top
-      if (!isNationalTop && totalEngagement > 25) {
-        return { type: 'hot', show: true };
-      }
-      break;
+      // All posts in Top tab show "TOP" badge
+      // Top 10 also get numbered yellow badges (#1-#10) - handled in UI
+      return { type: 'top', show: true };
   }
 
-  // Default: no badge
+  // Default: no badge (shouldn't reach here)
   return { type: 'trending', show: false };
 };
 

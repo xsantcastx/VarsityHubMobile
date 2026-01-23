@@ -122,7 +122,7 @@ export default function Step3Plan() {
   const isDark = colorScheme === 'dark';
   
   // Team count for Veteran plan
-  const [teamCount, setTeamCount] = useState<number>(3); // Minimum 3 teams for Veteran
+  const [teamCount, setTeamCount] = useState<number>(2); // First 2 teams free
   const [showTeamCountModal, setShowTeamCountModal] = useState(false);
   
   // Email verification states
@@ -167,7 +167,7 @@ export default function Step3Plan() {
     if (returnToConfirmation) {
       router.replace('/onboarding/step-10-confirmation');
     } else {
-      router.push('/onboarding/step-4-organization');
+      router.replace('/onboarding/step-4-organization');
     }
   };
 
@@ -497,7 +497,7 @@ export default function Step3Plan() {
                   styles.teamCountButton,
                   { backgroundColor: isDark ? '#374151' : '#F3F4F6', borderColor: isDark ? '#4B5563' : '#E5E7EB' }
                 ]}
-                onPress={() => setTeamCount(Math.max(3, teamCount - 1))}
+                onPress={() => setTeamCount(Math.max(2, teamCount - 1))}
               >
                 <Text style={[styles.teamCountButtonText, { color: isDark ? '#F9FAFB' : '#111827' }]}>−</Text>
               </Pressable>
@@ -531,6 +531,15 @@ export default function Step3Plan() {
               <Pressable
                 style={[styles.modalButton, styles.verifyButton, { backgroundColor: isDark ? '#2563EB' : '#111827' }]}
                 onPress={() => {
+                  // Validate minimum 3 teams for Veteran plan (2 free + 1 paid minimum)
+                  if (plan === 'veteran' && teamCount < 3) {
+                    Alert.alert(
+                      'Minimum Teams Required',
+                      'Veteran plan requires at least 3 teams (first 2 free, then $1.50/month per additional team).',
+                      [{ text: 'OK', onPress: () => setTeamCount(3) }]
+                    );
+                    return;
+                  }
                   setShowTeamCountModal(false);
                   void onContinue();
                 }}

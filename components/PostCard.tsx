@@ -8,7 +8,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
 import VideoPlayer from './VideoPlayer';
+import RankingBadge from './RankingBadge';
 
 type PostCardProps = {
   post: any;
@@ -19,6 +21,10 @@ type PostCardProps = {
 };
 
 export default function PostCard({ post, onPress, showAuthorHeader = true, onDeleted, onUpdated }: PostCardProps) {
+  // Determine badge type and position
+  // Example: post.rankingType: 'trending' | 'recent' | 'top', post.rank: number
+  const rankingType = post.rankingType || null; // e.g., 'trending', 'recent', 'top'
+  const rank = typeof post.rank === 'number' ? post.rank : null;
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
@@ -148,6 +154,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   );
 
   return (
+    <View style={{ position: 'relative' }}>
     <Pressable
       onPress={onPress}
       onPressIn={() => setPressed(true)}
@@ -161,6 +168,19 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         pressed && styles.containerPressed
       ]}
     >
+      {/* Top-left round rank badge (e.g. #1, #2, #3, ...), only if rank is present */}
+      {typeof rank === 'number' && (
+        <View style={{ position: 'absolute', top: 8, left: 8, zIndex: 20, backgroundColor: '#FFD600', borderRadius: 999, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff' }}>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 20 }}>{`#${rank + 1}`}</Text>
+        </View>
+      )}
+      {/* Top-right badge for category (Trending/Top/Recent) */}
+      {rankingType && (
+        <RankingBadge type={rankingType} position={typeof rank === 'number' ? rank + 1 : undefined} style={{ position: 'absolute', top: 8, right: 8, zIndex: 20 }} />
+      )}
+
+      {/* Card content */}
+      <View>
       {showAuthorHeader && author ? (
         <View style={styles.authorRow}>
           <Pressable
@@ -337,7 +357,10 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           </View>
         </View>
       </Modal>
+      {/* This closes the card content View */}
+      </View>
     </Pressable>
+    </View>
   );
 }
 

@@ -277,6 +277,16 @@ export const paymentLimiter = createLimiter({
   max: isDev ? 100000 : 10,
 });
 
+/**
+ * User lookup by email
+ * 10 per minute per user (prevents email enumeration)
+ */
+export const userLookupLimiter = createLimiter({
+  name: 'user-lookup',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 10,
+});
+
 // ============================================
 // Export all limiters for easy application
 // ============================================
@@ -301,6 +311,7 @@ export const rateLimiters = {
   vote: voteLimiter,
   adCreation: adCreationLimiter,
   payment: paymentLimiter,
+  userLookup: userLookupLimiter,
 };
 
 export default rateLimiters;

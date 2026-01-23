@@ -2,7 +2,6 @@ import PrimaryButton from '@/components/ui/PrimaryButton';
 import { Colors } from '@/constants/Colors';
 import { Type } from '@/ui/tokens';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, View, useColorScheme } from 'react-native';
@@ -162,8 +161,7 @@ export default function Step9Features() {
       }
       
       // For coaches, go to confirmation page
-      setProgress(7);
-      await AsyncStorage.setItem('@onboarding_progress', '8');
+      setProgress(8); // step-10 is index 8 in stepRoutes array
       router.replace('/onboarding/step-10-confirmation');
     } catch (e: any) {
       Alert.alert('Failed to save settings', e?.message || 'Please try again');
@@ -174,7 +172,7 @@ export default function Step9Features() {
 
   return (
     <OnboardingLayout
-      step={8}
+      step={9}
       title="Explore Features"
       subtitle="Configure your privacy and notification preferences"
     >

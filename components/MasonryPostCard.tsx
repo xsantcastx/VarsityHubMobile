@@ -27,7 +27,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
 
   const onUpvote = async () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const r: any = await Post.toggleUpvote(String(post.id));
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
@@ -37,7 +37,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
 
   const onBookmark = async () => {
     try {
-      Haptics.selectionAsync();
+      void Haptics.selectionAsync();
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
     } catch {}

@@ -14,7 +14,7 @@ import GameVerticalFeedScreen, { FeedPost } from '../game-details/GameVerticalFe
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 const HEADER_IMAGE_DRAG_LIMIT = 120;
-const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const _clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 type OrganizationItem = {
   id: string;
@@ -96,28 +96,28 @@ export default function OrganizationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
-  const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string } | null>(null);
+  const [_me, setMe] = useState<{ id?: string; username?: string; display_name?: string } | null>(null);
   
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
-  const [postsCursor, setPostsCursor] = useState<string | null>(null);
+  const [_postsCursor, _setPostsCursor] = useState<string | null>(null);
   const [postsHasMore, setPostsHasMore] = useState(true);
   const [postsLoading, setPostsLoading] = useState(false);
   const postsRequestInFlight = useRef(false);
 
   const [replies, setReplies] = useState<PostItem[]>([]);
-  const [repliesCursor, setRepliesCursor] = useState<string | null>(null);
+  const [_repliesCursor, _setRepliesCursor] = useState<string | null>(null);
   const [repliesHasMore, setRepliesHasMore] = useState(true);
   const [repliesLoading, setRepliesLoading] = useState(false);
   const repliesRequestInFlight = useRef(false);
   
   const [upvotes, setUpvotes] = useState<PostItem[]>([]);
-  const [upvotesCursor, setUpvotesCursor] = useState<string | null>(null);
+  const [_upvotesCursor, _setUpvotesCursor] = useState<string | null>(null);
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
   
-  const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
+  const [_sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [orgThemeColor, setOrgThemeColor] = useState<string>('#3B82F6');
   
   // Vertical viewer state
@@ -133,7 +133,7 @@ export default function OrganizationScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (orgId: string) => {
+  const refreshPosts = useCallback(async (_orgId: string) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
@@ -161,7 +161,7 @@ export default function OrganizationScreen() {
     }
   }, [teams]);
 
-  const refreshReplies = useCallback(async (orgId: string) => {
+  const refreshReplies = useCallback(async (_orgId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
     repliesRequestInFlight.current = true;
     if (mounted.current) setRepliesLoading(true);
@@ -176,7 +176,7 @@ export default function OrganizationScreen() {
     }
   }, []);
 
-  const refreshUpvotes = useCallback(async (orgId: string) => {
+  const refreshUpvotes = useCallback(async (_orgId: string) => {
     if (upvotesRequestInFlight.current || !mounted.current) return;
     upvotesRequestInFlight.current = true;
     if (mounted.current) setUpvotesLoading(true);
@@ -341,7 +341,7 @@ export default function OrganizationScreen() {
     } finally {
       if (mounted.current) setPostsLoading(false);
     }
-  }, [postsCursor, postsHasMore, postsLoading, sort, organization?.id]);
+  }, [postsHasMore, postsLoading, organization?.id]);
 
   const loadMoreReplies = useCallback(async () => {
     if (repliesLoading || !repliesHasMore || !organization?.id || !mounted.current) return;
@@ -351,7 +351,7 @@ export default function OrganizationScreen() {
     } finally {
       if (mounted.current) setRepliesLoading(false);
     }
-  }, [repliesCursor, repliesHasMore, repliesLoading, sort, organization?.id]);
+  }, [repliesHasMore, repliesLoading, organization?.id]);
 
   const loadMoreUpvotes = useCallback(async () => {
     if (upvotesLoading || !upvotesHasMore || !organization?.id || !mounted.current) return;
@@ -361,7 +361,7 @@ export default function OrganizationScreen() {
     } finally {
       if (mounted.current) setUpvotesLoading(false);
     }
-  }, [upvotesCursor, upvotesHasMore, upvotesLoading, sort, organization?.id]);
+  }, [upvotesHasMore, upvotesLoading, organization?.id]);
 
   const unwrapPost = useCallback((item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
     const postItem = item as any; // Complex nested structure from interactions

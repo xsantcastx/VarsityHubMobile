@@ -139,34 +139,30 @@ return res.status(403).json({ error: 'MESSAGE_BLOCKED', message: 'Messaging is d
 }
 
  // AGE POLICY: Under-18 users may only message accounts they follow
- try {
-   const me = await prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } });
-   const recipient = await prisma.user.findUnique({ where: { id: toId! }, select: { preferences: true } });
-   const senderDob = (me?.preferences as any)?.dob;
-   if (senderDob) {
-     const age = (() => {
-       const d = new Date(String(senderDob));
-       const now = new Date();
-       let a = now.getFullYear() - d.getFullYear();
-       const m = now.getMonth() - d.getMonth();
-       if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
-       return a;
-     })();
-     if (age < 18) {
-       // Check follow relationship (minor must follow recipient)
-       const follows = await prisma.follows.findUnique({
-         where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+ // CRITICAL: Removed try-catch to prevent bypass via error triggering
+ const me = await prisma.user.findUnique({ where: { id: meId }, select: { preferences: true } });
+ const senderDob = (me?.preferences as any)?.dob;
+ if (senderDob) {
+   const age = (() => {
+     const d = new Date(String(senderDob));
+     const now = new Date();
+     let a = now.getFullYear() - d.getFullYear();
+     const m = now.getMonth() - d.getMonth();
+     if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+     return a;
+   })();
+   if (age < 18) {
+     // Check follow relationship (minor must follow recipient)
+     const follows = await prisma.follows.findUnique({
+       where: { follower_id_following_id: { follower_id: meId, following_id: toId! } }
+     });
+     if (!follows) {
+       return res.status(403).json({
+         error: 'AGE_POLICY_BLOCKED',
+         message: 'Users under 18 can only message accounts they follow.'
        });
-       if (!follows) {
-         return res.status(403).json({
-           error: 'AGE_POLICY_BLOCKED',
-           message: 'Users under 18 can only message accounts they follow.'
-         });
-       }
      }
    }
- } catch (e) {
-   console.warn('[messages][age-policy] check failed', e);
  }
 
 const created = await prisma.message.create({

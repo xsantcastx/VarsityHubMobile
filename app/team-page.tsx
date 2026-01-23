@@ -8,7 +8,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -66,12 +66,13 @@ type TeamMember = {
     display_name?: string;
     full_name?: string;
     avatar_url?: string;
+    is_parent?: boolean;
   };
 };
 
 const VIDEO_EXT = /\.(mp4|mov|webm|m4v|avi)$/i;
 const HEADER_IMAGE_DRAG_LIMIT = 120;
-const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const _clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const toFeedPost = (item: any): FeedPost | null => {
   const id = item?.id ? String(item.id) : null;
@@ -110,30 +111,30 @@ export default function TeamScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [_isFollowing, _setIsFollowing] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
   
   // Posts state - matching profile.tsx
   const [posts, setPosts] = useState<PostItem[]>([]);
-  const [postsCursor, setPostsCursor] = useState<string | null>(null);
+  const [_postsCursor, _setPostsCursor] = useState<string | null>(null);
   const [postsHasMore, setPostsHasMore] = useState(true);
   const [postsLoading, setPostsLoading] = useState(false);
   const postsRequestInFlight = useRef(false);
 
   const [replies, setReplies] = useState<PostItem[]>([]);
-  const [repliesCursor, setRepliesCursor] = useState<string | null>(null);
+  const [_repliesCursor, _setRepliesCursor] = useState<string | null>(null);
   const [repliesHasMore, setRepliesHasMore] = useState(true);
   const [repliesLoading, setRepliesLoading] = useState(false);
   const repliesRequestInFlight = useRef(false);
   
   const [upvotes, setUpvotes] = useState<PostItem[]>([]);
-  const [upvotesCursor, setUpvotesCursor] = useState<string | null>(null);
+  const [_upvotesCursor, _setUpvotesCursor] = useState<string | null>(null);
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
   
-  const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
+  const [_sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
   const [teamThemeColor, setTeamThemeColor] = useState<string>('#3B82F6');
   
   // Vertical viewer state
@@ -149,7 +150,7 @@ export default function TeamScreen() {
     };
   }, []);
 
-  const refreshPosts = useCallback(async (teamId: string) => {
+  const refreshPosts = useCallback(async (_teamId: string) => {
     if (postsRequestInFlight.current || !mounted.current) return;
     postsRequestInFlight.current = true;
     if (mounted.current) setPostsLoading(true);
@@ -217,7 +218,7 @@ export default function TeamScreen() {
     }
   }, [team?.name]);
 
-  const refreshReplies = useCallback(async (teamId: string) => {
+  const refreshReplies = useCallback(async (_teamId: string) => {
     if (repliesRequestInFlight.current || !mounted.current) return;
     repliesRequestInFlight.current = true;
     if (mounted.current) setRepliesLoading(true);
@@ -234,7 +235,7 @@ export default function TeamScreen() {
     }
   }, []);
 
-  const refreshUpvotes = useCallback(async (teamId: string) => {
+  const refreshUpvotes = useCallback(async (_teamId: string) => {
     if (upvotesRequestInFlight.current || !mounted.current) return;
     upvotesRequestInFlight.current = true;
     if (mounted.current) setUpvotesLoading(true);
@@ -488,7 +489,7 @@ export default function TeamScreen() {
     } finally {
       if (mounted.current) setPostsLoading(false);
     }
-  }, [postsCursor, postsHasMore, postsLoading, sort, team?.id]);
+  }, [postsHasMore, postsLoading, team?.id]);
 
   const loadMoreReplies = useCallback(async () => {
     if (repliesLoading || !repliesHasMore || !team?.id) return;
@@ -498,7 +499,7 @@ export default function TeamScreen() {
     } finally {
       setRepliesLoading(false);
     }
-  }, [repliesCursor, repliesHasMore, repliesLoading, sort, team?.id]);
+  }, [repliesHasMore, repliesLoading, team?.id]);
 
   const loadMoreUpvotes = useCallback(async () => {
     if (upvotesLoading || !upvotesHasMore || !team?.id || !mounted.current) return;
@@ -508,7 +509,7 @@ export default function TeamScreen() {
     } finally {
       if (mounted.current) setUpvotesLoading(false);
     }
-  }, [upvotesCursor, upvotesHasMore, upvotesLoading, sort, team?.id]);
+  }, [upvotesHasMore, upvotesLoading, team?.id]);
 
   const unwrapPost = useCallback((item: PostItem | { post?: PostItem; target?: PostItem | { post?: PostItem } }) => {
     const postItem = item as any; // Complex nested structure from interactions

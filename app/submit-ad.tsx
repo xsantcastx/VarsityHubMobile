@@ -129,7 +129,7 @@ export default function SubmitAdScreen() {
     }
   };
 
-  const topPadding = useMemo(() => Math.max(insets.top + 12, 20), [insets.top]);
+  const topPadding = useMemo(() => 8, []); // Minimal padding since header is already shown
   const bottomPadding = useMemo(() => Math.max(insets.bottom + 16, 32), [insets.bottom]);
 
   return (

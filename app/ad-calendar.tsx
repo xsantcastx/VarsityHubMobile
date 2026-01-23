@@ -692,54 +692,6 @@ export default function AdCalendarScreen() {
           </View>
           <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>Each ad slot is priced per week. Select multiple dates to see your total.</Text>
           
-          {/* Weekly pricing explanation */}
-          <View style={{ 
-            marginTop: 12, 
-            padding: 14, 
-            backgroundColor: '#FEF9C3',
-            borderRadius: 10,
-            borderWidth: 2,
-            borderColor: '#FCD34D',
-            borderLeftWidth: 6,
-          }}>
-            <Text style={{ fontSize: 14, color: '#713F12', lineHeight: 20, fontWeight: '600' }}>
-              💡 <Text style={{ fontWeight: '800' }}>Pricing Note:</Text> Weekly slots apply to Mon–Thu (weekday) or Fri–Sun (weekend). Booking a date reserves your ad for that <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>entire week's slot</Text> at the listed price.
-            </Text>
-            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FDE68A' }}>
-              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Monday = ${weekdayRate.toFixed(2)} for Mon, Tue, Wed, Thu that week.
-              </Text>
-              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18, marginTop: 4 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Selecting any Friday = ${weekendRate.toFixed(2)} for Fri, Sat, Sun that week.
-              </Text>
-            </View>
-          </View>
-
-          {/* IMPORTANT: Mid-week purchase notice */}
-          <View style={{ 
-            marginTop: 12, 
-            padding: 14, 
-            backgroundColor: '#FEE2E2',
-            borderRadius: 10,
-            borderWidth: 2,
-            borderColor: '#EF4444',
-            borderLeftWidth: 6,
-          }}>
-            <Text style={{ fontSize: 14, color: '#7F1D1D', lineHeight: 20, fontWeight: '700', marginBottom: 8 }}>
-              ⚠️ <Text style={{ fontWeight: '900', fontSize: 15 }}>IMPORTANT:</Text> Mid-Week Purchases
-            </Text>
-            <Text style={{ fontSize: 13, color: '#991B1B', lineHeight: 19 }}>
-              If you book ad space in the <Text style={{ fontWeight: '800' }}>middle of a week</Text> (e.g., Wednesday or Saturday), you will <Text style={{ fontWeight: '800', textDecorationLine: 'underline' }}>still pay the full weekly rate</Text> for the remaining days in that week's slot.
-            </Text>
-            <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#FCA5A5' }}>
-              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Wednesday = ${weekdayRate.toFixed(2)} for Wed + Thu only (not prorated).
-              </Text>
-              <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17, marginTop: 3 }}>
-                <Text style={{ fontWeight: '700' }}>Example:</Text> Booking on Saturday = ${weekendRate.toFixed(2)} for Sat + Sun only (not prorated).
-              </Text>
-            </View>
-          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: Colors[colorScheme].card }]}>

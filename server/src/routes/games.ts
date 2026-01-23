@@ -549,15 +549,53 @@ gamesRouter.delete('/:id/votes', requireAuth as any, async (req: AuthedRequest, 
 gamesRouter.delete('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const id = String(req.params.id);
-  
+
   try {
     // Check if game exists
-    const game = await prisma.game.findUnique({ where: { id } });
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: { id: true, created_by_id: true, home_team_id: true }
+    });
+
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    
+
+    // CRITICAL: Check authorization before allowing deletion
+    // Only allow: game creator, team coaches, or admins
+    const isCreator = game.created_by_id === req.user.id;
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true }
+    });
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+
+    // Check if user is coach/manager of the home team
+    let isCoach = false;
+    if (game.home_team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: game.home_team_id,
+          user_id: req.user.id,
+          role: { in: ['owner', 'manager', 'coach', 'assistant_coach'] },
+          status: 'active'
+        }
+      });
+      isCoach = !!membership;
+    }
+
+    // Deny access if user is not authorized
+    if (!isCreator && !isCoach && !isAdmin) {
+      return res.status(403).json({
+        error: 'Not authorized',
+        message: 'Only game creators, team coaches, or admins can delete games.'
+      });
+    }
+
     // Delete the game (cascade deletes will handle related records)
     await prisma.game.delete({ where: { id } });
-    
+
     res.json({ message: 'Game deleted successfully' });
   } catch (error) {
     console.error('Error deleting game:', error);
@@ -633,13 +671,70 @@ gamesRouter.get('/:id/stories', async (req, res) => {
 gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
 
 // Update cover image
-gamesRouter.patch('/:id', async (req: AuthedRequest, res) => {
+gamesRouter.patch('/:id', requireAuth as any, async (req: AuthedRequest, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
   const id = String(req.params.id);
   const schema = z.object({ cover_image_url: z.string().url().optional(), appearance: z.string().optional() });
   const parsed = schema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const game = await prisma.game.update({ where: { id }, data: { cover_image_url: parsed.data.cover_image_url, appearance: parsed.data.appearance ?? undefined } });
-  return res.json(game);
+
+  try {
+    // CRITICAL: Check authorization before allowing updates
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: { id: true, created_by_id: true, home_team_id: true }
+    });
+
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    // Only allow: game creator, team coaches, or admins
+    const isCreator = game.created_by_id === req.user.id;
+
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { email: true }
+    });
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = user?.email ? adminEmails.includes(user.email.toLowerCase()) : false;
+
+    // Check if user is coach/manager of the home team
+    let isCoach = false;
+    if (game.home_team_id) {
+      const membership = await prisma.teamMembership.findFirst({
+        where: {
+          team_id: game.home_team_id,
+          user_id: req.user.id,
+          role: { in: ['owner', 'manager', 'coach'] },
+          status: 'active'
+        }
+      });
+      isCoach = !!membership;
+    }
+
+    // Deny access if user is not authorized
+    if (!isCreator && !isCoach && !isAdmin) {
+      return res.status(403).json({
+        error: 'Not authorized',
+        message: 'Only game creators, team coaches, or admins can update games.'
+      });
+    }
+
+    // Update the game
+    const updatedGame = await prisma.game.update({
+      where: { id },
+      data: {
+        cover_image_url: parsed.data.cover_image_url,
+        appearance: parsed.data.appearance ?? undefined
+      }
+    });
+
+    return res.json(updatedGame);
+  } catch (error) {
+    console.error('Error updating game:', error);
+    return res.status(500).json({ error: 'Failed to update game' });
+  }
 });
 
 // Approve or reject event

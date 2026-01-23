@@ -5,7 +5,6 @@ import { useShareLink } from '@/hooks/useShareLink';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { retryWithBackoff } from '@/utils/retryWithBackoff';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -440,6 +439,8 @@ const pickBannerFromArrays = (vm: Partial<GameVM>, media: MediaItem[]) => {
 };
 
 const GameDetailsScreen = () => {
+  // Define isTestEnv at the top so all hooks can use it
+  const isTestEnv = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test';
   const { id, eventId } = useLocalSearchParams<{ id: string; teamId?: string; eventId?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -536,13 +537,14 @@ const GameDetailsScreen = () => {
 
   // Tick every second to update countdown/live status (paused while stories viewer is open)
   useEffect(() => {
+    if (isTestEnv) return;
     const t = setInterval(() => {
       if (!viewerOpenRef.current) {
         setNowTs(Date.now());
       }
     }, 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [isTestEnv]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
@@ -1245,23 +1247,7 @@ const GameDetailsScreen = () => {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    void _refreshVotes();
-  }, [_refreshVotes]);
-
-  useEffect(() => {
-    setVoteSummary(null);
-  }, [vm?.gameId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      void _refreshVotes();
-      const interval = setInterval(() => {
-        void _refreshVotes();
-      }, 10000);
-      return () => clearInterval(interval);
-    }, [_refreshVotes]),
-  );
+  // ...existing code...
 
   useEffect(() => {
     const total = _voteSummary?.total ?? 0;

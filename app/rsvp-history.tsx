@@ -131,7 +131,7 @@ export default function RsvpHistoryScreen() {
       {!loading && upcoming.length > 0 && (
         <FlatList data={upcoming} keyExtractor={(i) => i.id} renderItem={renderItem} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} />
       )}
-      <Text style={[styles.header, { marginTop: 12, color: Colors[colorScheme].text }]}>Past</Text>
+      <Text style={[styles.header, { marginTop: 6, color: Colors[colorScheme].text }]}>Past</Text>
       {!loading && past.length === 0 && <Text style={[styles.muted, { color: Colors[colorScheme].mutedText }]}>No past RSVPs.</Text>}
       {!loading && past.length > 0 && (
         <FlatList data={past} keyExtractor={(i) => 'p-' + i.id} renderItem={renderItem} ItemSeparatorComponent={() => <View style={{ height: 8 }} />} />
@@ -142,7 +142,7 @@ export default function RsvpHistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  filterSection: { marginBottom: 16, gap: 10 },
+  filterSection: { marginBottom: 8, gap: 10 },
   searchContainer: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   dateButtonText: { flex: 1, fontSize: 14, fontWeight: '600' },
   dateButtonTextActive: { color: '#2563EB' },
-  header: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
+  header: { fontSize: 18, fontWeight: '800', marginBottom: 4 },
   error: { color: '#b91c1c' },
   muted: {},
   card: { padding: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },

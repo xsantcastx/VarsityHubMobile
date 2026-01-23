@@ -333,7 +333,7 @@ export default function FeedScreen() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [error]);
 
   const _loadMore = useCallback(async () => {
     if (loadingMore || !hasMoreGames || !gamesCursor) return;
@@ -624,7 +624,7 @@ export default function FeedScreen() {
         </Text>
       </Pressable>
     );
-  }, [emailVerified, me, router]);
+  }, [emailVerified, me, router, colorScheme]);
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>

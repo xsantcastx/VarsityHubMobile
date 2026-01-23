@@ -38,7 +38,7 @@ export default function PollCard({ poll, onVote }: PollCardProps) {
     if (hasVoted || isExpired || voting) return;
 
     setVoting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       if (onVote) {
