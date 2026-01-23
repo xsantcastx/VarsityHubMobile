@@ -133,12 +133,12 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
       {/* Poll Section */}
       {hasPoll && <PollCard poll={post.poll} onVote={handleVotePoll} />}
 
-      {/* Caption */}
-      {caption && !hasPoll ? (
+      {/* Caption - show under poll if poll exists, otherwise show normally */}
+      {caption && (
         <Text numberOfLines={4} style={[styles.caption, { color: Colors[colorScheme].text }]}>
           {caption}
         </Text>
-      ) : null}
+      )}
 
       {/* Footer Actions */}
       <View style={styles.footer}>

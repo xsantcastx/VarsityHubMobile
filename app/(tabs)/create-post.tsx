@@ -274,24 +274,28 @@ export default function CreatePostScreen() {
     }
   };
 
-  const captureWithCamera = async (media: 'image' | 'video') => {
+  const captureWithCamera = async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permission required', 'Camera permission is needed to capture media.');
       return;
     }
     const r = await ImagePicker.launchCameraAsync({
-      ...(pickerMediaTypeFor(media)),
+      mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow both photo and video
       allowsEditing: false,
-      quality: media === 'image' ? 0.85 : undefined,
+      quality: 0.85,
       exif: false,
       videoMaxDuration: 30,
     } as any);
     if (!r.canceled && r.assets && r.assets[0]) {
       const a = r.assets[0];
       
+      // Auto-detect media type from asset
+      const mimeType = a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      const isVideo = a.type === 'video' || mimeType.startsWith('video/');
+      const media: 'image' | 'video' = isVideo ? 'video' : 'image';
+      
       // Validate file type
-      const mimeType = a.mimeType || (media === 'image' ? 'image/jpeg' : 'video/mp4');
       if (!validateMediaType(mimeType, media)) {
         Alert.alert(
           'Invalid File Type',
@@ -386,8 +390,8 @@ export default function CreatePostScreen() {
       // For sample events, allow posting without game_id validation
       // Sample events are demo content that don't exist in the database
       const isSelectedSample = isSampleEvent(selectedGameId);
-      if (selectedGameId && !isSelectedSample) {
-        // Only set game_id for real events (not sample events)
+      if (selectedGameId) {
+        // Send game_id for both real and sample events so server can detect and skip geofencing for samples
         payload.game_id = selectedGameId;
       }
       
@@ -483,7 +487,11 @@ export default function CreatePostScreen() {
               <Ionicons name="image-outline" size={24} color={Colors[colorScheme].mutedText} />
               <Text style={[styles.tileLabel, { color: Colors[colorScheme].text }]}>Photo</Text>
             </Pressable>
-            <Pressable style={[styles.tile, styles.primaryTile]} onPress={() => captureWithCamera('image')} accessibilityLabel="Camera">
+            <Pressable 
+              style={[styles.tile, styles.primaryTile]} 
+              onPress={() => captureWithCamera()} 
+              accessibilityLabel="Camera"
+            >
               <Ionicons name="camera-outline" size={24} color="#FFFFFF" />
               <Text style={[styles.tileLabel, styles.primaryTileLabel]}>Camera</Text>
             </Pressable>

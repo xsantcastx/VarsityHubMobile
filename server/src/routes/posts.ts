@@ -217,24 +217,62 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
 
   // ⚠️ GEOFENCING CHECK FOR EVENT POSTS
   // If this is an event-specific post, verify user is at the venue
-  if ((data as any).event_id) {
+  // Skip geofencing for sample events/games (IDs starting with "sample-") - these are demo content
+  const eventId = (data as any).event_id;
+  const gameId = data.game_id;
+  const isSampleEvent = eventId && /^sample-/i.test(String(eventId));
+  const isSampleGame = gameId && /^sample-/i.test(String(gameId));
+  
+  // Allow posting to sample events/games without geofencing
+  if (isSampleEvent || isSampleGame) {
+    debugLog(`✅ Sample event/game detected (${eventId || gameId}) - skipping geofencing check`);
+  } else if (eventId || gameId) {
+    // Check geofencing for real events or games (games have associated events)
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    const verification = await verifyEventPostingPermission(
-      (data as any).event_id,
-      req.user.id,
-      lat,
-      lng
-    );
-
-    if (!verification.allowed) {
-      return res.status(403).json({
-        error: 'Location verification failed',
-        message: verification.reason,
-        distance: verification.distance,
+    
+    let targetEventId = eventId;
+    
+    // If we have a game_id but no event_id, look up the game's associated event
+    if (!targetEventId && gameId) {
+      const game = await prisma.game.findUnique({
+        where: { id: gameId },
+        select: {
+          events: {
+            orderBy: { date: 'asc' },
+            take: 1,
+            select: { id: true },
+          },
+        },
       });
+      
+      if (game?.events && game.events.length > 0) {
+        targetEventId = game.events[0].id;
+        debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+      }
     }
+    
+    // Only check geofencing if we have an event to validate against
+    if (targetEventId) {
+      const verification = await verifyEventPostingPermission(
+        targetEventId,
+        req.user.id,
+        lat,
+        lng
+      );
 
-    debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} miles away)`);
+      if (!verification.allowed) {
+        return res.status(403).json({
+          error: 'Location verification failed',
+          message: verification.reason,
+          distance: verification.distance,
+        });
+      }
+
+      debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
+    } else if (gameId) {
+      // Game exists but has no associated event - allow posting (legacy support)
+      debugLog(`⚠️  Game ${gameId} has no associated event - allowing post without geofence`);
+    }
   }
 
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

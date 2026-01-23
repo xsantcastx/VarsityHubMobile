@@ -1,7 +1,11 @@
 /**
  * Geofencing utilities for location-based event posting
  * 
- * BUSINESS RULE: Users can only upload content to an event page when physically AT the game location.
+ * BUSINESS RULES:
+ * - Story Posts: 24-hour window (12h before to 12h after game), within 1km of venue
+ * - Regular Posts: 4-day window (2 days before to 1 day after game), within 3km of venue
+ * - Sample events/games (IDs starting with "sample-") bypass all geofencing checks
+ * 
  * This maintains authenticity and prevents users from different states from trolling games.
  */
 
@@ -44,34 +48,125 @@ export function calculateDistance(
 
 /**
  * Check if a user is within the geofence of an event location
- * Default: 0.5 miles (roughly 800 meters) - should be at or very near the venue
+ * @param radiusKm Radius in kilometers (default: 0.5 miles for legacy compatibility)
  */
 export function isWithinGeofence(
   userLat: number,
   userLon: number,
   eventLat: number,
   eventLon: number,
-  radiusMiles: number = 0.5
+  radiusKm: number = 0.8 // Default: 0.8km (roughly 0.5 miles) for backwards compatibility
 ): boolean {
-  const distance = calculateDistance(userLat, userLon, eventLat, eventLon, 'miles');
-  return distance <= radiusMiles;
+  const distance = calculateDistance(userLat, userLon, eventLat, eventLon, 'km');
+  return distance <= radiusKm;
 }
 
 /**
- * Check if posting window is open for an event
- * Posting opens 24 hours before game start time
+ * Check if posting window is open for stories
+ * Stories: 24-hour window around game day (12 hours before to 12 hours after)
  */
-export function isPostingWindowOpen(eventDate: Date): boolean {
+export function isStoryPostingWindowOpen(eventDate: Date): boolean {
   const now = new Date();
   const eventTime = new Date(eventDate);
-  const windowOpenTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000); // 24 hours before
+  const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000); // 12 hours before
+  const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000); // 12 hours after
   
-  return now >= windowOpenTime;
+  return now >= windowStart && now <= windowEnd;
+}
+
+/**
+ * Check if posting window is open for regular posts
+ * Posts: 4-day window with game day in the middle (2 days before to 1 day after)
+ */
+export function isPostPostingWindowOpen(eventDate: Date): boolean {
+  const now = new Date();
+  const eventTime = new Date(eventDate);
+  const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
+  const windowEnd = new Date(eventTime.getTime() + 1 * 24 * 60 * 60 * 1000); // 1 day after
+  
+  return now >= windowStart && now <= windowEnd;
+}
+
+/**
+ * Check if posting window is open for an event (legacy - kept for backwards compatibility)
+ * @deprecated Use isStoryPostingWindowOpen or isPostPostingWindowOpen instead
+ */
+export function isPostingWindowOpen(eventDate: Date): boolean {
+  return isPostPostingWindowOpen(eventDate);
+}
+
+/**
+ * Verify user can post a story to an event based on location and time
+ * Stories: 24-hour window (12h before to 12h after game), 1km radius
+ * @returns { allowed: boolean; reason?: string; distance?: number }
+ */
+export async function verifyStoryPostingPermission(
+  eventId: string,
+  userId: string,
+  userLat: number | null,
+  userLon: number | null
+): Promise<{ allowed: boolean; reason?: string; distance?: number }> {
+  // Get event details
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      title: true,
+      date: true,
+      latitude: true,
+      longitude: true,
+      location: true,
+    },
+  });
+
+  if (!event) {
+    return { allowed: false, reason: 'Event not found' };
+  }
+
+  // Check if story posting window is open (24-hour window around game day)
+  if (!isStoryPostingWindowOpen(event.date)) {
+    const eventTime = new Date(event.date);
+    const windowStart = new Date(eventTime.getTime() - 12 * 60 * 60 * 1000);
+    const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000);
+    return {
+      allowed: false,
+      reason: `Story posting is only available during the game (from ${windowStart.toLocaleString()} to ${windowEnd.toLocaleString()})`,
+    };
+  }
+
+  // Check if event has location coordinates
+  if (!event.latitude || !event.longitude) {
+    console.warn(`Event ${eventId} missing coordinates - allowing story without geofence`);
+    return { allowed: true };
+  }
+
+  // Check if user provided their location
+  if (userLat === null || userLon === null) {
+    return {
+      allowed: false,
+      reason: 'Location access required. You must be at the game venue to post a story.',
+    };
+  }
+
+  // Check if user is within 1km geofence
+  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
+  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude, 1.0); // 1km for stories
+
+  if (!isWithin) {
+    return {
+      allowed: false,
+      reason: `You must be at ${event.location || 'the game venue'} to post a story. You are ${distance.toFixed(2)} km away.`,
+      distance,
+    };
+  }
+
+  return { allowed: true, distance };
 }
 
 /**
  * Verify user can post to an event based on location and time
- * @returns { allowed: boolean; reason?: string }
+ * Posts: 4-day window (2 days before to 1 day after game), 3km radius
+ * @returns { allowed: boolean; reason?: string; distance?: number }
  */
 export async function verifyEventPostingPermission(
   eventId: string,
@@ -96,13 +191,14 @@ export async function verifyEventPostingPermission(
     return { allowed: false, reason: 'Event not found' };
   }
 
-  // Check if posting window is open (24 hours before game)
-  if (!isPostingWindowOpen(event.date)) {
+  // Check if posting window is open (4-day window with game in middle)
+  if (!isPostPostingWindowOpen(event.date)) {
     const eventTime = new Date(event.date);
-    const windowOpenTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000);
+    const windowStart = new Date(eventTime.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const windowEnd = new Date(eventTime.getTime() + 1 * 24 * 60 * 60 * 1000);
     return {
       allowed: false,
-      reason: `Posting opens 24 hours before the game at ${windowOpenTime.toLocaleString()}`,
+      reason: `Posting is available from ${windowStart.toLocaleString()} to ${windowEnd.toLocaleString()}`,
     };
   }
 
@@ -122,14 +218,14 @@ export async function verifyEventPostingPermission(
     };
   }
 
-  // Check if user is within geofence
-  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'miles');
-  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude);
+  // Check if user is within 3km geofence
+  const distance = calculateDistance(userLat, userLon, event.latitude, event.longitude, 'km');
+  const isWithin = isWithinGeofence(userLat, userLon, event.latitude, event.longitude, 3.0); // 3km for posts
 
   if (!isWithin) {
     return {
       allowed: false,
-      reason: `You must be at ${event.location || 'the game venue'} to post. You are ${distance.toFixed(2)} miles away.`,
+      reason: `You must be at ${event.location || 'the game venue'} to post. You are ${distance.toFixed(2)} km away.`,
       distance,
     };
   }

@@ -8,19 +8,32 @@ This implementation adds two critical features to VarsityHub:
 ## 1. Geofenced Event Posting
 
 ### Business Rules
-- Users can ONLY upload content to an event page when physically AT the game location
-- Posting window opens **24 hours before** game start time
+
+**Story Posts** (24-hour ephemeral content):
+- Posting window: **12 hours before to 12 hours after** game start time
+- Location requirement: Within **1km** of the venue
+- Stories are temporary content that expire after 24 hours
+
+**Regular Posts** (permanent content):
+- Posting window: **2 days before to 1 day after** game start time (4-day window with game day in the middle)
+- Location requirement: Within **3km** of the venue
+- Posts are permanent and appear on the event page
+
+**General Rules:**
 - Prevents users from different states/locations from trolling games
 - Maintains authenticity of game content
+- Sample events/games (IDs starting with "sample-") bypass all geofencing checks
 
 ### Technical Implementation
 
 #### Backend Components
 1. **`server/src/lib/geofencing.ts`** - Geolocation utilities
-   - `calculateDistance()` - Haversine formula for lat/long distance
-   - `isWithinGeofence()` - Check if user is within 0.5 miles of venue
-   - `isPostingWindowOpen()` - Verify posting is allowed (24h before game)
-   - `verifyEventPostingPermission()` - Main validation function
+   - `calculateDistance()` - Haversine formula for lat/long distance (km or miles)
+   - `isWithinGeofence()` - Check if user is within specified radius (km)
+   - `isStoryPostingWindowOpen()` - Verify story posting window (12h before to 12h after game)
+   - `isPostPostingWindowOpen()` - Verify post posting window (2 days before to 1 day after game)
+   - `verifyStoryPostingPermission()` - Story validation (1km radius, 24h window)
+   - `verifyEventPostingPermission()` - Post validation (3km radius, 4-day window)
 
 2. **`server/src/routes/posts.ts`** - Updated post creation
    - Added `event_id` field to post schema
@@ -45,9 +58,14 @@ POST /posts
 
 **Responses:**
 - ✅ Success (within geofence): `201 Created`
-- ❌ Too early: `403 { error: "Posting opens 24 hours before the game at..." }`
-- ❌ No location: `403 { error: "Location access required..." }`
-- ❌ Too far: `403 { error: "You must be at [venue] to post. You are 5.2 miles away.", distance: 5.2 }`
+- ❌ Too early/late: `403 { error: "Posting is available from [start] to [end]" }`
+- ❌ No location: `403 { error: "Location access required. You must be at the game venue to post." }`
+- ❌ Too far: `403 { error: "You must be at [venue] to post. You are X.XX km away.", distance: X.XX }`
+
+**Story Posting:**
+- ✅ Success: `201 Created`
+- ❌ Outside window: `403 { error: "Story posting is only available during the game (from [start] to [end])" }`
+- ❌ Too far: `403 { error: "You must be at [venue] to post a story. You are X.XX km away.", distance: X.XX }`
 
 ### Frontend Requirements
 

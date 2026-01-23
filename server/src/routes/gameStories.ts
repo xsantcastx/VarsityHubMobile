@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { AuthedRequest } from '../middleware/auth.js';
 import type { PrismaClient } from '@prisma/client';
+import { verifyStoryPostingPermission } from '../lib/geofencing.js';
 
 export const isVideoUrl = (url?: string | null) => {
   if (!url) return false;
@@ -30,7 +31,7 @@ const storySchema = z.object({
   location: locationSchema,
 });
 
-type StoryDeps = { prisma: Pick<PrismaClient, 'story'> };
+type StoryDeps = { prisma: PrismaClient };
 
 export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Request, res: Response) => {
   const id = String(req.params.id);
@@ -46,6 +47,47 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const id = String(req.params.id);
   const parsed = storySchema.safeParse(req.body || {});
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
+  
+  // Skip geofencing for sample games (IDs starting with "sample-")
+  const isSampleGame = /^sample-/i.test(id);
+  
+  if (!isSampleGame) {
+    // Get the game's associated event for geofencing check
+    const game = await prisma.game.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        events: {
+          orderBy: { date: 'asc' },
+          take: 1,
+          select: { id: true, date: true, latitude: true, longitude: true, location: true },
+        },
+      },
+    });
+
+    if (game && game.events && game.events.length > 0) {
+      const event = game.events[0];
+      const location = parsed.data.location;
+      const lat = location?.lat ?? null;
+      const lng = location?.lng ?? null;
+
+      // Verify story posting permission (24-hour window, 1km radius)
+      const verification = await verifyStoryPostingPermission(
+        event.id,
+        req.user.id,
+        lat,
+        lng
+      );
+
+      if (!verification.allowed) {
+        return res.status(403).json({
+          error: 'Location verification failed',
+          message: verification.reason,
+          distance: verification.distance,
+        });
+      }
+    }
+  }
   
   // Extract location data if provided
   const location = parsed.data.location;
