@@ -42,36 +42,46 @@ export default function OnboardingIndex() {
     // CRITICAL: For coaches, VALIDATE FIRST before any navigation
     // NEVER allow coaches to reach step 7+ without completing steps 2-6
     if (state?.role === 'coach') {
+      console.log('[COACH ONBOARDING INDEX] 🔍 Coach detected, validating steps...');
+      console.log('[COACH ONBOARDING INDEX] Current progress:', progress);
+      console.log('[COACH ONBOARDING INDEX] Current state:', JSON.stringify(state, null, 2));
+
       // Force validation - check what step they should be on
       const hasStep2 = !!(state.username && state.dob && (state.zip || state.zip_code));
       const hasStep3 = !!state.plan;
       const hasStep4 = !!(state.team_id || state.organization_id);
-      
+
+      console.log('[COACH ONBOARDING INDEX] Step validation:', { hasStep2, hasStep3, hasStep4 });
+
       // If missing ANY required step, force to first incomplete step
       if (!hasStep2) {
+        console.log('[COACH ONBOARDING INDEX] ⚠️ Missing Step 2 - redirecting');
         setProgress(1);
         setHasNavigated(true);
         router.replace('/onboarding/step-2-basic');
         return;
       }
       if (!hasStep3) {
+        console.log('[COACH ONBOARDING INDEX] ⚠️ Missing Step 3 - redirecting');
         setProgress(2);
         setHasNavigated(true);
         router.replace('/onboarding/step-3-plan');
         return;
       }
       if (!hasStep4) {
+        console.log('[COACH ONBOARDING INDEX] ⚠️ Missing Step 4 - redirecting');
         setProgress(3);
         setHasNavigated(true);
         router.replace('/onboarding/step-4-organization');
         return;
       }
-      
+
       // If all required steps complete, ensure progress doesn't skip step 6
       if (hasStep2 && hasStep3 && hasStep4) {
         // If progress jumped past step 6 (authorized-users), force back to step 6
         // Step 6 is at index 4 in stepRoutes
         if (progress > 4) {
+          console.log('[COACH ONBOARDING INDEX] ⚠️ Progress > 4, forcing to Step 6');
           // They're past step 6, but we want to make sure they went through it
           // Force them to step 6 first
           setProgress(4);
@@ -81,6 +91,7 @@ export default function OnboardingIndex() {
         }
         // Progress is at or before step 6, allow normal flow
         const targetRoute = stepRoutes[progress] || stepRoutes[0];
+        console.log('[COACH ONBOARDING INDEX] ✅ All checks passed, navigating to:', targetRoute);
         setHasNavigated(true);
         router.replace(targetRoute as any);
         return;

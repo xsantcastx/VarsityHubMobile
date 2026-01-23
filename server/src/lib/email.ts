@@ -1,4 +1,5 @@
 import { debugLog } from './debugLog.js';
+import type { FounderMetricsReport } from './founderMetrics.js';
 import { getEmailService, initEmailService as initNewEmailService } from '../services/email/service.js';
 import type { EmailResult } from '../services/email/types.js';
 import sgMail from '@sendgrid/mail';
@@ -1584,6 +1585,128 @@ This is an automated daily report from VarsityHub.
     return true;
   } catch (error) {
     console.error('❌ Failed to send end-of-day transaction report:', error);
+    return false;
+  }
+}
+
+export async function sendFounderMetricsEmail(params: {
+  to: string;
+  report: FounderMetricsReport;
+}): Promise<boolean> {
+  const { report } = params;
+  const { summary, daily, dateRange } = report;
+
+  const formatRow = (rows: Array<{ date: string; count: number }>) =>
+    rows.map((row) => `<tr><td>${row.date}</td><td>${row.count}</td></tr>`).join('');
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #111827; }
+    .container { max-width: 720px; margin: 0 auto; padding: 20px; }
+    h1 { color: #0F172A; border-bottom: 2px solid #0F172A; padding-bottom: 10px; }
+    .summary { background: #F8FAFC; padding: 16px; border-radius: 8px; }
+    .summary p { margin: 6px 0; }
+    .table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .table th { text-align: left; background: #0F172A; color: #fff; padding: 8px; }
+    .table td { padding: 8px; border-bottom: 1px solid #E2E8F0; }
+    .section { margin-top: 24px; }
+    .footer { margin-top: 28px; color: #64748B; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Daily Founder Metrics</h1>
+    <p><strong>Range:</strong> ${dateRange.start} to ${dateRange.end}</p>
+
+    <div class="summary">
+      <p><strong>Total users:</strong> ${summary.totalUsers}</p>
+      <p><strong>Total reports:</strong> ${summary.totalReports}</p>
+      <p><strong>Total messages:</strong> ${summary.totalMessages}</p>
+      <p><strong>New users today:</strong> ${summary.newUsersToday}</p>
+      <p><strong>Reports today:</strong> ${summary.reportsToday}</p>
+      <p><strong>Messages today:</strong> ${summary.messagesToday}</p>
+      <p><strong>New users (last ${summary.days} days):</strong> ${summary.newUsersLastDays}</p>
+      <p><strong>Reports (last ${summary.days} days):</strong> ${summary.reportsLastDays}</p>
+      <p><strong>Messages (last ${summary.days} days):</strong> ${summary.messagesLastDays}</p>
+    </div>
+
+    <div class="section">
+      <h2>Daily New Users</h2>
+      <table class="table">
+        <thead><tr><th>Date</th><th>Count</th></tr></thead>
+        <tbody>${formatRow(daily.users)}</tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Daily Reports</h2>
+      <table class="table">
+        <thead><tr><th>Date</th><th>Count</th></tr></thead>
+        <tbody>${formatRow(daily.reports)}</tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Daily Messages</h2>
+      <table class="table">
+        <thead><tr><th>Date</th><th>Count</th></tr></thead>
+        <tbody>${formatRow(daily.messages)}</tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <p>This is an automated daily report from VarsityHub.</p>
+      <p>Generated at ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  const text = `
+DAILY FOUNDER METRICS
+Range: ${dateRange.start} to ${dateRange.end}
+
+SUMMARY
+Total users: ${summary.totalUsers}
+Total reports: ${summary.totalReports}
+Total messages: ${summary.totalMessages}
+New users today: ${summary.newUsersToday}
+Reports today: ${summary.reportsToday}
+Messages today: ${summary.messagesToday}
+New users (last ${summary.days} days): ${summary.newUsersLastDays}
+Reports (last ${summary.days} days): ${summary.reportsLastDays}
+Messages (last ${summary.days} days): ${summary.messagesLastDays}
+
+DAILY NEW USERS
+${daily.users.map((row) => `${row.date}: ${row.count}`).join('\n')}
+
+DAILY REPORTS
+${daily.reports.map((row) => `${row.date}: ${row.count}`).join('\n')}
+
+DAILY MESSAGES
+${daily.messages.map((row) => `${row.date}: ${row.count}`).join('\n')}
+
+Generated at ${new Date().toLocaleString()}
+This is an automated daily report from VarsityHub.
+  `;
+
+  const subject = `📈 Daily Founder Metrics - ${dateRange.end}`;
+
+  try {
+    await sendEmail({
+      to: params.to,
+      subject,
+      html,
+      text,
+    });
+    debugLog(`✅ Founder metrics email sent to ${params.to} (${dateRange.end})`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send founder metrics email:', error);
     return false;
   }
 }

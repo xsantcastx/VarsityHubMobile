@@ -101,6 +101,29 @@ const SCHEDULED_JOBS: ScheduledJob[] = [
       }
     },
   },
+  {
+    name: 'daily-founder-metrics',
+    cron: '0 8 * * *', // Every day at 8:00 AM
+    description: 'Send daily founder metrics summary via email',
+    handler: async () => {
+      try {
+        const { getFounderMetricsReport } = await import('../lib/founderMetrics.js');
+        const { sendFounderMetricsEmail } = await import('../lib/email.js');
+
+        const report = await getFounderMetricsReport(7);
+        const reportEmail = process.env.METRICS_REPORT_EMAIL || 'customerservice@varsityhub.app';
+
+        await sendFounderMetricsEmail({
+          to: reportEmail,
+          report,
+        });
+
+        console.log(`[Scheduler] Daily founder metrics sent to ${reportEmail} for ${report.dateRange.end}`);
+      } catch (error) {
+        console.error('[Scheduler] Failed to send daily founder metrics:', error);
+      }
+    },
+  },
 ];
 
 let schedulerQueue: Queue | null = null;
@@ -157,6 +180,7 @@ export async function setupScheduler(): Promise<boolean> {
  */
 // Track last date when end-of-day transaction report was sent to prevent duplicates
 let lastTransactionReportDate: string | null = null;
+let lastFounderMetricsDate: string | null = null;
 
 function setupFallbackCron(): boolean {
   console.log('[Scheduler] Setting up fallback cron with setInterval');
@@ -225,6 +249,37 @@ function setupFallbackCron(): boolean {
           }
         } catch (error) {
           console.error('[Scheduler] End-of-day transaction report failed:', error);
+        }
+      }
+    }
+  }, 60 * 1000); // Check every minute
+
+  // Daily founder metrics report - check every minute, run at 8:00 AM
+  setInterval(async () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+
+    if (hour === 8 && minute === 0) {
+      const todayDate = now.toISOString().split('T')[0];
+
+      if (lastFounderMetricsDate !== todayDate) {
+        try {
+          const { getFounderMetricsReport } = await import('../lib/founderMetrics.js');
+          const { sendFounderMetricsEmail } = await import('../lib/email.js');
+
+          const report = await getFounderMetricsReport(7);
+          const reportEmail = process.env.METRICS_REPORT_EMAIL || 'customerservice@varsityhub.app';
+
+          await sendFounderMetricsEmail({
+            to: reportEmail,
+            report,
+          });
+
+          lastFounderMetricsDate = todayDate;
+          console.log(`[Scheduler] Daily founder metrics sent to ${reportEmail} for ${report.dateRange.end}`);
+        } catch (error) {
+          console.error('[Scheduler] Daily founder metrics failed:', error);
         }
       }
     }

@@ -173,6 +173,12 @@ export default function MessagesScreen() {
     const search = async () => {
       setSearchingUsers(true);
       try {
+        // Check authentication before searching
+        if (!me || !me.id) {
+          Alert.alert('Login Required', 'Please log in to search for users.');
+          setSearchResults([]);
+          return;
+        }
         const users = await User.listAll(searchUserQuery, 20);
         if (mounted && Array.isArray(users)) {
           // Filter out current user
@@ -182,6 +188,9 @@ export default function MessagesScreen() {
         // Silently handle admin-only restriction
         if (e?.message?.includes('Admin only')) {
           // Admin-only feature - silently ignore
+        } else if (e?.status === 401 || e?.message?.toLowerCase().includes('unauthorized')) {
+          Alert.alert('Login Required', 'You must be logged in to search for users.');
+          setSearchResults([]);
         } else {
           console.error('User search failed', e);
         }

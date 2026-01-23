@@ -26,9 +26,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Event, Highlights, Organization, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
-import RankingBadge from '../components/RankingBadge';
+import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { calculateRanking, HighlightItem } from '../utils/rankingUtils';
-import { timeAgo, formatCount, getCountryFlag } from '@/utils/format';
 
 type TabType = 'trending' | 'recent' | 'top';
 const CARD_HEIGHT = 220;
@@ -553,7 +552,7 @@ export default function HighlightsScreen() {
       ranked={ranked}
       userLocation={userLocation}
       onPress={() => handleHighlightPress(item, index)}
-      onAuthorPress={handleAuthorPress}
+      // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
       colorScheme={colorScheme} 
     />
   );
@@ -598,40 +597,93 @@ export default function HighlightsScreen() {
       <View style={[styles.header, { paddingTop: insets.top, backgroundColor: Colors[colorScheme].card, borderBottomColor: Colors[colorScheme].border }]}>
         {/* Back button and title */}
         <View style={styles.headerRow}>
-          <Pressable
-            style={styles.backButton}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.push('/(tabs)' as any);
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="chevron-back" size={24} color={Colors[colorScheme].text} />
-          </Pressable>
+          {/* Back button removed for main highlights page */}
           <Text style={[styles.headerTitleText, { color: Colors[colorScheme].text }]} numberOfLines={1}>
             Highlights
           </Text>
           <View style={styles.headerSpacer} />
         </View>
         {/* Search Bar */}
-        <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}>
-          <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
-          <TextInput
-            style={[styles.searchInput, { color: Colors[colorScheme].text }]}
-            placeholder="Search teams, events, users..."
-            placeholderTextColor={Colors[colorScheme].tabIconDefault}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
-            </Pressable>
+        <View style={{ zIndex: 10 }}>
+          <View style={[styles.searchContainer, { backgroundColor: Colors[colorScheme].background, borderColor: Colors[colorScheme].border }]}> 
+            <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
+            <TextInput
+              style={[styles.searchInput, { color: Colors[colorScheme].text }]}
+              placeholder="Search users, teams, or organizations by name or username..."
+              placeholderTextColor={Colors[colorScheme].tabIconDefault}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={20} color={Colors[colorScheme].tabIconDefault} />
+              </Pressable>
+            )}
+          </View>
+          {/* Dropdown recommendations */}
+          {searchQuery.length > 0 && !searching && (
+            <View style={{
+              position: 'absolute',
+              top: 48,
+              left: 0,
+              right: 0,
+              backgroundColor: Colors[colorScheme].background,
+              borderColor: Colors[colorScheme].border,
+              borderWidth: 1,
+              borderTopWidth: 0,
+              borderRadius: 8,
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 2,
+              zIndex: 20,
+              maxHeight: 180,
+            }}>
+              {/* Users */}
+              {searchResults.users.slice(0, 2).map((user) => (
+                <Pressable
+                  key={user.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(user.display_name || user.username || user.email)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    👤 {user.display_name || user.username || user.email}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Teams */}
+              {searchResults.teams.slice(0, 2).map((team) => (
+                <Pressable
+                  key={team.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(team.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏫 {team.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Organizations */}
+              {searchResults.organizations.slice(0, 2).map((org) => (
+                <Pressable
+                  key={org.id}
+                  style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors[colorScheme].border }}
+                  onPress={() => setSearchQuery(org.name)}
+                >
+                  <Text style={{ color: Colors[colorScheme].text }}>
+                    🏆 {org.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* No recommendations */}
+              {searchResults.users.length === 0 && searchResults.teams.length === 0 && searchResults.organizations.length === 0 && (
+                <View style={{ padding: 12 }}>
+                  <Text style={{ color: Colors[colorScheme].tabIconDefault }}>No recommendations</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
 

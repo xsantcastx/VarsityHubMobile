@@ -179,12 +179,16 @@ export default function Step1Role() {
       // CRITICAL: For coaches, ALWAYS reset ALL state and progress
       // This ensures they go through ALL steps from the beginning
       if (role === 'coach') {
+        console.log('[COACH ONBOARDING] 🔴 COACH SELECTED - CLEARING ALL STATE');
         // Use clearOnboarding to completely reset everything
         await clearOnboarding();
+        console.log('[COACH ONBOARDING] ✅ State cleared');
         // Then set ONLY the role
         setOB({ role: 'coach' });
+        console.log('[COACH ONBOARDING] ✅ Role set to coach');
         // Force progress to step 2 (index 1)
         setProgress(1);
+        console.log('[COACH ONBOARDING] ✅ Progress set to 1 (Step 2)');
       } else {
         setOB((prev) => ({ ...prev, role }));
       }
@@ -222,6 +226,7 @@ export default function Step1Role() {
           router.replace('/onboarding/step-7-profile');
         } else if (role === 'coach') {
           // Coach MUST go through all steps - NEVER skip
+          console.log('[COACH ONBOARDING] 🚀 Navigating to Step 2 (Basic Info)');
           setProgress(1); // step-2 is index 1
           router.replace('/onboarding/step-2-basic');
         } else {

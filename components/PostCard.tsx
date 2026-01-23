@@ -9,8 +9,8 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import VideoPlayer from './VideoPlayer';
 import RankingBadge from './RankingBadge';
+import VideoPlayer from './VideoPlayer';
 
 type PostCardProps = {
   post: any;

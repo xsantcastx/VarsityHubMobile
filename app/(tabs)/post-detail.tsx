@@ -1,10 +1,10 @@
 import VideoPlayer from '@/components/VideoPlayer';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { timeAgo, formatCount, getCountryFlag } from '@/utils/format';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
@@ -469,6 +469,7 @@ export default function PostDetailScreen() {
     <ScrollView
       style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
       showsVerticalScrollIndicator={false}
+      scrollEnabled={false}
     >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -491,10 +492,7 @@ export default function PostDetailScreen() {
               
               {/* Category Badge */}
               <View style={styles.mediaTopOverlay}>
-                <View style={[styles.categoryBadge, { backgroundColor: category.color }]}>
-                  <Text style={styles.categoryIcon}>{category.icon}</Text>
-                  <Text style={styles.categoryText}>{category.name}</Text>
-                </View>
+                {/* Category badge removed as requested */}
                 <Text style={styles.countryFlag}>{getCountryFlag(post.country_code)}</Text>
               </View>
               

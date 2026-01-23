@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
+import { getFounderMetricsReport } from '../lib/founderMetrics.js';
 import {
   getAllTransactions,
   getTransactionBySession,
@@ -75,6 +76,22 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
   } catch (error) {
     console.error('[admin] Error fetching dashboard data:', error);
     return res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+});
+
+/**
+ * GET /admin/metrics
+ * Founder metrics (new users, reports, messages) over a time range
+ */
+adminRouter.get('/metrics', requireVerified as any, requireAdminMiddleware as any, async (req: AuthedRequest, res) => {
+  try {
+    const daysParam = Number.parseInt(String(req.query.days || '7'), 10);
+    const days = Number.isFinite(daysParam) ? Math.min(Math.max(daysParam, 1), 30) : 7;
+    const report = await getFounderMetricsReport(days);
+    return res.json({ ok: true, report });
+  } catch (error) {
+    console.error('[admin] Error fetching metrics:', error);
+    return res.status(500).json({ error: 'Failed to fetch metrics' });
   }
 });
 
