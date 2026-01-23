@@ -7,7 +7,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingLayout from './components/OnboardingLayout';
 
 type UserRole = 'fan' | 'coach';
@@ -124,7 +123,7 @@ export default function Step1Role() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -177,20 +176,15 @@ export default function Step1Role() {
     if (!role) return;
     setSaving(true);
     try {
-      // CRITICAL: For coaches, ALWAYS reset progress and clear state
+      // CRITICAL: For coaches, ALWAYS reset ALL state and progress
       // This ensures they go through ALL steps from the beginning
       if (role === 'coach') {
-        // Clear ALL onboarding state to force fresh start
-        setOB({ role });
-        // Force progress to step 2 (index 1) - CRITICAL: Don't allow any other progress
+        // Use clearOnboarding to completely reset everything
+        await clearOnboarding();
+        // Then set ONLY the role
+        setOB({ role: 'coach' });
+        // Force progress to step 2 (index 1)
         setProgress(1);
-        // Clear AsyncStorage to remove any saved progress
-        try {
-          await AsyncStorage.removeItem('onboarding_progress');
-          await AsyncStorage.removeItem('onboarding_state');
-        } catch (e) {
-          console.warn('Failed to clear AsyncStorage:', e);
-        }
       } else {
         setOB((prev) => ({ ...prev, role }));
       }
