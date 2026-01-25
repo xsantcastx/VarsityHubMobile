@@ -41,12 +41,12 @@ const validateMediaType = (mimeType: string | undefined, mediaType: 'image' | 'v
   return allowedTypes.some(type => mimeType.toLowerCase().includes(type.toLowerCase()));
 };
 
-import * as FileSystem from 'expo-file-system';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 
 const getFileSizeFromUri = async (uri: string): Promise<number> => {
   try {
-    const info = await FileSystem.getInfoAsync(uri);
-    if (info && info.exists && typeof info.size === 'number') return info.size as number;
+    const info = await LegacyFileSystem.getInfoAsync(uri, { size: true });
+    if (info && info.exists && typeof info.size === 'number') return info.size;
     return 0;
   } catch (error) {
     console.warn('Could not determine file size:', error);
@@ -56,7 +56,12 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 
 // Helper to detect sample events (IDs starting with "sample-")
 const isSampleEvent = (id?: string | null): boolean => {
-  return !!id && /^sample-/i.test(String(id));
+  if (!id) return false;
+  const strId = String(id).trim();
+  const result = /^sample-/i.test(strId);
+  // Log for debugging on real devices
+  if (__DEV__) console.log('[isSampleEvent]', strId, '->', result);
+  return result;
 };
 
 export default function CreatePostScreen() {
@@ -137,7 +142,31 @@ export default function CreatePostScreen() {
 
   // Load game details if gameId is provided via params (from event page)
   useEffect(() => {
+    console.log('[CreatePost] useEffect gameId:', gameId, '| params:', JSON.stringify(params));
     if (!gameId) return;
+
+    // For sample events, create a mock game object - these don't exist in the database
+    console.log('[CreatePost] isSampleEvent check:', gameId, '->', isSampleEvent(gameId));
+    if (isSampleEvent(gameId)) {
+      // Parse sample event ID to extract team names (e.g., "sample-warriors-cavaliers")
+      const parts = gameId.replace(/^sample-/i, '').split(/[-_]+/).filter(Boolean);
+      const homeTeam = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Home Team';
+      const awayTeam = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : 'Away Team';
+      
+      const mockGame = {
+        id: gameId,
+        title: `${homeTeam} vs ${awayTeam}`,
+        home_team: homeTeam,
+        away_team: awayTeam,
+        date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days from now
+        location: 'Sample Arena',
+        distance: null,
+      };
+      setSuggestedGame(mockGame);
+      setSelectedGameId(gameId);
+      setError(null);
+      return;
+    }
     
     void (async () => {
       try {
@@ -217,125 +246,145 @@ export default function CreatePostScreen() {
   }, [locationReady, permissionGranted, selectedGameId, hasAutoSuggested, location?.latitude, location?.longitude]);
 
   const pickFromLibrary = async (media: 'image' | 'video') => {
-    const r = await ImagePicker.launchImageLibraryAsync({
-      ...(pickerMediaTypeFor(media)),
-      allowsEditing: false,
-      quality: media === 'image' ? 0.85 : undefined,
-      exif: false,
-      videoMaxDuration: 30,
-      videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
-    } as any);
-    if (!r.canceled && r.assets && r.assets[0]) {
-      const a = r.assets[0];
-      
-      // Validate file type
-      const mimeType = a.mimeType || (media === 'image' ? 'image/jpeg' : 'video/mp4');
-      if (!validateMediaType(mimeType, media)) {
-        Alert.alert(
-          'Invalid File Type',
-          media === 'image' 
-            ? 'Please select a valid image file (JPG, PNG, GIF, WebP, or HEIC).'
-            : 'Please select a valid video file (MP4, MOV, or WebM).'
-        );
-        return;
-      }
-      
-      // Validate file size
-      const fileSize = await getFileSizeFromUri(a.uri);
-      const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-      const maxSizeMB = media === 'image' ? 10 : 100;
-      
-      if (fileSize > maxSize) {
-        Alert.alert(
-          'File Too Large',
-          `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
-        );
-        return;
-      }
-      
-      let uri = a.uri;
-      if (media === 'image') {
-        // Compress/resize image before upload
-        try {
-          const result = await ImageManipulator.manipulateAsync(
-            a.uri,
-            [{ resize: { width: 1280 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+    try {
+      const r = await ImagePicker.launchImageLibraryAsync({
+        ...(pickerMediaTypeFor(media)),
+        allowsEditing: true, // Forces iOS to copy image, avoiding "public.png" errors
+        quality: media === 'image' ? 0.85 : undefined,
+        exif: false,
+        videoMaxDuration: 30,
+        videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
+        presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN, // Avoid PHPicker issues
+      } as any);
+      if (!r.canceled && r.assets && r.assets[0]) {
+        const a = r.assets[0];
+        
+        // Validate file type
+        const mimeType = a.mimeType || (media === 'image' ? 'image/jpeg' : 'video/mp4');
+        if (!validateMediaType(mimeType, media)) {
+          Alert.alert(
+            'Invalid File Type',
+            media === 'image' 
+              ? 'Please select a valid image file (JPG, PNG, GIF, WebP, or HEIC).'
+              : 'Please select a valid video file (MP4, MOV, or WebM).'
           );
-          uri = result.uri;
-        } catch (error: any) {
-          if (__DEV__) {
-            console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
-          }
-          // Continue with original URI if manipulation fails
+          return;
         }
+        
+        // Validate file size
+        const fileSize = await getFileSizeFromUri(a.uri);
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+        const maxSizeMB = media === 'image' ? 10 : 100;
+        
+        if (fileSize > maxSize) {
+          Alert.alert(
+            'File Too Large',
+            `The selected ${media} is too large. Maximum size is ${maxSizeMB}MB.`
+          );
+          return;
+        }
+        
+        let uri = a.uri;
+        if (media === 'image') {
+          // Compress/resize image before upload
+          try {
+            const result = await ImageManipulator.manipulateAsync(
+              a.uri,
+              [{ resize: { width: 1280 } }],
+              { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            uri = result.uri;
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+            }
+            // Continue with original URI if manipulation fails
+          }
+        }
+        setPicked({ uri, type: media, mime: mimeType });
       }
-      setPicked({ uri, type: media, mime: mimeType });
+    } catch (error: any) {
+      console.error('[CreatePost] Image picker error:', error);
+      // Handle iOS PHPicker "public.png" error gracefully
+      if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
+        Alert.alert(
+          'Image Selection Failed',
+          'Unable to load this image. Please try selecting a different photo or take a new one with the camera.'
+        );
+      } else {
+        Alert.alert('Error', 'Failed to select media. Please try again.');
+      }
     }
   };
 
   const captureWithCamera = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission required', 'Camera permission is needed to capture media.');
-      return;
-    }
-    const r = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow both photo and video
-      allowsEditing: false,
-      quality: 0.85,
-      exif: false,
-      videoMaxDuration: 30,
-    } as any);
-    if (!r.canceled && r.assets && r.assets[0]) {
-      const a = r.assets[0];
-      
-      // Auto-detect media type from asset
-      const mimeType = a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg');
-      const isVideo = a.type === 'video' || mimeType.startsWith('video/');
-      const media: 'image' | 'video' = isVideo ? 'video' : 'image';
-      
-      // Validate file type
-      if (!validateMediaType(mimeType, media)) {
-        Alert.alert(
-          'Invalid File Type',
-          media === 'image' 
-            ? 'Please capture a valid image format.'
-            : 'Please capture a valid video format.'
-        );
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission required', 'Camera permission is needed to capture media.');
         return;
       }
-      
-      // Validate file size
-      const fileSize = await getFileSizeFromUri(a.uri);
-      const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-      const maxSizeMB = media === 'image' ? 10 : 100;
-      
-      if (fileSize > maxSize) {
-        Alert.alert(
-          'File Too Large',
-          `The captured ${media} is too large. Maximum size is ${maxSizeMB}MB. Try reducing quality or duration.`
-        );
-        return;
-      }
-      
-      let uri = a.uri;
-      if (media === 'image') {
-        try {
-          const result = await ImageManipulator.manipulateAsync(
-            a.uri,
-            [{ resize: { width: 1280 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      const r = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow both photo and video
+        allowsEditing: false,
+        quality: 0.85,
+        exif: false,
+        videoMaxDuration: 30,
+        legacy: false, // Use modern picker on iOS
+      } as any);
+      if (!r.canceled && r.assets && r.assets[0]) {
+        const a = r.assets[0];
+        
+        // Auto-detect media type from asset
+        const mimeType = a.mimeType || (a.type === 'video' ? 'video/mp4' : 'image/jpeg');
+        const isVideo = a.type === 'video' || mimeType.startsWith('video/');
+        const media: 'image' | 'video' = isVideo ? 'video' : 'image';
+        
+        // Validate file type
+        if (!validateMediaType(mimeType, media)) {
+          Alert.alert(
+            'Invalid File Type',
+            media === 'image' 
+              ? 'Please capture a valid image format.'
+              : 'Please capture a valid video format.'
           );
-          uri = result.uri;
-        } catch (error: any) {
-          if (__DEV__) {
-            console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
-          }
-          // Continue with original URI if manipulation fails
+          return;
         }
+        
+        // Validate file size
+        const fileSize = await getFileSizeFromUri(a.uri);
+        const maxSize = media === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+        const maxSizeMB = media === 'image' ? 10 : 100;
+        
+        if (fileSize > maxSize) {
+          Alert.alert(
+            'File Too Large',
+            `The captured ${media} is too large. Maximum size is ${maxSizeMB}MB. Try reducing quality or duration.`
+          );
+          return;
+        }
+        
+        let uri = a.uri;
+        if (media === 'image') {
+          try {
+            const result = await ImageManipulator.manipulateAsync(
+              a.uri,
+              [{ resize: { width: 1280 } }],
+              { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            uri = result.uri;
+          } catch (error: any) {
+            if (__DEV__) {
+              console.warn('[CreatePost] Image manipulation failed, using original:', error?.message || error);
+            }
+            // Continue with original URI if manipulation fails
+          }
+        }
+        setPicked({ uri, type: media, mime: mimeType });
       }
-      setPicked({ uri, type: media, mime: mimeType });
+    } catch (error: any) {
+      console.error('[CreatePost] Camera error:', error);
+      Alert.alert('Error', 'Failed to capture media. Please try again.');
     }
   };
 
@@ -361,21 +410,28 @@ export default function CreatePostScreen() {
   };
 
   const confirmPost = async () => {
+    console.log('[CreatePost] confirmPost called');
+    console.log('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
     setSubmitting(true);
     setError(null);
     setPreviewVisible(false);
-    
+
     try {
       // Ensure user is authenticated
+      console.log('[CreatePost] Checking authentication...');
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
+      console.log('[CreatePost] Auth OK');
+
       let finalMediaUrl = '';
       if (picked?.uri) {
+        console.log('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const res = await uploadFile(base, picked.uri, name, mime);
         finalMediaUrl = res?.url || res?.path;
+        console.log('[CreatePost] Upload complete:', finalMediaUrl);
       }
       const trimmedContent = content.trim();
       
@@ -387,13 +443,17 @@ export default function CreatePostScreen() {
         location: locationPayload,
       };
       
-      // For sample events, allow posting without game_id validation
-      // Sample events are demo content that don't exist in the database
+      // Send game_id for both real and sample events
+      // The server detects sample events by checking if game_id starts with "sample-" and bypasses geofencing
       const isSelectedSample = isSampleEvent(selectedGameId);
+      console.log('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
+      
       if (selectedGameId) {
-        // Send game_id for both real and sample events so server can detect and skip geofencing for samples
+        // Send game_id so server can detect sample events and bypass geofencing
         payload.game_id = selectedGameId;
       }
+      
+      console.log('[CreatePost] Final payload:', JSON.stringify(payload, null, 2));
       
       // Require event link for highlight posts to ensure they surface on the event page
       // But allow sample events to bypass this requirement
@@ -401,7 +461,9 @@ export default function CreatePostScreen() {
         throw new Error('Please attach an event to share a highlight.');
       }
       
+      console.log('[CreatePost] Calling Post.create...');
       await Post.create(payload);
+      console.log('[CreatePost] Post created successfully!');
       
       // Show success message based on where post will appear
       const postDestination = (payload.game_id || isSelectedSample) ? 'event page' : 'profile';
@@ -419,6 +481,13 @@ export default function CreatePostScreen() {
       );
       router.replace('/(tabs)');
     } catch (e: any) {
+      console.error('[CreatePost] Error creating post:', {
+        message: e?.message,
+        status: e?.status,
+        data: e?.data,
+        selectedGameId,
+        isSample: isSampleEvent(selectedGameId),
+      });
       const issues = (e?.data?.issues || []) as { message: string }[];
       if (issues.length) {
         setError(issues.map(i => i.message).join('\n'));
@@ -579,62 +648,38 @@ export default function CreatePostScreen() {
         {/* Selected Game/Event */}
         {suggestedGame && selectedGameId && (
           <View style={styles.gameSection}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={[styles.sectionTitle, { color: Colors[colorScheme].text }]}>
-                {isSampleEvent(selectedGameId) ? 'Sample Event' : 'Attached Event'}
-              </Text>
-              {nearbyGames.length > 1 && !isSampleEvent(selectedGameId) && (
-                <Pressable onPress={() => setEventSelectorVisible(true)}>
-                  <Text style={[styles.changeEventButton, { color: Colors[colorScheme].tint }]}>Change</Text>
-                </Pressable>
-              )}
-            </View>
-            
             <Pressable 
-              style={[styles.gameSuggestionCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#000000',
+                borderColor: '#A0A0A0',
+                borderWidth: 1.5,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+              }}
               onPress={() => nearbyGames.length > 1 && !isSampleEvent(selectedGameId) ? setEventSelectorVisible(true) : null}
             >
-              <View style={styles.gameIconContainer}>
-                <Ionicons name={isSampleEvent(selectedGameId) ? "sparkles" : "trophy"} size={20} color={Colors[colorScheme].tint} />
-              </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.gameLabel, { color: Colors[colorScheme].mutedText }]}>
-                  {isSampleEvent(selectedGameId) ? 'Sample Event (Demo)' : 'Selected Event'}
-                </Text>
-                <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
                   {suggestedGame.title || `${suggestedGame.home_team} vs ${suggestedGame.away_team}`}
                 </Text>
-                {!isSampleEvent(selectedGameId) && (
-                  <View style={styles.gameMetaRow}>
-                    {suggestedGame.distance !== null && suggestedGame.distance !== undefined && (
-                      <Text style={[styles.gameDistance, { color: Colors[colorScheme].tint }]}>
-                        {suggestedGame.distance < 1 
-                          ? `${Math.round(suggestedGame.distance * 1000)}m away` 
-                          : `${suggestedGame.distance.toFixed(1)}km away`}
-                      </Text>
-                    )}
-                    {suggestedGame.date && (
-                      <Text style={[styles.gameDate, { color: Colors[colorScheme].mutedText }]}>
-                        {suggestedGame.distance !== null && suggestedGame.distance !== undefined && ' • '}
-                        {new Date(suggestedGame.date).toLocaleDateString()} at {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    )}
-                  </View>
+                {!isSampleEvent(selectedGameId) && suggestedGame.date && (
+                  <Text style={{ color: '#A0A0A0', fontSize: 13, marginTop: 2 }}>
+                    {new Date(suggestedGame.date).toLocaleDateString([], { month: 'short', day: 'numeric' })} • {new Date(suggestedGame.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
                 )}
-                <Text style={[styles.eventConfirmation, { color: Colors[colorScheme].tint, marginTop: 4 }]}>
-                  {isSampleEvent(selectedGameId) 
-                    ? '✨ This is a sample event - your post will be a sample post!' 
-                    : '✓ This post will appear in this event'}
-                </Text>
               </View>
-              <Ionicons name="checkmark-circle" size={24} color={Colors[colorScheme].tint} />
+              <Ionicons name="checkmark-circle" size={22} color="#A0A0A0" />
             </Pressable>
             
-            <View style={styles.eventActions}>
-              <Pressable onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}>
-                <Text style={[styles.removeEventButton, { color: Colors[colorScheme].destructive }]}>Remove Event</Text>
-              </Pressable>
-            </View>
+            <Pressable 
+              style={{ alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 }}
+              onPress={() => { setSuggestedGame(null); setSelectedGameId(undefined); }}
+            >
+              <Text style={{ color: Colors[colorScheme].mutedText, fontSize: 13 }}>Remove</Text>
+            </Pressable>
           </View>
         )}
 

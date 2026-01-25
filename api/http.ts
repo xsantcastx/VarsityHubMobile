@@ -267,11 +267,11 @@ export function httpPost(path: string, body?: any) {
   const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
   return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
 }
-// Long-timeout POST for heavy endpoints like register/reset - increased retries
-export function httpPostLongTimeout(path: string, body?: any) { 
+// Long-timeout POST for heavy endpoints like register/reset/posts - increased retries
+export function httpPostLongTimeout(path: string, body?: any) {
   const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
   const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
-  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 60000, retries); 
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 180000, retries); // 3 minute timeout
 }
 // PUT/PATCH/DELETE should NOT retry - they are state-changing operations
 // Retrying could cause duplicate updates or delete operations on already-deleted resources

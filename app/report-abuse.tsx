@@ -1,9 +1,13 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Support, User } from '@/api/entities';
+import { uploadFile } from '@/api/upload';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -17,6 +21,8 @@ export default function ReportAbuseScreen() {
   const [details, setDetails] = useState('');
   const [accused, setAccused] = useState('');
   const [contextUrl, setContextUrl] = useState('');
+  const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -44,6 +50,54 @@ export default function ReportAbuseScreen() {
     return Boolean(subject.trim() && details.trim() && email.trim());
   }, [subject, details, email]);
 
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photo library to upload evidence.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: 5,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        setUploadingImage(true);
+        const newImages: string[] = [];
+
+        for (const asset of result.assets) {
+          try {
+            const filename = asset.uri.split('/').pop() || 'evidence.jpg';
+            const response = await uploadFile(null, asset.uri, filename);
+            if (response?.url) {
+              newImages.push(response.url);
+            }
+          } catch (uploadErr) {
+            console.error('Failed to upload image:', uploadErr);
+          }
+        }
+
+        if (newImages.length > 0) {
+          setEvidenceImages((prev) => [...prev, ...newImages].slice(0, 5));
+        } else {
+          Alert.alert('Upload failed', 'Could not upload the selected images. Please try again.');
+        }
+        setUploadingImage(false);
+      }
+    } catch (err) {
+      console.error('Image picker error:', err);
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setEvidenceImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit || submitting) {
       Alert.alert('Missing information', 'Please complete the subject, details, and email fields.');
@@ -56,6 +110,7 @@ export default function ReportAbuseScreen() {
         details.trim(),
         accused.trim() ? `Reported user: ${accused.trim()}` : null,
         contextUrl.trim() ? `Context: ${contextUrl.trim()}` : null,
+        evidenceImages.length > 0 ? `Evidence images:\n${evidenceImages.join('\n')}` : null,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -73,6 +128,7 @@ export default function ReportAbuseScreen() {
       setDetails('');
       setAccused('');
       setContextUrl('');
+      setEvidenceImages([]);
     } catch (err: any) {
       const message =
         typeof err?.message === 'string' && err.message.length
@@ -171,7 +227,7 @@ export default function ReportAbuseScreen() {
             <TextInput
               value={contextUrl}
               onChangeText={setContextUrl}
-              placeholder="Link to the post/profile/screenshot"
+              placeholder="Link to the post/profile (optional)"
               placeholderTextColor={palette.mutedText}
               style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
               autoCapitalize="none"
@@ -179,6 +235,40 @@ export default function ReportAbuseScreen() {
               keyboardType="url"
               returnKeyType="done"
             />
+
+            <Text style={[styles.label, { color: palette.mutedText }]}>Upload screenshots (optional)</Text>
+            <View style={styles.imageUploadContainer}>
+              {evidenceImages.map((uri, index) => (
+                <View key={uri} style={styles.imageWrapper}>
+                  <Image source={{ uri }} style={styles.uploadedImage} contentFit="cover" />
+                  <Pressable
+                    style={[styles.removeImageBtn, { backgroundColor: palette.error || '#FF3B30' }]}
+                    onPress={() => removeImage(index)}
+                  >
+                    <Ionicons name="close" size={14} color="#fff" />
+                  </Pressable>
+                </View>
+              ))}
+              {evidenceImages.length < 5 && (
+                <Pressable
+                  style={[styles.addImageBtn, { borderColor: palette.border, backgroundColor: palette.background }]}
+                  onPress={pickImage}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color={palette.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={24} color={palette.mutedText} />
+                      <Text style={[styles.addImageText, { color: palette.mutedText }]}>Add</Text>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            </View>
+            <Text style={[styles.imageHelper, { color: palette.mutedText }]}>
+              Up to 5 images. Screenshots help us investigate faster.
+            </Text>
 
             <Text style={[styles.helper, { color: palette.mutedText }]}>
               We keep reports confidential and only use this information to enforce community guidelines.
@@ -246,5 +336,48 @@ const styles = StyleSheet.create({
   },
   helper: {
     fontSize: 13,
+  },
+  imageUploadContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  imageWrapper: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  uploadedImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addImageBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addImageText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  imageHelper: {
+    fontSize: 12,
+    marginTop: -4,
   },
 });

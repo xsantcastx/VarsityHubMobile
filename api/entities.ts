@@ -1,6 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
-import { httpDelete, httpGet, httpPatch, httpPost, httpPut } from './http';
+import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPut } from './http';
 
 export const User = {
   me: () => auth.me(),
@@ -148,7 +148,7 @@ export const Post = {
     const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
     return normalizePostItems(res);
   },
-  create: (data: any) => httpPost('/posts', data),
+  create: (data: any) => httpPostLongTimeout('/posts', data),
   filter: async (where: { game_id?: string; type?: string; user_id?: string } = {}, sort?: string, limit: number = 20) => {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));

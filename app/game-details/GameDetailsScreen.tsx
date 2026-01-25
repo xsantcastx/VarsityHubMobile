@@ -393,7 +393,10 @@ const computeIsPast = (iso?: string | null) => {
   return d.getTime() < Date.now();
 };
 
-const canAddStory = (eventIso?: string | null) => {
+const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
+  // Sample events can always add stories (no time restriction)
+  if (isSampleId(gameId)) return true;
+  
   // Stories can only be added within 24 hours before the event starts
   if (!eventIso) return false;
   const eventDate = new Date(eventIso);
@@ -1939,9 +1942,9 @@ const renderBanner = () => {
               {/* Add Story Section */}
               <View style={styles.secondaryActionsRow}>
                 <Pressable
-                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date)) ? styles.actionBtnDisabled : null]}
+                  style={[styles.actionBtn, (!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)) ? styles.actionBtnDisabled : null]}
                   onPress={handleAddStory}
-                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date)}
+                  disabled={!vm?.gameId || storyBusy || !canAddStory(vm?.date, vm?.gameId)}
                 >
                   <Ionicons 
                     name={storyBusy ? "checkmark-circle-outline" : "add-circle-outline"} 
@@ -1988,11 +1991,11 @@ const renderBanner = () => {
                 {renderStoriesCarousel()}
               </View>
 
+              {renderVoteSection()}
+
               <View style={styles.section}>
                 {displayDescription ? <Text style={styles.bodyText}>{displayDescription}</Text> : <Text style={styles.muted}>No description yet.</Text>}
               </View>
-
-              {renderVoteSection()}
 
               {/* Posts Section */}
               <View
@@ -2016,7 +2019,7 @@ const renderBanner = () => {
                       }
                       // Directly navigate to create-post with gameId - defaults to 'post' type
                       void router.push({
-                        pathname: '/create-post',
+                        pathname: '/(tabs)/create-post',
                         params: { gameId: String(targetGameId), type: 'post' },
                       } as any);
                     }}

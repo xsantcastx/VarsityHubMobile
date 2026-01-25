@@ -5,7 +5,7 @@ function computeBase(provided?: string | null) {
   return getApiBaseUrl();
 }
 
-export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string, options?: { retries?: number; backoffMs?: number }): Promise<any> {
+export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string, options?: { retries?: number; backoffMs?: number; timeoutMs?: number }): Promise<any> {
   const finalBase = computeBase(baseUrl);
   const target = `${finalBase}/uploads`;
 
@@ -47,16 +47,23 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
 
   const retries = Math.max(0, options?.retries ?? 2);
   const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+  const timeoutMs = options?.timeoutMs ?? 180000; // 3 minute default timeout for uploads
   let attempt = 0;
   let lastErr: any = null;
   while (attempt <= retries) {
+    // Add timeout via AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       console.log('[upload] Uploading to:', target, '| attempt', attempt + 1, '/', retries + 1, '| file:', filename, '| mime:', finalMimeType);
       const res = await fetch(target, {
         method: 'POST',
         headers,
         body: form as any,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const text = await res.text();
       console.log('[upload] Response status:', res.status, 'Response text:', text?.substring(0, 200));
       if (!text) {
@@ -75,16 +82,21 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       }
       return data; // { url, path, type, mime, size }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       lastErr = err;
+      const isAbort = err.name === 'AbortError';
       const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
-      const isTimeout = /timeout|timed out/i.test(String(err?.message || ''));
+      const isTimeout = isAbort || /timeout|timed out/i.test(String(err?.message || ''));
       const shouldRetry = attempt < retries && (isNetwork || isTimeout);
-      console.error('[upload] attempt failed:', attempt + 1, '/', retries + 1, '|', err?.message || err);
+      console.error('[upload] attempt failed:', attempt + 1, '/', retries + 1, '|', isAbort ? 'timeout' : (err?.message || err));
       if (!shouldRetry) break;
       const wait = backoffMs * Math.pow(2, attempt);
       await new Promise((r) => setTimeout(r, wait));
       attempt++;
     }
+  }
+  if (lastErr?.name === 'AbortError') {
+    throw new Error('Upload timed out. Please check your connection and try again.');
   }
   if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
     throw new Error('Network error: unable to reach upload endpoint. Check your internet connection and server status.');

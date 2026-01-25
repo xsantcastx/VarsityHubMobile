@@ -2,12 +2,11 @@ import MasonryGrid from '@/components/MasonryGrid';
 import MasonryPostCard from '@/components/MasonryPostCard';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
 
@@ -38,20 +37,58 @@ export default function PublicEventScreen() {
   const loadEventData = async () => {
     setLoading(true);
     try {
-      const eventData = await Event.get?.(params.id!).catch(() => null);
+      const eventId = params.id!;
+      const isSampleEvent = /^sample-/i.test(eventId);
+      
+      // For sample events, try to load posts by game_id (since sample events don't exist in DB)
+      // For real events, try both event_id and game_id
+      let eventPosts: any[] | null = null;
+      
+      if (isSampleEvent) {
+        // Sample events: fetch posts by game_id (which matches the event ID for samples)
+        try {
+          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch(() => null);
+          if (gamePosts && Array.isArray(gamePosts.items)) {
+            eventPosts = gamePosts.items;
+          } else if (Array.isArray(gamePosts)) {
+            eventPosts = gamePosts;
+          }
+        } catch (err) {
+          console.log('[public-event] Failed to load sample event posts by game_id:', err);
+        }
+      } else {
+        // Real events: try event_id first, then game_id as fallback
+        eventPosts = await Post.getByEvent?.(eventId).catch(() => null);
+        if (!eventPosts || !Array.isArray(eventPosts) || eventPosts.length === 0) {
+          // If no posts by event_id, try by game_id if event has one
+          const eventData = await Event.get?.(eventId).catch(() => null);
+          if (eventData?.game_id) {
+            const gamePosts = await Post.feedForGame(eventData.game_id, { limit: 50, sort: 'trending' }).catch(() => null);
+            if (gamePosts && Array.isArray(gamePosts.items)) {
+              eventPosts = gamePosts.items;
+            } else if (Array.isArray(gamePosts)) {
+              eventPosts = gamePosts;
+            }
+          }
+        }
+      }
+      
+      const eventData = await Event.get?.(eventId).catch(() => null);
       setEvent(eventData);
       
-      // Load posts for this event
-      const eventPosts = await Post.getByEvent?.(params.id!).catch(() => null);
-      if (eventPosts && Array.isArray(eventPosts)) {
+      if (eventPosts && Array.isArray(eventPosts) && eventPosts.length > 0) {
         setPosts(eventPosts);
+      } else if (isSampleEvent) {
+        // For sample events, show empty state instead of fake posts if no real posts exist
+        setPosts([]);
       } else {
-        // Generate sample posts
-        setPosts(generateSamplePosts());
+        // For real events with no posts, show empty state
+        setPosts([]);
       }
     } catch (error) {
       console.error('Failed to load event', error);
-      setPosts(generateSamplePosts());
+      const isSampleEvent = params.id && /^sample-/i.test(String(params.id));
+      setPosts(isSampleEvent ? [] : generateSamplePosts());
     } finally {
       setLoading(false);
     }
@@ -125,8 +162,9 @@ export default function PublicEventScreen() {
                 // For sample events, use the event's game_id if it exists, otherwise use event ID
                 // The create-post screen accepts gameId and will handle sample events appropriately
                 const targetGameId = event?.game_id || params?.id || '';
+                console.log('[PublicEvent] Navigating to create-post with gameId:', targetGameId, '| params.id:', params?.id, '| event?.game_id:', event?.game_id);
                 router.push({
-                  pathname: '/create-post',
+                  pathname: '/(tabs)/create-post',
                   params: { gameId: targetGameId },
                 });
               }}

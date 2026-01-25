@@ -123,7 +123,7 @@ export default function Step1Role() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding, progress } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -176,19 +176,20 @@ export default function Step1Role() {
     if (!role) return;
     setSaving(true);
     try {
-      // CRITICAL: For coaches, ALWAYS reset ALL state and progress
-      // This ensures they go through ALL steps from the beginning
-      if (role === 'coach') {
-        console.log('[COACH ONBOARDING] 🔴 COACH SELECTED - CLEARING ALL STATE');
-        // Use clearOnboarding to completely reset everything
+      // Only clear state when SWITCHING from fan to coach (not when continuing as coach)
+      // This prevents losing progress for returning coaches
+      const wasCoachBefore = ob.role === 'coach';
+
+      if (role === 'coach' && !wasCoachBefore) {
+        // User is switching TO coach - clear state to ensure full onboarding
+        console.log('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
         await clearOnboarding();
-        console.log('[COACH ONBOARDING] ✅ State cleared');
-        // Then set ONLY the role
         setOB({ role: 'coach' });
-        console.log('[COACH ONBOARDING] ✅ Role set to coach');
-        // Force progress to step 2 (index 1)
         setProgress(1);
-        console.log('[COACH ONBOARDING] ✅ Progress set to 1 (Step 2)');
+      } else if (role === 'coach') {
+        // Already a coach - just continue where they left off
+        console.log('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
+        setOB((prev) => ({ ...prev, role: 'coach' }));
       } else {
         setOB((prev) => ({ ...prev, role }));
       }
@@ -225,15 +226,36 @@ export default function Step1Role() {
           setProgress(5); // step-7 is index 5
           router.replace('/onboarding/step-7-profile');
         } else if (role === 'coach') {
-          // Coach MUST go through all steps - NEVER skip
-          console.log('[COACH ONBOARDING] 🚀 Navigating to Step 2 (Basic Info)');
-          setProgress(1); // step-2 is index 1
-          router.replace('/onboarding/step-2-basic');
+          // For returning coaches, resume where they left off
+          // For new coaches (wasCoachBefore is false), start at step 2
+          const currentProgress = progress || 0;
+
+          if (wasCoachBefore && currentProgress > 1) {
+            // Resume at their saved progress
+            const stepRoutes: Record<number, string> = {
+              1: '/onboarding/step-2-basic',
+              2: '/onboarding/step-3-team',
+              3: '/onboarding/step-4-organization',
+              4: '/onboarding/step-5-roster',
+              5: '/onboarding/step-6-schedule',
+              6: '/onboarding/step-7-profile',
+              7: '/onboarding/step-8-interests',
+              8: '/onboarding/step-9-notifications',
+              9: '/onboarding/step-10-confirmation',
+            };
+            const resumeRoute = stepRoutes[currentProgress] || '/onboarding/step-2-basic';
+            console.log('[COACH ONBOARDING] 🚀 Resuming at progress', currentProgress, '->', resumeRoute);
+            router.replace(resumeRoute as any);
+          } else {
+            // New coach or no progress - start at step 2
+            console.log('[COACH ONBOARDING] 🚀 Starting at Step 2 (Basic Info)');
+            setProgress(1);
+            router.replace('/onboarding/step-2-basic');
+          }
         } else {
-          // Coach/Organizer gets full onboarding with teams and subscriptions
-          // CRITICAL: Always start at step 2, never skip
-          setProgress(1); // step-2 is index 1
-          router.replace('/onboarding/step-2-basic'); // Use replace to prevent back navigation issues
+          // Fallback - go to step 2
+          setProgress(1);
+          router.replace('/onboarding/step-2-basic');
         }
       }
     } finally {
