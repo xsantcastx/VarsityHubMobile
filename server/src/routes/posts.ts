@@ -27,7 +27,15 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     : [{ created_at: 'desc' as const }];
 
   const where: Record<string, any> = {};
-  if (req.query.game_id) where.game_id = String(req.query.game_id);
+  if (req.query.game_id) {
+    const gameId = String(req.query.game_id);
+    // Handle sample game IDs (stored in title field with [SAMPLE_GAME:...] marker)
+    if (/^sample-/i.test(gameId)) {
+      where.title = { startsWith: `[SAMPLE_GAME:${gameId}]` };
+    } else {
+      where.game_id = gameId;
+    }
+  }
   if (req.query.type) where.type = String(req.query.type);
   if (req.query.user_id) where.author_id = String(req.query.user_id);
 
@@ -78,10 +86,17 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     });
   }
 
+  // Helper to clean sample game marker from title
+  const cleanTitle = (title: string | null): string | null => {
+    if (!title) return null;
+    const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
+    return match ? match[1] || null : title;
+  };
+
   const payload = items.map((post: any) => ({
     id: post.id,
     author_id: post.author_id, // Include author_id for ownership checks
-    title: post.title ?? null, // Include title for editing
+    title: cleanTitle(post.title), // Clean sample game marker from title
     content: post.content ?? null, // Include content for editing
     media_url: post.media_url ?? null,
     media_type: detectMediaType(post.media_url),
@@ -223,6 +238,23 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   const isSampleEvent = eventId && /^sample-/i.test(String(eventId));
   const isSampleGame = gameId && /^sample-/i.test(String(gameId));
   
+  // For sample events, we can't use game_id (foreign key constraint)
+  // Store sample game_id in title field with special marker for querying
+  let finalGameId: string | null = null;
+  let finalTitle = data.title || null;
+  if (isSampleGame && gameId) {
+    // Store sample game_id in title: [SAMPLE_GAME:sample-warriors-cavaliers] Original Title
+    const titlePrefix = `[SAMPLE_GAME:${gameId}]`;
+    finalTitle = finalTitle ? `${titlePrefix} ${finalTitle}` : titlePrefix;
+    finalGameId = null; // Don't set game_id for sample events (foreign key constraint)
+    debugLog(`✅ Sample game detected (${gameId}) - storing in title, skipping geofencing`);
+  } else if (isSampleEvent && eventId) {
+    debugLog(`✅ Sample event detected (${eventId}) - skipping geofencing check`);
+    finalGameId = null;
+  } else if (gameId) {
+    finalGameId = gameId;
+  }
+  
   // Allow posting to sample events/games without geofencing
   if (isSampleEvent || isSampleGame) {
     debugLog(`✅ Sample event/game detected (${eventId || gameId}) - skipping geofencing check`);
@@ -278,11 +310,11 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
   const post = await prisma.post.create({
     data: {
-      title: data.title,
+      title: finalTitle,
       content: data.content?.trim() || null,
       type: data.type || 'post',
       media_url: data.media_url,
-      game_id: data.game_id,
+      game_id: finalGameId,
       author_id: req.user.id,
       country_code: country_code || undefined,
       admin1: admin1 || undefined,
@@ -291,7 +323,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
     },
   });
 
-  res.status(201).json({ ...post, location: { lat, lng, place_name, country_code } });
+  // Clean sample game marker from title in response
+  const cleanTitle = (title: string | null): string | null => {
+    if (!title) return null;
+    const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
+    return match ? match[1] || null : title;
+  };
+
+  res.status(201).json({ 
+    ...post, 
+    title: cleanTitle(post.title),
+    location: { lat, lng, place_name, country_code } 
+  });
 });
 
 postsRouter.get('/:id', async (req: AuthedRequest, res) => {
@@ -325,8 +368,16 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
     is_following_author = !!follows;
   }
 
+  // Helper to clean sample game marker from title
+  const cleanTitle = (title: string | null): string | null => {
+    if (!title) return null;
+    const match = title.match(/^\[SAMPLE_GAME:[^\]]+\]\s*(.*)$/);
+    return match ? match[1] || null : title;
+  };
+
   const response = {
     ...post,
+    title: cleanTitle(post.title), // Clean sample game marker from title
     has_upvoted,
     has_bookmarked,
     is_following_author,
