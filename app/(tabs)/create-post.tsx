@@ -57,11 +57,7 @@ const getFileSizeFromUri = async (uri: string): Promise<number> => {
 // Helper to detect sample events (IDs starting with "sample-")
 const isSampleEvent = (id?: string | null): boolean => {
   if (!id) return false;
-  const strId = String(id).trim();
-  const result = /^sample-/i.test(strId);
-  // Log for debugging on real devices
-  if (__DEV__) console.log('[isSampleEvent]', strId, '->', result);
-  return result;
+  return /^sample-/i.test(String(id).trim());
 };
 
 export default function CreatePostScreen() {
@@ -417,6 +413,27 @@ export default function CreatePostScreen() {
     setPreviewVisible(false);
 
     try {
+      // Quick network connectivity check
+      console.log('[CreatePost] Checking network...');
+      try {
+        const { getApiBaseUrl } = await import('@/api/http');
+        // Use AbortController instead of AbortSignal.timeout (not supported in React Native)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const healthCheck = await fetch(`${getApiBaseUrl()}/health`, {
+          method: 'GET',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        if (!healthCheck.ok) {
+          throw new Error('Server unavailable');
+        }
+        console.log('[CreatePost] Network OK');
+      } catch (netErr: any) {
+        console.error('[CreatePost] Network check failed:', netErr?.message);
+        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+      }
+
       // Ensure user is authenticated
       console.log('[CreatePost] Checking authentication...');
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
@@ -444,12 +461,13 @@ export default function CreatePostScreen() {
       };
       
       // Send game_id for both real and sample events
-      // The server detects sample events by checking if game_id starts with "sample-" and bypasses geofencing
+      // The server detects sample events by checking if game_id starts with "sample-"
+      // For sample events, server stores game_id in title field to avoid foreign key constraint
       const isSelectedSample = isSampleEvent(selectedGameId);
       console.log('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
-      
+
       if (selectedGameId) {
-        // Send game_id so server can detect sample events and bypass geofencing
+        // Send game_id so server can detect sample events and handle them properly
         payload.game_id = selectedGameId;
       }
       

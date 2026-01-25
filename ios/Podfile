@@ -62,5 +62,71 @@ target 'VarsityHub' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
+    
+    # Fix deployment target warnings - ensure all pods use at least iOS 12.0
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 12.0
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+        end
+      end
+    end
+    
+    # Fix lottie-ios Swift concurrency errors by adding @unchecked Sendable conformance
+    # Map of file paths to class names that need patching
+    lottie_patches = {
+      'Sources/Private/CoreAnimation/Animations/CombinedShapeAnimation.swift' => 'CombinedShapeItem',
+      'Sources/Private/Model/Assets/ImageAsset.swift' => 'ImageAsset',
+      'Sources/Private/Model/Assets/PrecompAsset.swift' => 'PrecompAsset',
+      'Sources/Private/Model/LayerEffects/DropShadowEffect.swift' => 'DropShadowEffect',
+      'Sources/Private/Model/LayerEffects/EffectValues/ColorEffectValue.swift' => 'ColorEffectValue',
+      'Sources/Private/Model/LayerEffects/EffectValues/Vector1DEffectValue.swift' => 'Vector1DEffectValue',
+      'Sources/Private/Model/Layers/ImageLayerModel.swift' => 'ImageLayerModel',
+      'Sources/Private/Model/Layers/PreCompLayerModel.swift' => 'PreCompLayerModel',
+    }
+    
+    installer.pods_project.targets.each do |target|
+      if target.name == 'lottie-ios'
+        # Try both Pods directory and node_modules
+        lottie_base_paths = [
+          File.join(installer.sandbox.root, 'lottie-ios'),
+          File.join(installer.sandbox.root, '..', '..', 'node_modules', 'lottie-ios'),
+        ]
+        
+        lottie_patches.each do |file_path, class_name|
+          full_path = nil
+          lottie_base_paths.each do |base|
+            candidate = File.join(base, file_path)
+            if File.exist?(candidate)
+              full_path = candidate
+              break
+            end
+          end
+          
+          if full_path && File.exist?(full_path)
+            content = File.read(full_path)
+            # Skip if already patched
+            next if content.include?("#{class_name}:") && content.match(/class\s+#{class_name}[^:]*:[^@]*@unchecked Sendable/m)
+            
+            # Pattern: class ClassName: Protocol { -> class ClassName: Protocol, @unchecked Sendable {
+            # Or: class ClassName: Protocol, Other { -> class ClassName: Protocol, Other, @unchecked Sendable {
+            patched = content.gsub(/^(class\s+#{class_name}[^:]*):([^{]+)(\{)/m) do |match|
+              class_decl = $1
+              protocols = $2.strip
+              # Only add if @unchecked Sendable is not already present
+              if !protocols.include?('@unchecked Sendable')
+                "#{class_decl}: #{protocols}, @unchecked Sendable {"
+              else
+                match
+              end
+            end
+            if patched != content
+              File.write(full_path, patched)
+              puts "✅ Patched #{file_path} - added @unchecked Sendable to #{class_name}"
+            end
+          end
+        end
+      end
+    end
   end
 end

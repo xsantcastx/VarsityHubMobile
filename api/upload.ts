@@ -45,8 +45,8 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   const token = getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const retries = Math.max(0, options?.retries ?? 2);
-  const backoffMs = Math.max(50, options?.backoffMs ?? 500);
+  const retries = Math.max(0, options?.retries ?? 5); // 5 retries by default for reliability
+  const backoffMs = Math.max(50, options?.backoffMs ?? 1000); // 1 second backoff
   const timeoutMs = options?.timeoutMs ?? 180000; // 3 minute default timeout for uploads
   let attempt = 0;
   let lastErr: any = null;
