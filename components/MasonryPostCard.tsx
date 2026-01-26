@@ -18,7 +18,7 @@ type MasonryPostCardProps = {
   onUpdated?: (updatedPost: any) => void;
 };
 
-export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }: MasonryPostCardProps) {
+export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, onUpdated: _onUpdated }: MasonryPostCardProps) {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);

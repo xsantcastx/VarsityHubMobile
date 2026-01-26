@@ -58,7 +58,7 @@ export default function RequestHostEventScreen() {
       try {
         const suggestions = await autocompleteLocations(text, 6);
         setLocationSuggestions(suggestions);
-      } catch (error) {
+      } catch {
         setLocationSuggestions([]);
       } finally {
         setLocationQuerying(false);

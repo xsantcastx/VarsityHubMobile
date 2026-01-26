@@ -210,7 +210,7 @@ export default function SettingsScreen() {
                       console.warn('[settings] Authentication error - refreshing auth state');
                       // Trigger auth check to let AuthProvider handle redirect
                       try {
-                        void checkAuth();
+                        await checkAuth();
                       } catch (authErr) {
                         console.warn('[settings] Auth check failed:', authErr);
                       }

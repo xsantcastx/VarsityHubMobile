@@ -90,3 +90,7 @@ changes.pdf
 overnight.log
 midnight-health.json
 overnight-audit.sh
+
+# Backup config files that might confuse EAS
+app.config.js.backup
+app.config.*.backup

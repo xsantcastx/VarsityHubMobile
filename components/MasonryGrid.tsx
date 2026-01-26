@@ -36,7 +36,7 @@ export default function MasonryGrid({
     });
 
     return cols;
-  }, [data, numColumns, columnWidth]);
+  }, [data, numColumns, columnWidth, gap]);
 
   return (
     <View style={styles.container}>
@@ -57,10 +57,8 @@ export default function MasonryGrid({
 }
 
 // Helper function to estimate item height
-function calculateItemHeight(item: any, width: number): number {
+function calculateItemHeight(item: any, _width: number): number {
   const hasMedia = item?.media_url;
-  const isVideo = item?.media_url ? /\.(mp4|mov|webm|m4v)$/i.test(item.media_url) : false;
-  const isImage = item?.media_url ? /\.(jpg|jpeg|png|gif|webp)$/i.test(item.media_url) : false;
   
   // Base heights for different content types
   if (hasMedia) {

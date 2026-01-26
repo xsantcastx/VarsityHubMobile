@@ -2,7 +2,7 @@
  * Progress bar component for upload/download progress
  */
 import React from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -28,7 +28,7 @@ export function ProgressBar({
   height = 8,
   showPercentage = false,
   label,
-  animated = true,
+  animated: _animated = true,
   color,
   trackColor,
 }: ProgressBarProps) {

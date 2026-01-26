@@ -1,9 +1,23 @@
 #!/bin/bash
 # Production Build Script for VarsityHub
 # This script builds the app for both iOS and Android
+# CRITICAL: Runs verification before build to prevent wasted credits
 
 echo "🚀 VarsityHub Production Build Script"
 echo "======================================"
+echo ""
+
+# Run comprehensive build verification FIRST
+echo "🔍 Running pre-build verification..."
+if ! bash scripts/verify-build-ready.sh; then
+    echo ""
+    echo "❌ BUILD BLOCKED: Verification failed!"
+    echo "Fix the errors above before building to avoid wasting EAS credits."
+    exit 1
+fi
+
+echo ""
+echo "✅ Verification passed - proceeding with build..."
 echo ""
 
 # Skip interactive work in CI environments

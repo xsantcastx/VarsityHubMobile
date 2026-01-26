@@ -75,8 +75,8 @@ const getRankingConfig = (type: RankingType, position?: number) => {
   }
 };
 
-export const RankingBadge: React.FC<RankingBadgeProps> = ({ type, position, style }) => {
-  const config = getRankingConfig(type, position);
+export const RankingBadge: React.FC<RankingBadgeProps> = ({ type, position: _position, style }) => {
+  const config = getRankingConfig(type, _position);
 
   return (
     <View style={[styles.container, style]}>
