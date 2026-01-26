@@ -47,6 +47,7 @@
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.1",
+    "rate-limit-redis": "^4.3.1",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-google-places-autocomplete": "^2.5.7",

@@ -1,20 +1,42 @@
 /**
  * Rate Limiting Middleware for VarsityHub API
- * 
+ *
  * Provides per-route rate limiting to prevent spam and abuse.
- * Uses express-rate-limit with optional Redis store for production.
- * 
+ * Uses express-rate-limit with Redis store for production scalability.
+ * Falls back to memory store if Redis is unavailable.
+ *
  * @module middleware/rateLimiters
  */
 
 import type { Request, Response } from 'express';
-import rateLimit, { Options } from 'express-rate-limit';
+import rateLimit, { Options, Store } from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { redis } from '../lib/queue.js';
+import { debugLog } from '../lib/debugLog.js';
 
 /**
  * Check if we're in development mode
  * In dev mode, rate limits are disabled for easier testing
  */
 const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
+
+/**
+ * Create Redis store for rate limiting (production)
+ * Falls back to memory store if Redis is unavailable
+ */
+let redisStore: Store | undefined;
+try {
+  redisStore = new RedisStore({
+    // Use the existing Redis connection from queue.ts
+    // @ts-expect-error - ioredis call method types don't perfectly match rate-limit-redis
+    sendCommand: (...args: string[]) => redis.call(...(args as [string, ...string[]])),
+    prefix: 'rl:', // rate limit prefix
+  });
+  debugLog('✅ Rate limiter using Redis store (scalable across instances)');
+} catch (error) {
+  console.warn('⚠️ Redis store unavailable for rate limiting, using memory store');
+  redisStore = undefined;
+}
 
 /**
  * Get user identifier for rate limiting
@@ -30,16 +52,19 @@ function getUserIdentifier(req: Request): string {
 
 /**
  * Create a rate limiter with sensible defaults
+ * Uses Redis store in production for multi-instance scalability
  */
 function createLimiter(options: Partial<Options> & { name: string }): ReturnType<typeof rateLimit> {
   const { name, ...restOptions } = options;
-  
+
   return rateLimit({
     windowMs: 60 * 1000, // 1 minute default
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => isDev,
     keyGenerator: getUserIdentifier,
+    // Use Redis store in production if available
+    ...(redisStore && !isDev ? { store: redisStore } : {}),
     handler: (req: Request, res: Response) => {
       console.warn(`[RateLimit] ${name}: User ${getUserIdentifier(req)} exceeded limit`);
       res.status(429).json({

@@ -18,8 +18,28 @@ import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 
 // In-memory cache for geocoded locations (location string -> coordinates)
+// Uses LRU-style eviction to prevent unbounded memory growth
 const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MAX_CACHE_SIZE = 10000; // Max entries to prevent memory leaks
+
+/**
+ * Evict oldest entries if cache exceeds max size
+ * Simple LRU: removes entries until we're at 80% capacity
+ */
+function evictOldEntries(): void {
+  if (geocodeCache.size <= MAX_CACHE_SIZE) return;
+
+  const targetSize = Math.floor(MAX_CACHE_SIZE * 0.8);
+  const entries = Array.from(geocodeCache.entries())
+    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+  const toRemove = entries.slice(0, geocodeCache.size - targetSize);
+  for (const [key] of toRemove) {
+    geocodeCache.delete(key);
+  }
+  debugLog(`[geocoding] Evicted ${toRemove.length} old cache entries, size now: ${geocodeCache.size}`);
+}
 
 /**
  * Clear the in-memory geocode cache
@@ -31,7 +51,7 @@ export function clearGeocodeCache(): void {
 /**
  * Get cache statistics
  */
-export function getCacheStats(): { size: number; oldestEntry: number | null } {
+export function getCacheStats(): { size: number; maxSize: number; oldestEntry: number | null } {
   let oldestTimestamp: number | null = null;
   for (const entry of geocodeCache.values()) {
     if (oldestTimestamp === null || entry.timestamp < oldestTimestamp) {
@@ -40,6 +60,7 @@ export function getCacheStats(): { size: number; oldestEntry: number | null } {
   }
   return {
     size: geocodeCache.size,
+    maxSize: MAX_CACHE_SIZE,
     oldestEntry: oldestTimestamp,
   };
 }
@@ -109,6 +130,7 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
         lng: coords.longitude,
         timestamp: Date.now(),
       });
+      evictOldEntries(); // Prevent unbounded memory growth
 
       return coords;
     } else {
@@ -131,7 +153,8 @@ export async function geocodeLocation(location: string): Promise<GeocodingResult
             lng: coords.longitude,
             timestamp: Date.now(),
           });
-          
+          evictOldEntries(); // Prevent unbounded memory growth
+
           return coords;
         }
       }
