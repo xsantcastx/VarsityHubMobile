@@ -83,6 +83,7 @@ export default function CreatePostScreen() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
   const [draftReady, setDraftReady] = useState(false);
@@ -221,11 +222,11 @@ export default function CreatePostScreen() {
 
   // Load game details if gameId is provided via params (from event page)
   useEffect(() => {
-    console.log('[CreatePost] useEffect gameId:', gameId, '| params:', JSON.stringify(params));
+    if (__DEV__) console.log('[CreatePost] useEffect gameId:', gameId, '| params:', JSON.stringify(params));
     if (!gameId) return;
 
     // For sample events, create a mock game object - these don't exist in the database
-    console.log('[CreatePost] isSampleEvent check:', gameId, '->', isSampleEvent(gameId));
+    if (__DEV__) console.log('[CreatePost] isSampleEvent check:', gameId, '->', isSampleEvent(gameId));
     if (isSampleEvent(gameId)) {
       // Parse sample event ID to extract team names (e.g., "sample-warriors-cavaliers")
       const parts = gameId.replace(/^sample-/i, '').split(/[-_]+/).filter(Boolean);
@@ -466,7 +467,6 @@ export default function CreatePostScreen() {
     }
   };
 
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onSubmit = async () => {
@@ -488,15 +488,15 @@ export default function CreatePostScreen() {
   };
 
   const confirmPost = async () => {
-    console.log('[CreatePost] confirmPost called');
-    console.log('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
+    if (__DEV__) console.log('[CreatePost] confirmPost called');
+    if (__DEV__) console.log('[CreatePost] State - selectedGameId:', selectedGameId, '| suggestedGame:', suggestedGame?.id);
     setSubmitting(true);
     setError(null);
     setPreviewVisible(false);
 
     try {
       // Quick network connectivity check
-      console.log('[CreatePost] Checking network...');
+      if (__DEV__) console.log('[CreatePost] Checking network...');
       try {
         const { getApiBaseUrl } = await import('@/api/http');
         // Use AbortController instead of AbortSignal.timeout (not supported in React Native)
@@ -510,27 +510,27 @@ export default function CreatePostScreen() {
         if (!healthCheck.ok) {
           throw new Error('Server unavailable');
         }
-        console.log('[CreatePost] Network OK');
+        if (__DEV__) console.log('[CreatePost] Network OK');
       } catch (netErr: any) {
         console.error('[CreatePost] Network check failed:', netErr?.message);
         throw new Error('Unable to connect to server. Please check your internet connection and try again.');
       }
 
       // Ensure user is authenticated
-      console.log('[CreatePost] Checking authentication...');
+      if (__DEV__) console.log('[CreatePost] Checking authentication...');
       try { await User.me(); } catch { throw new Error('Please sign in to create a post.'); }
-      console.log('[CreatePost] Auth OK');
+      if (__DEV__) console.log('[CreatePost] Auth OK');
 
       let finalMediaUrl = '';
       if (picked?.uri) {
-        console.log('[CreatePost] Uploading media...');
+        if (__DEV__) console.log('[CreatePost] Uploading media...');
         const { getApiBaseUrl } = await import('@/api/http');
         const base = getApiBaseUrl();
         const name = picked.type === 'image' ? 'image.jpg' : 'video.mp4';
         const mime = picked.mime || (picked.type === 'image' ? 'image/jpeg' : 'video/mp4');
         const res = await uploadFile(base, picked.uri, name, mime);
         finalMediaUrl = res?.url || res?.path;
-        console.log('[CreatePost] Upload complete:', finalMediaUrl);
+        if (__DEV__) console.log('[CreatePost] Upload complete:', finalMediaUrl);
       }
       const trimmedContent = content.trim();
       
@@ -546,14 +546,14 @@ export default function CreatePostScreen() {
       // The server detects sample events by checking if game_id starts with "sample-"
       // For sample events, server stores game_id in title field to avoid foreign key constraint
       const isSelectedSample = isSampleEvent(selectedGameId);
-      console.log('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
+      if (__DEV__) console.log('[CreatePost] selectedGameId:', selectedGameId, '| isSample:', isSelectedSample);
 
       if (selectedGameId) {
         // Send game_id so server can detect sample events and handle them properly
         payload.game_id = selectedGameId;
       }
       
-      console.log('[CreatePost] Final payload:', JSON.stringify(payload, null, 2));
+      if (__DEV__) console.log('[CreatePost] Final payload:', JSON.stringify(payload, null, 2));
       
       // Require event link for highlight posts to ensure they surface on the event page
       // But allow sample events to bypass this requirement
@@ -561,9 +561,9 @@ export default function CreatePostScreen() {
         throw new Error('Please attach an event to share a highlight.');
       }
       
-      console.log('[CreatePost] Calling Post.create...');
+      if (__DEV__) console.log('[CreatePost] Calling Post.create...');
       await Post.create(payload);
-      console.log('[CreatePost] Post created successfully!');
+      if (__DEV__) console.log('[CreatePost] Post created successfully!');
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
       } catch {}

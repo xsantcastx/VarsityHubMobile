@@ -49,7 +49,7 @@ export default function VerifyScreen() {
     if (fromParams) {
       setDevCode(fromParams);
       setCode(fromParams);
-      console.log('[verify] Dev code loaded from params:', fromParams);
+      if (__DEV__) console.log('[verify] Dev code loaded from params:', fromParams);
     }
   }, [params.devCode]);
 
@@ -57,9 +57,9 @@ export default function VerifyScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      console.log('[verify] Attempting to verify email with code:', code.trim());
+      if (__DEV__) console.log('[verify] Attempting to verify email with code:', code.trim());
       const result = await User.verifyEmail(code.trim());
-      console.log('[verify] Email verification result:', result);
+      if (__DEV__) console.log('[verify] Email verification result:', result);
       setInfo('✅ Email verified successfully!');
       
       setCode(''); // Clear the code input
@@ -68,17 +68,17 @@ export default function VerifyScreen() {
       // After successful verification, check if user needs onboarding
       try {
         const userInfo = await User.me();
-        console.log('[verify] User info after verification:', userInfo);
+        if (__DEV__) console.log('[verify] User info after verification:', userInfo);
         
         const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
         
         // Auto-redirect after 3 seconds
         setTimeout(() => {
           if (needsOnboarding) {
-            console.log('[verify] Auto-redirecting to onboarding...');
+            if (__DEV__) console.log('[verify] Auto-redirecting to onboarding...');
             router.replace('/onboarding/step-1-role');
           } else {
-            console.log('[verify] Auto-redirecting to main app...');
+            if (__DEV__) console.log('[verify] Auto-redirecting to main app...');
             router.replace('/(tabs)' as any);
           }
         }, 3000);
@@ -101,9 +101,9 @@ export default function VerifyScreen() {
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
     try {
-      console.log('[verify] Requesting new email verification code...');
+      if (__DEV__) console.log('[verify] Requesting new email verification code...');
       const res: any = await User.requestVerification();
-      console.log('[verify] Resend email response:', res);
+      if (__DEV__) console.log('[verify] Resend email response:', res);
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
       console.error('[verify] Resend email failed:', e);
@@ -115,7 +115,7 @@ export default function VerifyScreen() {
   };
 
   const onContinue = async () => {
-    console.log('[verify] User clicked Continue, proceeding immediately...');
+    if (__DEV__) console.log('[verify] User clicked Continue, proceeding immediately...');
     try {
       const userInfo = await User.me();
       const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;

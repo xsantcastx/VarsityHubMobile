@@ -78,9 +78,9 @@ export default function AdminUsersScreen() {
           data={items}
           keyExtractor={(u) => String(u.id)}
           renderItem={({ item }) => (
-            <View style={styles.row}>
-              <Text style={styles.title}>{item.display_name || '(no display)'}</Text>
-              <Text style={styles.meta}>{item.email}</Text>
+            <View style={[styles.row, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+              <Text style={[styles.title, { color: Colors[colorScheme].text }]}>{item.display_name || '(no display)'}</Text>
+              <Text style={[styles.meta, { color: Colors[colorScheme].mutedText }]}>{item.email}</Text>
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
                 <View style={styles.badge}><Text style={styles.badgeText}>{item.email_verified ? 'VERIFIED' : 'UNVERIFIED'}</Text></View>
                 {item.banned ? <View style={[styles.badge, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}><Text style={[styles.badgeText, { color: '#991B1B' }]}>BANNED</Text></View> : null}
@@ -120,7 +120,6 @@ const styles = StyleSheet.create({
   btnText: { color: 'white', fontWeight: '800' },
   error: { color: '#b91c1c', padding: 12 },
 });
-
 
 
 

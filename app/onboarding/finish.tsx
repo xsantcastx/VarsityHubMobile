@@ -1,4 +1,6 @@
 import { OnboardingBackHeader } from '@/components/onboarding/OnboardingBackHeader';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
@@ -13,6 +15,8 @@ import { httpPost } from '../../api/http';
 
 export default function OnboardingFinish() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const { checkAuth, markOnboardingCompleteLocally } = useAuth();
   const [me, setMe] = useState<any>(null);
   const [code, setCode] = useState('');
@@ -91,22 +95,22 @@ export default function OnboardingFinish() {
 
   const verified = !!me?.email_verified;
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['left', 'right', 'bottom']}>
       <Stack.Screen options={{ title: 'Finish' }} />
       <OnboardingBackHeader
         title="Email Verification"
         subtitle="Enter the 6-digit code to finish onboarding"
       />
       <View style={{ padding: 16, gap: 12 }}>
-        <Text style={styles.title}>You're all set! 🎉</Text>
+        <Text style={[styles.title, { color: theme.text }]}>You're all set! 🎉</Text>
         {verified ? (
           <>
-            <Text style={styles.muted}>Your email is verified. Enjoy Varsity Hub!</Text>
+            <Text style={[styles.muted, { color: theme.mutedText }]}>Your email is verified. Enjoy Varsity Hub!</Text>
             <PrimaryButton label="Go to Feed" onPress={() => skip()} />
           </>
         ) : (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Verify your email to unlock messaging & RSVPs</Text>
+          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>Verify your email to unlock messaging & RSVPs</Text>
             <Input placeholder="Enter 6-digit code" value={code} onChangeText={setCode} keyboardType="number-pad" style={{ marginBottom: 8 }} />
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <PrimaryButton label={cooldown>0 ? `Resend in ${cooldown}s` : 'Send Code'} onPress={sendCode} disabled={sending || cooldown>0} loading={sending} />

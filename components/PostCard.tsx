@@ -27,6 +27,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const rank = typeof post.rank === 'number' ? post.rank : null;
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
   const [bookmarksCount, setBookmarksCount] = useState<number>(post.bookmarks_count || 0);
   const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
@@ -328,7 +329,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
           style={styles.modalOverlay}
           onPress={() => setShowActionsMenu(false)}
         >
-          <View style={styles.actionsMenu}>
+          <View style={[styles.actionsMenu, { backgroundColor: theme.card }]}>
             <Pressable
               style={styles.actionItem}
               onPress={() => {
@@ -360,7 +361,7 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
         animationType="slide"
         onRequestClose={() => setEditModalVisible(false)}
       >
-        <View style={styles.editModal}>
+        <View style={[styles.editModal, { backgroundColor: theme.background }]}>
           <View style={styles.editHeader}>
             <Pressable onPress={() => setEditModalVisible(false)}>
               <Text style={styles.cancelButton}>Cancel</Text>

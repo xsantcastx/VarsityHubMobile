@@ -17,6 +17,7 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
   const isDark = colorScheme === 'dark';
   const headerBackground = isDark ? '#030712' : '#FFFFFF';
   const headerText = isDark ? '#F8FAFC' : '#0F172A';
@@ -179,7 +180,7 @@ export default function EventDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <Stack.Screen options={{ title: 'Event Detail', headerShown: false }} />
       <BackHeader 
         title={event?.title || 'Event Detail'}
@@ -218,27 +219,27 @@ export default function EventDetailScreen() {
               onGoingPress={() => setRsvpSheetVisible(true)}
             />
 
-            <Text style={styles.title}>{event.title || 'Event'}</Text>
+            <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
             
             {/* Location with Map Pin */}
             {event.location && (
               <Pressable 
-                style={styles.locationCard}
+                style={[styles.locationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={openInMaps}
               >
                 <View style={styles.locationIconContainer}>
                   <Ionicons name="location" size={24} color="#EF4444" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.locationLabel}>Location</Text>
-                  <Text style={styles.locationText}>{event.location}</Text>
-                  <Text style={styles.locationHint}>Tap to open in Maps</Text>
+                  <Text style={[styles.locationLabel, { color: theme.mutedText }]}>Location</Text>
+                  <Text style={[styles.locationText, { color: theme.text }]}>{event.location}</Text>
+                  <Text style={[styles.locationHint, { color: theme.mutedText }]}>Tap to open in Maps</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
               </Pressable>
             )}
             
-            <Text style={styles.meta}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
+            <Text style={[styles.meta, { color: theme.mutedText }]}>{event.date ? new Date(event.date).toLocaleString() : ''}</Text>
             {(() => {
               const capacity = (event as any)?.capacity ?? (event as any)?.max_attendees;
               const isFull = typeof capacity === 'number' && attendeesCount >= capacity;
@@ -246,12 +247,12 @@ export default function EventDetailScreen() {
                 ? ` / ${capacity}${isFull ? ' (FULL)' : ''}`
                 : '';
               return (
-                <Text style={[styles.meta, isFull && { color: '#DC2626', fontWeight: '600' }]}>
+                <Text style={[styles.meta, { color: theme.mutedText }, isFull && { color: '#DC2626', fontWeight: '600' }]}>
                   Attending: {attendeeCount}{capacityText}
                 </Text>
               );
             })()}
-            {event.description ? <Text>{event.description}</Text> : null}
+            {event.description ? <Text style={{ color: theme.text }}>{event.description}</Text> : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>

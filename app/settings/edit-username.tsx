@@ -51,15 +51,15 @@ export default function EditUsernameScreen() {
     }
     setSaving(true);
     try { 
-      console.log('[edit-username] Updating username to:', v);
+      if (__DEV__) console.log('[edit-username] Updating username to:', v);
       const result = await User.updateMe({ username: v });
-      console.log('[edit-username] Update result:', result);
+      if (__DEV__) console.log('[edit-username] Update result:', result);
       // Refresh user data in both useUser hook and AuthProvider
       await Promise.all([
         refreshUser(),
         checkAuth().catch(() => {}), // Refresh AuthProvider state
       ]);
-      console.log('[edit-username] User data refreshed in all contexts');
+      if (__DEV__) console.log('[edit-username] User data refreshed in all contexts');
       Alert.alert('Success', 'Username updated successfully');
       router.back(); 
     } catch (e: any) { 

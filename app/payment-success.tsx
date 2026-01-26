@@ -81,7 +81,7 @@ export default function PaymentSuccessScreen() {
                 // Webhook might still be processing, retry after 2 seconds
                 if (__DEV__) {
                   // eslint-disable-next-line no-console
-                  console.log(
+                  if (__DEV__) console.log(
                     `[payment-success] Retrying verification (attempt ${verificationAttempt + 1}/${maxVerificationAttempts})...`
                   );
                 }

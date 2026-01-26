@@ -141,7 +141,7 @@ export default function ReportAbuseScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top', 'bottom']}>
-      <Stack.Screen options={{ title: 'Report Abuse' }} />
+      <Stack.Screen options={{ title: 'Report Abuse', headerBackTitle: 'Back' }} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}

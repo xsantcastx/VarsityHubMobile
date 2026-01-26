@@ -965,7 +965,7 @@ export default function CommunityDiscoverScreen() {
           ListHeaderComponent={ListHeader}
           renderItem={({ item }) => (
             <Pressable
-              style={styles.card}
+              style={[styles.card, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
               onPress={() => void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(item.id) } })}
             >
               <View style={styles.hero}>
@@ -979,14 +979,14 @@ export default function CommunityDiscoverScreen() {
                 })()}
               </View>
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{item.title ? String(item.title) : 'Game'}</Text>
-                <Text style={styles.cardMeta}>{item.location ? String(item.location) : 'TBD'}</Text>
+                <Text style={[styles.cardTitle, { color: Colors[colorScheme].text }]}>{item.title ? String(item.title) : 'Game'}</Text>
+                <Text style={[styles.cardMeta, { color: Colors[colorScheme].mutedText }]}>{item.location ? String(item.location) : 'TBD'}</Text>
                 {(() => {
                   const labels = deriveTeamLabels(item);
                   return (
                     <View style={styles.teamRow}>
                       <View style={styles.teamPill}><Text style={styles.teamPillText}>{labels.teamA}</Text></View>
-                      <Text style={styles.vsText}>vs</Text>
+                      <Text style={[styles.vsText, { color: Colors[colorScheme].mutedText }]}>vs</Text>
                       <View style={styles.teamPillAlt}><Text style={styles.teamPillAltText}>{labels.teamB}</Text></View>
                     </View>
                   );

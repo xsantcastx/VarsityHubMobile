@@ -2,6 +2,8 @@ import { httpPost } from '@/api/http';
 // @ts-ignore
 import { Subscriptions } from '@/api/entities';
 import { PLAN_DEFINITIONS, Plan, formatPlanPrice } from '@/constants/plans';
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -9,6 +11,8 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 export default function BillingScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
   // Demo subtotal; replace with real cart subtotal
   const [subtotalCents] = useState(4999);
   const [code, setCode] = useState('');
@@ -105,7 +109,7 @@ export default function BillingScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ 
         title: 'Billing',
         headerLeft: () => (
@@ -134,8 +138,9 @@ export default function BillingScreen() {
                 keyboardType="number-pad"
                 value={qty}
                 onChangeText={setQty}
-                style={styles.qtyInput}
+                style={[styles.qtyInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.card }]}
                 placeholder="Teams"
+                placeholderTextColor={theme.mutedText}
               />
               <Pressable style={styles.btnPrimary} onPress={onUpdateQuantity} disabled={busy}>
                 <Text style={styles.btnPrimaryText}>{busy ? '...' : 'Update'}</Text>
@@ -158,40 +163,41 @@ export default function BillingScreen() {
           )}
         </View>
       )}
-      <Text style={styles.title}>Billing & Plan</Text>
-      <Text style={styles.subtitle}>
+      <Text style={[styles.title, { color: theme.text }]}>Billing & Plan</Text>
+      <Text style={[styles.subtitle, { color: theme.mutedText }]}>
         {isRookie
           ? 'Rookie stays free for your first two teams—no trial clocks, no surprise charges. Upgrade only when you need more capacity.'
           : `Your ${planDefinition.name} plan renews automatically. Keep your roster up to date and adjust quantity whenever team counts change.`}
       </Text>
 
-      <View style={styles.planCard}>
+      <View style={[styles.planCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={styles.planBadge}>{planDefinition.name} plan</Text>
-        <Text style={styles.planPrice}>{planPriceLabel}</Text>
+        <Text style={[styles.planPrice, { color: theme.text }]}>{planPriceLabel}</Text>
         {planBillingCopy?.description ? (
-          <Text style={styles.planDescription}>{planBillingCopy.description}</Text>
+          <Text style={[styles.planDescription, { color: theme.mutedText }]}>{planBillingCopy.description}</Text>
         ) : null}
         <View style={styles.featureList}>
           {planFeatures.map((feature) => (
             <View style={styles.featureItem} key={feature}>
               <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-              <Text style={styles.featureText}>{feature}</Text>
+              <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
             </View>
           ))}
         </View>
         {planBillingCopy?.cta ? (
-          <Text style={styles.planDescriptionMuted}>{planBillingCopy.cta}</Text>
+          <Text style={[styles.planDescriptionMuted, { color: theme.mutedText }]}>{planBillingCopy.cta}</Text>
         ) : null}
       </View>
 
-      <Text style={styles.sectionTitle}>Promo code</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>Promo code</Text>
       <View style={styles.applyRow}>
         <TextInput
           placeholder="Promo code"
           value={code}
           onChangeText={setCode}
           autoCapitalize="characters"
-          style={styles.input}
+          style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.card }]}
+          placeholderTextColor={theme.mutedText}
         />
         <Pressable style={[styles.btn, busy ? styles.btnDisabled : null]} onPress={onApply} disabled={busy}>
           <Text style={styles.btnText}>{busy ? '...' : 'Apply'}</Text>
@@ -200,11 +206,11 @@ export default function BillingScreen() {
 
       {error ? <Text style={styles.error}>Promo not valid: {error}</Text> : null}
       {preview?.valid ? (
-        <View style={styles.previewBox}>
-          <Text style={styles.previewLine}>Code: {preview.code}</Text>
-          {preview.percent_off ? <Text style={styles.previewLine}>{preview.percent_off}% off</Text> : <Text style={styles.previewLine}>Complimentary</Text>}
-          <Text style={styles.previewLine}>Discount: ${ (preview.discount_cents/100).toFixed(2) }</Text>
-          <Text style={styles.previewLine}>New total: ${ (preview.new_total_cents/100).toFixed(2) }</Text>
+        <View style={[styles.previewBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.previewLine, { color: theme.text }]}>Code: {preview.code}</Text>
+          {preview.percent_off ? <Text style={[styles.previewLine, { color: theme.text }]}>{preview.percent_off}% off</Text> : <Text style={[styles.previewLine, { color: theme.text }]}>Complimentary</Text>}
+          <Text style={[styles.previewLine, { color: theme.text }]}>Discount: ${ (preview.discount_cents/100).toFixed(2) }</Text>
+          <Text style={[styles.previewLine, { color: theme.text }]}>New total: ${ (preview.new_total_cents/100).toFixed(2) }</Text>
           <Pressable style={styles.btnPrimary} onPress={onRedeem}>
             <Text style={styles.btnPrimaryText}>Redeem & Pay</Text>
           </Pressable>

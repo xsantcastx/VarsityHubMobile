@@ -334,7 +334,7 @@ export default function TeamScreen() {
       }
       
       // Log for debugging
-      console.log('[team-page] Team loaded:', {
+      if (__DEV__) console.log('[team-page] Team loaded:', {
         id: teamData?.id,
         name: teamData?.name,
         organization_id: teamData?.organization_id || orgId || 'NONE',
@@ -669,7 +669,7 @@ export default function TeamScreen() {
               if (orgId) {
                 router.push(`/organizations/${orgId}` as any);
               } else {
-                console.log('[team-page] No organization_id for team:', team?.id);
+                if (__DEV__) console.log('[team-page] No organization_id for team:', team?.id);
               }
             }}
             disabled={!team?.organization_id}

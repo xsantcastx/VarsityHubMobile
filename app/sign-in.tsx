@@ -52,7 +52,7 @@ export default function SignInScreen() {
     setLoading(true);
     setError(null);
     try {
-      console.log('[sign-in] Attempting email/password login for:', email);
+      if (__DEV__) console.log('[sign-in] Attempting email/password login for:', email);
       const res: any = await User.loginViaEmailPassword(email, password);
 
       if (!res?.access_token) {
@@ -64,14 +64,14 @@ export default function SignInScreen() {
         return;
       }
 
-      console.log('[sign-in] Login successful, token received. Checking auth state...');
+      if (__DEV__) console.log('[sign-in] Login successful, token received. Checking auth state...');
 
       // If email verification is needed, call checkAuth with pendingVerification flag
       if (res?.needs_verification) {
-        console.log('[sign-in] Email verification required');
+        if (__DEV__) console.log('[sign-in] Email verification required');
         try {
           await checkAuth({ email, pendingVerification: true });
-          console.log('[sign-in] checkAuth completed, AuthProvider will route to verify-email');
+          if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route to verify-email');
         } catch (checkErr: any) {
           console.error('[sign-in] checkAuth failed after login:', checkErr);
           // Token is saved, AuthProvider will handle routing on next render
@@ -83,7 +83,7 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
-        console.log('[sign-in] checkAuth completed, AuthProvider will route user');
+        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
       } catch (checkErr: any) {
         console.error('[sign-in] checkAuth failed after login:', checkErr);
         // Token is saved, let AuthProvider handle routing
@@ -128,9 +128,9 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      console.log('[sign-in] Starting Google sign-in...');
+      if (__DEV__) console.log('[sign-in] Starting Google sign-in...');
       const response: any = await signInWithGoogle();
-      console.log('[sign-in] Google OAuth successful, response:', response);
+      if (__DEV__) console.log('[sign-in] Google OAuth successful, response:', response);
 
       if (!response?.access_token) {
         const errMsg = `Google sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
@@ -140,12 +140,12 @@ export default function SignInScreen() {
         return;
       }
 
-      console.log('[sign-in] Google login successful, token received. Checking auth state...');
+      if (__DEV__) console.log('[sign-in] Google login successful, token received. Checking auth state...');
       
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-        console.log('[sign-in] checkAuth completed, AuthProvider will route user');
+        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
       } catch (checkErr: any) {
         console.error('[sign-in] checkAuth failed after Google login:', checkErr);
         // Token is saved, let AuthProvider handle routing
@@ -154,7 +154,7 @@ export default function SignInScreen() {
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
-        console.log('[sign-in] User cancelled Google sign-in');
+        if (__DEV__) console.log('[sign-in] User cancelled Google sign-in');
         return;
       }
 
@@ -188,9 +188,9 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      console.log('[sign-in] Starting Apple sign-in...');
+      if (__DEV__) console.log('[sign-in] Starting Apple sign-in...');
       const response: any = await signInWithApple();
-      console.log('[sign-in] Apple OAuth successful, response:', response);
+      if (__DEV__) console.log('[sign-in] Apple OAuth successful, response:', response);
 
       if (!response?.access_token) {
         const errMsg = `Apple sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
@@ -200,12 +200,12 @@ export default function SignInScreen() {
         return;
       }
 
-      console.log('[sign-in] Apple login successful, token received. Checking auth state...');
+      if (__DEV__) console.log('[sign-in] Apple login successful, token received. Checking auth state...');
       
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-        console.log('[sign-in] checkAuth completed, AuthProvider will route user');
+        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
       } catch (checkErr: any) {
         console.error('[sign-in] checkAuth failed after Apple login:', checkErr);
         // Token is saved, let AuthProvider handle routing
@@ -222,7 +222,7 @@ export default function SignInScreen() {
         code.includes('cancelled') ||
         code === 'err_request_canceled'
       ) {
-        console.log('[sign-in] User cancelled Apple sign-in');
+        if (__DEV__) console.log('[sign-in] User cancelled Apple sign-in');
         return;
       }
       

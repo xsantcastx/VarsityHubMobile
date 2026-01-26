@@ -93,9 +93,9 @@ export default function GameMapScreen() {
       // Log for debugging
       const totalItems = gamesList.length + eventsList.length;
       if (allMarkers.length === 0 && totalItems > 0) {
-        console.log(`[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`);
+        if (__DEV__) console.log(`[game-map] Loaded ${gamesList.length} games and ${eventsList.length} events, but none have valid coordinates`);
       } else {
-        console.log(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
+        if (__DEV__) console.log(`[game-map] Loaded ${gameMarkers.length} games and ${eventMarkers.length} events with locations (${allMarkers.length} total pins)`);
       }
     } catch (error) {
       console.error('Error loading games:', error);
