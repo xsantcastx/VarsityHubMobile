@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,13 +7,23 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Resolve path relative to dist/lib/planLimits.js -> /app/shared/plan-definitions.json
-// From dist/lib: ../../../shared/plan-definitions.json
-const planDefinitionsPath = path.resolve(__dirname, '../../../shared/plan-definitions.json');
-const planDefinitions = require(planDefinitionsPath) as Record<
-  PlanId,
-  RawPlanDefinition
->;
+// Resolve the shared plan definitions regardless of where build copies them.
+// Primary: dist/shared/plan-definitions.json (copied during build)
+// Fallback: /app/shared/plan-definitions.json (legacy path)
+const candidatePaths = [
+  path.resolve(__dirname, '../../shared/plan-definitions.json'), // dist/shared
+  path.resolve(__dirname, '../../../shared/plan-definitions.json'), // /app/shared
+];
+
+const planDefinitionsPath = candidatePaths.find((p) => fs.existsSync(p));
+
+if (!planDefinitionsPath) {
+  throw new Error(
+    `plan-definitions.json not found in any expected location: ${candidatePaths.join(', ')}`
+  );
+}
+
+const planDefinitions = require(planDefinitionsPath) as Record<PlanId, RawPlanDefinition>;
 
 export type PlanId = 'rookie' | 'veteran' | 'legend';
 
