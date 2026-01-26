@@ -1,11 +1,15 @@
 export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
+  testEnvironmentOptions: {
+    customExportConditions: ['node', 'node-addons'],
+  },
   extensionsToTreatAsEsm: ['.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { useESM: true, tsconfig: { isolatedModules: true } }],
   },
   roots: ['<rootDir>/src'],
+  maxWorkers: 1,
   testMatch: ['**/__tests__/**/*.(spec|test).ts', '**/?(*.)+(spec|test).ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverageFrom: [
@@ -25,16 +29,8 @@ export default {
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.cjs'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    'debugLog\\.js$': '<rootDir>/src/lib/debugLog.ts',
-    '../lib/prisma\\.js$': '<rootDir>/src/lib/prisma.ts',
-    '../middleware/requireAdmin\\.js$': '<rootDir>/src/middleware/requireAdmin.ts',
-    '../middleware/requireAuth\\.js$': '<rootDir>/src/middleware/requireAuth.ts',
-    './load-env\\.js$': '<rootDir>/src/lib/load-env.ts',
-    './gameStories\\.js$': '<rootDir>/src/routes/gameStories.ts',
-    '\\.\\./lib/geoUtils\\.js$': '<rootDir>/src/lib/geoUtils.ts',
-    '\\.\\./lib/geofencing\\.js$': '<rootDir>/src/lib/geofencing.ts',
-    '\\./prisma\\.js$': '<rootDir>/src/lib/prisma.ts',
-    '\\.\\./lib/errors/(.*)\\.js$': '<rootDir>/src/lib/errors/$1.ts',
+    '^zod$': '<rootDir>/node_modules/zod/index.cjs',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   testTimeout: 10000,
   verbose: true,

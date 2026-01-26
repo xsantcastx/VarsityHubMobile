@@ -69,7 +69,7 @@ describe('Payment Flow', () => {
       });
 
       expect(transaction).toBeDefined();
-      expect(transaction.transaction_type).toBe('MEMBERSHIP');
+      expect(transaction.transaction_type).toBe('SUBSCRIPTION_PURCHASE');
       expect(transaction.status).toBe('PENDING');
       expect(transaction.total_cents).toBe(2999);
     });

@@ -8,6 +8,11 @@ import { requireVerified } from '../middleware/requireVerified.js';
 export const postsRouter = Router();
 
 const POST_UNDO_WINDOW_MS = 5 * 60 * 1000;
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm', '.m4v', '.avi', '.mkv'];
 const detectMediaType = (url?: string | null): 'video' | 'image' => {
@@ -192,7 +197,6 @@ const createPostSchema = z
     path: ['content'],
   });
 
-import { debugLog } from '../lib/debugLog.js';
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
 import { notifyPostInteraction } from '../lib/notifications.js';

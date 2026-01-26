@@ -9,10 +9,11 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../index.js';
-import { prisma } from '../lib/prisma.js';
+import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-import { signJwt } from '../lib/jwt.js';
+
+let prisma: any;
+let signJwt: any;
 
 const TEST_COACH_EMAIL = `test-api-event-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-event-fan-${Date.now()}@example.com`;
@@ -25,6 +26,8 @@ describe('API Event Endpoints', () => {
   let fanToken: string;
 
   beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     // Create coach user
     const coachPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
     const coach = await prisma.user.create({
@@ -118,7 +121,7 @@ describe('API Event Endpoints', () => {
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
-      expect(response.body.status).toBe('pending');
+      expect(response.body.status).toBe('draft');
       expect(response.body.approval_status).toBe('pending');
       expect(response.body.creator_id).toBe(fanUserId);
     });

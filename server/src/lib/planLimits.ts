@@ -7,8 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Resolve path relative to dist/lib/planLimits.js -> /app/shared/plan-definitions.json
-// From dist/lib: ../../shared/plan-definitions.json
-const planDefinitionsPath = path.resolve(__dirname, '../../shared/plan-definitions.json');
+// From dist/lib: ../../../shared/plan-definitions.json
+const planDefinitionsPath = path.resolve(__dirname, '../../../shared/plan-definitions.json');
 const planDefinitions = require(planDefinitionsPath) as Record<
   PlanId,
   RawPlanDefinition

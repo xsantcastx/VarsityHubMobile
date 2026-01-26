@@ -6,10 +6,14 @@ import type { AuthedRequest } from '../middleware/auth.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { requireVerified } from '../middleware/requireVerified.js';
-import { debugLog } from '../lib/debugLog.js';
 import { getAuthorizedUsersPerTeam, getMaxTeamsForPlan } from '../lib/planLimits.js';
 
 export const teamsRouter = Router();
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 // Get teams managed by current user (requires authentication)
 teamsRouter.get('/managed', authMiddleware as any, async (req: AuthedRequest, res) => {

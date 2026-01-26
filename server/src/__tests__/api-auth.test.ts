@@ -4,15 +4,17 @@
  * Tests actual HTTP endpoints for authentication:
  * - POST /auth/register
  * - POST /auth/login
- * - POST /auth/verify
- * - POST /auth/password-reset
+ * - POST /auth/verify/confirm
+ * - POST /auth/password/forgot
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../index.js';
-import { prisma } from '../lib/prisma.js';
+import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+
+let prisma: any;
+let signJwt: any;
 
 const TEST_EMAIL = `test-api-auth-${Date.now()}@example.com`;
 const TEST_PASSWORD = 'TestPassword123!';
@@ -22,6 +24,11 @@ describe('API Authentication Endpoints', () => {
   let userId: string;
   let accessToken: string;
   let verificationCode: string;
+
+  beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
+  });
 
   afterAll(async () => {
     try {
@@ -200,7 +207,29 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/verify', () => {
+  describe('GET /auth/me', () => {
+    it('should require authentication', async () => {
+      const response = await request(app)
+        .get('/auth/me')
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Unauthorized');
+    });
+
+    it('should return current user with valid token', async () => {
+      const response = await request(app)
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.email).toBe(TEST_EMAIL);
+      expect(response.body.preferences).toBeDefined();
+    });
+  });
+
+  describe('POST /auth/verify/confirm', () => {
     it('should verify email with correct code', async () => {
       if (!verificationCode) {
         // Fetch code from database
@@ -216,9 +245,9 @@ describe('API Authentication Endpoints', () => {
       }
 
       const response = await request(app)
-        .post('/auth/verify')
+        .post('/auth/verify/confirm')
+        .set('Authorization', `Bearer ${accessToken}`)
         .send({
-          email: TEST_EMAIL,
           code: verificationCode,
         })
         .expect(200);
@@ -228,15 +257,28 @@ describe('API Authentication Endpoints', () => {
     });
 
     it('should reject incorrect verification code', async () => {
+      const badEmail = `test-bad-code-${Date.now()}@example.com`;
+      const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
+      const badUser = await prisma.user.create({
+        data: {
+          email: badEmail,
+          password_hash: passwordHash,
+          email_verification_code: '123456',
+          email_verification_expires: new Date(Date.now() + 30 * 60 * 1000),
+          preferences: {},
+        },
+      });
+      const badToken = signJwt({ id: badUser.id });
+
       const response = await request(app)
-        .post('/auth/verify')
-        .send({
-          email: TEST_EMAIL,
-          code: '000000',
-        })
+        .post('/auth/verify/confirm')
+        .set('Authorization', `Bearer ${badToken}`)
+        .send({ code: '000000' })
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
+
+      await prisma.user.delete({ where: { id: badUser.id } });
     });
 
     it('should reject expired verification code', async () => {
@@ -255,12 +297,11 @@ describe('API Authentication Endpoints', () => {
         },
       });
 
+      const expiredToken = signJwt({ id: expiredUser.id });
       const response = await request(app)
-        .post('/auth/verify')
-        .send({
-          email: expiredEmail,
-          code: code,
-        })
+        .post('/auth/verify/confirm')
+        .set('Authorization', `Bearer ${expiredToken}`)
+        .send({ code })
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
@@ -270,27 +311,27 @@ describe('API Authentication Endpoints', () => {
     });
   });
 
-  describe('POST /auth/password-reset', () => {
+  describe('POST /auth/password/forgot', () => {
     it('should initiate password reset for valid email', async () => {
       const response = await request(app)
-        .post('/auth/password-reset')
+        .post('/auth/password/forgot')
         .send({
           email: TEST_EMAIL,
         })
         .expect(200);
 
-      expect(response.body).toHaveProperty('message');
+      expect(response.body).toHaveProperty('ok');
     });
 
     it('should not reveal if email exists (security)', async () => {
       const response = await request(app)
-        .post('/auth/password-reset')
+        .post('/auth/password/forgot')
         .send({
           email: 'nonexistent@example.com',
         })
         .expect(200); // Should still return 200 to prevent email enumeration
 
-      expect(response.body).toHaveProperty('message');
+      expect(response.body).toHaveProperty('ok');
     });
   });
 });

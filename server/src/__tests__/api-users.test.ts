@@ -6,10 +6,11 @@
 
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../index.js';
-import { prisma } from '../lib/prisma.js';
-import { signJwt } from '../lib/jwt.js';
+import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
+
+let prisma: any;
+let signJwt: any;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
@@ -21,6 +22,8 @@ describeDb('Users API Endpoints', () => {
   let otherUser: any;
 
   beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     // Create test user
     testUser = await prisma.user.create({
       data: {
@@ -153,9 +156,10 @@ describeDb('Users API Endpoints', () => {
         .set('Authorization', `Bearer ${testUserToken}`);
 
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body.users)).toBe(true);
-      if (res.body.users.length > 0) {
-        expect(res.body.users[0].email).toBeUndefined();
+      const users = Array.isArray(res.body) ? res.body : res.body.users;
+      expect(Array.isArray(users)).toBe(true);
+      if (users.length > 0) {
+        expect(users[0].email).toBeUndefined();
       }
     });
   });

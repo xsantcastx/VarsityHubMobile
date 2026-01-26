@@ -9,10 +9,11 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../index.js';
-import { prisma } from '../lib/prisma.js';
+import { app } from '../testApp.js';
 import bcrypt from 'bcrypt';
-import { signJwt } from '../lib/jwt.js';
+
+let prisma: any;
+let signJwt: any;
 
 const TEST_COACH_EMAIL = `test-api-coach-${Date.now()}@example.com`;
 const TEST_FAN_EMAIL = `test-api-fan-${Date.now()}@example.com`;
@@ -25,6 +26,8 @@ describe('API Team Endpoints', () => {
   let fanToken: string;
 
   beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     // Create coach user
     const coachPasswordHash = await bcrypt.hash(TEST_PASSWORD, 10);
     const coach = await prisma.user.create({

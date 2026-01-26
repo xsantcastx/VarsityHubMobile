@@ -1,8 +1,19 @@
 import { debugLog } from './debugLog.js';
 import type { FounderMetricsReport } from './founderMetrics.js';
-import { getEmailService, initEmailService as initNewEmailService } from '../services/email/service.js';
 import type { EmailResult } from '../services/email/types.js';
+import type { EmailService } from '../services/email/EmailService.js';
 import sgMail from '@sendgrid/mail';
+
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
+
+let emailServicePromise: Promise<EmailService> | null = null;
+const getEmailService = async (): Promise<EmailService | null> => {
+  if (isTestEnv) return null;
+  if (!emailServicePromise) {
+    emailServicePromise = import('../services/email/service.js').then((mod) => mod.getEmailService());
+  }
+  return emailServicePromise;
+};
 
 // Legacy constants for backward compatibility
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '';
@@ -102,20 +113,25 @@ export function getMissingEmailTemplates(required: TemplateKey[] = REQUIRED_TEMP
 /**
  * Initialize email service (now uses new EmailService)
  */
-export function initEmailService() {
+export async function initEmailService() {
+  if (isTestEnv) {
+    return { success: false, errors: ['Email service disabled in test environment'] };
+  }
+
   // Initialize SendGrid if API key is available
   if (SENDGRID_API_KEY) {
     sgMail.setApiKey(SENDGRID_API_KEY);
   }
-  
+
+  const { initEmailService: initNewEmailService } = await import('../services/email/service.js');
   const result = initNewEmailService();
-  
+
   // Also check for missing templates (legacy check)
   const missing = getMissingEmailTemplates();
   if (missing.length) {
     console.warn(`[email] SendGrid template IDs missing: ${missing.join(', ')}`);
   }
-  
+
   return result;
 }
 
@@ -138,9 +154,9 @@ export async function sendEmail({ to, subject, text, html }: BasicEmail): Promis
   const safeText = text ?? '';
   const safeHtml = html ?? text ?? '';
 
-  const service = getEmailService();
+  const service = await getEmailService();
   
-  if (!service.isConfigured()) {
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured - logging email', { to, subject: safeSubject });
     if (process.env.NODE_ENV !== 'production') {
       console.log(formatLines([`To: ${to}`, `Subject: ${safeSubject}`, safeText]));
@@ -585,8 +601,8 @@ export async function sendVerificationEmail(email: string, token: string, userNa
     return false;
   }
 
-  const service = getEmailService();
-  if (!service.isConfigured()) {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured');
     return false;
   }
@@ -627,8 +643,8 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
     return false;
   }
 
-  const service = getEmailService();
-  if (!service.isConfigured()) {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured');
     return false;
   }
@@ -674,8 +690,8 @@ export async function sendPasswordChangedEmail(email: string, userName?: string)
     });
   }
 
-  const service = getEmailService();
-  if (!service.isConfigured()) {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured');
     return false;
   }
@@ -726,8 +742,8 @@ export async function sendTeamInviteEmail(params: {
     return false;
   }
 
-  const service = getEmailService();
-  if (!service.isConfigured()) {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured');
     return false;
   }
@@ -781,8 +797,8 @@ async function sendTemplateEmail(
     return false;
   }
 
-  const service = getEmailService();
-  if (!service.isConfigured()) {
+  const service = await getEmailService();
+  if (!service || !service.isConfigured()) {
     console.warn('[email] Email service not configured');
     return false;
   }

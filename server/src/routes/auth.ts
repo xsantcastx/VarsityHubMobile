@@ -7,15 +7,21 @@ import { sendPasswordResetEmail, sendPasswordChangedEmail, sendVerificationEmail
 import { signJwt } from '../lib/jwt.js';
 import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
-import { debugLog } from '../lib/debugLog.js';
-import { ValidationError, ConflictError, AuthenticationError } from '../lib/errors/index.js';
-import { asyncHandler } from '../middleware/errorHandler.js';
+import { AuthenticationError } from '../lib/errors/AuthenticationError.js';
+import { ConflictError } from '../lib/errors/ConflictError.js';
+import { ValidationError } from '../lib/errors/ValidationError.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints
 const authRate: Map<string, { attempts: number; resetAt: number }> = new Map();
 const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 function checkAuthRateLimit(identifier: string): boolean {
   const now = Date.now();
@@ -68,7 +74,7 @@ async function getApplePublicKey(kid: string): Promise<KeyObject> {
 }
 
 const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   password: z.string().min(8),
   display_name: z.string().optional(),
   // Rookie is a coach plan, not a role
@@ -386,12 +392,13 @@ authRouter.post('/apple', async (req, res) => {
         const userEmail = email || `apple_${appleId.substring(0, 16)}@appleid.local`;
 
         try {
+          const displayName = email ? email.split('@')[0] : 'Apple User';
           user = await prisma.user.create({
             data: {
               email: userEmail,
               password_hash,
               apple_id: appleId,
-              display_name: 'Apple User',
+              display_name: displayName,
               email_verified: true,
               preferences: { role: 'fan', onboarding_completed: false },
             },

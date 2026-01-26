@@ -3,11 +3,16 @@ import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isCloudinaryConfigured, uploadBufferToCloudinary } from '../lib/cloudinary.js';
-import { debugLog } from '../lib/debugLog.js';
 import { captureException } from '../lib/sentry.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadLimiter } from '../middleware/rateLimiters.js';
 import { signMediaPath } from '../lib/mediaAccess.js';
+
+const debugLog = (...args: Parameters<typeof console.log>) => {
+  if (process.env.ENABLE_SERVER_DEBUG_LOGS === 'true' || process.env.NODE_ENV !== 'production') {
+    console.log(...args);
+  }
+};
 
 // Force Cloudinary in production, otherwise uploads will be lost on deploy
 if (process.env.NODE_ENV === 'production' && !isCloudinaryConfigured()) {

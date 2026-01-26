@@ -5,9 +5,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import bcrypt from 'bcrypt';
-import { app } from '../index.js';
-import { prisma } from '../lib/prisma.js';
-import { signJwt } from '../lib/jwt.js';
+import { app } from '../testApp.js';
+
+let prisma: any;
+let signJwt: any;
 
 const isCi = `${process.env.CI ?? ''}`.toLowerCase() === 'true';
 const shouldSkipDbTests = isCi || process.env.SKIP_SERVER_DB_TESTS === '1';
@@ -18,6 +19,8 @@ describeDb('Uploads API Endpoints', () => {
   let testUserToken: string;
 
   beforeAll(async () => {
+    ({ prisma } = await import('../lib/prisma.js'));
+    ({ signJwt } = await import('../lib/jwt.js'));
     testUser = await prisma.user.create({
       data: {
         email: `test-uploads-${Date.now()}@example.com`,
@@ -73,4 +76,3 @@ describeDb('Uploads API Endpoints', () => {
     });
   });
 });
-

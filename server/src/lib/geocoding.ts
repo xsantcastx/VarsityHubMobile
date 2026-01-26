@@ -11,6 +11,9 @@
  * - Error handling with graceful degradation
  */
 
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { prisma } from './prisma.js';
 import { debugLog } from './debugLog.js';
 
@@ -358,40 +361,4 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
       if (!event.location) continue;
 
       const result = await geocodeEvent(event.id, event.location);
-      if (result) {
-        successCount++;
-      }
-
-      // Rate limiting: 200ms between requests
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-
-    debugLog(`✅ Successfully geocoded ${successCount}/${events.length} events`);
-    return successCount;
-  } catch (error) {
-    console.error('Error in batch geocoding events:', error);
-    return 0;
-  }
-}
-
-/**
- * Clear the in-memory geocoding cache
- */
-export function clearGeocodeCache(): void {
-  geocodeCache.clear();
-  debugLog('🗑️ Geocoding cache cleared');
-}
-
-/**
- * Get cache statistics
- */
-export function getCacheStats() {
-  return {
-    size: geocodeCache.size,
-    entries: Array.from(geocodeCache.entries()).map(([location, data]) => ({
-      location,
-      coordinates: { lat: data.lat, lng: data.lng },
-      age_ms: Date.now() - data.timestamp,
-    })),
-  };
-}
+      if

@@ -92,7 +92,10 @@ export function isPostPostingWindowOpen(eventDate: Date): boolean {
  * @deprecated Use isStoryPostingWindowOpen or isPostPostingWindowOpen instead
  */
 export function isPostingWindowOpen(eventDate: Date): boolean {
-  return isPostPostingWindowOpen(eventDate);
+  const now = new Date();
+  const eventTime = new Date(eventDate);
+  const windowOpenTime = new Date(eventTime.getTime() - 24 * 60 * 60 * 1000);
+  return now >= windowOpenTime;
 }
 
 /**
