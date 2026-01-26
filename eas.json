@@ -8,11 +8,17 @@
       "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile"
+      },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Debug"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "apk"
       }
     },
     "preview": {
@@ -26,7 +32,8 @@
         "resourceClass": "m-medium"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "apk"
       }
     },
     "production": {
@@ -38,10 +45,12 @@
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Release"
       },
       "android": {
-        "resourceClass": "medium"
+        "resourceClass": "medium",
+        "buildType": "app-bundle"
       }
     }
   },
