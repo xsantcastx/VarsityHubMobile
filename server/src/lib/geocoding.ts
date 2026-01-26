@@ -21,6 +21,29 @@ import { debugLog } from './debugLog.js';
 const geocodeCache = new Map<string, { lat: number; lng: number; timestamp: number }>();
 const CACHE_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/**
+ * Clear the in-memory geocode cache
+ */
+export function clearGeocodeCache(): void {
+  geocodeCache.clear();
+}
+
+/**
+ * Get cache statistics
+ */
+export function getCacheStats(): { size: number; oldestEntry: number | null } {
+  let oldestTimestamp: number | null = null;
+  for (const entry of geocodeCache.values()) {
+    if (oldestTimestamp === null || entry.timestamp < oldestTimestamp) {
+      oldestTimestamp = entry.timestamp;
+    }
+  }
+  return {
+    size: geocodeCache.size,
+    oldestEntry: oldestTimestamp,
+  };
+}
+
 export interface GeocodingResult {
   latitude: number;
   longitude: number;
@@ -361,4 +384,18 @@ export async function geocodeAllEvents(limit: number = 100): Promise<number> {
       if (!event.location) continue;
 
       const result = await geocodeEvent(event.id, event.location);
-      if
+      if (result) {
+        successCount++;
+      }
+
+      // Rate limiting: 200ms between requests
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    debugLog(`✅ Successfully geocoded ${successCount}/${events.length} events`);
+    return successCount;
+  } catch (error) {
+    console.error('Error in batch geocoding events:', error);
+    return 0;
+  }
+}
