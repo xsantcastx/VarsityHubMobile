@@ -5,8 +5,10 @@
  * Supports letterbox, fill, and stretch transformations
  */
 
+import { uploadFile } from '@/api/upload';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ensureUploadableUri } from '@/utils/ensureUploadableUri';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +17,7 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    Platform,
     Pressable,
     StyleSheet,
     Text,
@@ -60,9 +63,9 @@ export function BannerUpload({
     setUploading(true);
     try {
       // Request permissions
-      console.log('[BannerUpload] Requesting media library permissions...');
+      if (__DEV__) console.log('[BannerUpload] Requesting media library permissions...');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log('[BannerUpload] Permission status:', status);
+      if (__DEV__) console.log('[BannerUpload] Permission status:', status);
 
       if (status !== 'granted') {
         console.warn('[BannerUpload] Permission denied:', status);
@@ -75,7 +78,7 @@ export function BannerUpload({
       }
 
       // Launch picker
-      console.log('[BannerUpload] Launching image picker...');
+      if (__DEV__) console.log('[BannerUpload] Launching image picker...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, // Allow full image without cropping
@@ -83,23 +86,31 @@ export function BannerUpload({
         exif: false,
       });
 
-      console.log('[BannerUpload] Picker result:', {
+      if (__DEV__) console.log('[BannerUpload] Picker result:', {
         canceled: result.canceled,
         assetCount: result.assets?.length || 0
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        console.log('[BannerUpload] Selected asset:', { uri: asset.uri, width: asset.width, height: asset.height });
+        if (__DEV__) console.log('[BannerUpload] Selected asset:', { uri: asset.uri, width: asset.width, height: asset.height });
 
         // Validate image size (max 5MB)
-        console.log('[BannerUpload] Fetching image blob for size validation...');
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        console.log('[BannerUpload] Image size:', blob.size, 'bytes');
+        let fileSize = (asset as any)?.fileSize as number | undefined;
+        if (!fileSize) {
+          try {
+            if (__DEV__) console.log('[BannerUpload] Fetching image blob for size validation...');
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            fileSize = blob.size;
+          } catch (sizeError) {
+            console.warn('[BannerUpload] Failed to read image size, continuing upload:', sizeError);
+          }
+        }
+        if (__DEV__ && fileSize) console.log('[BannerUpload] Image size:', fileSize, 'bytes');
 
-        if (blob.size > 5 * 1024 * 1024) {
-          console.warn('[BannerUpload] Image too large:', blob.size);
+        if (fileSize && fileSize > 5 * 1024 * 1024) {
+          console.warn('[BannerUpload] Image too large:', fileSize);
           Alert.alert(
             'File Too Large',
             'Banner images must be under 5MB. Please choose a smaller image.'
@@ -113,12 +124,26 @@ export function BannerUpload({
         setRotation(0);
         setPosition({ x: 50, y: 50 });
 
-        // Update with selected image
-        console.log('[BannerUpload] Image validated, calling onChange...');
-        onChange(asset.uri, fitMode, { x: 50, y: 50 });
-        console.log('[BannerUpload] Image upload complete');
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `banner_${Date.now()}.jpg`;
+        const fileName = rawName.includes('.') ? rawName : `${rawName}.jpg`;
+        const mimeType = (asset as any)?.mimeType as string | undefined;
+        const uploadSource =
+          Platform.OS === 'web'
+            ? { uri: asset.uri, mimeType }
+            : await ensureUploadableUri(asset.uri, mimeType);
+
+        if (__DEV__) console.log('[BannerUpload] Uploading banner image...');
+        const uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
+        const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
+        if (!uploadedUrl) {
+          throw new Error('Upload succeeded but no URL was returned.');
+        }
+
+        if (__DEV__) console.log('[BannerUpload] Image uploaded, calling onChange...');
+        onChange(String(uploadedUrl), fitMode, { x: 50, y: 50 });
+        if (__DEV__) console.log('[BannerUpload] Image upload complete');
       } else {
-        console.log('[BannerUpload] User canceled or no assets selected');
+        if (__DEV__) console.log('[BannerUpload] User canceled or no assets selected');
       }
     } catch (error: any) {
       console.error('[BannerUpload] Image picker error:', {
@@ -127,10 +152,18 @@ export function BannerUpload({
         stack: error?.stack,
         error
       });
-      Alert.alert(
-        'Error',
-        `Failed to pick image: ${error?.message || 'Unknown error'}. Please try again.`
-      );
+      // Handle iOS PHPicker "public.png" and iCloud sync errors gracefully
+      if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
+        Alert.alert(
+          'Image Selection Failed',
+          'Unable to load this image. This can happen with iCloud-synced photos. Please try selecting a different photo or take a new one with the camera.'
+        );
+      } else {
+        Alert.alert(
+          'Error',
+          `Failed to pick image: ${error?.message || 'Unknown error'}. Please try again.`
+        );
+      }
     } finally {
       setUploading(false);
     }
