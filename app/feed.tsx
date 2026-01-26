@@ -252,8 +252,8 @@ export default function FeedScreen() {
       ]);
       
       // Handle cursor-based response or array
-      let normalizedGames = [];
-      let cursor = null;
+      let normalizedGames: any[] = [];
+      let cursor: string | null = null;
       if (gamesData && typeof gamesData === 'object' && 'items' in gamesData) {
         normalizedGames = Array.isArray(gamesData.items) ? gamesData.items : [];
         cursor = gamesData.nextCursor || null;
@@ -343,8 +343,8 @@ export default function FeedScreen() {
       const nextData = await Game.list('-date');
       
       // Handle cursor-based response or array
-      let normalizedGames = [];
-      let cursor = null;
+      let normalizedGames: any[] = [];
+      let cursor: string | null = null;
       if (nextData && typeof nextData === 'object' && 'items' in nextData) {
         normalizedGames = Array.isArray(nextData.items) ? nextData.items : [];
         cursor = nextData.nextCursor || null;

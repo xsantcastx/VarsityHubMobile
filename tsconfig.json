@@ -2,9 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "jsx": "react-jsx",
-    // Strict mode disabled for pragmatic any usage (photo picker, refs)
-    // Production-ready without strict mode - can enable incrementally if desired
-    "strict": false,
+    "strict": true,
     "noImplicitAny": false,
     // Skip lib check for faster compilation
     "skipLibCheck": true,

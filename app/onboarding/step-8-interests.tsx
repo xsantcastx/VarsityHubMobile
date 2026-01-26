@@ -24,7 +24,7 @@ const OPTIONS: { key: Intent; label: string; icon: keyof typeof Ionicons.glyphMa
 export default function Step8Interests() {
   const router = useRouter();
   const { setProgress, setState: setOB, state: ob } = useOnboarding();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const [sel, setSel] = useState<Intent[]>([]);
   const [saving, setSaving] = useState(false);
 

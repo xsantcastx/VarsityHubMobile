@@ -122,16 +122,16 @@ export function useGoogleAuth() {
 
   // Create request config - use placeholder values if not configured
   // The hook must be called unconditionally (React rules of hooks)
-  const requestConfig: Google.GoogleAuthRequestConfig = useMemo(() => {
+  const requestConfig = useMemo((): Google.GoogleAuthRequestConfig => {
     // If configured, use real values
     if (isConfigured) {
       return {
         scopes: ['profile', 'email'],
         redirectUri,
-        androidClientId: clients.androidClientId || undefined,
-        iosClientId: clients.iosClientId || undefined,
-        webClientId: clients.webClientId || undefined,
-        clientId: clients.expoClientId || undefined,
+        androidClientId: clients.androidClientId,
+        iosClientId: clients.iosClientId,
+        webClientId: clients.webClientId,
+        clientId: clients.expoClientId || '',
       };
     }
 

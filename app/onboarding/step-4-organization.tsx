@@ -17,7 +17,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step4Organization() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const returnToConfirmation = params.returnToConfirmation === 'true';
@@ -35,7 +35,7 @@ export default function Step4Organization() {
   
   // Search/Join state
   const [showSearch, setShowSearch] = useState(false);
-  const [searchZip, setSearchZip] = useState(ob.zip || '');
+  const [searchZip, setSearchZip] = useState(ob.zip || ob.zip_code || '');
   const { organizations: nearbyOrgs, loading: searching, search: searchOrganizations, clear: clearOrganizations } = useOrganizationSearch(false);
   const [requestingJoin, setRequestingJoin] = useState(false);
   const [joinMessage, setJoinMessage] = useState('');
@@ -389,9 +389,11 @@ export default function Step4Organization() {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: locationLabel,
-        formatted_address: selectedPlace?.description,
-        place_id: selectedPlace?.place_id,
+        location: {
+          address: selectedPlace?.description,
+          place_id: selectedPlace?.place_id,
+          zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
+        },
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
       // include plan if present in onboarding state

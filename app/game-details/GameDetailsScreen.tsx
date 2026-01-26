@@ -1107,14 +1107,16 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
+                if (!vm.gameId) throw new Error('No game ID');
+                const gameId = vm.gameId; // type guard
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
-                await Game.addStory(vm.gameId, storyPayload);
+                await Game.addStory(gameId, storyPayload);
                 try {
-                  await loadGameById(vm.gameId);
-                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                  await loadGameById(gameId);
+                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
                 } catch (reloadErr: any) {
                   console.warn('[story] Camera - reload failed but story was uploaded:', reloadErr);
                   Alert.alert('Added', 'Story added to this game. Refresh to see it.');
@@ -1165,14 +1167,16 @@ const GameDetailsScreen = () => {
                   return { ...prev, media: [newItem, ...(prev.media || [])] } as GameVM;
                 });
               } else {
+                if (!vm.gameId) throw new Error('No game ID');
+                const gameId = vm.gameId; // type guard
                 const storyPayload: any = { media_url: mediaUrl };
                 if (location?.latitude && location?.longitude) {
                   storyPayload.location = { lat: location.latitude, lng: location.longitude, source: 'device' };
                 }
-                await Game.addStory(vm.gameId, storyPayload);
+                await Game.addStory(gameId, storyPayload);
                 try {
-                  await loadGameById(vm.gameId);
-                  Alert.alert('Added', isSampleId(vm.gameId) ? 'Story added (demo only).' : 'Story added to this game.');
+                  await loadGameById(gameId);
+                  Alert.alert('Added', isSampleId(gameId) ? 'Story added (demo only).' : 'Story added to this game.');
                 } catch (reloadErr: any) {
                   console.warn('[story] Gallery - reload failed but story was uploaded:', reloadErr);
                   Alert.alert('Added', 'Story added to this game. Refresh to see it.');
@@ -1673,7 +1677,7 @@ const renderBanner = () => {
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel="Event RSVP"
-                accessibilityHint={rsvpChipLabel}
+                accessibilityHint={rsvpChipLabel ?? undefined}
               >
                 <Ionicons
                   name={gamePhase === 'upcoming' ? (vm?.userRsvped ? 'checkmark-circle' : 'add-circle-outline') : 'lock-closed'}

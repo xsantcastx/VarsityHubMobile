@@ -39,8 +39,8 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  delete global.requestAnimationFrame;
-  delete global.cancelAnimationFrame;
+  (global as any).requestAnimationFrame = undefined;
+  (global as any).cancelAnimationFrame = undefined;
 });
 // Use fake timers for all tests in this file
 
@@ -194,9 +194,9 @@ describe('GameDetailsScreen voting UI', () => {
       .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null })
       .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' });
 
-    console.log('Rendering GameDetailsScreen');
+    if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
-    console.log('Rendered GameDetailsScreen');
+    if (__DEV__) console.log('Rendered GameDetailsScreen');
     // Flush timers and microtasks to allow all effects to run
     await act(async () => {
       jest.runOnlyPendingTimers();
@@ -221,9 +221,9 @@ describe('GameDetailsScreen voting UI', () => {
       .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' })
       .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null });
 
-    console.log('Rendering GameDetailsScreen');
+    if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
-    console.log('Rendered GameDetailsScreen');
+    if (__DEV__) console.log('Rendered GameDetailsScreen');
     await act(async () => {
       jest.runOnlyPendingTimers();
       await Promise.resolve();

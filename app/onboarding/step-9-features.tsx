@@ -15,7 +15,7 @@ import OnboardingLayout from './components/OnboardingLayout';
 
 export default function Step9Features() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const { registerPushToken, user } = useAuth();
   const [locationEnabled, setLocationEnabled] = useState(false);

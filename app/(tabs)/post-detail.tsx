@@ -168,7 +168,7 @@ export default function PostDetailScreen() {
       setPost(p);
       
       // Handle comments response - it returns { items, nextCursor }
-      let commentsArray = [];
+      let commentsArray: any[] = [];
       if (Array.isArray(c)) {
         commentsArray = c;
       } else if (c && Array.isArray(c.items)) {

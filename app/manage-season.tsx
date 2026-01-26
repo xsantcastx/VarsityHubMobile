@@ -391,16 +391,19 @@ export default function ManageSeasonScreen() {
     setShowQuickAddModal(true);
   };
 
-  const handleEditGame = (game: Game) => {
-    setEditingGame(game);
-    setShowQuickAddModal(true);
+  const handleEditGame = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
+    if (localGame) {
+      setEditingGame(localGame);
+      setShowQuickAddModal(true);
+    }
   };
 
-  const handleDeleteGame = (game: Game) => {
+  const handleDeleteGame = (game: GameCardGame) => {
     setActionModal({
       visible: true,
       title: 'Delete Game',
-      message: `Are you sure you want to delete the game vs ${game.opponent}?`,
+      message: `Are you sure you want to delete the game vs ${game.opponent || game.opponent_name || 'opponent'}?`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Delete', isDestructive: true, onPress: async () => {
@@ -428,16 +431,18 @@ export default function ManageSeasonScreen() {
     });
   };
 
-  const handleChangeGameStatus = (game: Game) => {
+  const handleChangeGameStatus = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
+    if (!localGame) return;
     const statusOptions = [
       { label: 'Upcoming', value: 'upcoming' as const },
       { label: 'Completed', value: 'completed' as const },
       { label: 'Cancelled', value: 'cancelled' as const },
-    ].filter(option => option.value !== game.status);
+    ].filter(option => option.value !== localGame.status);
     setActionModal({
       visible: true,
       title: 'Change Status',
-      message: `Current status: ${game.status}`,
+      message: `Current status: ${localGame.status}`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         ...statusOptions.map(option => ({
@@ -458,18 +463,19 @@ export default function ManageSeasonScreen() {
     });
   };
 
-  const handleGamePress = (game: Game) => {
+  const handleGamePress = (game: GameCardGame) => {
     router.push({
       pathname: '/(tabs)/feed/game/[id]',
       params: { id: game.id }
     });
   };
 
-  const handleGameLongPress = (game: Game) => {
+  const handleGameLongPress = (game: GameCardGame) => {
+    const localGame = games.find(g => g.id === game.id);
     setActionModal({
       visible: true,
       title: 'Game Options',
-      message: `${game.opponent} - ${game.date}`,
+      message: `${game.opponent || game.opponent_name || 'Game'} - ${game.date || game.scheduled_date || ''}`,
       options: [
         { label: 'Cancel', onPress: () => {}, color: undefined },
         { label: 'Edit', onPress: () => handleEditGame(game) },
@@ -673,8 +679,8 @@ export default function ManageSeasonScreen() {
 
 
       // Save to backend API (create or update)
-      const savedGame = isEditing 
-        ? await GameAPI.update(gameData.id, gamePayload)
+      const savedGame = isEditing
+        ? await GameAPI.update(gameData.id!, gamePayload)
         : await GameAPI.create(gamePayload);
       
       // Create local game object for immediate UI update
@@ -1658,7 +1664,7 @@ export default function ManageSeasonScreen() {
         userRole="coach"
         initialData={editingGame ? {
           id: editingGame.id,
-          opponent: editingGame.opponent,
+          opponent: editingGame.opponent || '',
           date: editingGame.date,
           time: editingGame.time,
           type: editingGame.type === 'neutral' ? 'home' : editingGame.type, // Convert neutral to home for editing

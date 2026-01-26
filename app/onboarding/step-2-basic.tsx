@@ -19,7 +19,7 @@ const usernameRe = /^[a-z0-9_.]+$/;
 
 export default function Step2Basic() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [username, setUsername] = useState('');
@@ -141,7 +141,14 @@ export default function Step2Basic() {
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
     try {
-      setOB((prev) => ({ ...prev, username: finalUsername, affiliation, dob, zip_code: zip || null }));
+      setOB((prev) => ({ 
+        ...prev, 
+        username: finalUsername, 
+        affiliation, 
+        dob, 
+        zip: zip || undefined,
+        zip_code: zip || null 
+      }));
       // Save username (not display_name) - this is the single identifier
       await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       

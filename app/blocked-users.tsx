@@ -8,7 +8,7 @@ import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorSchem
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function BlockedUsersScreen() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);

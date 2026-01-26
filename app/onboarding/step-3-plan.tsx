@@ -47,7 +47,7 @@ function PlanCard({
   disabled?: boolean;
   disabledReason?: string | null;
 }) {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const continueDisabled = saving || disabled;
   
@@ -118,7 +118,7 @@ export default function Step3Plan() {
   const { state: ob, setState: setOB, setProgress } = useOnboarding();
   const [plan, setPlan] = useState<Plan | null>(ob.plan ?? null);
   const [saving, setSaving] = useState(false);
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   
   // Team count for Veteran plan
@@ -552,7 +552,7 @@ export default function Step3Plan() {
                 onPress={() => {
                   setShowTeamCountModal(false);
                   setPlan(null);
-                  setOB((prev) => ({ ...prev, plan: null }));
+                  setOB((prev) => ({ ...prev, plan: undefined }));
                 }}
               >
                 <Text style={[styles.cancelButtonText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>Cancel</Text>

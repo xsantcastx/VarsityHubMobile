@@ -864,7 +864,7 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
   );
 
   const handleShare = useCallback((post: FeedPost) => {
-   const shareLink = AppLinks.post(post.id, post.caption);
+   const shareLink = AppLinks.post(post.id, post.caption ?? undefined);
    Share.share({ message: shareLink.shareMessage, url: shareLink.webUrl }).catch(() => {});
   }, []);
 
