@@ -131,6 +131,23 @@ else
     echo -e "${RED}❌ Sentry package missing${NC}"
     ERRORS=$((ERRORS + 1))
 fi
+
+# Check Babel plugins are in dependencies (not devDependencies) for production builds
+if grep -A 100 '"dependencies"' package.json | grep -q '"babel-plugin-module-resolver"'; then
+    echo -e "${GREEN}✅ babel-plugin-module-resolver in dependencies${NC}"
+else
+    echo -e "${RED}❌ babel-plugin-module-resolver must be in dependencies (not devDependencies)${NC}"
+    echo -e "${RED}   EAS builds with NODE_ENV=production may skip devDependencies${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+if grep -A 100 '"dependencies"' package.json | grep -q '"babel-plugin-transform-remove-console"'; then
+    echo -e "${GREEN}✅ babel-plugin-transform-remove-console in dependencies${NC}"
+else
+    echo -e "${RED}❌ babel-plugin-transform-remove-console must be in dependencies (not devDependencies)${NC}"
+    echo -e "${RED}   Required for production builds${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
 echo ""
 
 # Summary
