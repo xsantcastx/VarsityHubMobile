@@ -160,7 +160,7 @@ export default function SettingsScreen() {
               // Move the async logic into useEffect
               useEffect(() => {
                 let mounted = true;
-                (async () => {
+                void (async () => {
                   setLoading(true);
                   setError(null);
                   try {

@@ -63,12 +63,9 @@ export function BannerUpload({
     setUploading(true);
     try {
       // Request permissions
-      if (__DEV__) console.log('[BannerUpload] Requesting media library permissions...');
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (__DEV__) console.log('[BannerUpload] Permission status:', status);
 
       if (status !== 'granted') {
-        console.warn('[BannerUpload] Permission denied:', status);
         Alert.alert(
           'Permission Required',
           'Please grant photo library access to upload banner images.'
@@ -78,7 +75,6 @@ export function BannerUpload({
       }
 
       // Launch picker
-      if (__DEV__) console.log('[BannerUpload] Launching image picker...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, // Allow full image without cropping
@@ -86,31 +82,22 @@ export function BannerUpload({
         exif: false,
       });
 
-      if (__DEV__) console.log('[BannerUpload] Picker result:', {
-        canceled: result.canceled,
-        assetCount: result.assets?.length || 0
-      });
-
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        if (__DEV__) console.log('[BannerUpload] Selected asset:', { uri: asset.uri, width: asset.width, height: asset.height });
 
         // Validate image size (max 5MB)
         let fileSize = (asset as any)?.fileSize as number | undefined;
         if (!fileSize) {
           try {
-            if (__DEV__) console.log('[BannerUpload] Fetching image blob for size validation...');
             const response = await fetch(asset.uri);
             const blob = await response.blob();
             fileSize = blob.size;
-          } catch (sizeError) {
-            console.warn('[BannerUpload] Failed to read image size, continuing upload:', sizeError);
+          } catch {
+            // Continue upload without size validation
           }
         }
-        if (__DEV__ && fileSize) console.log('[BannerUpload] Image size:', fileSize, 'bytes');
 
         if (fileSize && fileSize > 5 * 1024 * 1024) {
-          console.warn('[BannerUpload] Image too large:', fileSize);
           Alert.alert(
             'File Too Large',
             'Banner images must be under 5MB. Please choose a smaller image.'
@@ -132,26 +119,15 @@ export function BannerUpload({
             ? { uri: asset.uri, mimeType }
             : await ensureUploadableUri(asset.uri, mimeType);
 
-        if (__DEV__) console.log('[BannerUpload] Uploading banner image...');
         const uploaded = await uploadFile(null, uploadSource.uri, fileName, uploadSource.mimeType);
         const uploadedUrl = uploaded?.url || uploaded?.signed_url || uploaded?.path;
         if (!uploadedUrl) {
           throw new Error('Upload succeeded but no URL was returned.');
         }
 
-        if (__DEV__) console.log('[BannerUpload] Image uploaded, calling onChange...');
         onChange(String(uploadedUrl), fitMode, { x: 50, y: 50 });
-        if (__DEV__) console.log('[BannerUpload] Image upload complete');
-      } else {
-        if (__DEV__) console.log('[BannerUpload] User canceled or no assets selected');
       }
     } catch (error: any) {
-      console.error('[BannerUpload] Image picker error:', {
-        message: error?.message,
-        name: error?.name,
-        stack: error?.stack,
-        error
-      });
       // Handle iOS PHPicker "public.png" and iCloud sync errors gracefully
       if (error?.message?.includes('public.png') || error?.message?.includes('Failed to read picked image')) {
         Alert.alert(

@@ -10,7 +10,7 @@ interface RankingBadgeProps {
   style?: any;
 }
 
-const getRankingConfig = (type: RankingType, position?: number) => {
+const getRankingConfig = (type: RankingType, _position?: number) => {
   switch (type) {
     case 'trending':
       return {

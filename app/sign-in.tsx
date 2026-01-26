@@ -52,28 +52,21 @@ export default function SignInScreen() {
     setLoading(true);
     setError(null);
     try {
-      if (__DEV__) console.log('[sign-in] Attempting email/password login for:', email);
       const res: any = await User.loginViaEmailPassword(email, password);
 
       if (!res?.access_token) {
         const errMsg = `Invalid login response: missing access_token. Response keys: ${Object.keys(res || {}).join(', ')}`;
-        console.error('[sign-in]', errMsg);
         captureException(new Error(errMsg), { tags: { context: 'email-password-login', userId: email } });
         setError('Invalid login response from server');
         setLoading(false);
         return;
       }
 
-      if (__DEV__) console.log('[sign-in] Login successful, token received. Checking auth state...');
-
       // If email verification is needed, call checkAuth with pendingVerification flag
       if (res?.needs_verification) {
-        if (__DEV__) console.log('[sign-in] Email verification required');
         try {
           await checkAuth({ email, pendingVerification: true });
-          if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route to verify-email');
-        } catch (checkErr: any) {
-          console.error('[sign-in] checkAuth failed after login:', checkErr);
+        } catch {
           // Token is saved, AuthProvider will handle routing on next render
         }
         setLoading(false);
@@ -83,17 +76,13 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
-        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
-      } catch (checkErr: any) {
-        console.error('[sign-in] checkAuth failed after login:', checkErr);
+      } catch {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
       }
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
       const status = e?.status || e?.response?.status;
-      
-      console.error('[sign-in] Login error:', { message: errMsg, status, error: e });
       
       // Show user-friendly error messages
       if (status === 401) {
@@ -128,33 +117,25 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      if (__DEV__) console.log('[sign-in] Starting Google sign-in...');
       const response: any = await signInWithGoogle();
-      if (__DEV__) console.log('[sign-in] Google OAuth successful, response:', response);
 
       if (!response?.access_token) {
         const errMsg = `Google sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
-        console.error('[sign-in]', errMsg);
         captureException(new Error(errMsg), { tags: { context: 'google-signin' } });
         setError('Failed to complete Google sign-in. Please try again.');
         return;
       }
 
-      if (__DEV__) console.log('[sign-in] Google login successful, token received. Checking auth state...');
-      
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
-      } catch (checkErr: any) {
-        console.error('[sign-in] checkAuth failed after Google login:', checkErr);
+      } catch {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
       }
     } catch (e: any) {
       // Silently ignore user cancellation
       if (e?.code === 'CANCELLED' || e?.message === 'GOOGLE_SIGN_IN_CANCELLED') {
-        if (__DEV__) console.log('[sign-in] User cancelled Google sign-in');
         return;
       }
 
@@ -162,8 +143,6 @@ export default function SignInScreen() {
       if (typeof message === 'string' && message.toLowerCase().includes('cancel')) {
         return;
       }
-      
-      console.error('[sign-in] Google sign-in error:', { message, error: e });
       
       // Show user-friendly error
       if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
@@ -188,26 +167,19 @@ export default function SignInScreen() {
     }
     setError(null);
     try {
-      if (__DEV__) console.log('[sign-in] Starting Apple sign-in...');
       const response: any = await signInWithApple();
-      if (__DEV__) console.log('[sign-in] Apple OAuth successful, response:', response);
 
       if (!response?.access_token) {
         const errMsg = `Apple sign-in failed: missing access_token. Response: ${JSON.stringify(response).substring(0, 200)}`;
-        console.error('[sign-in]', errMsg);
         captureException(new Error(errMsg), { tags: { context: 'apple-signin' } });
         setError('Failed to complete Apple sign-in. Please try again.');
         return;
       }
 
-      if (__DEV__) console.log('[sign-in] Apple login successful, token received. Checking auth state...');
-      
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-        if (__DEV__) console.log('[sign-in] checkAuth completed, AuthProvider will route user');
-      } catch (checkErr: any) {
-        console.error('[sign-in] checkAuth failed after Apple login:', checkErr);
+      } catch {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
       }
@@ -222,11 +194,8 @@ export default function SignInScreen() {
         code.includes('cancelled') ||
         code === 'err_request_canceled'
       ) {
-        if (__DEV__) console.log('[sign-in] User cancelled Apple sign-in');
         return;
       }
-      
-      console.error('[sign-in] Apple sign-in error:', { message, code, error: e });
       
       // Show user-friendly error
       if (message.includes('Network') || message.includes('timeout') || message.includes('fetch')) {
@@ -261,12 +230,12 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: palette.card,
-                shadowColor: colorScheme === 'dark' ? '#000000' : palette.background,
-                shadowOpacity: colorScheme === 'dark' ? 0.3 : 0.1,
-                shadowOffset: { width: 0, height: 2 },
-                shadowRadius: 8,
-                elevation: colorScheme === 'dark' ? 4 : 2,
+                backgroundColor: '#FFFFFF',
+                shadowColor: '#000000',
+                shadowOpacity: 0.15,
+                shadowOffset: { width: 0, height: 4 },
+                shadowRadius: 12,
+                elevation: 6,
               }
             ]}>
               <Image

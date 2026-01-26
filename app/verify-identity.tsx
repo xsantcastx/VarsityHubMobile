@@ -49,7 +49,6 @@ export default function VerifyScreen() {
     if (fromParams) {
       setDevCode(fromParams);
       setCode(fromParams);
-      if (__DEV__) console.log('[verify] Dev code loaded from params:', fromParams);
     }
   }, [params.devCode]);
 
@@ -57,40 +56,32 @@ export default function VerifyScreen() {
     if (!code.trim()) return;
     setLoading(true); setError(null); setInfo(null);
     try {
-      if (__DEV__) console.log('[verify] Attempting to verify email with code:', code.trim());
-      const result = await User.verifyEmail(code.trim());
-      if (__DEV__) console.log('[verify] Email verification result:', result);
+      await User.verifyEmail(code.trim());
       setInfo('✅ Email verified successfully!');
-      
+
       setCode(''); // Clear the code input
       setIsVerified(true);
-      
+
       // After successful verification, check if user needs onboarding
       try {
         const userInfo = await User.me();
-        if (__DEV__) console.log('[verify] User info after verification:', userInfo);
-        
         const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
-        
+
         // Auto-redirect after 3 seconds
         setTimeout(() => {
           if (needsOnboarding) {
-            if (__DEV__) console.log('[verify] Auto-redirecting to onboarding...');
             router.replace('/onboarding/step-1-role');
           } else {
-            if (__DEV__) console.log('[verify] Auto-redirecting to main app...');
             router.replace('/(tabs)' as any);
           }
         }, 3000);
-        
-      } catch (userError) {
-        console.error('[verify] Failed to get user info, defaulting to onboarding:', userError);
+
+      } catch {
         setTimeout(() => {
           router.replace('/onboarding/step-1-role');
         }, 3000);
       }
     } catch (e: any) {
-      console.error('[verify] Email verification failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Verification failed';
       setError(errorMsg);
     } finally {
@@ -101,12 +92,9 @@ export default function VerifyScreen() {
   const onResend = async () => {
     setLoading(true); setError(null); setInfo(null);
     try {
-      if (__DEV__) console.log('[verify] Requesting new email verification code...');
       const res: any = await User.requestVerification();
-      if (__DEV__) console.log('[verify] Resend email response:', res);
       setInfo(res?.dev_verification_code ? `Code sent (dev: ${res.dev_verification_code})` : 'Code sent');
     } catch (e: any) {
-      console.error('[verify] Resend email failed:', e);
       const errorMsg = e?.message || e?.data?.error || 'Resend failed';
       setError(errorMsg);
     } finally {
@@ -115,18 +103,16 @@ export default function VerifyScreen() {
   };
 
   const onContinue = async () => {
-    if (__DEV__) console.log('[verify] User clicked Continue, proceeding immediately...');
     try {
       const userInfo = await User.me();
       const needsOnboarding = userInfo?.preferences?.onboarding_completed === false;
-      
+
       if (needsOnboarding) {
         router.replace('/onboarding/step-1-role');
       } else {
         router.replace('/(tabs)' as any);
       }
-    } catch (userError) {
-      console.error('[verify] Failed to get user info:', userError);
+    } catch {
       router.replace('/onboarding/step-1-role');
     }
   };

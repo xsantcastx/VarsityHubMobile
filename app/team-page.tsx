@@ -333,14 +333,6 @@ export default function TeamScreen() {
         teamData = { ...teamData, organization_id: String(orgId) } as LeagueTeam;
       }
       
-      // Log for debugging
-      if (__DEV__) console.log('[team-page] Team loaded:', {
-        id: teamData?.id,
-        name: teamData?.name,
-        organization_id: teamData?.organization_id || orgId || 'NONE',
-        hasOrg: !!(teamData?.organization_id || orgId),
-      });
-      
       setTeam(teamData);
 
       // Load current user to check permissions
@@ -668,8 +660,6 @@ export default function TeamScreen() {
               const orgId = team?.organization_id;
               if (orgId) {
                 router.push(`/organizations/${orgId}` as any);
-              } else {
-                if (__DEV__) console.log('[team-page] No organization_id for team:', team?.id);
               }
             }}
             disabled={!team?.organization_id}

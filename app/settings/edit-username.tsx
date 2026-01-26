@@ -50,26 +50,16 @@ export default function EditUsernameScreen() {
       return;
     }
     setSaving(true);
-    try { 
-      if (__DEV__) console.log('[edit-username] Updating username to:', v);
-      const result = await User.updateMe({ username: v });
-      if (__DEV__) console.log('[edit-username] Update result:', result);
+    try {
+      await User.updateMe({ username: v });
       // Refresh user data in both useUser hook and AuthProvider
       await Promise.all([
         refreshUser(),
         checkAuth().catch(() => {}), // Refresh AuthProvider state
       ]);
-      if (__DEV__) console.log('[edit-username] User data refreshed in all contexts');
       Alert.alert('Success', 'Username updated successfully');
-      router.back(); 
-    } catch (e: any) { 
-      console.error('[edit-username] Update failed:', e);
-      console.error('[edit-username] Error details:', {
-        message: e?.message,
-        data: e?.data,
-        response: e?.response,
-        status: e?.status,
-      });
+      router.back();
+    } catch (e: any) {
       let errorMessage = 'Could not save username';
       if (e?.data?.message) {
         errorMessage = e.data.message;
