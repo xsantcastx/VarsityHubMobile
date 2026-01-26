@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx prisma generate && rm -f .tsbuildinfo && tsc -p . && ( [ -d ../shared ] && cp -r ../shared dist/ || [ -d ./shared ] && cp -r ./shared dist/ )",
+    "build": "npx prisma generate && rm -f .tsbuildinfo && tsc -p . && ( [ -d ../shared ] && cp -r ../shared dist/ || [ -d ./shared ] && cp -r ./shared dist/ || (echo 'ERROR: shared directory not found!' && exit 1) ) && [ -f dist/shared/plan-definitions.json ] || (echo 'ERROR: plan-definitions.json not found after copy!' && exit 1)",
     "start": "node dist/index.js",
     "postinstall": "npx prisma generate",
     "railway:deploy": "npx prisma generate && npm run build",
