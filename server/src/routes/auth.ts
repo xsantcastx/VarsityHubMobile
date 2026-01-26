@@ -1,16 +1,15 @@
 import bcrypt from 'bcrypt';
 import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router } from 'express';
-import { z } from 'zod';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
-import { sendPasswordResetEmail, sendPasswordChangedEmail, sendVerificationEmail } from '../lib/email.js';
-import { signJwt } from '../lib/jwt.js';
-import { prisma } from '../lib/prisma.js';
-import type { AuthedRequest } from '../middleware/auth.js';
-import { AuthenticationError } from '../lib/errors/AuthenticationError.js';
+import { z } from 'zod';
+import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import { ConflictError } from '../lib/errors/ConflictError.js';
 import { ValidationError } from '../lib/errors/ValidationError.js';
+import { signJwt } from '../lib/jwt.js';
+import { prisma } from '../lib/prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 export const authRouter = Router();
 // Simple in-memory rate limiting for auth endpoints

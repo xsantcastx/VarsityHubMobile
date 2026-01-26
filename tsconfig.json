@@ -3,7 +3,6 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "strict": true,
-    "noImplicitAny": false,
     // Skip lib check for faster compilation
     "skipLibCheck": true,
     "baseUrl": ".",
