@@ -18,6 +18,10 @@
     "preview": {
       "node": "20.19.4",
       "distribution": "internal",
+      "env": {
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -29,6 +33,10 @@
       "node": "20.19.4",
       "distribution": "store",
       "autoIncrement": true,
+      "env": {
+        "SENTRY_ORG": "varsity-hub",
+        "SENTRY_PROJECT": "varsity-hub-mobile"
+      },
       "ios": {
         "resourceClass": "m-medium"
       },

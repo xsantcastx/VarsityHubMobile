@@ -1,12 +1,8 @@
 export default {
-  preset: 'ts-jest/presets/default-esm',
+  preset: 'ts-jest',
   testEnvironment: 'node',
-  testEnvironmentOptions: {
-    customExportConditions: ['node', 'node-addons'],
-  },
-  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.(ts|tsx)$': ['ts-jest', { useESM: true, tsconfig: { isolatedModules: true } }],
+    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: { isolatedModules: true } }],
   },
   roots: ['<rootDir>/src'],
   maxWorkers: 1,

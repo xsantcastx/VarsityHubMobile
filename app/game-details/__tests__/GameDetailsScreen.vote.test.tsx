@@ -142,6 +142,9 @@ jest.mock('@/api/entities', () => ({
     clearVote: jest.fn(),
     deleteMedia: jest.fn(),
   },
+  Post: {
+    feedForGame: jest.fn().mockResolvedValue({ items: [] }),
+  },
   Event: {
     get: jest.fn().mockResolvedValue({ id: 'event-1', title: 'Event', date: new Date(Date.now() + 60 * 60 * 1000).toISOString(), location: 'Test Field', banner_url: null, cover_image_url: null, capacity: 100, attendees_count: 0 }),
     rsvp: jest.fn(),
@@ -151,7 +154,7 @@ jest.mock('@/api/entities', () => ({
     list: jest.fn().mockResolvedValue([]),
   },
   User: {
-    me: jest.fn(),
+    me: jest.fn().mockResolvedValue(null),
   },
 }));
 
@@ -200,19 +203,17 @@ describe('GameDetailsScreen voting UI', () => {
     // Flush timers and microtasks to allow all effects to run
     await act(async () => {
       jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(1000);
       await Promise.resolve();
     });
-
-    const voteAButton = await screen.findByLabelText('Vote for Home');
+    const voteAButton = screen.getByLabelText('Vote for Home');
 
     fireEvent.press(voteAButton);
     await act(async () => {
-      jest.runAllTimers();
+      jest.advanceTimersByTime(1000);
       await Promise.resolve();
     });
-    await waitFor(() => {
-      expect(Game.castVote).toHaveBeenCalledWith('game-1', 'A');
-    });
+    expect(Game.castVote).toHaveBeenCalledWith('game-1', 'A');
   });
 
   it('clears a vote on long press when already selected', async () => {
@@ -226,18 +227,16 @@ describe('GameDetailsScreen voting UI', () => {
     if (__DEV__) console.log('Rendered GameDetailsScreen');
     await act(async () => {
       jest.runOnlyPendingTimers();
+      jest.advanceTimersByTime(1000);
       await Promise.resolve();
     });
-
-    const voteAButton = await screen.findByLabelText('Vote for Home');
+    const voteAButton = screen.getByLabelText('Vote for Home');
 
     fireEvent(voteAButton, 'longPress');
     await act(async () => {
-      jest.runAllTimers();
+      jest.advanceTimersByTime(1000);
       await Promise.resolve();
     });
-    await waitFor(() => {
-      expect(Game.clearVote).toHaveBeenCalledWith('game-1');
-    });
+    expect(Game.clearVote).toHaveBeenCalledWith('game-1');
   });
 });

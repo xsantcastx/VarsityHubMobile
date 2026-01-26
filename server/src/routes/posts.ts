@@ -132,6 +132,11 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   return res.json({ items: payload, nextCursor });
 });
 
+postsRouter.get('/trending', async (req: AuthedRequest, res) => {
+  req.query.sort = 'trending';
+  return postsRouter.handle?.(req, res, () => {});
+});
+
 // Debug endpoint to check follow relationships
 postsRouter.get('/debug/follows', requireAuth, async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
@@ -883,4 +888,45 @@ postsRouter.patch('/:postId/comments/:commentId', requireAuth as any, async (req
     console.error('Error updating comment:', error);
     res.status(500).json({ error: 'Failed to update comment' });
   }
+});
+
+// New route handler for creating a collage post
+postsRouter.post('/collage', requireVerified as any, async (req: AuthedRequest, res) => {
+  const { title, postIds } = req.body;
+
+  if (!Array.isArray(postIds) || postIds.length === 0) {
+    return res.status(400).json({ error: 'postIds must be a non-empty array' });
+  }
+
+  const posts = await prisma.post.findMany({
+    where: {
+      id: { in: postIds },
+      author_id: req.user!.id,
+      deleted_at: null,
+      media_url: { not: null },
+    },
+    select: { media_url: true },
+    orderBy: { created_at: 'asc' },
+  });
+
+  if (posts.length !== postIds.length) {
+    return res.status(403).json({ error: 'You can only create a collage from your own posts that have media.' });
+  }
+
+  // In a real implementation, we would generate a collage image here.
+  // For now, we'll just create a new post with a placeholder media_url
+  // representing the collage.
+
+  const newPost = await prisma.post.create({
+    data: {
+      title: title || 'My Collage',
+      content: `A collage of ${posts.length} posts.`,
+      author_id: req.user!.id,
+      type: 'collage',
+      // In a real app, this would be the URL to the generated collage image
+      media_url: posts[0].media_url, 
+    },
+  });
+
+  res.status(201).json(newPost);
 });
