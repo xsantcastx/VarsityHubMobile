@@ -8,17 +8,6 @@
       "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
-        "CLOUDINARY_URL": "cloudinary://324968783148443:HuuU1B0UO_hzCKe51Zyyy85mTlzw@dxb5oq4fs"
-      },
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -29,16 +18,6 @@
     "preview": {
       "node": "20.19.4",
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
-        "CLOUDINARY_URL": "cloudinary://324968783148443:HuuU1B0UO_hzCKe51Zyyy85mTlzw@dxb5oq4fs"
-      },
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -50,19 +29,6 @@
       "node": "20.19.4",
       "distribution": "store",
       "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-production-8ac3.up.railway.app",
-        "EXPO_PUBLIC_FORCE_REMOTE_API": "1",
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyD41NuiCoah1ed8P1HVlucciSlBaNMyKBY",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "316424843313-kte6qvms4kbmsii5o0b0o3jjndhs709s.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "SENTRY_ALLOW_FAILURE": "true",
-        "CLOUDINARY_URL": "cloudinary://324968783148443:HuuU1B0UO_hzCKe51Zyyy85mTlzw@dxb5oq4fs"
-      },
       "ios": {
         "resourceClass": "m-medium"
       },

@@ -22,9 +22,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.varsithub.varsityhub",
       "usesAppleSignIn": true,
-      "config": {
-        "googleMapsApiKey": "AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA"
-      },
+      "config": {},
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -44,11 +42,7 @@
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
       "package": "com.varsithub.varsityhub",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA"
-        }
-      },
+      "config": {},
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -144,7 +138,6 @@
       "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID": "316424843313-3r9h72gqse6va030qr17lmll8ia3b9vb.apps.googleusercontent.com",
       "EXPO_PUBLIC_GOOGLE_FORCE_PROXY": "0",
-      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA",
       "EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME": "@varsityhub/varsityhub"
     }
   }

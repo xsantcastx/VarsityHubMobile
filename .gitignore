@@ -121,3 +121,4 @@ overnight-logs-*/
 .cursor/rules/snyk_rules.mdc
 .env.bak
 builds/
+credentials.json
