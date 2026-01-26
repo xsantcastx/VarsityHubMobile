@@ -13,6 +13,7 @@
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
+      "envFiles": [".env.development"],
       "ios": {
         "resourceClass": "m-medium",
         "buildConfiguration": "Debug"
@@ -30,6 +31,7 @@
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
+      "envFiles": [".env.preview"],
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -47,6 +49,7 @@
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
+      "envFiles": [".env.production"],
       "ios": {
         "resourceClass": "m-medium",
         "buildConfiguration": "Release"

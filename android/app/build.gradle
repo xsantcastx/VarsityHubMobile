@@ -96,12 +96,17 @@ project.ext.sentryCli = [
 
 apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
 
-// Disable Sentry upload tasks if auth token is missing
+// Ensure Sentry upload tasks fail with clear error if token is missing (for production builds)
 afterEvaluate {
     tasks.matching { it.name.contains("Sentry") && (it.name.contains("Upload") || it.name.contains("upload")) }.configureEach { task ->
-        if (!sentryHasAuthToken) {
-            task.enabled = false
-            logger.warn("Sentry upload task '${task.name}' disabled: SENTRY_AUTH_TOKEN not configured")
+        if (!sentryHasAuthToken && !sentryDisableAutoUpload) {
+            task.doFirst {
+                throw new GradleException(
+                    "SENTRY_AUTH_TOKEN is required for Sentry source map uploads.\n" +
+                    "Set it in EAS secrets: eas secret:create --name SENTRY_AUTH_TOKEN --value <your-token> --scope project\n" +
+                    "Or disable uploads: SENTRY_DISABLE_AUTO_UPLOAD=true"
+                )
+            }
         }
     }
 }
