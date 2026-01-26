@@ -1,6 +1,6 @@
 import { Organization, Team, User } from '@/api/entities';
 import uploadFile from '@/api/upload';
-import { JerseyBadge, Sport } from '@/components/JerseyBadge';
+import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
@@ -18,7 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameVerticalFeedScreen, { FeedPost } from './game-details/GameVerticalFeedScreen';
 
@@ -45,7 +45,7 @@ const clampValue = (value: number, min: number, max: number) => Math.min(max, Ma
 /**
  * Get sport emoji based on sport type
  */
-const getSportEmoji = (sport: string): string => {
+const _getSportEmoji = (sport: string): string => {
   const emojiMap: Record<string, string> = {
     basketball: '🏀',
     football: '🏈',
@@ -133,11 +133,11 @@ export default function ProfileScreen() {
   const [upvotesHasMore, setUpvotesHasMore] = useState(true);
   const [upvotesLoading, setUpvotesLoading] = useState(false);
   const upvotesRequestInFlight = useRef(false);
-  const [sort, setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
-  const [counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
+  const [sort, _setSort] = useState<'newest' | 'most_upvoted' | 'most_commented'>('newest');
+  const [_counts, setCounts] = useState<{ posts: number; likes: number; comments: number; reposts: number; saves: number } | null>(null);
   const _rememberingTab = useRef(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [_organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
   const profileRequestInFlight = useRef(false);
 
@@ -567,14 +567,14 @@ export default function ProfileScreen() {
   // Use ONLY username (with @) - no display_name
   const displayUsername = me?.username ? `@${me.username}` : 'User';
   
-  // Athlete-specific data from preferences
-  const isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
-  const jerseyNumber = preferences?.jersey_number || me?.jersey_number;
-  const position = preferences?.position || me?.position;
-  const gradeLevel = preferences?.grade_level;
-  const graduationYear = preferences?.graduation_year;
-  const accolades = preferences?.accolades;
-  const primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
+  // Athlete-specific data from preferences (currently unused but may be needed for future features)
+  const _isAthlete = Boolean(preferences?.position || preferences?.jersey_number);
+  const _jerseyNumber = preferences?.jersey_number || me?.jersey_number;
+  const _position = preferences?.position || me?.position;
+  const _gradeLevel = preferences?.grade_level;
+  const _graduationYear = preferences?.graduation_year;
+  const _accolades = preferences?.accolades;
+  const _primarySport = (preferences?.primary_sport || preferences?.sport || 'other') as Sport;
   const headerBackgroundImage = preferences?.header_image_url || null;
   const headerImageFocusY = clampValue(typeof preferences?.header_image_focus_y === 'number' ? preferences.header_image_focus_y : 0, -1, 1);
   const heroGradientColors: [string, string, ...string[]] = headerBackgroundImage
@@ -614,7 +614,7 @@ export default function ProfileScreen() {
   const firstGradientColor = heroGradientColors[0] || userThemeColor;
   const userNameTextColor = getTextColorForBackground(firstGradientColor);
   
-  const stats = [
+  const _stats = [
     { label: 'posts', value: me?._count?.posts ?? 0 },
     { label: 'followers', value: me?._count?.followers ?? 0 },
     { label: 'following', value: me?._count?.following ?? 0 },

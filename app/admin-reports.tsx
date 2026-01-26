@@ -158,8 +158,8 @@ export default function AdminReportsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const token = await (await import('@/api/auth')).loadToken();
-              const apiUrl = getApiBaseUrl();
+              const _token = await (await import('@/api/auth')).loadToken();
+              const _apiUrl = getApiBaseUrl();
               
               // Use API client instead of direct fetch
               const { httpPost } = await import('@/api/http');

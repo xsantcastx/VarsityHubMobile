@@ -182,13 +182,13 @@ export default function Step1Role() {
 
       if (role === 'coach' && !wasCoachBefore) {
         // User is switching TO coach - clear state to ensure full onboarding
-        if (__DEV__) console.log('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
+        if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
         await clearOnboarding();
         setOB({ role: 'coach' });
         setProgress(1);
       } else if (role === 'coach') {
         // Already a coach - just continue where they left off
-        if (__DEV__) console.log('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
+        if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
         setOB((prev) => ({ ...prev, role: 'coach' }));
       } else {
         setOB((prev) => ({ ...prev, role }));
@@ -244,11 +244,11 @@ export default function Step1Role() {
               9: '/onboarding/step-10-confirmation',
             };
             const resumeRoute = stepRoutes[currentProgress] || '/onboarding/step-2-basic';
-            if (__DEV__) console.log('[COACH ONBOARDING] 🚀 Resuming at progress', currentProgress, '->', resumeRoute);
+            if (__DEV__) console.warn('[COACH ONBOARDING] 🚀 Resuming at progress', currentProgress, '->', resumeRoute);
             router.replace(resumeRoute as any);
           } else {
             // New coach or no progress - start at step 2
-            if (__DEV__) console.log('[COACH ONBOARDING] 🚀 Starting at Step 2 (Basic Info)');
+            if (__DEV__) console.warn('[COACH ONBOARDING] 🚀 Starting at Step 2 (Basic Info)');
             setProgress(1);
             router.replace('/onboarding/step-2-basic');
           }
