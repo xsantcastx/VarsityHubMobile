@@ -81,6 +81,19 @@ def enableMinifyInReleaseBuilds = true
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def sentryDisableAutoUpload = (System.getenv("SENTRY_DISABLE_AUTO_UPLOAD") ?: "").toBoolean()
+def sentryAuthToken = System.getenv("SENTRY_AUTH_TOKEN")
+def sentryAuthTokenValue = sentryAuthToken == null ? "" : sentryAuthToken.trim()
+def sentryTokenLooksPlaceholder = sentryAuthTokenValue.isEmpty() ||
+    sentryAuthTokenValue == "<your_token>" ||
+    sentryAuthTokenValue == "YOUR_REAL_TOKEN_HERE"
+def sentryHasAuthToken = !sentryTokenLooksPlaceholder
+
+project.ext.sentryCli = [
+    logLevel: System.getenv("SENTRY_LOG_LEVEL") ?: "info",
+    autoUpload: !sentryDisableAutoUpload && sentryHasAuthToken
+]
+
 apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
 
 android {

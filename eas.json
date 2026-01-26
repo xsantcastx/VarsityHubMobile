@@ -9,6 +9,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
+        "NODE_ENV": "development",
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
@@ -25,6 +26,7 @@
       "node": "20.19.4",
       "distribution": "internal",
       "env": {
+        "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
@@ -41,6 +43,7 @@
       "distribution": "store",
       "autoIncrement": true,
       "env": {
+        "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
         "SENTRY_PROJECT": "varsity-hub-mobile"
       },
