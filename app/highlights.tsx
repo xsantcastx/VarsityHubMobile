@@ -128,7 +128,7 @@ const HighlightCard = ({
   const hasMedia = !!item.media_url;
   
   // Calculate ranking for this item
-  const ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
+  const _ranking = calculateRanking(item, index, currentTab, nationalTop, ranked, userLocation);
   
   // Show numbered ranking for Trending (top 3) and Top (1-10)
   const showNumberedRank = (currentTab === 'trending' && index < 3) || (currentTab === 'top' && index < 10);

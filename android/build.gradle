@@ -12,41 +12,12 @@ buildscript {
   }
 }
 
-ext {
-  buildToolsVersion = "36.0.0"
-  minSdkVersion = 24
-  compileSdkVersion = 36
-  targetSdkVersion = 36
-  ndkVersion = "27.1.12297006"
-}
-
 allprojects {
   repositories {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
-}
-
-subprojects {
-    afterEvaluate {project ->
-        if (project.hasProperty("android")) {
-            android {
-                compileSdkVersion 36
-                buildToolsVersion "36.0.0"
-
-                defaultConfig {
-                    minSdkVersion 24
-                    targetSdkVersion 36
-                }
-                
-                compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_17
-                    targetCompatibility JavaVersion.VERSION_17
-                }
-            }
-        }
-    }
 }
 
 apply plugin: "expo-root-project"

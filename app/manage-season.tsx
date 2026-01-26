@@ -471,7 +471,7 @@ export default function ManageSeasonScreen() {
   };
 
   const handleGameLongPress = (game: GameCardGame) => {
-    const localGame = games.find(g => g.id === game.id);
+    const _localGame = games.find(g => g.id === game.id);
     setActionModal({
       visible: true,
       title: 'Game Options',

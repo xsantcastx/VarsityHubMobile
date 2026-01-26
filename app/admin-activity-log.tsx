@@ -34,8 +34,8 @@ export default function AdminActivityLogScreen() {
     setError(null);
     
     try {
-      const token = await (await import('@/api/auth')).loadToken();
-      const apiUrl = getApiBaseUrl();
+      const _token = await (await import('@/api/auth')).loadToken();
+      const _apiUrl = getApiBaseUrl();
 
       const params = new URLSearchParams();
       if (filter !== 'all') params.append('type', filter);

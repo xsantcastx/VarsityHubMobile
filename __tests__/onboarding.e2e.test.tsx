@@ -1,4 +1,4 @@
-import Step2Basic from '@/app/onboarding/step-2-basic';
+import Step2Basic from '../app/onboarding/step-2-basic';
 import { OBProvider } from '@/context/OnboardingContext';
 import { act, fireEvent, render } from '@testing-library/react-native';
 

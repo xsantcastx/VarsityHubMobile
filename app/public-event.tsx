@@ -23,7 +23,7 @@ export default function PublicEventScreen() {
     try {
       const eventId = params.id!;
       const isSampleEvent = /^sample-/i.test(eventId);
-      if (__DEV__) console.log('[public-event] loadEventData called | eventId:', eventId, '| isSampleEvent:', isSampleEvent);
+      if (__DEV__) console.warn('[public-event] loadEventData called | eventId:', eventId, '| isSampleEvent:', isSampleEvent);
 
       // For sample events, try to load posts by game_id (since sample events don't exist in DB)
       // For real events, try both event_id and game_id
@@ -33,23 +33,23 @@ export default function PublicEventScreen() {
         // Sample events: fetch posts by game_id (which matches the event ID for samples)
         // NOTE: Server should store sample event game_id and query it correctly
         try {
-          if (__DEV__) console.log('[public-event] Fetching sample event posts with game_id:', eventId);
+          if (__DEV__) console.warn('[public-event] Fetching sample event posts with game_id:', eventId);
           const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch((err) => {
-            if (__DEV__) console.log('[public-event] feedForGame error:', err);
+            if (__DEV__) console.warn('[public-event] feedForGame error:', err);
             return null;
           });
-          if (__DEV__) console.log('[public-event] feedForGame response:', JSON.stringify(gamePosts, null, 2));
+          if (__DEV__) console.warn('[public-event] feedForGame response:', JSON.stringify(gamePosts, null, 2));
           if (gamePosts && Array.isArray(gamePosts.items)) {
             eventPosts = gamePosts.items;
-            if (__DEV__) console.log('[public-event] Got', eventPosts.length, 'posts from gamePosts.items');
+            if (__DEV__) console.warn('[public-event] Got', eventPosts.length, 'posts from gamePosts.items');
           } else if (Array.isArray(gamePosts)) {
             eventPosts = gamePosts;
-            if (__DEV__) console.log('[public-event] Got', eventPosts.length, 'posts from gamePosts array');
+            if (__DEV__) console.warn('[public-event] Got', eventPosts.length, 'posts from gamePosts array');
           } else {
-            if (__DEV__) console.log('[public-event] No posts found in response');
+            if (__DEV__) console.warn('[public-event] No posts found in response');
           }
         } catch (err) {
-          if (__DEV__) console.log('[public-event] Failed to load sample event posts by game_id:', err);
+          if (__DEV__) console.warn('[public-event] Failed to load sample event posts by game_id:', err);
         }
       } else {
         // Real events: try event_id first, then game_id as fallback
@@ -173,7 +173,7 @@ export default function PublicEventScreen() {
                 // For sample events, use the event's game_id if it exists, otherwise use event ID
                 // The create-post screen accepts gameId and will handle sample events appropriately
                 const targetGameId = event?.game_id || params?.id || '';
-                if (__DEV__) console.log('[PublicEvent] Navigating to create-post with gameId:', targetGameId, '| params.id:', params?.id, '| event?.game_id:', event?.game_id);
+                if (__DEV__) console.warn('[PublicEvent] Navigating to create-post with gameId:', targetGameId, '| params.id:', params?.id, '| event?.game_id:', event?.game_id);
                 router.push({
                   pathname: '/(tabs)/create-post',
                   params: { gameId: targetGameId },

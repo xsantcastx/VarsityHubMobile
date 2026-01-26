@@ -2,11 +2,6 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// Disable Sentry uploads - configure before applying Sentry plugin
-if (!System.getenv("SENTRY_AUTH_TOKEN")) {
-    System.setProperty("sentry.skip", "true")
-}
-
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
@@ -92,7 +87,7 @@ android {
     ndkVersion rootProject.ext.ndkVersion
 
     buildToolsVersion rootProject.ext.buildToolsVersion
-    compileSdk 36
+    compileSdk rootProject.ext.compileSdkVersion
 
     namespace 'com.varsithub.varsityhub'
     defaultConfig {
@@ -207,24 +202,5 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
-    }
-}
-
-// Configure Sentry uploads only with proper credentials
-gradle.projectsEvaluated {
-    def hasSentryAuth = System.getenv("SENTRY_AUTH_TOKEN") || project.hasProperty("sentry.auth.token")
-    def hasSentryOrg = System.getenv("SENTRY_ORG") || project.hasProperty("sentry.org")
-    def hasSentryProject = System.getenv("SENTRY_PROJECT") || project.hasProperty("sentry.project")
-    
-    if (!hasSentryAuth || !hasSentryOrg || !hasSentryProject) {
-        tasks.matching { 
-            it.name.contains("SentryUpload") || 
-            it.name.contains("sentry")
-        }.configureEach {
-            enabled = false
-        }
-        println("⚠️  Sentry uploads disabled: missing credentials (auth: $hasSentryAuth, org: $hasSentryOrg, project: $hasSentryProject)")
-    } else {
-        println("✅ Sentry uploads enabled with credentials")
     }
 }

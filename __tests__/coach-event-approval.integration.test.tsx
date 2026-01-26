@@ -7,7 +7,7 @@ describe('Coach Event Approval', () => {
     // Mock user as coach and mock pending events
     // ...mocking logic here
     const { getByText } = render(
-      <AuthProvider>
+      <AuthProvider navReady={true}>
         <SettingsScreen />
       </AuthProvider>
     );

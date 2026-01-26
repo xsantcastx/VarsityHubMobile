@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
-import { validateZipCode, validateYear, validateTextField } from '@/utils/formUtils';
+import { validateZipCode, validateYear } from '@/utils/formUtils';
 
 // Field validation errors
 interface FieldErrors {
@@ -46,7 +46,7 @@ export default function EditProfileScreen() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   
   // Profile fields - username is edited separately via /settings/edit-username
-  const [displayName, setDisplayName] = useState('');
+  const [_displayName, setDisplayName] = useState('');
   const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');

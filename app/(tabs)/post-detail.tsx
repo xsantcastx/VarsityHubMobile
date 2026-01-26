@@ -274,7 +274,7 @@ export default function PostDetailScreen() {
     void sharePost();
   };
 
-  const onSendToFriend = () => {
+  const _onSendToFriend = () => {
     // Navigate to messages/DM with pre-filled post link
     Alert.alert(
       'Send to Friend',
@@ -373,7 +373,7 @@ export default function PostDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const res: any = await PostApi.delete(currentPostId);
+              const _res: any = await PostApi.delete(currentPostId);
               Alert.alert(
                 'Post deleted',
                 'You can undo this action for a short time.',

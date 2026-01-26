@@ -306,10 +306,10 @@ export default function ProfileScreen() {
       // Step 1: ensure session is valid
       // Force fresh data by adding cache-busting header
       const u: any = await User.me();
-      if (__DEV__) console.log('[profile] Loaded user data:', { id: u?.id, username: u?.username });
+      if (__DEV__) console.warn('[profile] Loaded user data:', { id: u?.id, username: u?.username });
       if (u && !u._isNotModified) {
         setMe(u ?? null);
-        if (__DEV__) console.log('[profile] Updated me state with username:', u?.username);
+        if (__DEV__) console.warn('[profile] Updated me state with username:', u?.username);
       }
       if (!u?.id) { 
         setError('You need to sign in to view your profile.');
@@ -371,7 +371,7 @@ export default function ProfileScreen() {
     const previousUsername = lastUsernameRef.current;
     const currentMeUsername = me?.username;
     
-    if (__DEV__) console.log('[profile] Username sync check:', { 
+    if (__DEV__) console.warn('[profile] Username sync check:', { 
       currentUsername, 
       previousUsername, 
       currentMeUsername,
@@ -381,12 +381,12 @@ export default function ProfileScreen() {
     
     // If username changed and we have a new username, refresh profile
     if (currentUsername && currentUsername !== previousUsername) {
-      if (__DEV__) console.log('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
+      if (__DEV__) console.warn('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
       lastUsernameRef.current = currentUsername;
       void loadProfile({ silent: true });
     } else if (currentUsername && currentUsername !== currentMeUsername && hasLoadedOnce.current) {
       // Username in hooks doesn't match profile - force refresh
-      if (__DEV__) console.log('[profile] Username mismatch detected, forcing refresh:', { hook: currentUsername, profile: currentMeUsername });
+      if (__DEV__) console.warn('[profile] Username mismatch detected, forcing refresh:', { hook: currentUsername, profile: currentMeUsername });
       lastUsernameRef.current = currentUsername;
       void loadProfile({ silent: true });
     } else if (currentUsername) {
@@ -397,10 +397,10 @@ export default function ProfileScreen() {
   // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__) console.log('[profile] Screen focused, checking if refresh needed');
+      if (__DEV__) console.warn('[profile] Screen focused, checking if refresh needed');
       // Refresh user data from hooks first, then refresh profile
       if (hasLoadedOnce.current) {
-        if (__DEV__) console.log('[profile] Refreshing user hooks and profile on focus (silent)');
+        if (__DEV__) console.warn('[profile] Refreshing user hooks and profile on focus (silent)');
         // Refresh hooks first to get latest username
         Promise.all([
           refreshUserFromHook().catch(() => {}),
@@ -408,7 +408,7 @@ export default function ProfileScreen() {
         ]).catch(() => {});
       } else if (isInitialMount.current && !profileRequestInFlight.current) {
         // Only do full load if this is the initial mount and nothing is in flight
-        if (__DEV__) console.log('[profile] Initial load on mount');
+        if (__DEV__) console.warn('[profile] Initial load on mount');
         void loadProfile();
       }
     }, [loadProfile, refreshUserFromHook])
