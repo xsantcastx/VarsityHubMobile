@@ -75,7 +75,7 @@ const toFeedPost = (item: any): FeedPost | null => {
     comments_count: item?.comments_count ?? item?._count?.comments ?? 0,
     bookmarks_count: item?.bookmarks_count ?? 0,
     created_at: item?.created_at ?? null,
-    author: item?.author ? { id: String(item.author.id ?? id), display_name: item.author.display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
+    author: item?.author ? { id: String(item.author.id ?? id), username: (item.author as any).username ?? null, display_name: (item.author as any).display_name ?? null, avatar_url: item.author.avatar_url ?? null } : null,
     has_upvoted: Boolean(item?.has_upvoted),
     has_bookmarked: Boolean(item?.has_bookmarked),
     is_following_author: Boolean(item?.is_following_author),

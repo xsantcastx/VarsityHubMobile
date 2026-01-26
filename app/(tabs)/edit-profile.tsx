@@ -14,6 +14,14 @@ import { Input } from '@/components/ui/input';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { getApiBaseUrl } from '@/api/http';
+import { validateZipCode, validateYear, validateTextField } from '@/utils/formUtils';
+
+// Field validation errors
+interface FieldErrors {
+  zipCode?: string;
+  graduationYear?: string;
+  bio?: string;
+}
 
 const SPORTS_OPTIONS = [
   'Football', 'Basketball', 'Baseball', 'Soccer', 'Volleyball', 
@@ -35,8 +43,10 @@ export default function EditProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   
   // Profile fields - username is edited separately via /settings/edit-username
+  const [displayName, setDisplayName] = useState('');
   const [fullName, setFullName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
@@ -76,6 +86,45 @@ export default function EditProfileScreen() {
   const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const headerImagePanStart = useRef(0);
   const headerImageAnimatedOffset = useRef(new Animated.Value(0)).current;
+
+  // Inline validation handlers
+  const validateZipOnBlur = useCallback(() => {
+    if (!zipCode) {
+      setFieldErrors(prev => ({ ...prev, zipCode: undefined }));
+      return;
+    }
+    const result = validateZipCode(zipCode);
+    setFieldErrors(prev => ({ ...prev, zipCode: result.error }));
+  }, [zipCode]);
+
+  const validateGradYearOnBlur = useCallback(() => {
+    if (!graduationYear) {
+      setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
+      return;
+    }
+    const result = validateYear(graduationYear, { min: 2020, max: 2040 });
+    setFieldErrors(prev => ({ ...prev, graduationYear: result.error }));
+  }, [graduationYear]);
+
+  const handleZipChange = useCallback((text: string) => {
+    // Only allow digits and dash
+    const cleaned = text.replace(/[^\d-]/g, '');
+    setZipCode(cleaned);
+    // Clear error when user starts typing
+    if (fieldErrors.zipCode) {
+      setFieldErrors(prev => ({ ...prev, zipCode: undefined }));
+    }
+  }, [fieldErrors.zipCode]);
+
+  const handleGradYearChange = useCallback((text: string) => {
+    // Only allow digits
+    const cleaned = text.replace(/\D/g, '').substring(0, 4);
+    setGraduationYear(cleaned);
+    // Clear error when user starts typing
+    if (fieldErrors.graduationYear) {
+      setFieldErrors(prev => ({ ...prev, graduationYear: undefined }));
+    }
+  }, [fieldErrors.graduationYear]);
 
   const loadUserData = useCallback(async () => {
     setLoading(true);
@@ -134,25 +183,25 @@ export default function EditProfileScreen() {
         prefs?.team_roles,
         prefs?.memberships,
         prefs?.teams,
-        userData?.team_roles,
-        userData?.teams,
-        userData?.memberships,
-        userData?.team_memberships,
+        me?.team_roles,
+        me?.teams,
+        me?.memberships,
+        me?.team_memberships,
       ];
       const membershipHints = [
         prefs?.team_role,
         prefs?.team_id,
         prefs?.primary_team_id,
-        userData?.team_role,
-        userData?.team_id,
-        userData?.primary_team_id,
+        me?.team_role,
+        me?.team_id,
+        me?.primary_team_id,
       ];
       const detectedMembership =
         membershipArrays.some((value) => Array.isArray(value) && value.length > 0) ||
         membershipHints.some((value) => Boolean(value));
       setHasTeamMembership(detectedMembership);
 
-      let derivedRole = prefs?.role || userData?.role || userData?.user_role || userData?.initial_role_selection || null;
+      let derivedRole = prefs?.role || me?.role || me?.user_role || me?.initial_role_selection || null;
       if (detectedMembership && (!derivedRole || derivedRole === 'fan')) {
         derivedRole = 'team_member';
       }
@@ -366,6 +415,23 @@ export default function EditProfileScreen() {
   }), [headerImageUrl, headerImageOffset, headerImageAnimatedOffset]);
 
   const onSave = async () => {
+    // Validate fields before saving
+    const errors: FieldErrors = {};
+    if (zipCode) {
+      const zipResult = validateZipCode(zipCode);
+      if (zipResult.error) errors.zipCode = zipResult.error;
+    }
+    if (graduationYear) {
+      const yearResult = validateYear(graduationYear, { min: 2020, max: 2040 });
+      if (yearResult.error) errors.graduationYear = yearResult.error;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      Alert.alert('Validation Error', 'Please fix the highlighted fields before saving.');
+      return;
+    }
+
     setSaving(true);
     try {
       // Prepare data for server - split into direct fields and preferences
@@ -728,22 +794,29 @@ export default function EditProfileScreen() {
               
               <View style={styles.fieldGroup}>
                 <Text style={[styles.label, { color: Colors[colorScheme].text }]}>ZIP Code</Text>
-                <Input 
-                  value={zipCode} 
-                  onChangeText={setZipCode} 
-                  placeholder="12345" 
+                <Input
+                  value={zipCode}
+                  onChangeText={handleZipChange}
+                  onBlur={validateZipOnBlur}
+                  placeholder="12345"
                   placeholderTextColor={Colors[colorScheme].mutedText}
                   keyboardType="numeric"
                   maxLength={10}
-                  style={[styles.input, { 
-                    borderColor: Colors[colorScheme].border,
+                  style={[styles.input, {
+                    borderColor: fieldErrors.zipCode ? '#DC2626' : Colors[colorScheme].border,
                     backgroundColor: Colors[colorScheme].surface,
                     color: Colors[colorScheme].text,
-                  }]} 
+                  }]}
                 />
-                <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
-                  Helps us show you local games and events
-                </Text>
+                {fieldErrors.zipCode ? (
+                  <Text style={[styles.fieldNote, { color: '#DC2626' }]}>
+                    {fieldErrors.zipCode}
+                  </Text>
+                ) : (
+                  <Text style={[styles.fieldNote, { color: Colors[colorScheme].mutedText }]}>
+                    Helps us show you local games and events
+                  </Text>
+                )}
               </View>
 
               <View style={styles.fieldGroup}>
@@ -983,19 +1056,25 @@ export default function EditProfileScreen() {
                   {/* Graduation Year */}
                   <View style={styles.fieldGroup}>
                     <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Graduation Year</Text>
-                    <Input 
-                      value={graduationYear} 
-                      onChangeText={setGraduationYear} 
-                      placeholder="2025" 
+                    <Input
+                      value={graduationYear}
+                      onChangeText={handleGradYearChange}
+                      onBlur={validateGradYearOnBlur}
+                      placeholder="2025"
                       placeholderTextColor={Colors[colorScheme].mutedText}
                       keyboardType="numeric"
                       maxLength={4}
-                      style={[styles.input, { 
-                        borderColor: Colors[colorScheme].border,
+                      style={[styles.input, {
+                        borderColor: fieldErrors.graduationYear ? '#DC2626' : Colors[colorScheme].border,
                         backgroundColor: Colors[colorScheme].surface,
                         color: Colors[colorScheme].text,
-                      }]} 
+                      }]}
                     />
+                    {fieldErrors.graduationYear && (
+                      <Text style={[styles.fieldNote, { color: '#DC2626' }]}>
+                        {fieldErrors.graduationYear}
+                      </Text>
+                    )}
                   </View>
                   
                   {/* Primary Sport */}
@@ -1161,6 +1240,11 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   fieldNote: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  hint: {
     fontSize: 12,
     marginTop: 4,
     lineHeight: 16,

@@ -59,21 +59,7 @@ export default function MasonryPostCard({ post, onPress, onDeleted, onUpdated }:
   }, [post.id, post.media_url]);
 
   const handleVotePoll = async (pollId: string, optionId: string) => {
-    // TODO: Implement API call to vote on poll
-    // For now, return a mock response
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const updatedOptions = post.poll.options.map((opt: any) => 
-          opt.id === optionId 
-            ? { ...opt, votes: opt.votes + 1 }
-            : opt
-        );
-        resolve({
-          options: updatedOptions,
-          totalVotes: (post.poll.totalVotes || 0) + 1,
-        });
-      }, 300);
-    });
+    return Post.voteOnPoll(pollId, optionId);
   };
 
   return (

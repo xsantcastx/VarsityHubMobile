@@ -3,6 +3,7 @@ import { Event, Message } from '@/api/entities';
 import { autocompleteLocations, PlaceSuggestion } from '@/api/geocoding';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { useUserProfile } from '@/hooks/useUser';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';

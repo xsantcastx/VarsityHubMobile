@@ -18,7 +18,7 @@ import { getApiBaseUrl } from '../../api/http';
 import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
-import { Event, Game, Team, User } from '@/api/entities';
+import { Event, Game, Post, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
@@ -33,6 +33,7 @@ const isSampleId = (id?: string | null) => !!id && /^sample-/i.test(String(id));
 type MediaItem = {
   id: string;
   url: string;
+  thumbnail_url?: string;
   kind: 'photo' | 'video';
   created_at?: string;
   caption?: string | null;
@@ -722,7 +723,16 @@ const GameDetailsScreen = () => {
         const dateIso = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
         
         // Sample media/stories for demo carousel
-        const sampleMedia = [
+        const sampleMedia: MediaItem[] = [
+          {
+            id: 'story-video-1',
+            url: 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1.mp4',
+            thumbnail_url: 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1-thumb.jpg',
+            kind: 'video' as const,
+            created_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+            caption: 'Check out this awesome highlight! 🚀',
+            user_id: 'sample-user-0',
+          },
           {
             id: 'story-1',
             url: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400',
@@ -822,7 +832,7 @@ const GameDetailsScreen = () => {
         if (summary || gameRecord) {
           // Posts/media only fetched when a real game exists to avoid extra 404 logs
           [postsData, mediaData] = await Promise.all([
-            Game.posts(gameIdValue, { limit: 100 }).catch(() => summary?.posts || []),
+            Post.feedForGame(gameIdValue, { limit: 100 }).catch(() => ({ items: summary?.posts || [] })),
             Game.media(gameIdValue).catch(() => summary?.media || []),
           ]);
           // Ensure mediaData is always an array
@@ -1874,9 +1884,12 @@ const renderBanner = () => {
               onPress={() => setViewer({ visible: true, url: item.url, kind: isVideo ? 'video' : 'photo' })}
             >
               {isVideo ? (
-                <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
-                  <Ionicons name="play" size={24} color={Colors[colorScheme].text} />
-                </View>
+                <>
+                  <Image source={{ uri: item.thumbnail_url || item.url }} style={styles.mediaThumbContent} contentFit="cover" />
+                  <View style={[styles.mediaThumbContent, styles.mediaVideo]}>
+                    <Ionicons name="play" size={24} color="#fff" />
+                  </View>
+                </>
               ) : (
                 <Image source={{ uri: item.url }} style={styles.mediaThumbContent} contentFit="cover" />
               )}
@@ -2911,7 +2924,7 @@ const createStyles = (colorScheme: 'light' | 'dark') => StyleSheet.create({
   mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   mediaThumb: { width: '31%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   mediaThumbContent: { flex: 1 },
-  mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' },
+  mediaVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   storiesWrap: { marginTop: 16, marginBottom: 8 },
   storiesRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   storyItem: { 

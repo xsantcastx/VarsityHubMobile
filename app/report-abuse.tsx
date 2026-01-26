@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Support, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -17,10 +18,9 @@ export default function ReportAbuseScreen() {
   const palette = Colors[colorScheme];
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [subject, setSubject] = useState('Report abuse or safety concern');
+  const [subject, setSubject] = useState('Report abuse');
   const [details, setDetails] = useState('');
   const [accused, setAccused] = useState('');
-  const [contextUrl, setContextUrl] = useState('');
   const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -109,7 +109,6 @@ export default function ReportAbuseScreen() {
       const compiledMessage = [
         details.trim(),
         accused.trim() ? `Reported user: ${accused.trim()}` : null,
-        contextUrl.trim() ? `Context: ${contextUrl.trim()}` : null,
         evidenceImages.length > 0 ? `Evidence images:\n${evidenceImages.join('\n')}` : null,
       ]
         .filter(Boolean)
@@ -117,9 +116,10 @@ export default function ReportAbuseScreen() {
 
       await Support.contact({
         name: name.trim() || 'VarsityHub user',
-        email: email.trim(),
+        email: 'support@varsityhub.app',
         subject: subject.trim(),
         message: compiledMessage,
+        from_email: email.trim(),
       });
       Alert.alert(
         'Report sent',
@@ -127,7 +127,6 @@ export default function ReportAbuseScreen() {
       );
       setDetails('');
       setAccused('');
-      setContextUrl('');
       setEvidenceImages([]);
     } catch (err: any) {
       const message =
@@ -186,13 +185,11 @@ export default function ReportAbuseScreen() {
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Subject *</Text>
-            <TextInput
-              value={subject}
-              onChangeText={setSubject}
-              placeholder="What happened?"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              returnKeyType="next"
+            <SegmentedControl
+              tabs={['Report abuse', 'Safety concern']}
+              selected={subject}
+              onChange={setSubject}
+              style={{ marginBottom: 16 }}
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Details *</Text>
@@ -206,8 +203,6 @@ export default function ReportAbuseScreen() {
                 { color: palette.text, borderColor: palette.border, backgroundColor: palette.background },
               ]}
               multiline
-              numberOfLines={5}
-              textAlignVertical="top"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Who are you reporting? (email or username)</Text>
@@ -218,31 +213,15 @@ export default function ReportAbuseScreen() {
               placeholderTextColor={palette.mutedText}
               style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
               autoCapitalize="none"
-              autoComplete="off"
-              keyboardType="email-address"
-              returnKeyType="next"
-            />
-
-            <Text style={[styles.label, { color: palette.mutedText }]}>Link or evidence (optional)</Text>
-            <TextInput
-              value={contextUrl}
-              onChangeText={setContextUrl}
-              placeholder="Link to the post/profile (optional)"
-              placeholderTextColor={palette.mutedText}
-              style={[styles.input, { color: palette.text, borderColor: palette.border, backgroundColor: palette.background }]}
-              autoCapitalize="none"
-              autoComplete="off"
-              keyboardType="url"
-              returnKeyType="done"
             />
 
             <Text style={[styles.label, { color: palette.mutedText }]}>Upload screenshots (optional)</Text>
-            <View style={styles.imageUploadContainer}>
+            <View style={styles.imageGrid}>
               {evidenceImages.map((uri, index) => (
                 <View key={uri} style={styles.imageWrapper}>
                   <Image source={{ uri }} style={styles.uploadedImage} contentFit="cover" />
                   <Pressable
-                    style={[styles.removeImageBtn, { backgroundColor: palette.error || '#FF3B30' }]}
+                    style={[styles.removeImageBtn, { backgroundColor: palette.destructive || '#FF3B30' }]}
                     onPress={() => removeImage(index)}
                   >
                     <Ionicons name="close" size={14} color="#fff" />
@@ -256,7 +235,7 @@ export default function ReportAbuseScreen() {
                   disabled={uploadingImage}
                 >
                   {uploadingImage ? (
-                    <ActivityIndicator size="small" color={palette.primary} />
+                    <ActivityIndicator size="small" color={palette.tint} />
                   ) : (
                     <>
                       <Ionicons name="camera-outline" size={24} color={palette.mutedText} />
@@ -337,7 +316,7 @@ const styles = StyleSheet.create({
   helper: {
     fontSize: 13,
   },
-  imageUploadContainer: {
+  imageGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,

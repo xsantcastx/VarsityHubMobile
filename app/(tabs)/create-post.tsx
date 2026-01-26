@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Platform, Pressable, Image as RNImage, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Game, Post, User } from '@/api/entities';
+import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { PromptPresets } from '@/components/RotatingPrompts';
@@ -45,8 +46,8 @@ import * as LegacyFileSystem from 'expo-file-system/legacy';
 
 const getFileSizeFromUri = async (uri: string): Promise<number> => {
   try {
-    const info = await LegacyFileSystem.getInfoAsync(uri, { size: true });
-    if (info && info.exists && typeof info.size === 'number') return info.size;
+    const info = await LegacyFileSystem.getInfoAsync(uri, { size: true } as any);
+    if (info && info.exists && typeof (info as any).size === 'number') return (info as any).size;
     return 0;
   } catch (error) {
     console.warn('Could not determine file size:', error);
@@ -84,6 +85,64 @@ export default function CreatePostScreen() {
   const [precisionBannerDismissed, setPrecisionBannerDismissed] = useState(false);
   const showPrecisionWarning = Platform.OS === 'android' && permissionGranted && needsPreciseAccuracy && !precisionBannerDismissed;
   const locationReady = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
+  const [draftReady, setDraftReady] = useState(false);
+  const draftLoadedRef = useRef(false);
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (draftLoadedRef.current) return;
+      const draft = await settings.getJson<any>(settings.SETTINGS_KEYS.POST_DRAFT, null);
+      if (!active) return;
+      draftLoadedRef.current = true;
+      if (!draft || (!draft.content && !draft?.picked?.uri)) {
+        setDraftReady(true);
+        return;
+      }
+      if (draft.postType && draft.postType !== postType) {
+        setDraftReady(true);
+        return;
+      }
+      Alert.alert(
+        'Restore draft?',
+        'You have an unsent post draft. Do you want to restore it?',
+        [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: async () => {
+              await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
+              setDraftReady(true);
+            },
+          },
+          {
+            text: 'Restore',
+            onPress: () => {
+              setContent(String(draft.content || ''));
+              if (draft.picked?.uri) {
+                setPicked({
+                  uri: String(draft.picked.uri),
+                  type: draft.picked.type === 'video' ? 'video' : 'image',
+                  mime: draft.picked.mime,
+                  width: draft.picked.width,
+                  height: draft.picked.height,
+                });
+              }
+              if (draft.selectedGameId) {
+                setSelectedGameId(String(draft.selectedGameId));
+                setHasAutoSuggested(true);
+              }
+              setDraftReady(true);
+            },
+          },
+        ]
+      );
+    })();
+    return () => {
+      active = false;
+    };
+  }, [postType]);
 
   // Get media dimensions when picked (for aspect ratio in preview)
   useEffect(() => {
@@ -120,6 +179,30 @@ export default function CreatePostScreen() {
     }, 4000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(async () => {
+      if (submitting) return;
+      const hasContent = Boolean(content.trim() || picked?.uri);
+      if (!hasContent) {
+        await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
+        return;
+      }
+      const draft = {
+        content: content,
+        picked,
+        selectedGameId: selectedGameId || null,
+        postType,
+        updated_at: new Date().toISOString(),
+      };
+      await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, draft);
+    }, 600);
+    return () => {
+      if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [content, picked, selectedGameId, postType, submitting, draftReady]);
 
   // Request location permission on mount
   useEffect(() => {
@@ -245,12 +328,11 @@ export default function CreatePostScreen() {
     try {
       const r = await ImagePicker.launchImageLibraryAsync({
         ...(pickerMediaTypeFor(media)),
-        allowsEditing: true, // Forces iOS to copy image, avoiding "public.png" errors
+        allowsEditing: false, // Don't crop - preserve original photo
         quality: media === 'image' ? 0.85 : undefined,
         exif: false,
         videoMaxDuration: 30,
         videoExportPreset: ImagePicker.VideoExportPreset.H264_960x540, // Force transcode
-        presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN, // Avoid PHPicker issues
       } as any);
       if (!r.canceled && r.assets && r.assets[0]) {
         const a = r.assets[0];
@@ -482,6 +564,9 @@ export default function CreatePostScreen() {
       console.log('[CreatePost] Calling Post.create...');
       await Post.create(payload);
       console.log('[CreatePost] Post created successfully!');
+      try {
+        await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
+      } catch {}
       
       // Show success message based on where post will appear
       const postDestination = (payload.game_id || isSelectedSample) ? 'event page' : 'profile';
@@ -894,7 +979,7 @@ export default function CreatePostScreen() {
                         'Replace Media',
                         'Choose how you want to replace your media:',
                         [
-                          { text: 'Camera', onPress: () => captureWithCamera(previewData.media.type) },
+                          { text: 'Camera', onPress: () => captureWithCamera() },
                           { text: 'Gallery', onPress: () => pickFromLibrary(previewData.media.type) },
                           { text: 'Cancel', style: 'cancel' }
                         ]
@@ -912,10 +997,12 @@ export default function CreatePostScreen() {
               {/* Event Badge */}
               {previewData?.game && selectedGameId && (
                 <View style={styles.previewEventBadge}>
-                  <Ionicons name="trophy" size={16} color="#059669" />
-                  <Text style={[styles.previewEventText, { color: Colors[colorScheme].text }]}>
-                    {previewData.game.title || `${previewData.game.home_team} vs ${previewData.game.away_team}`}
-                  </Text>
+                  <Ionicons name="trophy" size={16} color={Colors[colorScheme].tint} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.previewEventText, { color: Colors[colorScheme].text }]}>
+                      {previewData.game.title || `${previewData.game.home_team} vs ${previewData.game.away_team}`}
+                    </Text>
+                  </View>
                 </View>
               )}
 
@@ -1620,18 +1707,20 @@ const styles = StyleSheet.create({
   },
   previewEventBadge: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
   },
   previewEventText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
+  },
+  previewEventId: {
+    fontSize: 13,
+    marginTop: 4,
   },
   previewDestination: {
     flexDirection: 'row',

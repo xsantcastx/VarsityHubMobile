@@ -64,6 +64,8 @@ export const User = {
   getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
+  // Lookup user by username
+  lookupByUsername: (username: string) => httpGet('/users/lookup?username=' + encodeURIComponent(username)),
   // Block/unblock users
   block: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/block', {}),
   unblock: (id: string) => httpDelete('/users/' + encodeURIComponent(id) + '/block'),
@@ -222,10 +224,13 @@ export const Post = {
   deleteComment: (postId: string, commentId: string) => httpDelete(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
   updateComment: (postId: string, commentId: string, content: string) => httpPatch(`/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, { content }),
   delete: (id: string) => httpDelete('/posts/' + encodeURIComponent(id)),
+  restore: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/restore`, {}),
   update: (id: string, data: { content?: string; title?: string }) => httpPatch('/posts/' + encodeURIComponent(id), data),
   toggleUpvote: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/upvote`, {}),
   toggleBookmark: (id: string) => httpPost(`/posts/${encodeURIComponent(id)}/bookmark`, {}),
   getByEvent: (eventId: string) => httpGet(`/posts?event_id=${encodeURIComponent(eventId)}`),
+  createPoll: (id: string, data: { options: string[], expires_at?: string }) => httpPost(`/posts/${encodeURIComponent(id)}/poll`, data),
+  voteOnPoll: (id: string, optionId: string) => httpPost(`/posts/${encodeURIComponent(id)}/poll/vote`, { option_id: optionId }),
 };
 
 export const Event = {
@@ -405,7 +410,7 @@ export const Team = {
 };
 
 export const Support = {
-  contact: (data: { name: string; email: string; subject: string; message: string }) => httpPost('/support/contact', data),
+  contact: (data: { name: string; email: string; subject: string; message: string; from_email?: string }) => httpPost('/support/contact', data),
   feedback: (data: { user_id?: string; category: 'bug' | 'idea' | 'other'; message: string; screenshot_url?: string }) => httpPost('/support/feedback', data),
 };
 

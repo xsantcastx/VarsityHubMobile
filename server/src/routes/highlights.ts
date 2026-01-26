@@ -30,6 +30,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       country_code: country, 
       created_at: { gte: since },
       media_url: { not: null }, // Only posts with media
+      deleted_at: null,
     },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
     take: 10,
@@ -44,6 +45,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
         created_at: { gte: since }, 
         id: { notIn: nationalTop.map((p) => p.id) },
         media_url: { not: null }, // Only posts with media
+        deleted_at: null,
       },
       orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
       take: 10 - nationalTop.length,
@@ -67,6 +69,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
           lat: { gte: lat - dLat, lte: lat + dLat }, 
           lng: { gte: lng - dLng, lte: lng + dLng },
           media_url: { not: null }, // Only posts with media
+          deleted_at: null,
         },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
@@ -80,6 +83,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
           country_code: country, 
           created_at: { gte: since },
           media_url: { not: null }, // Only posts with media
+          deleted_at: null,
         },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: Math.min(limit, 100),
@@ -101,6 +105,7 @@ highlightsRouter.get('/', async (req: AuthedRequest, res) => {
       created_at: { gte: since }, 
       id: { notIn: ids10 },
       media_url: { not: null }, // Only posts with media
+      deleted_at: null,
     },
     orderBy: [{ created_at: 'desc' }],
     take: 500, // Increased pool size

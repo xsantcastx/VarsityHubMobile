@@ -4,9 +4,15 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { userLookupLimiter } from '../middleware/rateLimiters.js';
+import { mentionsSearchLimiter, userLookupLimiter } from '../middleware/rateLimiters.js';
 
 export const usersRouter = Router();
+const publicUserSelect = {
+  id: true,
+  username: true,
+  display_name: true,
+  avatar_url: true,
+};
 
 // List users (admin only)
 usersRouter.get('/', requireAdmin as any, async (req, res) => {
@@ -132,7 +138,7 @@ usersRouter.get('/:id/posts', async (req, res) => {
 
   const orderBy = sortParamToOrder(sort);
   const query: any = {
-    where: { author_id: id },
+    where: { author_id: id, deleted_at: null },
     take: limit + 1,
     orderBy,
     include: {
@@ -147,7 +153,7 @@ usersRouter.get('/:id/posts', async (req, res) => {
 
   const payload = items.map(mapPostForPayload);
   const counts = {
-    posts: await prisma.post.count({ where: { author_id: id } }),
+    posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     likes: await prisma.postUpvote.count({ where: { user_id: id } }),
     comments: await prisma.comment.count({ where: { author_id: id } as any }),
     reposts: 0,
@@ -192,7 +198,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
 
   // Sorting
   if (sort === 'most_upvoted') {
-    const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) } }, select: { id: true, upvotes_count: true } });
+  const likeCounts = await prisma.post.findMany({ where: { id: { in: list.map(i => i.post_id) }, deleted_at: null }, select: { id: true, upvotes_count: true } });
     const likeMap = new Map(likeCounts.map(p => [p.id, p.upvotes_count || 0]));
     list.sort((a, b) => (likeMap.get(b.post_id)! - likeMap.get(a.post_id)!));
   } else if (sort === 'most_commented') {
@@ -218,7 +224,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
 
   const postIds = page.map(i => i.post_id);
   const posts = postIds.length ? await prisma.post.findMany({
-    where: { id: { in: postIds } },
+    where: { id: { in: postIds }, deleted_at: null },
     include: { author: { select: { id: true, display_name: true, avatar_url: true } }, _count: { select: { comments: true, bookmarks: true } } },
   }) : [];
   // Preserve order of page
@@ -226,7 +232,7 @@ usersRouter.get('/:id/interactions', async (req, res) => {
   const ordered = postIds.map(id => byId.get(id)).filter(Boolean).map(mapPostForPayload);
 
   const counts = {
-    posts: await prisma.post.count({ where: { author_id: id } }),
+    posts: await prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     likes: await prisma.postUpvote.count({ where: { user_id: id } }),
     comments: await prisma.comment.count({ where: { author_id: id } as any }),
     reposts: 0,
@@ -404,7 +410,7 @@ usersRouter.delete('/:id/follow', requireAuth as any, async (req: AuthedRequest,
 });
 
 // Get followers
-usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/followers', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
@@ -414,7 +420,7 @@ usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
     where: { following_id: id },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: cursor, following_id: id } } : undefined,
-    include: { follower: true },
+    include: { follower: { select: publicUserSelect } },
   });
 
   const users = follows.slice(0, limit).map(f => f.follower);
@@ -438,7 +444,7 @@ usersRouter.get('/:id/followers', async (req: AuthedRequest, res) => {
 });
 
 // Get following
-usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
+usersRouter.get('/:id/following', requireAuth as any, async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id;
   const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
@@ -448,7 +454,7 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
     where: { follower_id: id },
     take: limit + 1,
     cursor: cursor ? { follower_id_following_id: { follower_id: id, following_id: cursor } } : undefined,
-    include: { following: true },
+    include: { following: { select: publicUserSelect } },
   });
 
   const users = follows.slice(0, limit).map(f => f.following);
@@ -472,7 +478,7 @@ usersRouter.get('/:id/following', async (req: AuthedRequest, res) => {
 });
 
 // Search users for mentions/tagging
-usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedRequest, res) => {
+usersRouter.get('/search/mentions', requireAuth as any, mentionsSearchLimiter as any, async (req: AuthedRequest, res) => {
   const currentUserId = req.user!.id;
   const query = String((req.query as any).q || '').trim().toLowerCase();
   const limit = Math.min(parseInt(String((req.query as any).limit || '10'), 10) || 10, 20);
@@ -500,7 +506,6 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
       id: true,
       username: true,
       display_name: true,
-      email: true,
       avatar_url: true,
       email_verified: true,
     },
@@ -513,9 +518,8 @@ usersRouter.get('/search/mentions', requireAuth as any, async (req: AuthedReques
   // Ensure all fields have safe defaults (no null values that will crash React Native)
   const safeUsers = users.map(user => ({
     id: user.id,
-    username: user.username || user.email?.split('@')[0] || 'user',
-    display_name: user.display_name || user.username || user.email?.split('@')[0] || 'User',
-    email: user.email,
+    username: user.username || user.display_name || 'user',
+    display_name: user.display_name || user.username || 'User',
     avatar_url: user.avatar_url,
     email_verified: user.email_verified,
   }));
@@ -544,7 +548,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
   if (!user) return res.status(404).json({ error: 'Not found' });
 
   const [posts_count, followers_count, following_count, rel] = await Promise.all([
-    prisma.post.count({ where: { author_id: id } }),
+    prisma.post.count({ where: { author_id: id, deleted_at: null } }),
     prisma.follows.count({ where: { following_id: id } }),
     prisma.follows.count({ where: { follower_id: id } }),
     currentUserId

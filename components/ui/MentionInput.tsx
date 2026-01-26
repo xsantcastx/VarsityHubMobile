@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 
 interface MentionUser {
   id: string;
+  username?: string;
   display_name: string;
   avatar_url?: string;
 }

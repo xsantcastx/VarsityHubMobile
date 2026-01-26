@@ -52,6 +52,7 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/viewpager": "5.0.11",
     "@react-native-picker/picker": "2.11.1",
+    "@react-native/gradle-plugin": "^0.83.1",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",

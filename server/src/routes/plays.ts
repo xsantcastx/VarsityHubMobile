@@ -70,6 +70,7 @@ playsRouter.get('/top', requireAuth as any, async (req: AuthedRequest, res) => {
       categories: { some: { category_id: categoryId } },
       created_at: { gte: since },
       media_url: { not: null },
+      deleted_at: null,
     },
     include: {
       author: { select: { id: true, display_name: true, avatar_url: true } },

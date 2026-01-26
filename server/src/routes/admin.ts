@@ -47,7 +47,7 @@ adminRouter.get('/dashboard', requireVerified as any, requireAdminMiddleware as 
       prisma.ad.count({ where: { status: 'pending' } }),
       
       // Total posts
-      prisma.post.count(),
+      prisma.post.count({ where: { deleted_at: null } }),
       
       // Total messages
       prisma.message.count(),

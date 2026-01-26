@@ -49,7 +49,7 @@ describeDb('Posts API Endpoints', () => {
         .query({ limit: '10' });
 
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.items)).toBe(true);
     });
 
     it('should support pagination with cursor', async () => {
@@ -58,16 +58,16 @@ describeDb('Posts API Endpoints', () => {
         .query({ limit: '5' });
 
       expect(res1.statusCode).toEqual(200);
-      expect(res1.body).toHaveLength(5);
+      expect(Array.isArray(res1.body.items)).toBe(true);
 
-      if (res1.body.length > 0) {
-        const cursor = res1.body[res1.body.length - 1].id;
+      if (res1.body.items.length > 0) {
+        const cursor = res1.body.items[res1.body.items.length - 1].id;
         const res2 = await request(app)
           .get('/posts')
           .query({ limit: '5', cursor });
 
         expect(res2.statusCode).toEqual(200);
-        expect(Array.isArray(res2.body)).toBe(true);
+        expect(Array.isArray(res2.body.items)).toBe(true);
       }
     });
 
@@ -77,7 +77,7 @@ describeDb('Posts API Endpoints', () => {
         .query({ game_id: 'non-existent-id' });
 
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.items)).toBe(true);
     });
   });
 
@@ -110,6 +110,36 @@ describeDb('Posts API Endpoints', () => {
       expect(res.body.author_id).toBe(testUser.id);
 
       testPostId = res.body.id;
+    });
+
+    it('should allow delete + restore within undo window', async () => {
+      const created = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${testUserToken}`)
+        .send({
+          title: 'Post to delete',
+          content: 'Delete me',
+          type: 'post',
+        });
+
+      const postId = created.body.id;
+      expect(postId).toBeDefined();
+
+      const del = await request(app)
+        .delete(`/posts/${postId}`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(del.statusCode).toEqual(200);
+      expect(del.body.undo_until).toBeDefined();
+
+      const restore = await request(app)
+        .post(`/posts/${postId}/restore`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(restore.statusCode).toEqual(200);
+      expect(restore.body.deleted_at).toBeNull();
+
+      await prisma.post.delete({ where: { id: postId } }).catch(() => {});
     });
 
     it('should reject invalid payload', async () => {

@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
 import { Message, User } from '@/api/entities';
@@ -438,7 +438,7 @@ export default function MessagesScreen() {
             <View style={[styles.searchContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', marginHorizontal: 16, marginBottom: 8 }]}>
               <Ionicons name="search" size={20} color={Colors[colorScheme].tabIconDefault} />
               <TextInput
-                placeholder="Search users by name or email..."
+                placeholder="Search users by username..."
                 placeholderTextColor={Colors[colorScheme].tabIconDefault}
                 value={searchUserQuery}
                 onChangeText={setSearchUserQuery}
@@ -482,7 +482,7 @@ export default function MessagesScreen() {
                   Search for someone
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].tabIconDefault }]}>
-                  Type a name or email to find users
+                  Type a username to find users
                 </Text>
               </View>
             )}

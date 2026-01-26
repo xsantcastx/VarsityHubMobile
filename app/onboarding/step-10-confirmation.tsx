@@ -224,7 +224,8 @@ export default function Step10Confirmation() {
           
           // Check if subscription ID exists (payment completed)
           // For Veteran/Legend plans, we need either subscription_id or payment_pending: false
-          if (!prefs.subscription_id && ob.plan !== 'rookie' && prefs.payment_pending !== false) {
+          // Note: We're already inside the ob.plan !== 'rookie' block, so no need to check again
+          if (!prefs.subscription_id && prefs.payment_pending !== false) {
             // Payment might still be processing - give user options
             Alert.alert(
               'Payment Processing',
@@ -273,7 +274,7 @@ export default function Step10Confirmation() {
         }
       }
       
-      const completionPayload = {
+      const completionPayload: Record<string, any> = {
         // Core identity fields
         role: ob.role, // REQUIRED - must be 'fan' or 'coach'
         username: ob.username, // Only username (with @) - no display_name
@@ -327,7 +328,7 @@ export default function Step10Confirmation() {
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
       
-      if (updatedUser?.preferences?.onboarding_completed !== true) {
+      if ((updatedUser?.preferences as any)?.onboarding_completed !== true) {
         throw new Error('Server did not confirm onboarding completion. Please try again.');
       }
       

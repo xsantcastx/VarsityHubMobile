@@ -152,14 +152,8 @@ export default function PostDetailScreen() {
   }, []);
 
   const load = useCallback(async (postId?: string, showLoading = true) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:177',message:'load called',data:{postId:postId || null,currentPostId,postIdsArrayLength:postIdsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     const targetId = postId || currentPostId;
     if (!targetId) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:180',message:'No post ID to load',data:{postId:postId || null,currentPostId,postIdsArrayLength:postIdsArray.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       setError('No post ID provided');
       setLoading(false);
       return;
@@ -170,13 +164,7 @@ export default function PostDetailScreen() {
     }
     setError(null);
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:188',message:'Fetching post data',data:{targetId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       const [p, c] = await Promise.all([PostApi.get(targetId), PostApi.comments(targetId)]);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:191',message:'Post data received',data:{hasPost:!!p,hasComments:!!c,commentsIsArray:Array.isArray(c)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       setPost(p);
       
       // Handle comments response - it returns { items, nextCursor }
@@ -199,9 +187,6 @@ export default function PostDetailScreen() {
         // Note: has_upvoted is stored directly in post state for UI
       }
     } catch (e: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/41b116d6-d712-458a-b639-8da7c3c9e7c7',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/post-detail.tsx:213',message:'Failed to load post',data:{error:e?.message || String(e),status:e?.status,targetId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       setError('Failed to load post');
       console.error('Error loading post and comments:', e);
     } finally {
@@ -388,10 +373,26 @@ export default function PostDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await PostApi.delete(currentPostId);
-              Alert.alert('Success', 'Post deleted successfully', [
-                { text: 'OK', onPress: () => router.back() }
-              ]);
+              const res: any = await PostApi.delete(currentPostId);
+              Alert.alert(
+                'Post deleted',
+                'You can undo this action for a short time.',
+                [
+                  {
+                    text: 'Undo',
+                    onPress: async () => {
+                      try {
+                        await PostApi.restore(currentPostId);
+                        await load();
+                      } catch (restoreError: any) {
+                        Alert.alert('Error', restoreError?.message || 'Restore window expired.');
+                        router.back();
+                      }
+                    }
+                  },
+                  { text: 'Close', style: 'destructive', onPress: () => router.back() },
+                ]
+              );
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete post');
             }
@@ -754,7 +755,6 @@ export default function PostDetailScreen() {
                         <Text style={[styles.commentAuthorName, { color: Colors[colorScheme].text }]}>
                           {c.author?.username ? `@${c.author.username}` : c.author?.display_name ? `@${c.author.display_name}` : 'User'}
                         </Text>
-                        <Text style={[styles.commentDate, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(c.created_at)}</Text>
                       </View>
                     </Pressable>
                     

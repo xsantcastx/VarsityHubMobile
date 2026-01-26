@@ -18,40 +18,35 @@ export default function PublicEventScreen() {
   const [loading, setLoading] = useState(false);
   const [event, setEvent] = useState<any>(null);
 
-  useEffect(() => {
-    if (params?.id) {
-      void loadEventData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params?.id]);
-
-  // Reload posts when screen comes back into focus (after creating a post)
-  useFocusEffect(
-    useCallback(() => {
-      if (params?.id) {
-        void loadEventData();
-      }
-    }, [params?.id, loadEventData])
-  );
-
-  const loadEventData = async () => {
+  const loadEventData = useCallback(async () => {
     setLoading(true);
     try {
       const eventId = params.id!;
       const isSampleEvent = /^sample-/i.test(eventId);
-      
+      console.log('[public-event] loadEventData called | eventId:', eventId, '| isSampleEvent:', isSampleEvent);
+
       // For sample events, try to load posts by game_id (since sample events don't exist in DB)
       // For real events, try both event_id and game_id
       let eventPosts: any[] | null = null;
-      
+
       if (isSampleEvent) {
         // Sample events: fetch posts by game_id (which matches the event ID for samples)
+        // NOTE: Server should store sample event game_id and query it correctly
         try {
-          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch(() => null);
+          console.log('[public-event] Fetching sample event posts with game_id:', eventId);
+          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch((err) => {
+            console.log('[public-event] feedForGame error:', err);
+            return null;
+          });
+          console.log('[public-event] feedForGame response:', JSON.stringify(gamePosts, null, 2));
           if (gamePosts && Array.isArray(gamePosts.items)) {
             eventPosts = gamePosts.items;
+            console.log('[public-event] Got', eventPosts.length, 'posts from gamePosts.items');
           } else if (Array.isArray(gamePosts)) {
             eventPosts = gamePosts;
+            console.log('[public-event] Got', eventPosts.length, 'posts from gamePosts array');
+          } else {
+            console.log('[public-event] No posts found in response');
           }
         } catch (err) {
           console.log('[public-event] Failed to load sample event posts by game_id:', err);
@@ -92,7 +87,23 @@ export default function PublicEventScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params?.id]);
+
+  useEffect(() => {
+    if (params?.id) {
+      void loadEventData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params?.id]);
+
+  // Reload posts when screen comes back into focus (after creating a post)
+  useFocusEffect(
+    useCallback(() => {
+      if (params?.id) {
+        void loadEventData();
+      }
+    }, [params?.id, loadEventData])
+  );
 
   const generateSamplePosts = () => {
     const mediaUrls = [

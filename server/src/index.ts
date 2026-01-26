@@ -11,6 +11,7 @@ import { addSentryErrorHandler, initSentry } from './lib/sentry.js';
 import { swaggerSpec } from './lib/swagger.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
 import { captureException } from './lib/sentry.js';
+import { verifyMediaSignature } from './lib/mediaAccess.js';
 import { authMiddleware } from './middleware/auth.js';
 import { adminReportsRouter } from './routes/adminReports.js';
 import { authRouter } from './routes/auth.js';
@@ -159,6 +160,20 @@ app.use(authMiddleware);
 // Serve uploaded files
 app.use(
   '/uploads',
+  (req, res, next) => {
+    const allowPublic = process.env.UPLOADS_PUBLIC === '1';
+    if (allowPublic) return next();
+    const authed = Boolean((req as any).user?.id);
+    if (authed) return next();
+    const token = typeof req.query.token === 'string' ? req.query.token : null;
+    const expRaw = typeof req.query.exp === 'string' ? req.query.exp : null;
+    const exp = expRaw ? Number.parseInt(expRaw, 10) : null;
+    const mediaPath = `/uploads${req.path}`;
+    if (token && exp && verifyMediaSignature(mediaPath, token, exp)) {
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized' });
+  },
   (req, res, next) => {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     next();

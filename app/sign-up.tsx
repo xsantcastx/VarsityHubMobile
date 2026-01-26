@@ -21,7 +21,6 @@ const { AppleAuthenticationButton, AppleAuthenticationButtonType, AppleAuthentic
 export default function SignUpScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +36,7 @@ export default function SignUpScreen() {
     setRetryCount(attempt > 1 ? attempt : 0);
     
     try {
-      return await User.register(email, password, name || undefined);
+      return await User.register(email, password);
     } catch (e: any) {
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-attempt' },
@@ -283,7 +282,6 @@ export default function SignUpScreen() {
           </Pressable>
 
           {/* Email Form */}
-          <Input placeholder="Display name (optional)" value={name} onChangeText={setName} style={{ marginBottom: 10 }} />
           <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} />
           <Input placeholder="Password (min 8 chars)" value={password} onChangeText={setPassword} secureTextEntry />
           <View style={{ height: 12 }} />

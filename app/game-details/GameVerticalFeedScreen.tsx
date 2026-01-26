@@ -11,6 +11,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Dimensions,
     FlatList,
     KeyboardAvoidingView,
@@ -57,7 +58,7 @@ export type FeedPost = {
   comments_count: number;
   bookmarks_count: number;
   created_at: string | null;
-  author: { id: string; username: string | null; avatar_url: string | null } | null;
+  author: { id: string; username?: string | null; display_name?: string | null; avatar_url: string | null } | null;
   has_upvoted: boolean;
   has_bookmarked: boolean;
   is_following_author: boolean;
@@ -170,6 +171,13 @@ const FeedCard = memo(
     const [showEditModal, setShowEditModal] = useState(false);
     const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     const [editCaption, setEditCaption] = useState('');
+    const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+      return () => {
+        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      };
+    }, []);
 
     // Load current user
     useEffect(() => {
@@ -193,9 +201,36 @@ const FeedCard = memo(
 
     const confirmDelete = async () => {
       try {
-        await Post.delete(post.id);
+        const res: any = await Post.delete(post.id);
         setShowDeleteConfirm(false);
-        onDeletePost?.();
+        const undoUntil = res?.undo_until ? new Date(res.undo_until).getTime() : null;
+        const timeoutMs = undoUntil ? Math.max(0, undoUntil - Date.now()) : 5000;
+        if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+        deleteTimerRef.current = setTimeout(() => {
+          onDeletePost?.();
+        }, timeoutMs || 1);
+        Alert.alert(
+          'Post deleted',
+          'You can undo this action for a short time.',
+          [
+            {
+              text: 'Undo',
+              onPress: async () => {
+                if (deleteTimerRef.current) {
+                  clearTimeout(deleteTimerRef.current);
+                  deleteTimerRef.current = null;
+                }
+                try {
+                  await Post.restore(post.id);
+                } catch (restoreError: any) {
+                  onDeletePost?.();
+                  Alert.alert('Error', restoreError?.message || 'Restore window expired.');
+                }
+              },
+            },
+            { text: 'Dismiss', style: 'cancel' },
+          ]
+        );
       } catch (error) {
         console.error('Failed to delete post:', error);
       }
@@ -1068,7 +1103,6 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
                     {item.author?.username ? `@${item.author.username}` : (item.optimistic ? (meInfo?.username ? `@${meInfo.username}` : 'You') : 'Anonymous')}
                   </Text>
                   <Text style={[styles.commentBody, { color: Colors[colorScheme].text }]}>{item.content}</Text>
-                  {item.created_at ? <Text style={[styles.commentTimestamp, { color: Colors[colorScheme].mutedText }]}>{new Date(item.created_at).toLocaleString()}</Text> : null}
                 </View>
               )}
               onEndReached={loadMoreComments}

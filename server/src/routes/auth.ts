@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
+import crypto, { createPublicKey, type KeyObject } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import jwt, { type JwtPayload } from 'jsonwebtoken';
@@ -40,6 +40,32 @@ const GOOGLE_ALLOWED_AUDIENCES = (process.env.GOOGLE_OAUTH_CLIENT_IDS || process
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
+const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
+const APPLE_JWKS_TTL_MS = 6 * 60 * 60 * 1000;
+const appleKeyCache = new Map<string, { key: KeyObject; expiresAt: number }>();
+
+async function getApplePublicKey(kid: string): Promise<KeyObject> {
+  const cached = appleKeyCache.get(kid);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    return cached.key;
+  }
+
+  const response = await fetch(APPLE_JWKS_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Apple JWKS: ${response.status}`);
+  }
+  const data = await response.json() as { keys?: Array<Record<string, unknown>> };
+  const keys = Array.isArray(data?.keys) ? data.keys : [];
+  const jwk = keys.find((key) => key?.kid === kid);
+  if (!jwk) {
+    throw new Error('Apple JWKS does not include requested key');
+  }
+
+  const key = createPublicKey({ key: jwk, format: 'jwk' });
+  appleKeyCache.set(kid, { key, expiresAt: now + APPLE_JWKS_TTL_MS });
+  return key;
+}
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -271,6 +297,9 @@ authRouter.post('/apple', async (req, res) => {
   try {
     // In development/simulator, accept tokens starting with 'sim-' for testing
     const isDevelopmentToken = identity_token.startsWith('sim-');
+    if (isDevelopmentToken && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Development tokens are not allowed in production' });
+    }
     
     let appleId: string;
     let email: string | null = null;
@@ -283,51 +312,31 @@ authRouter.post('/apple', async (req, res) => {
     } else {
       // Production: Verify Apple identity token
       try {
-        // Decode the JWT without verification first to get the header
         const decoded = jwt.decode(identity_token, { complete: true });
-        if (!decoded || typeof decoded === 'string' || !decoded.header || !decoded.payload) {
+        if (!decoded || typeof decoded === 'string' || !decoded.header) {
           return res.status(400).json({ error: 'Invalid Apple token format' });
         }
 
-        const { header, payload } = decoded;
-        
-        // Type guard: payload must be an object (JwtPayload), not a string
-        if (!payload || typeof payload === 'string') {
-          return res.status(400).json({ error: 'Invalid token payload' });
-        }
-        
-        // TypeScript now knows payload is JwtPayload (object), not string
-        const jwtPayload = payload as JwtPayload;
-        
-        // Verify token claims
-        if (jwtPayload.iss !== 'https://appleid.apple.com') {
-          return res.status(400).json({ error: 'Invalid token issuer' });
+        const kid = decoded.header.kid;
+        if (!kid || typeof kid !== 'string') {
+          return res.status(400).json({ error: 'Invalid Apple token header' });
         }
 
-        // Check audience (should be your app's client ID)
         const appleClientId = process.env.APPLE_CLIENT_ID;
-        if (appleClientId && jwtPayload.aud !== appleClientId) {
-          debugLog('[auth/apple] Token audience mismatch, but continuing for compatibility');
-        }
+        const appleKey = await getApplePublicKey(kid);
+        const jwtPayload = jwt.verify(identity_token, appleKey, {
+          algorithms: ['RS256'],
+          issuer: 'https://appleid.apple.com',
+          ...(appleClientId ? { audience: appleClientId } : {}),
+        }) as JwtPayload;
 
-        // Check expiration
-        if (jwtPayload.exp && jwtPayload.exp < Date.now() / 1000) {
-          return res.status(400).json({ error: 'Token has expired' });
-        }
-
-        // Extract user identifier from subject
         appleId = jwtPayload.sub as string;
         email = (jwtPayload.email as string) || null;
 
         if (!appleId) {
           return res.status(400).json({ error: 'Missing user identifier in token' });
         }
-
-        // Note: Full signature verification requires fetching Apple's public keys
-        // For production, you should implement full JWT verification with Apple's JWKS
-        // This is a simplified version that validates claims but doesn't verify signature
-        // For full security, use a library like 'node-jose' or 'jwks-rsa' to fetch and verify
-        debugLog('[auth/apple] Apple token verified (claims validated, signature verification recommended)');
+        debugLog('[auth/apple] Apple token verified');
       } catch (err: any) {
         console.error('[auth/apple] Token verification failed:', err?.message || err);
         return res.status(400).json({ error: 'Failed to verify Apple token', detail: err?.message });
@@ -841,8 +850,15 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
   
   const data = parsed.data;
   
+  // Get current preferences FIRST to preserve role if not in payload
+  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
+  const currentPrefs = current?.preferences as any || {};
+  
+  // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
+  // If role is undefined in payload, use existing role from preferences (set during step-1)
+  const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
+  
   // CRITICAL: For coaches, validate required steps are completed
-  const finalRole = data.role || (req.user.preferences as any)?.role || 'fan';
   if (finalRole === 'coach') {
     // Coaches MUST have: username, plan, and team/org
     if (!data.username) {
@@ -868,14 +884,7 @@ authRouter.post('/me/complete-onboarding', async (req: AuthedRequest, res) => {
     updateData.bio = "Sports enthusiast following local teams and supporting young athletes 🏆";
   }
   
-  // Get current preferences FIRST to preserve role if not in payload
-  const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true } });
-  const currentPrefs = current?.preferences as any || {};
-  
   // Prepare preferences update
-  // CRITICAL: Role MUST be preserved from onboarding step-1 or provided in payload
-  // If role is undefined in payload, use existing role from preferences (set during step-1)
-  const finalRole = data.role !== undefined ? data.role : (currentPrefs.role || 'fan');
   
   const preferencesUpdate: any = {
     onboarding_completed: true,

@@ -19,6 +19,7 @@ type Notif = {
   actor?: { id: string; display_name?: string | null; avatar_url?: string | null } | null;
   post?: { id: string; content?: string | null; media_url?: string | null } | null;
   comment?: { id: string; content?: string | null; post_id?: string | null } | null;
+  message?: { id: string; content?: string | null; conversation_id?: string | null } | null;
 };
 
 export default function NotificationsScreen() {

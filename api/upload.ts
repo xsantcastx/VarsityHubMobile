@@ -5,7 +5,99 @@ function computeBase(provided?: string | null) {
   return getApiBaseUrl();
 }
 
-export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string, options?: { retries?: number; backoffMs?: number; timeoutMs?: number }): Promise<any> {
+export interface UploadProgressCallback {
+  (progress: number, loaded: number, total: number): void;
+}
+
+export interface UploadOptions {
+  retries?: number;
+  backoffMs?: number;
+  timeoutMs?: number;
+  onProgress?: UploadProgressCallback;
+}
+
+/**
+ * Upload a file with progress tracking using XMLHttpRequest
+ * Falls back to fetch if XHR fails
+ */
+export async function uploadFileWithProgress(
+  baseUrl: string | null | undefined,
+  uri: string,
+  filename?: string,
+  mimeType?: string,
+  options?: UploadOptions
+): Promise<any> {
+  const finalBase = computeBase(baseUrl);
+  const target = `${finalBase}/uploads`;
+  const token = getAuthToken();
+  const timeoutMs = options?.timeoutMs ?? 180000;
+  const onProgress = options?.onProgress;
+
+  // Improved mime type detection
+  let finalMimeType = mimeType;
+  if (!finalMimeType || finalMimeType === 'application/octet-stream') {
+    const name = filename || uri;
+    const ext = name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp|heic|heif|mp4|mov|avi|mkv)$/)?.[1];
+    if (ext) {
+      const mimeMap: Record<string, string> = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+        webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+        mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+      };
+      finalMimeType = mimeMap[ext] || 'image/jpeg';
+    } else {
+      finalMimeType = 'image/jpeg';
+    }
+  }
+
+  const form = new FormData();
+  form.append('file', { uri, name: filename || 'upload', type: finalMimeType } as any);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    // Set up progress tracking
+    if (onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress, event.loaded, event.total);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data);
+        } catch {
+          reject(new Error(`Server returned non-JSON response: ${xhr.responseText.substring(0, 100)}`));
+        }
+      } else {
+        const err: any = new Error(`Upload failed: HTTP ${xhr.status}`);
+        err.status = xhr.status;
+        try { err.data = JSON.parse(xhr.responseText); } catch {}
+        reject(err);
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error during upload'));
+    };
+
+    xhr.ontimeout = () => {
+      reject(new Error('Upload timed out'));
+    };
+
+    xhr.timeout = timeoutMs;
+    xhr.open('POST', target);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(form as any);
+  });
+}
+
+export async function uploadFile(baseUrl: string | null | undefined, uri: string, filename?: string, mimeType?: string, options?: UploadOptions): Promise<any> {
   const finalBase = computeBase(baseUrl);
   const target = `${finalBase}/uploads`;
 
@@ -104,4 +196,4 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   throw lastErr;
 }
 
-export default { uploadFile };
+export default { uploadFile, uploadFileWithProgress };

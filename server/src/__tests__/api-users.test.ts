@@ -61,7 +61,7 @@ describeDb('Users API Endpoints', () => {
 
       expect(res.statusCode).toEqual(200);
       expect(res.body.id).toBe(testUser.id);
-      expect(res.body.email).toBe(testUser.email);
+      expect(res.body.display_name).toBe(testUser.display_name);
     });
 
     it('should return 404 for non-existent user', async () => {
@@ -87,7 +87,7 @@ describeDb('Users API Endpoints', () => {
         .get(`/users/${testUser.id}/posts`);
 
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.items)).toBe(true);
 
       // Clean up
       await prisma.post.delete({ where: { id: post.id } }).catch(() => {});
@@ -95,22 +95,68 @@ describeDb('Users API Endpoints', () => {
   });
 
   describe('GET /users/:id/followers', () => {
-    it('should return user followers', async () => {
+    it('should require authentication', async () => {
       const res = await request(app)
         .get(`/users/${testUser.id}/followers`);
 
+      expect(res.statusCode).toEqual(401);
+    });
+
+    it('should return user followers for authenticated users', async () => {
+      const res = await request(app)
+        .get(`/users/${testUser.id}/followers`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.items)).toBe(true);
+      if (res.body.items.length > 0) {
+        const follower = res.body.items[0];
+        expect(follower.email).toBeUndefined();
+        expect(follower.password_hash).toBeUndefined();
+      }
     });
   });
 
   describe('GET /users/:id/following', () => {
-    it('should return users that this user follows', async () => {
+    it('should require authentication', async () => {
       const res = await request(app)
         .get(`/users/${testUser.id}/following`);
 
+      expect(res.statusCode).toEqual(401);
+    });
+
+    it('should return users this user follows for authenticated users', async () => {
+      const res = await request(app)
+        .get(`/users/${testUser.id}/following`)
+        .set('Authorization', `Bearer ${testUserToken}`);
+
       expect(res.statusCode).toEqual(200);
-      expect(Array.isArray(res.body)).toBe(true);
+      expect(Array.isArray(res.body.items)).toBe(true);
+      if (res.body.items.length > 0) {
+        const following = res.body.items[0];
+        expect(following.email).toBeUndefined();
+        expect(following.password_hash).toBeUndefined();
+      }
+    });
+  });
+
+  describe('GET /users/search/mentions', () => {
+    it('should require authentication', async () => {
+      const res = await request(app)
+        .get('/users/search/mentions?q=other');
+      expect(res.statusCode).toEqual(401);
+    });
+
+    it('should not expose email in mentions results', async () => {
+      const res = await request(app)
+        .get('/users/search/mentions?q=other')
+        .set('Authorization', `Bearer ${testUserToken}`);
+
+      expect(res.statusCode).toEqual(200);
+      expect(Array.isArray(res.body.users)).toBe(true);
+      if (res.body.users.length > 0) {
+        expect(res.body.users[0].email).toBeUndefined();
+      }
     });
   });
 });

@@ -1,0 +1,252 @@
+/**
+ * Form utilities for validation, sanitization, and state management
+ */
+
+// ============================================
+// INPUT SANITIZATION
+// ============================================
+
+/**
+ * Sanitize text input to prevent XSS and clean up whitespace
+ */
+export function sanitizeText(input: string): string {
+  if (!input) return '';
+  return input
+    .replace(/[<>]/g, '') // Remove angle brackets (basic XSS prevention)
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove inline event handlers
+    .trim();
+}
+
+/**
+ * Sanitize and normalize email
+ */
+export function sanitizeEmail(email: string): string {
+  if (!email) return '';
+  return email.toLowerCase().trim();
+}
+
+/**
+ * Sanitize username - only allow alphanumeric, underscores, dots
+ */
+export function sanitizeUsername(username: string): string {
+  if (!username) return '';
+  return username
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]/g, '')
+    .substring(0, 20);
+}
+
+// ============================================
+// VALIDATION RULES
+// ============================================
+
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+/**
+ * Validate email format
+ */
+export function validateEmail(email: string): ValidationResult {
+  if (!email) return { valid: false, error: 'Email is required' };
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return { valid: false, error: 'Please enter a valid email address' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate password strength
+ */
+export function validatePassword(password: string, minLength = 8): ValidationResult {
+  if (!password) return { valid: false, error: 'Password is required' };
+  if (password.length < minLength) {
+    return { valid: false, error: `Password must be at least ${minLength} characters` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate username format
+ */
+export function validateUsername(username: string): ValidationResult {
+  if (!username) return { valid: false, error: 'Username is required' };
+  if (username.length < 3) {
+    return { valid: false, error: 'Username must be at least 3 characters' };
+  }
+  if (username.length > 20) {
+    return { valid: false, error: 'Username must be 20 characters or less' };
+  }
+  if (!/^[a-z0-9_.]+$/.test(username)) {
+    return { valid: false, error: 'Username can only contain lowercase letters, numbers, dots, and underscores' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate required text field with min/max length
+ */
+export function validateTextField(
+  value: string,
+  fieldName: string,
+  options: { required?: boolean; minLength?: number; maxLength?: number } = {}
+): ValidationResult {
+  const { required = true, minLength, maxLength } = options;
+
+  if (required && !value?.trim()) {
+    return { valid: false, error: `${fieldName} is required` };
+  }
+
+  if (minLength && value && value.trim().length < minLength) {
+    return { valid: false, error: `${fieldName} must be at least ${minLength} characters` };
+  }
+
+  if (maxLength && value && value.length > maxLength) {
+    return { valid: false, error: `${fieldName} must be ${maxLength} characters or less` };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate ZIP code (US format)
+ */
+export function validateZipCode(zip: string): ValidationResult {
+  if (!zip) return { valid: true }; // Optional field
+  const zipRegex = /^\d{5}(-\d{4})?$/;
+  if (!zipRegex.test(zip)) {
+    return { valid: false, error: 'Please enter a valid ZIP code (e.g., 12345 or 12345-6789)' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate phone number (flexible format)
+ */
+export function validatePhone(phone: string): ValidationResult {
+  if (!phone) return { valid: true }; // Optional field
+  // Remove all non-digits
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 11) {
+    return { valid: false, error: 'Please enter a valid phone number' };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate year (e.g., graduation year)
+ */
+export function validateYear(
+  year: string,
+  options: { min?: number; max?: number } = {}
+): ValidationResult {
+  if (!year) return { valid: true }; // Optional
+  const { min = 1900, max = 2100 } = options;
+  const yearNum = parseInt(year, 10);
+  if (isNaN(yearNum) || yearNum < min || yearNum > max) {
+    return { valid: false, error: `Please enter a valid year between ${min} and ${max}` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate URL format
+ */
+export function validateUrl(url: string): ValidationResult {
+  if (!url) return { valid: true }; // Optional
+  try {
+    new URL(url);
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'Please enter a valid URL' };
+  }
+}
+
+// ============================================
+// FORM STATE HELPERS
+// ============================================
+
+export interface FormErrors {
+  [key: string]: string | undefined;
+}
+
+/**
+ * Check if form has any errors
+ */
+export function hasErrors(errors: FormErrors): boolean {
+  return Object.values(errors).some(error => !!error);
+}
+
+/**
+ * Clear specific field error
+ */
+export function clearFieldError(errors: FormErrors, field: string): FormErrors {
+  const { [field]: _, ...rest } = errors;
+  return rest;
+}
+
+/**
+ * Create a debounced validation function
+ */
+export function createDebouncedValidator<T>(
+  validator: (value: T) => ValidationResult,
+  delayMs: number = 300
+): (value: T, callback: (result: ValidationResult) => void) => void {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return (value: T, callback: (result: ValidationResult) => void) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      callback(validator(value));
+    }, delayMs);
+  };
+}
+
+// ============================================
+// NUMBER VALIDATION
+// ============================================
+
+/**
+ * Validate numeric input
+ */
+export function validateNumber(
+  value: string,
+  options: { min?: number; max?: number; integer?: boolean } = {}
+): ValidationResult {
+  if (!value) return { valid: true }; // Optional
+
+  const { min, max, integer = false } = options;
+  const num = parseFloat(value);
+
+  if (isNaN(num)) {
+    return { valid: false, error: 'Please enter a valid number' };
+  }
+
+  if (integer && !Number.isInteger(num)) {
+    return { valid: false, error: 'Please enter a whole number' };
+  }
+
+  if (min !== undefined && num < min) {
+    return { valid: false, error: `Value must be at least ${min}` };
+  }
+
+  if (max !== undefined && num > max) {
+    return { valid: false, error: `Value must be at most ${max}` };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Prevent negative numbers in input
+ */
+export function preventNegative(value: string): string {
+  const num = parseFloat(value);
+  if (!isNaN(num) && num < 0) {
+    return '0';
+  }
+  return value;
+}

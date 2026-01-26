@@ -415,11 +415,11 @@ export default function MessageThreadScreen() {
                 style={styles.modalLinkButton}
                 onPress={() => {
                   setRestrictionModal({ show: false, message: '' });
-                  router.push('/settings/safe-zone-policy');
+                  router.push('/core-values');
                 }}
               >
                 <Text style={[styles.modalLinkText, { color: Colors[colorScheme].tint }]}>
-                  Learn More About Safe Zone Policy
+                  Learn More About Our Safety Policy
                 </Text>
               </Pressable>
 

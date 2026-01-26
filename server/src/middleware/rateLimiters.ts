@@ -287,6 +287,16 @@ export const userLookupLimiter = createLimiter({
   max: isDev ? 100000 : 10,
 });
 
+/**
+ * Mentions search
+ * 30 per minute per user (prevents directory scraping)
+ */
+export const mentionsSearchLimiter = createLimiter({
+  name: 'mentions-search',
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 100000 : 30,
+});
+
 // ============================================
 // Export all limiters for easy application
 // ============================================
@@ -312,6 +322,7 @@ export const rateLimiters = {
   adCreation: adCreationLimiter,
   payment: paymentLimiter,
   userLookup: userLookupLimiter,
+  mentionsSearch: mentionsSearchLimiter,
 };
 
 export default rateLimiters;

@@ -423,7 +423,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
       homeTeam: { select: { id: true, name: true, avatar_url: true } },
       awayTeam: { select: { id: true, name: true, avatar_url: true } },
       posts: {
-        where: { game_id: id },
+        where: { game_id: id, deleted_at: null },
         orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
         take: 50,
         include: {
@@ -446,7 +446,7 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   const isPast = anchorDate instanceof Date ? anchorDate.getTime() < Date.now() : new Date(anchorDate).getTime() < Date.now();
 
   const [reviewsCount, rsvpCount, userRsvped] = await (async () => {
-    const reviewPromise = prisma.post.count({ where: { game_id: id, type: 'review' } });
+    const reviewPromise = prisma.post.count({ where: { game_id: id, type: 'review', deleted_at: null } });
     if (!event) {
       const [reviewTotal] = await Promise.all([reviewPromise]);
       return [reviewTotal, 0, false] as const;
@@ -608,7 +608,7 @@ gamesRouter.get('/:id/posts', async (req, res) => {
   const id = String(req.params.id);
   const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 100);
   const posts = await prisma.post.findMany({
-    where: { game_id: id },
+    where: { game_id: id, deleted_at: null },
     orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
     take: limit,
     include: {

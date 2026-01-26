@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { captureException } from '@/utils/sentry';
+import { Colors } from '@/constants/Colors';
 
 interface Props {
   children: ReactNode;
@@ -59,30 +60,40 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      // Default fallback UI
-      return (
-        <View style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Oops! Something went wrong</Text>
-            <Text style={styles.message}>
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </Text>
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.buttonText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
+      // Default fallback UI - wrapped in functional component for dark mode
+      return <ErrorBoundaryFallback error={this.state.error} onReset={this.handleReset} />;
     }
 
     return this.props.children;
   }
 }
 
+// Functional component wrapper for dark mode support
+function ErrorBoundaryFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colors = Colors[colorScheme];
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: colors.text }]}>Oops! Something went wrong</Text>
+        <Text style={[styles.message, { color: colors.mutedText }]}>
+          {error?.message || 'An unexpected error occurred'}
+        </Text>
+        <TouchableOpacity 
+          style={[styles.button, { backgroundColor: colors.tint }]} 
+          onPress={onReset}
+        >
+          <Text style={styles.buttonText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -94,19 +105,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 12,
     textAlign: 'center',
   },
   message: {
     fontSize: 16,
-    color: '#6b7280',
     marginBottom: 24,
     textAlign: 'center',
     lineHeight: 24,
   },
   button: {
-    backgroundColor: '#3b82f6',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

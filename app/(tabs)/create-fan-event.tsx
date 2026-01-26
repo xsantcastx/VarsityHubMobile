@@ -273,7 +273,7 @@ export default function CreateFanEventScreen() {
           error: e,
           errorMessage,
           errorCode,
-          payload: eventType === 'game' ? gamePayload : eventData,
+          eventType,
         });
         Alert.alert('Error', detailedError);
       }

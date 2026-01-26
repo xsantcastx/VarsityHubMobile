@@ -57,7 +57,7 @@ describe('Payment Flow', () => {
     it('should log transaction creation', async () => {
       const transaction = await prisma.transactionLog.create({
         data: {
-          transaction_type: 'MEMBERSHIP',
+          transaction_type: 'SUBSCRIPTION_PURCHASE',
           status: 'PENDING',
           user_id: userId,
           user_email: TEST_USER_EMAIL,
@@ -77,7 +77,7 @@ describe('Payment Flow', () => {
     it('should update transaction status', async () => {
       const transaction = await prisma.transactionLog.create({
         data: {
-          transaction_type: 'MEMBERSHIP',
+          transaction_type: 'SUBSCRIPTION_PURCHASE',
           status: 'PENDING',
           user_id: userId,
           user_email: TEST_USER_EMAIL,

@@ -22,6 +22,23 @@
   // General TypeScript/ESLint
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
+  // ESLint Configuration
+  "eslint.enable": true,
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "eslint.format.enable": true,
+  "eslint.codeActionsOnSave.mode": "all",
+  "eslint.codeActionsOnSave.rules": null,
+  // npm Intellisense Configuration
+  "npm-intellisense.scanDevDependencies": true,
+  "npm-intellisense.importES6": true,
+  "npm-intellisense.importQuotes": "'",
+  "npm-intellisense.importLinebreak": "\n",
+  "npm-intellisense.importDeclarationType": "const",
   "audioCues.enabled": "off",
   "audioCues.chatRequestResponse": "off",
   "audioCues.inlineSuggestionAccepted": "off",

@@ -61,6 +61,7 @@ model User {
   postUpvotes      PostUpvote[]
   postBookmarks    PostBookmark[]
   gameVotes        GameVote[]
+  pollVotes        PollVote[]
 
   // Blocking
   blocking BlockedUser[] @relation("blocker")
@@ -171,6 +172,9 @@ model Post {
   game    Game?   @relation(fields: [game_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
+  deleted_at DateTime?
+
+  poll     Poll?
 
   comments Comment[]
   upvotes PostUpvote[]
@@ -181,6 +185,38 @@ model Post {
   @@index([created_at])
   @@index([author_id])
   @@index([game_id, created_at])
+}
+
+model Poll {
+  id          String       @id @default(cuid())
+  post_id     String       @unique
+  post        Post         @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  options     PollOption[]
+  created_at  DateTime     @default(now())
+  expires_at  DateTime?
+}
+
+model PollOption {
+  id          String     @id @default(cuid())
+  poll_id     String
+  poll        Poll       @relation(fields: [poll_id], references: [id], onDelete: Cascade)
+  text        String
+  votes       PollVote[]
+  votes_count Int        @default(0)
+
+  @@index([poll_id])
+}
+
+model PollVote {
+  id           String     @id @default(cuid())
+  poll_option_id String
+  poll_option  PollOption @relation(fields: [poll_option_id], references: [id], onDelete: Cascade)
+  user_id      String
+  user         User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at   DateTime   @default(now())
+
+  @@unique([poll_option_id, user_id])
+  @@index([user_id])
 }
 
 model Event {
@@ -840,7 +876,6 @@ model AbuseReport {
   @@index([status])
   @@index([created_at])
 }
-
 
 
 

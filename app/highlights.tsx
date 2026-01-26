@@ -462,31 +462,6 @@ export default function HighlightsScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery, performGlobalSearch]);
 
-  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
-    try {
-      // Navigate to post-detail with all highlights for swipe navigation
-      const filtered = getFilteredHighlights();
-      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
-      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
-      
-      if (postIds && filtered.length > 0) {
-        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
-      } else {
-        // Fallback to single post if no filtered highlights
-        router.push(`/post-detail?id=${item.id}`);
-      }
-    } catch (error) {
-      console.error('Navigation error in handleHighlightPress:', error);
-      // Fallback to single post navigation on error
-      router.push(`/post-detail?id=${item.id}`);
-    }
-  }, [router, getFilteredHighlights]);
-
-  const handleAuthorPress = useCallback((authorId: string) => {
-    // Navigate to user profile
-    router.push(`/user-profile?id=${authorId}`);
-  }, [router]);
-
   const getFilteredHighlights = useCallback(() => {
     let filtered = [...highlights];
     
@@ -542,6 +517,31 @@ export default function HighlightsScreen() {
     }
     
   }, [highlights, activeTab]);
+
+  const handleHighlightPress = useCallback((item: HighlightItem, index?: number) => {
+    try {
+      // Navigate to post-detail with all highlights for swipe navigation
+      const filtered = getFilteredHighlights();
+      const targetIndex = index !== undefined ? index : filtered.findIndex(h => h.id === item.id);
+      const postIds = filtered.map(h => h.id).filter(Boolean).join(',');
+      
+      if (postIds && filtered.length > 0) {
+        router.push(`/post-detail?postIds=${postIds}&index=${Math.max(0, targetIndex)}`);
+      } else {
+        // Fallback to single post if no filtered highlights
+        router.push(`/post-detail?id=${item.id}`);
+      }
+    } catch (error) {
+      console.error('Navigation error in handleHighlightPress:', error);
+      // Fallback to single post navigation on error
+      router.push(`/post-detail?id=${item.id}`);
+    }
+  }, [router, getFilteredHighlights]);
+
+  const handleAuthorPress = useCallback((authorId: string) => {
+    // Navigate to user profile
+    router.push(`/user-profile?id=${authorId}`);
+  }, [router]);
 
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 

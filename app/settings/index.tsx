@@ -292,9 +292,6 @@ export default function SettingsScreen() {
 
                     {/* Legal */}
                     <SectionCard title="Legal">
-                      <NavRow title="Privacy Policy" subtitle="How we protect your data" onPress={() => void router.push('/settings/privacy-policy')} />
-                      <NavRow title="Terms of Service" subtitle="Rules and guidelines" onPress={() => void router.push('/settings/terms-of-service')} />
-                      <NavRow title="Safe Zone Policy" subtitle="Messaging safety & protection" onPress={() => void router.push('/settings/safe-zone-policy')} />
                       <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
                       <NavRow title="Report Abuse" onPress={() => void router.push('/report-abuse')} />
                       <NavRow title="DM Restrictions Summary" onPress={() => void router.push('/dm-restrictions')} />

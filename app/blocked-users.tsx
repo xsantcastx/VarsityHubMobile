@@ -1,11 +1,11 @@
 import { User } from '@/api/entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Colors } from '@/constants/Colors';
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/Colors';
 
 export default function BlockedUsersScreen() {
   const colorScheme = useColorScheme();
@@ -13,7 +13,7 @@ export default function BlockedUsersScreen() {
   const theme = Colors[colorScheme];
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState<any[]>([]);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
 
   const loadBlocked = useCallback(async () => {
     setLoading(true);
@@ -33,20 +33,21 @@ export default function BlockedUsersScreen() {
   }, [loadBlocked]);
 
   const add = useCallback(async () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed || !trimmed.includes('@')) {
-      Alert.alert('Invalid email', 'Enter the email of the person you want to block.');
+    const trimmed = username.trim().toLowerCase();
+    if (!trimmed) {
+      Alert.alert('Invalid username', 'Enter the username of the person you want to block.');
       return;
     }
     try {
       setLoading(true);
-      const match = await User.lookupByEmail(trimmed);
+      const match = await User.lookupByUsername(trimmed);
       if (!match?.id) {
-        Alert.alert('User not found', 'No account matches that email.');
+        Alert.alert('User not found', 'No account matches that username.');
+        setLoading(false);
         return;
       }
       await User.block(match.id);
-      setEmail('');
+      setUsername('');
       await loadBlocked();
       Alert.alert('Blocked', `${match.display_name || trimmed} cannot message you.`);
     } catch (err: any) {
@@ -55,7 +56,7 @@ export default function BlockedUsersScreen() {
     } finally {
       setLoading(false);
     }
-  }, [email, loadBlocked]);
+  }, [username, loadBlocked]);
 
   const remove = useCallback(async (userId: string) => {
     try {
@@ -79,14 +80,13 @@ export default function BlockedUsersScreen() {
 
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
           <Input
-            placeholder="user@example.com"
-            value={email}
-            onChangeText={setEmail}
+            placeholder="username"
+            value={username}
+            onChangeText={setUsername}
             autoCapitalize="none"
-            keyboardType="email-address"
             style={{ flex: 1 }}
           />
-          <Button onPress={add} disabled={loading || !email.trim()}>
+          <Button onPress={add} disabled={loading || !username.trim()}>
             <Text>{loading ? '...' : 'Block'}</Text>
           </Button>
         </View>

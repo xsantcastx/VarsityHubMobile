@@ -10,8 +10,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Sc
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Advertisement as AdsApi } from '@/api/entities';
-import { getApiBaseUrl } from '../api/http';
 import settings from '@/api/settings';
+import { getApiBaseUrl } from '../api/http';
 
 export default function EditAdScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -178,7 +178,7 @@ export default function EditAdScreen() {
                 autoCapitalize="none" 
                 keyboardType="email-address" 
                 onChangeText={setContactEmail}
-                placeholder="you@example.com"
+                placeholder="you@business.com"
               />
 
               <Text style={styles.label}>Target Zip Code</Text>

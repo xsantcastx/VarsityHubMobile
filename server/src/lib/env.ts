@@ -43,6 +43,7 @@ const envSchema = z.object({
   TWILIO_FROM_PHONE: z.string().optional().transform(toOptional),
   REDIS_URL: z.string().optional().transform(toOptional),
   SENTRY_DSN: z.string().optional().transform(toOptional),
+  UPLOADS_PUBLIC: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

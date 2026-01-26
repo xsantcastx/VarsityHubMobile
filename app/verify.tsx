@@ -89,7 +89,9 @@ export default function VerifyScreen() {
           { tags: { context: 'verify-email-refresh' }, extra: { email } }
         );
         setError('Verification successful but failed to load profile. Please sign in again.');
-        setTimeout(() => router.replace('/sign-in'), 2000);
+        setTimeout(() => {
+          router.replace('/sign-in');
+        }, 2000);
       }
     } catch (e: any) {
       const errorDuration = Date.now() - startTime;

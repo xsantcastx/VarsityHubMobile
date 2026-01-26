@@ -61,6 +61,7 @@ export const SETTINGS_KEYS = {
   NOTIFY_MSG: 'notify_messages',
   NOTIFY_FOLLOW: 'notify_followers',
   LOCAL_ADS: 'local_ads', // stored drafts of submitted local ads
+  POST_DRAFT: 'post_draft', // draft for create post
 };
 
 export default {

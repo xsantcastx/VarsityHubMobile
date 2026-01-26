@@ -63,7 +63,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     if (ct.includes('application/json')) {
       try {
         data = text ? JSON.parse(text) : null;
-      } catch {
+      } catch (error) {
         data = null;
       }
     } else {
@@ -100,7 +100,10 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       
       // Clear token on auth errors and let AuthProvider handle session loss
       if (err.status === 401 || err.status === 403) {
-        try { clearAuthToken(); } catch {}
+        try { 
+          clearAuthToken();
+        } catch (error) {
+        }
         // Don't router.push here; AuthProvider will redirect if user is truly unauthenticated.
       }
       throw err;
