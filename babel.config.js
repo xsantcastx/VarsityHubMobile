@@ -1,5 +1,8 @@
 module.exports = function (api) {
   api.cache(true);
+
+  const isProduction = process.env.NODE_ENV === 'production';
+
   return {
     presets: ['babel-preset-expo'], // Includes react-refresh/plugin by default
     plugins: [
@@ -19,6 +22,8 @@ module.exports = function (api) {
           'is-arrayish': './shims/is-arrayish',
         }
       }],
+      // Remove console.* calls in production builds
+      ...(isProduction ? [['transform-remove-console', { exclude: ['error', 'warn'] }]] : []),
       // CRITICAL: Reanimated plugin MUST be last for Fast Refresh to work
       'react-native-reanimated/plugin',
     ],

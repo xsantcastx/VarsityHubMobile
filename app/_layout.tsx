@@ -26,7 +26,7 @@ if (!isExpoGo) {
 const devLog = (...args: unknown[]) => {
   if (__DEV__) {
     // eslint-disable-next-line no-console
-    console.log(...args);
+    if (__DEV__) console.log(...args);
   }
 };
 
@@ -155,19 +155,19 @@ export default function RootLayout() {
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                {/* Auth screens - no tab bar needed */}
+                {/* Auth screens - lazy loaded */}
                 <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                 <Stack.Screen name="sign-up" options={{ headerShown: false }} />
                 <Stack.Screen name="verify" options={{ headerShown: false }} />
                 <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
                 <Stack.Screen name="reset" options={{ headerShown: false }} />
                 <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                {/* Payment screens - no tab bar needed */}
+                {/* Payment screens - lazy loaded */}
                 <Stack.Screen name="payment-success" options={{ headerShown: false }} />
                 <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-                {/* Onboarding - no tab bar needed */}
+                {/* Onboarding - lazy loaded */}
                 <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                {/* Settings and other screens that don't need tab bar */}
+                {/* Settings and other screens - lazy loaded */}
                 <Stack.Screen name="settings" options={{ headerShown: false }} />
                 <Stack.Screen name="+not-found" />
               </Stack>
