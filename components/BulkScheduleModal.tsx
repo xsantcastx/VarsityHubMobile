@@ -364,7 +364,7 @@ export default function BulkScheduleModal({
                               'Enter opponent team name:',
                               [
                                 { text: 'Cancel', style: 'cancel' },
-                                { text: 'Save', onPress: (teamName) => {
+                                { text: 'Save', onPress: (teamName: string | undefined) => {
                                   if (teamName && teamName.trim()) {
                                     handleGameChange(index, 'opponent', teamName.trim());
                                   }

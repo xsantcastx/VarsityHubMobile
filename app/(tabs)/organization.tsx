@@ -288,7 +288,7 @@ export default function OrganizationScreen() {
                 homeTeam.includes(name) || awayTeam.includes(name)
               );
             })
-            .sort((a, b) => {
+            .sort((a: any, b: any) => {
               const dateA = new Date(a.date).getTime();
               const dateB = new Date(b.date).getTime();
               return dateA - dateB;

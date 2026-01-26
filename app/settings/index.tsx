@@ -365,7 +365,7 @@ export default function SettingsScreen() {
                         let _input = '';
                         Alert.prompt?.('Delete Account', 'This permanently deletes your account. Type DELETE to confirm.', [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Confirm', style: 'destructive', onPress: async (val) => {
+                          { text: 'Confirm', style: 'destructive', onPress: async (val: string | undefined) => {
                             const v = String(val || '').trim();
                             if (v !== 'DELETE') { Alert.alert('Confirmation required', 'Type DELETE in all caps to confirm.'); return; }
                             try {

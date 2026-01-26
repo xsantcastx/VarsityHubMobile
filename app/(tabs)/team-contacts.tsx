@@ -821,7 +821,7 @@ export default function TeamChatScreen() {
         setSoundObjects(prev => ({ ...prev, [messageId]: sound }));
         
         // Set up playback status update
-        sound.setOnPlaybackStatusUpdate((status) => {
+        sound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.isLoaded) {
             if (status.positionMillis !== undefined && status.durationMillis) {
               setAudioPosition(prev => ({
