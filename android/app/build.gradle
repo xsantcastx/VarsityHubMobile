@@ -96,6 +96,16 @@ project.ext.sentryCli = [
 
 apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
 
+// Disable Sentry upload tasks if auth token is missing
+afterEvaluate {
+    tasks.matching { it.name.contains("Sentry") && (it.name.contains("Upload") || it.name.contains("upload")) }.configureEach { task ->
+        if (!sentryHasAuthToken) {
+            task.enabled = false
+            logger.warn("Sentry upload task '${task.name}' disabled: SENTRY_AUTH_TOKEN not configured")
+        }
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
