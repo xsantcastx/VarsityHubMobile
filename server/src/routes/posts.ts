@@ -132,9 +132,10 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
   return res.json({ items: payload, nextCursor });
 });
 
-postsRouter.get('/trending', async (req: AuthedRequest, res) => {
+postsRouter.get('/trending', async (req: AuthedRequest, res, next) => {
   req.query.sort = 'trending';
-  return postsRouter.handle?.(req, res, () => {});
+  // Forward to the main GET / handler with trending sort
+  return next();
 });
 
 // Debug endpoint to check follow relationships
