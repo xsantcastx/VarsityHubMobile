@@ -594,17 +594,89 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
 /**
  * Send verification email with 6-digit code
  * Now uses EmailService with retry logic
+ * Falls back to plain text email if template not configured
  */
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
+  const service = await getEmailService();
+  const displayName = userName || 'VarsityHub User';
+
+  // Build plain text fallback content
+  const plainTextContent = `
+Hi ${displayName},
+
+Welcome to VarsityHub! Please verify your email address to complete your registration.
+
+Your verification code is: ${token}
+
+This code will expire in 30 minutes.
+
+If you didn't create a VarsityHub account, you can safely ignore this email.
+
+Thanks,
+The VarsityHub Team
+
+---
+VarsityHub - The ultimate sports team management platform
+${APP_BASE_URL}
+`.trim();
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="color: #2563EB; margin: 0;">VarsityHub</h1>
+  </div>
+
+  <h2 style="color: #1f2937;">Hi ${displayName},</h2>
+
+  <p>Welcome to VarsityHub! Please verify your email address to complete your registration.</p>
+
+  <div style="background: linear-gradient(135deg, #2563EB 0%, #1d4ed8 100%); border-radius: 12px; padding: 30px; text-align: center; margin: 30px 0;">
+    <p style="color: #fff; margin: 0 0 10px 0; font-size: 14px;">Your verification code is:</p>
+    <div style="background: #fff; border-radius: 8px; padding: 20px; display: inline-block;">
+      <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563EB;">${token}</span>
+    </div>
+  </div>
+
+  <p style="color: #6b7280; font-size: 14px;">This code will expire in <strong>30 minutes</strong>.</p>
+
+  <p style="color: #6b7280; font-size: 14px;">If you didn't create a VarsityHub account, you can safely ignore this email.</p>
+
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+  <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+    VarsityHub - The ultimate sports team management platform<br>
+    <a href="${APP_BASE_URL}" style="color: #2563EB;">${APP_BASE_URL}</a>
+  </p>
+</body>
+</html>
+`.trim();
+
+  // If no template configured, send plain text/HTML email directly
   if (!TEMPLATE_IDS.VERIFICATION) {
-    console.warn('[email] SendGrid verification template not configured');
-    return false;
+    console.warn('[email] SendGrid verification template not configured, using fallback');
+    return sendEmail({
+      to: email,
+      subject: `${token} is your VarsityHub verification code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 
-  const service = await getEmailService();
   if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured');
-    return false;
+    console.warn('[email] Email service not configured, using fallback');
+    return sendEmail({
+      to: email,
+      subject: `${token} is your VarsityHub verification code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 
   try {
@@ -615,8 +687,9 @@ export async function sendVerificationEmail(email: string, token: string, userNa
       templateData: {
         ...getCommonTemplateData(),
         verification_link: `${APP_BASE_URL}/verify?token=${encodeURIComponent(token)}`,
-        user_name: userName || 'Varsity Hub user',
+        user_name: displayName,
         verification_code: token,
+        code: token, // Some templates use 'code' instead of 'verification_code'
       },
     });
 
@@ -624,29 +697,114 @@ export async function sendVerificationEmail(email: string, token: string, userNa
       debugLog(`✅ Verification email sent to ${email}`);
       return true;
     } else {
-      console.error('❌ Failed to send verification email:', result.error);
-      return false;
+      console.error('❌ Failed to send verification email via template:', result.error);
+      // Fallback to plain text email
+      console.log('[email] Attempting fallback plain text email...');
+      return sendEmail({
+        to: email,
+        subject: `${token} is your VarsityHub verification code`,
+        text: plainTextContent,
+        html: htmlContent,
+      });
     }
   } catch (error: any) {
     console.error('❌ Failed to send verification email:', error);
-    return false;
+    // Fallback to plain text email
+    console.log('[email] Attempting fallback plain text email...');
+    return sendEmail({
+      to: email,
+      subject: `${token} is your VarsityHub verification code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 }
 
 /**
  * Send password reset email with 6-digit code
  * Now uses EmailService with retry logic
+ * Falls back to plain text email if template not configured
  */
 export async function sendPasswordResetEmail(email: string, code: string): Promise<boolean> {
+  const service = await getEmailService();
+
+  // Build plain text fallback content
+  const plainTextContent = `
+Hi,
+
+We received a request to reset your VarsityHub password.
+
+Your password reset code is: ${code}
+
+This code will expire in 30 minutes.
+
+If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+
+Thanks,
+The VarsityHub Team
+
+---
+VarsityHub - The ultimate sports team management platform
+${APP_BASE_URL}
+`.trim();
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 30px;">
+    <h1 style="color: #2563EB; margin: 0;">VarsityHub</h1>
+  </div>
+
+  <h2 style="color: #1f2937;">Password Reset Request</h2>
+
+  <p>We received a request to reset your VarsityHub password.</p>
+
+  <div style="background: linear-gradient(135deg, #DC2626 0%, #b91c1c 100%); border-radius: 12px; padding: 30px; text-align: center; margin: 30px 0;">
+    <p style="color: #fff; margin: 0 0 10px 0; font-size: 14px;">Your password reset code is:</p>
+    <div style="background: #fff; border-radius: 8px; padding: 20px; display: inline-block;">
+      <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #DC2626;">${code}</span>
+    </div>
+  </div>
+
+  <p style="color: #6b7280; font-size: 14px;">This code will expire in <strong>30 minutes</strong>.</p>
+
+  <p style="color: #6b7280; font-size: 14px;">If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+  <p style="color: #9ca3af; font-size: 12px; text-align: center;">
+    VarsityHub - The ultimate sports team management platform<br>
+    <a href="${APP_BASE_URL}" style="color: #2563EB;">${APP_BASE_URL}</a>
+  </p>
+</body>
+</html>
+`.trim();
+
+  // If no template configured, send plain text/HTML email directly
   if (!TEMPLATE_IDS.PASSWORD_RESET) {
-    console.warn('[email] SendGrid password reset template not configured');
-    return false;
+    console.warn('[email] SendGrid password reset template not configured, using fallback');
+    return sendEmail({
+      to: email,
+      subject: `${code} is your VarsityHub password reset code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 
-  const service = await getEmailService();
   if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured');
-    return false;
+    console.warn('[email] Email service not configured, using fallback');
+    return sendEmail({
+      to: email,
+      subject: `${code} is your VarsityHub password reset code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 
   try {
@@ -657,6 +815,7 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       templateData: {
         ...getCommonTemplateData(),
         reset_code: code,
+        code: code, // Some templates use 'code' instead of 'reset_code'
         expires_in: '30 minutes',
       },
     });
@@ -665,12 +824,26 @@ export async function sendPasswordResetEmail(email: string, code: string): Promi
       debugLog(`✅ Password reset email sent to ${email}`);
       return true;
     } else {
-      console.error('❌ Failed to send password reset email:', result.error);
-      return false;
+      console.error('❌ Failed to send password reset email via template:', result.error);
+      // Fallback to plain text email
+      console.log('[email] Attempting fallback plain text email...');
+      return sendEmail({
+        to: email,
+        subject: `${code} is your VarsityHub password reset code`,
+        text: plainTextContent,
+        html: htmlContent,
+      });
     }
   } catch (error: any) {
     console.error('❌ Failed to send password reset email:', error);
-    return false;
+    // Fallback to plain text email
+    console.log('[email] Attempting fallback plain text email...');
+    return sendEmail({
+      to: email,
+      subject: `${code} is your VarsityHub password reset code`,
+      text: plainTextContent,
+      html: htmlContent,
+    });
   }
 }
 
