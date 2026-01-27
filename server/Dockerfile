@@ -29,28 +29,29 @@ COPY ./server/start.sh ./start.sh
 # Copy shared directory (needed for plan-definitions.json)
 COPY ./shared ./shared
 
-# Remove expo extends and ensure noEmit is false (use python for reliable JSON manipulation)
-RUN python3 << 'PYTHON_SCRIPT' && \
-    echo "✅ Removed extends from tsconfig.json"
+# Remove expo extends and ensure compilation outputs files
+RUN python3 << 'PYTHON_SCRIPT'
 import json
-import sys
 
 with open('tsconfig.json', 'r') as f:
     config = json.load(f)
 
-# Remove extends property
+# Remove extends property (expo config not needed in server)
 if 'extends' in config:
     del config['extends']
 
-# Ensure noEmit is false
+# Ensure compilation settings are correct
 if 'compilerOptions' not in config:
     config['compilerOptions'] = {}
+
+# Make sure we're emitting files
 config['compilerOptions']['noEmit'] = False
 
 # Write back
 with open('tsconfig.json', 'w') as f:
     json.dump(config, f, indent=2)
 
+print("✅ Updated tsconfig.json:")
 print(json.dumps(config, indent=2))
 PYTHON_SCRIPT
 

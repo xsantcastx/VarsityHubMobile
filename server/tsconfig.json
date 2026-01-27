@@ -19,6 +19,7 @@
     "incremental": true,
     "tsBuildInfoFile": ".tsbuildinfo",
     "isolatedModules": true,
+    "noEmit": false,
     "types": [
       "node",
       "jest"
@@ -41,6 +42,5 @@
     "src/cron/**/*",
     "src/lib/queue.ts",
     "src/routes/tournaments.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }
