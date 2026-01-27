@@ -7,6 +7,16 @@ on:
     branches: [main, master, develop]
 
 jobs:
+  repo-health:
+    name: Repo Health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Repo health check
+        run: ./scripts/check-repo-health.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

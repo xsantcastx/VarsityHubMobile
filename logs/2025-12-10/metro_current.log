@@ -1,7 +1,0 @@
-env: load .env
-env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_SCHEME EXPO_PUBLIC_NODE_ENV EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY EXPO_PUBLIC_ADMIN_EMAILS
-Starting project at /Users/varsityhub/Desktop/CODE/VarsityHubMobile
-Starting Metro Bundler
-warning: Bundler cache is empty, rebuilding (this may take a minute)
-Waiting on http://localhost:8081
-Logs for your project will appear below.

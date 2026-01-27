@@ -89,6 +89,7 @@ build-*.ipa
 ENV_ALIGNMENT_REPORT.md
 
 # Logs directory
+.logs/
 logs/
 *.log
 *.txt

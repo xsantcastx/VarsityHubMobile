@@ -3,6 +3,7 @@ import { captureException } from './lib/sentry.js';
 import { debugLog } from './lib/debugLog.js';
 import { initEmailService } from './lib/email.js';
 import { initializeQueues, shutdownQueues } from './jobs/queues.js';
+import { env } from './lib/env.js';
 
 // Initialize SendGrid email service
 await initEmailService();
@@ -13,9 +14,9 @@ initializeQueues().catch((error) => {
   captureException(error, { context: 'queue_initialization' });
 });
 
-const PORT = Number(process.env.PORT || 4000);
+const PORT = Number(env.PORT || 4000);
 // Bind to 0.0.0.0 so the API is reachable from other devices on the LAN (useful for Expo on a phone/emulator)
-const HOST: string = process.env.HOST || '0.0.0.0';
+const HOST: string = env.HOST || '0.0.0.0';
 
 // Graceful shutdown handlers
 const shutdown = async (signal: string) => {

@@ -45,9 +45,8 @@ This folder contains all project status reports, checklists, and progress tracki
 
 ## Navigation
 
-- To view logs, see `logs/2025-12-10/` in root
-- For setup and reference docs, see root directory (SETUP.md, etc.)
-- For technical documentation, see `docs/` main folder
+- Raw logs are no longer committed; see `docs/status/OVERNIGHT_ARTIFACTS_SUMMARY.md` for preserved notes
+- For setup, build, deploy, and troubleshooting docs, use `docs/INDEX.md`
 
 ---
 
