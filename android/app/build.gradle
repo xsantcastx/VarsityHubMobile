@@ -82,6 +82,7 @@ def enableMinifyInReleaseBuilds = true
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 def sentryDisableAutoUpload = (System.getenv("SENTRY_DISABLE_AUTO_UPLOAD") ?: "").toBoolean()
+def sentryAllowFailure = (System.getenv("SENTRY_ALLOW_FAILURE") ?: "").toBoolean()
 def sentryAuthToken = System.getenv("SENTRY_AUTH_TOKEN")
 def sentryAuthTokenValue = sentryAuthToken == null ? "" : sentryAuthToken.trim()
 def sentryTokenLooksPlaceholder = sentryAuthTokenValue.isEmpty() ||
@@ -89,22 +90,90 @@ def sentryTokenLooksPlaceholder = sentryAuthTokenValue.isEmpty() ||
     sentryAuthTokenValue == "YOUR_REAL_TOKEN_HERE"
 def sentryHasAuthToken = !sentryTokenLooksPlaceholder
 
+// Enable Sentry uploads when token is available
+// SENTRY_ALLOW_FAILURE allows builds to continue if upload fails (safety net)
+def shouldUploadSentry = !sentryDisableAutoUpload && sentryHasAuthToken
+
 project.ext.sentryCli = [
     logLevel: System.getenv("SENTRY_LOG_LEVEL") ?: "info",
-    autoUpload: !sentryDisableAutoUpload && sentryHasAuthToken
+    autoUpload: shouldUploadSentry
 ]
+
+// Also set as project property for the Sentry plugin to read
+project.ext.set("sentryAutoUpload", shouldUploadSentry)
+project.ext.set("sentryAllowFailure", sentryAllowFailure)
 
 apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
 
-// Handle Sentry upload tasks - skip if token missing (non-blocking for builds)
-afterEvaluate {
-    tasks.matching { it.name.contains("Sentry") && (it.name.contains("Upload") || it.name.contains("upload")) }.configureEach { task ->
-        if (!sentryHasAuthToken && !sentryDisableAutoUpload) {
-            // Skip upload but don't fail the build - just warn
+// Make Sentry upload tasks work properly but allow failures if SENTRY_ALLOW_FAILURE is set
+// This enables Sentry uploads when token is available, but prevents build failures
+tasks.whenTaskAdded { task ->
+    def isSentryTask = task.name.contains("Sentry") && (
+        task.name.contains("Upload") || 
+        task.name.contains("upload") ||
+        task.name.contains("SentryUpload")
+    )
+    
+    if (isSentryTask) {
+        if (!sentryHasAuthToken || sentryDisableAutoUpload) {
+            // Disable only if no token or explicitly disabled
             task.enabled = false
+            task.actions.clear()
             task.doFirst {
-                logger.warn("⚠️  Sentry source map upload skipped: SENTRY_AUTH_TOKEN not configured")
-                logger.warn("   Set it in EAS: eas env:create --name SENTRY_AUTH_TOKEN --value <token> --environment production --visibility sensitive")
+                logger.warn("⚠️  Sentry upload task disabled: SENTRY_AUTH_TOKEN not configured or SENTRY_DISABLE_AUTO_UPLOAD=true")
+            }
+            task.doLast {
+                logger.warn("⚠️  Sentry upload skipped")
+            }
+        } else if (sentryAllowFailure) {
+            // With token and SENTRY_ALLOW_FAILURE, allow upload but don't fail build on error
+            def originalActions = new ArrayList(task.actions)
+            task.actions.clear()
+            
+            originalActions.each { action ->
+                task.doLast {
+                    try {
+                        if (action instanceof Closure) {
+                            action.delegate = task
+                            action.call()
+                        } else {
+                            action.execute(task)
+                        }
+                    } catch (Exception e) {
+                        logger.warn("⚠️  Sentry upload failed but build will continue (SENTRY_ALLOW_FAILURE=true): ${e.message}")
+                        // Suppress the exception - don't fail the build
+                    }
+                }
+            }
+        }
+        // If token exists and SENTRY_ALLOW_FAILURE is not set, let Sentry work normally
+    }
+}
+
+// Also catch tasks that already exist
+afterEvaluate {
+    tasks.all { task ->
+        def isSentryTask = task.name.contains("Sentry") && (
+            task.name.contains("Upload") || 
+            task.name.contains("upload") ||
+            task.name.contains("SentryUpload")
+        )
+        
+        if (isSentryTask) {
+            if (!sentryHasAuthToken || sentryDisableAutoUpload) {
+                task.enabled = false
+                task.actions.clear()
+                task.doLast {
+                    logger.warn("⚠️  Sentry upload disabled")
+                }
+            } else if (sentryAllowFailure) {
+                // Wrap in try-catch if SENTRY_ALLOW_FAILURE is set
+                task.doLast {
+                    if (task.state.failure) {
+                        logger.warn("⚠️  Sentry upload failed but continuing (SENTRY_ALLOW_FAILURE=true): ${task.state.failure.message}")
+                        task.state.failure = null
+                    }
+                }
             }
         }
     }

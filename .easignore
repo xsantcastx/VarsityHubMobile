@@ -54,6 +54,11 @@ server/.env*
 server/
 # Note: tools/ is needed for postinstall scripts
 
+# Large unnecessary files
+.snyk-cache/
+server/ios/
+*.tar.gz
+
 # Misc system clutter
 .DS_Store
 *.orig.*

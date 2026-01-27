@@ -11,7 +11,8 @@
       "env": {
         "NODE_ENV": "development",
         "SENTRY_ORG": "varsity-hub",
-        "SENTRY_PROJECT": "varsity-hub-mobile"
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "ios": {
         "resourceClass": "m-medium",
@@ -28,7 +29,8 @@
       "env": {
         "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
-        "SENTRY_PROJECT": "varsity-hub-mobile"
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -45,7 +47,8 @@
       "env": {
         "NODE_ENV": "production",
         "SENTRY_ORG": "varsity-hub",
-        "SENTRY_PROJECT": "varsity-hub-mobile"
+        "SENTRY_PROJECT": "varsity-hub-mobile",
+        "SENTRY_ALLOW_FAILURE": "true"
       },
       "ios": {
         "resourceClass": "m-medium",

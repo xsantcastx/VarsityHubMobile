@@ -73,8 +73,10 @@ if echo "$LINT_OUTPUT" | grep -q "✖.*error"; then
     echo "$LINT_OUTPUT" | grep "error" | head -10
     ERRORS=$((ERRORS + 1))
 else
-    WARN_COUNT=$(echo "$LINT_OUTPUT" | grep -c "warning" || echo "0")
-    if [ "$WARN_COUNT" -gt 0 ]; then
+    WARN_COUNT=$(echo "$LINT_OUTPUT" | grep -c "warning" 2>/dev/null || echo "0")
+    # Ensure WARN_COUNT is a single integer (handle cases where grep returns multiple lines)
+    WARN_COUNT=$(echo "$WARN_COUNT" | head -1 | tr -d '\n' | grep -oE '[0-9]+' || echo "0")
+    if [ -n "$WARN_COUNT" ] && [ "$WARN_COUNT" -gt 0 ] 2>/dev/null; then
         echo -e "${YELLOW}⚠️  $WARN_COUNT linting warnings (non-blocking)${NC}"
         WARNINGS=$((WARNINGS + WARN_COUNT))
     else

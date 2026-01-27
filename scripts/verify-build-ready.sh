@@ -489,13 +489,10 @@ if [ -n "$SENTRY_DSN" ] && [ "$SENTRY_DSN" != "" ]; then
     if [[ "$SENTRY_DSN" =~ ^https://.*@.*\.ingest\..*sentry\.io ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_SENTRY_DSN is configured and valid format${NC}"
     else
-        echo -e "${YELLOW}⚠️  EXPO_PUBLIC_SENTRY_DSN format may be invalid${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "EXPO_PUBLIC_SENTRY_DSN format may be invalid"
     fi
 else
-    echo -e "${YELLOW}⚠️  EXPO_PUBLIC_SENTRY_DSN is empty (checked app.json and .env)${NC}"
-    echo -e "${YELLOW}   Sentry error tracking will not work without DSN${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "EXPO_PUBLIC_SENTRY_DSN is empty (checked app.json and .env)"
 fi
 
 # Check EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY (check both app.json and .env)
@@ -511,17 +508,13 @@ if [ -n "$STRIPE_KEY" ] && [ "$STRIPE_KEY" != "" ]; then
     if [[ "$STRIPE_KEY" =~ ^pk_(test|live)_ ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is configured${NC}"
         if [[ "$STRIPE_KEY" =~ ^pk_test_ ]]; then
-            echo -e "${YELLOW}⚠️  Stripe key is TEST mode - switch to live for production${NC}"
-            WARNINGS=$((WARNINGS + 1))
+            mark_warning_or_error "Stripe key is TEST mode - switch to live for production"
         fi
     else
-        echo -e "${YELLOW}⚠️  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY format may be invalid${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY format may be invalid"
     fi
 else
-    echo -e "${YELLOW}⚠️  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is empty (checked app.json and .env)${NC}"
-    echo -e "${YELLOW}   Payment features will not work without Stripe key${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is empty (checked app.json and .env)"
 fi
 
 # Check API URL is configured
@@ -530,8 +523,7 @@ if [ -n "$API_URL" ] && [ "$API_URL" != "" ]; then
     if [[ "$API_URL" =~ ^https:// ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_API_URL is configured (HTTPS)${NC}"
     else
-        echo -e "${YELLOW}⚠️  EXPO_PUBLIC_API_URL is not HTTPS - may cause issues${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "EXPO_PUBLIC_API_URL is not HTTPS - may cause issues"
     fi
 else
     echo -e "${RED}❌ EXPO_PUBLIC_API_URL is empty - app will not function${NC}"
@@ -545,12 +537,10 @@ if [ -n "$GOOGLE_ANDROID_ID" ] && [ -n "$GOOGLE_IOS_ID" ]; then
     if [[ "$GOOGLE_ANDROID_ID" =~ \.apps\.googleusercontent\.com$ ]] && [[ "$GOOGLE_IOS_ID" =~ \.apps\.googleusercontent\.com$ ]]; then
         echo -e "${GREEN}✅ Google OAuth Client IDs configured (Android & iOS)${NC}"
     else
-        echo -e "${YELLOW}⚠️  Google Client ID format may be invalid${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "Google Client ID format may be invalid"
     fi
 else
-    echo -e "${YELLOW}⚠️  Google OAuth Client IDs may be missing${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Google OAuth Client IDs may be missing"
 fi
 echo ""
 
@@ -592,8 +582,7 @@ if [ -n "$ADMIN_EMAILS" ] && [ "$ADMIN_EMAILS" != "" ]; then
         WARNINGS=$((WARNINGS + 1))
     fi
 else
-    echo -e "${YELLOW}⚠️  EXPO_PUBLIC_ADMIN_EMAILS is empty${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "EXPO_PUBLIC_ADMIN_EMAILS is empty"
 fi
 echo ""
 
@@ -624,8 +613,7 @@ ADAPTIVE_ICON=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.
 if [ -n "$ADAPTIVE_ICON" ] && [ -f "$ADAPTIVE_ICON" ]; then
     echo -e "${GREEN}✅ Android adaptive icon exists: $ADAPTIVE_ICON${NC}"
 else
-    echo -e "${YELLOW}⚠️  Android adaptive icon missing: $ADAPTIVE_ICON${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Android adaptive icon missing: $ADAPTIVE_ICON"
 fi
 
 # Check favicon
@@ -633,8 +621,7 @@ FAVICON_PATH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.j
 if [ -n "$FAVICON_PATH" ] && [ -f "$FAVICON_PATH" ]; then
     echo -e "${GREEN}✅ Web favicon exists: $FAVICON_PATH${NC}"
 else
-    echo -e "${YELLOW}⚠️  Web favicon missing: $FAVICON_PATH${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Web favicon missing: $FAVICON_PATH"
 fi
 
 if [ $MISSING_ASSETS -gt 0 ]; then
@@ -659,21 +646,17 @@ if [ -n "$RUNTIME_VERSION" ]; then
     if [ "$APP_VERSION" = "$RUNTIME_VERSION" ]; then
         echo -e "${GREEN}✅ Runtime version matches app version: $RUNTIME_VERSION${NC}"
     else
-        echo -e "${YELLOW}⚠️  Runtime version ($RUNTIME_VERSION) differs from app version ($APP_VERSION)${NC}"
-        echo -e "${YELLOW}   This may be intentional for OTA update compatibility${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "Runtime version ($RUNTIME_VERSION) differs from app version ($APP_VERSION)"
     fi
 else
-    echo -e "${YELLOW}⚠️  Runtime version not set (OTA updates may have issues)${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Runtime version not set (OTA updates may have issues)"
 fi
 
 if [ -n "$PKG_VERSION" ]; then
     if [ "$APP_VERSION" = "$PKG_VERSION" ]; then
         echo -e "${GREEN}✅ package.json version matches: $PKG_VERSION${NC}"
     else
-        echo -e "${YELLOW}⚠️  package.json version ($PKG_VERSION) differs from app.json ($APP_VERSION)${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "package.json version ($PKG_VERSION) differs from app.json ($APP_VERSION)"
     fi
 fi
 echo ""
@@ -700,8 +683,7 @@ EXPO_OWNER=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.jso
 if [ -n "$EXPO_OWNER" ]; then
     echo -e "${GREEN}✅ Expo owner configured: $EXPO_OWNER${NC}"
 else
-    echo -e "${YELLOW}⚠️  Expo owner not set in app.json${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Expo owner not set in app.json"
 fi
 echo ""
 
@@ -754,12 +736,10 @@ if [ -n "$API_URL" ]; then
     elif curl -s --max-time 5 -o /dev/null -w "%{http_code}" "$API_URL" 2>/dev/null | grep -qE "^[23]"; then
         echo -e "${GREEN}✅ API server is reachable: $API_URL${NC}"
     else
-        echo -e "${YELLOW}⚠️  Could not reach API server: $API_URL${NC}"
-        echo -e "${YELLOW}   This may be a network issue or the server may be down${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "Could not reach API server: $API_URL"
     fi
 else
-    echo -e "${YELLOW}⚠️  Skipping API check - no URL configured${NC}"
+    mark_warning_or_error "Skipping API check - no URL configured"
 fi
 echo ""
 

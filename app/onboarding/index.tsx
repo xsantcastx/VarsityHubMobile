@@ -76,22 +76,14 @@ export default function OnboardingIndex() {
         return;
       }
 
-      // If all required steps complete, ensure progress doesn't skip step 6
+      // If all required steps complete (steps 2, 3, 4), allow normal progression
       if (hasStep2 && hasStep3 && hasStep4) {
-        // If progress jumped past step 6 (authorized-users), force back to step 6
-        // Step 6 is at index 4 in stepRoutes
-        if (progress > 4) {
-          if (__DEV__) console.warn('[COACH ONBOARDING INDEX] ⚠️ Progress > 4, forcing to Step 6');
-          // They're past step 6, but we want to make sure they went through it
-          // Force them to step 6 first
-          setProgress(4);
-          setHasNavigated(true);
-          router.replace('/onboarding/step-6-authorized-users');
-          return;
-        }
-        // Progress is at or before step 6, allow normal flow
-        const targetRoute = stepRoutes[progress] || stepRoutes[0];
-        if (__DEV__) console.warn('[COACH ONBOARDING INDEX] ✅ All checks passed, navigating to:', targetRoute);
+        // Coach has completed all required steps - navigate to their saved progress
+        // Step 6 (authorized-users) is at index 4 in stepRoutes
+        // Progress can be anywhere from 0-8, just ensure it's valid
+        const clampedProgress = Math.max(0, Math.min(progress, stepRoutes.length - 1));
+        const targetRoute = stepRoutes[clampedProgress] || stepRoutes[4]; // Default to step 6 if invalid
+        if (__DEV__) console.warn('[COACH ONBOARDING INDEX] ✅ All required checks passed, navigating to:', targetRoute, 'progress:', clampedProgress);
         setHasNavigated(true);
         router.replace(targetRoute as any);
         return;
