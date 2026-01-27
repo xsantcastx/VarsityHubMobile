@@ -27,6 +27,20 @@ mark_warning_or_error() {
     fi
 }
 
+EAS_ENV_CACHE=""
+if command -v eas &> /dev/null; then
+    EAS_ENV_CACHE=$(eas env:list --environment production 2>/dev/null || true)
+fi
+
+get_eas_env_value() {
+    local key="$1"
+    if [ -n "$EAS_ENV_CACHE" ] && echo "$EAS_ENV_CACHE" | grep -q "$key"; then
+        echo "__EAS_ENV_PRESENT__"
+    else
+        echo ""
+    fi
+}
+
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}🚀 BUILD READINESS VERIFICATION${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -95,8 +109,7 @@ if command -v git &> /dev/null; then
         mark_warning_or_error "Uncommitted changes detected - consider committing before build"
     fi
 else
-    echo -e "${YELLOW}⚠️  Git not found - skipping status check${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Git not found - skipping status check"
 fi
 echo ""
 
@@ -188,10 +201,7 @@ if command -v eas &> /dev/null; then
         echo -e "${GREEN}✅ SENTRY_AUTH_TOKEN found in EAS production environment${NC}"
         SENTRY_TOKEN_FOUND=1
     else
-        echo -e "${YELLOW}⚠️  SENTRY_AUTH_TOKEN not found in EAS (checking secrets/env)${NC}"
-        echo -e "${YELLOW}   Run: eas secret:list or eas env:list --environment production${NC}"
-        echo -e "${YELLOW}   Note: Token may exist but EAS CLI may not be authenticated${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "SENTRY_AUTH_TOKEN not found in EAS (secrets/env)"
     fi
 else
     mark_warning_or_error "EAS CLI not found - cannot verify SENTRY_AUTH_TOKEN"
@@ -231,8 +241,7 @@ fi
 if grep -q "whenTaskAdded.*Sentry" android/app/build.gradle 2>/dev/null || grep -q "tasks.all.*Sentry" android/app/build.gradle 2>/dev/null; then
     echo -e "${GREEN}✅ Android Sentry task handling configured${NC}"
 else
-    echo -e "${YELLOW}⚠️  Android Sentry tasks may not be properly handled${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Android Sentry tasks may not be properly handled"
 fi
 echo ""
 
@@ -241,8 +250,7 @@ echo -e "${BLUE}Step 7: iOS configuration...${NC}"
 if [ -f "ios/Podfile" ] && [ -d "ios/VarsityHub.xcodeproj" ]; then
     echo -e "${GREEN}✅ iOS project structure present${NC}"
 else
-    echo -e "${YELLOW}⚠️  iOS project structure check${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "iOS project structure missing (ios/Podfile or ios/VarsityHub.xcodeproj)"
 fi
 
 # Check iOS Sentry configuration
@@ -389,36 +397,63 @@ if [ $INVALID_PROPS -eq 0 ]; then
 fi
 
 # 2) Duplicate dependency check: react-native-safe-area-context
-if [ -f "package-lock.json" ]; then
-    DUPLICATE_COUNT=$(grep -o '"react-native-safe-area-context"' package-lock.json | wc -l)
-    if [ "$DUPLICATE_COUNT" -gt 2 ]; then
-        mark_warning_or_error "Duplicate react-native-safe-area-context dependency detected (run: npm dedupe react-native-safe-area-context)"
+if command -v npm &> /dev/null; then
+    SAFE_AREA_TREE=$(npm ls react-native-safe-area-context --all 2>&1 || true)
+    if echo "$SAFE_AREA_TREE" | grep -q "deduped"; then
+        echo -e "${GREEN}✅ react-native-safe-area-context is deduped${NC}"
+    elif echo "$SAFE_AREA_TREE" | grep -q "react-native-safe-area-context@"; then
+        VERSION_COUNT=$(echo "$SAFE_AREA_TREE" | grep -o "react-native-safe-area-context@" | wc -l | tr -d ' ')
+        if [ "$VERSION_COUNT" -gt 1 ]; then
+            mark_warning_or_error "Multiple react-native-safe-area-context versions detected (run: npm dedupe react-native-safe-area-context)"
+        else
+            echo -e "${GREEN}✅ No duplicate react-native-safe-area-context dependency found${NC}"
+        fi
     else
-        echo -e "${GREEN}✅ No duplicate react-native-safe-area-context dependency found${NC}"
+        mark_warning_or_error "react-native-safe-area-context not found in npm tree"
     fi
 else
-    mark_warning_or_error "package-lock.json missing - cannot check duplicates"
+    mark_warning_or_error "npm not found - cannot check duplicates"
 fi
 
 # 3) Package version alignment with Expo SDK 54
 if command -v npx &> /dev/null; then
     echo -n "Checking Expo package versions... "
-    if npx expo install --check --dry-run 2>&1 | grep -q "All dependencies are up to date"; then
+    EXPO_CHECK_OUTPUT=$(npx expo install --check -- --dry-run 2>&1 || true)
+    if echo "$EXPO_CHECK_OUTPUT" | grep -q "Dependencies are up to date" || echo "$EXPO_CHECK_OUTPUT" | grep -q "All dependencies are up to date"; then
         echo -e "${GREEN}✅${NC}"
     else
         echo -e "${YELLOW}⚠️${NC}"
         mark_warning_or_error "Some packages may be out of sync with Expo SDK (run: npx expo install --check)"
+        echo "$EXPO_CHECK_OUTPUT" | head -10
     fi
 else
     mark_warning_or_error "Cannot check package versions (npx not found)"
+fi
+
+# 3a) Expo Doctor (use expo-doctor CLI)
+if command -v npx &> /dev/null; then
+    EXPO_DOCTOR_OUTPUT=$(npx expo-doctor 2>&1 || true)
+    if [ -z "$EXPO_DOCTOR_OUTPUT" ]; then
+        mark_warning_or_error "Expo Doctor produced no output (unexpected)"
+    elif echo "$EXPO_DOCTOR_OUTPUT" | grep -qi "No issues found"; then
+        echo -e "${GREEN}✅ Expo Doctor reports no issues${NC}"
+    elif echo "$EXPO_DOCTOR_OUTPUT" | grep -qi "No issues detected"; then
+        echo -e "${GREEN}✅ Expo Doctor reports no issues${NC}"
+    elif echo "$EXPO_DOCTOR_OUTPUT" | grep -qi "found 0 issues"; then
+        echo -e "${GREEN}✅ Expo Doctor reports no issues${NC}"
+    else
+        mark_warning_or_error "Expo Doctor reported issues"
+        echo "$EXPO_DOCTOR_OUTPUT" | head -20
+    fi
+else
+    mark_warning_or_error "Cannot run Expo Doctor (npx not found)"
 fi
 
 # 3b) Verify Sentry package is actually installed (not just in package.json)
 if [ -d "node_modules/@sentry/react-native" ]; then
     echo -e "${GREEN}✅ @sentry/react-native package installed in node_modules${NC}"
 elif [ -d "node_modules/sentry" ]; then
-    echo -e "${YELLOW}⚠️  Found node_modules/sentry (unexpected - should be @sentry/react-native)${NC}"
-    WARNINGS=$((WARNINGS + 1))
+    mark_warning_or_error "Found node_modules/sentry (unexpected - should be @sentry/react-native)"
 elif grep -q "@sentry/react-native" package.json; then
     echo -e "${RED}❌ @sentry/react-native in package.json but not installed in node_modules${NC}"
     echo -e "${RED}   Run: npm install${NC}"
@@ -478,15 +513,24 @@ echo -e "${BLUE}Step 11: Environment variables validation...${NC}"
 
 # Check EXPO_PUBLIC_SENTRY_DSN (check both app.json and .env)
 SENTRY_DSN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_SENTRY_DSN || '')" 2>/dev/null)
+SENTRY_DSN_FROM_EAS=0
 if [ -z "$SENTRY_DSN" ] || [ "$SENTRY_DSN" = "" ]; then
     # Fallback to .env file
     if [ -f ".env" ]; then
         SENTRY_DSN=$(grep "^EXPO_PUBLIC_SENTRY_DSN=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
     fi
 fi
+if [ -z "$SENTRY_DSN" ] || [ "$SENTRY_DSN" = "" ]; then
+    SENTRY_DSN=$(get_eas_env_value "EXPO_PUBLIC_SENTRY_DSN")
+    if [ "$SENTRY_DSN" = "__EAS_ENV_PRESENT__" ]; then
+        SENTRY_DSN_FROM_EAS=1
+    fi
+fi
 
 if [ -n "$SENTRY_DSN" ] && [ "$SENTRY_DSN" != "" ]; then
-    if [[ "$SENTRY_DSN" =~ ^https://.*@.*\.ingest\..*sentry\.io ]]; then
+    if [ "$SENTRY_DSN_FROM_EAS" -eq 1 ]; then
+        echo -e "${GREEN}✅ EXPO_PUBLIC_SENTRY_DSN is set in EAS env${NC}"
+    elif [[ "$SENTRY_DSN" =~ ^https://.*@.*\.ingest\..*sentry\.io ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_SENTRY_DSN is configured and valid format${NC}"
     else
         mark_warning_or_error "EXPO_PUBLIC_SENTRY_DSN format may be invalid"
@@ -497,15 +541,24 @@ fi
 
 # Check EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY (check both app.json and .env)
 STRIPE_KEY=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')" 2>/dev/null)
+STRIPE_KEY_FROM_EAS=0
 if [ -z "$STRIPE_KEY" ] || [ "$STRIPE_KEY" = "" ]; then
     # Fallback to .env file
     if [ -f ".env" ]; then
         STRIPE_KEY=$(grep "^EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || echo "")
     fi
 fi
+if [ -z "$STRIPE_KEY" ] || [ "$STRIPE_KEY" = "" ]; then
+    STRIPE_KEY=$(get_eas_env_value "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY")
+    if [ "$STRIPE_KEY" = "__EAS_ENV_PRESENT__" ]; then
+        STRIPE_KEY_FROM_EAS=1
+    fi
+fi
 
 if [ -n "$STRIPE_KEY" ] && [ "$STRIPE_KEY" != "" ]; then
-    if [[ "$STRIPE_KEY" =~ ^pk_(test|live)_ ]]; then
+    if [ "$STRIPE_KEY_FROM_EAS" -eq 1 ]; then
+        echo -e "${GREEN}✅ EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is set in EAS env${NC}"
+    elif [[ "$STRIPE_KEY" =~ ^pk_(test|live)_ ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY is configured${NC}"
         if [[ "$STRIPE_KEY" =~ ^pk_test_ ]]; then
             mark_warning_or_error "Stripe key is TEST mode - switch to live for production"
@@ -519,8 +572,17 @@ fi
 
 # Check API URL is configured
 API_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.extra.EXPO_PUBLIC_API_URL || '')" 2>/dev/null)
+API_URL_FROM_EAS=0
+if [ -z "$API_URL" ] || [ "$API_URL" = "" ]; then
+    API_URL=$(get_eas_env_value "EXPO_PUBLIC_API_URL")
+    if [ "$API_URL" = "__EAS_ENV_PRESENT__" ]; then
+        API_URL_FROM_EAS=1
+    fi
+fi
 if [ -n "$API_URL" ] && [ "$API_URL" != "" ]; then
-    if [[ "$API_URL" =~ ^https:// ]]; then
+    if [ "$API_URL_FROM_EAS" -eq 1 ]; then
+        echo -e "${GREEN}✅ EXPO_PUBLIC_API_URL is set in EAS env${NC}"
+    elif [[ "$API_URL" =~ ^https:// ]]; then
         echo -e "${GREEN}✅ EXPO_PUBLIC_API_URL is configured (HTTPS)${NC}"
     else
         mark_warning_or_error "EXPO_PUBLIC_API_URL is not HTTPS - may cause issues"
@@ -572,14 +634,14 @@ if [ -n "$ADMIN_EMAILS" ] && [ "$ADMIN_EMAILS" != "" ]; then
         email="${email#"${email%%[![:space:]]*}"}"
         email="${email%"${email##*[![:space:]]}"}"
         if [ -n "$email" ] && [[ ! "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-            echo -e "${YELLOW}⚠️  Admin email format may be invalid: $email${NC}"
+            mark_warning_or_error "Admin email format may be invalid: $email"
             INVALID_EMAILS=$((INVALID_EMAILS + 1))
         fi
     done
     if [ $INVALID_EMAILS -eq 0 ]; then
         echo -e "${GREEN}✅ Admin emails format valid: $ADMIN_EMAILS${NC}"
     else
-        WARNINGS=$((WARNINGS + 1))
+        :
     fi
 else
     mark_warning_or_error "EXPO_PUBLIC_ADMIN_EMAILS is empty"
@@ -729,7 +791,9 @@ echo ""
 
 # Step 18: API Connectivity Check (Optional - can be slow)
 echo -e "${BLUE}Step 18: API connectivity check...${NC}"
-if [ -n "$API_URL" ]; then
+if [ -n "$API_URL" ] && [ "$API_URL_FROM_EAS" -eq 1 ]; then
+    mark_warning_or_error "API URL set in EAS env - cannot verify connectivity locally"
+elif [ -n "$API_URL" ]; then
     # Quick health check with 5 second timeout
     if curl -s --max-time 5 -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null | grep -q "200\|204\|301\|302"; then
         echo -e "${GREEN}✅ API server is reachable: $API_URL${NC}"
@@ -752,17 +816,12 @@ if [ -n "$IOS_BUNDLE_ID" ] && [ -n "$ANDROID_PACKAGE" ]; then
     if [ "$IOS_BUNDLE_ID" = "$ANDROID_PACKAGE" ]; then
         echo -e "${GREEN}✅ Bundle IDs match: $IOS_BUNDLE_ID${NC}"
     else
-        echo -e "${YELLOW}⚠️  iOS and Android bundle IDs differ${NC}"
-        echo -e "${YELLOW}   iOS: $IOS_BUNDLE_ID${NC}"
-        echo -e "${YELLOW}   Android: $ANDROID_PACKAGE${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "iOS and Android bundle IDs differ (iOS: $IOS_BUNDLE_ID, Android: $ANDROID_PACKAGE)"
     fi
 
     # Check for potential typos (varsithub vs varsityhub)
     if [[ "$IOS_BUNDLE_ID" =~ varsithub ]] && [[ ! "$IOS_BUNDLE_ID" =~ varsityhub ]]; then
-        echo -e "${YELLOW}⚠️  Bundle ID contains 'varsithub' - did you mean 'varsityhub'?${NC}"
-        echo -e "${YELLOW}   Current: $IOS_BUNDLE_ID${NC}"
-        WARNINGS=$((WARNINGS + 1))
+        mark_warning_or_error "Bundle ID contains 'varsithub' - did you mean 'varsityhub'? ($IOS_BUNDLE_ID)"
     fi
 else
     if [ -z "$IOS_BUNDLE_ID" ]; then

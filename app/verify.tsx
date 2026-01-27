@@ -99,7 +99,25 @@ export default function VerifyScreen() {
         tags: { context: 'verify-email-verify', duration_ms: String(errorDuration) },
         extra: { email, code_length: String(code).length },
       });
-      const errorMsg = e?.message || e?.data?.error || 'Verification failed';
+      
+      // Provide more helpful error messages
+      let errorMsg = e?.message || e?.data?.error || 'Verification failed';
+      const status = e?.status;
+      
+      if (status === 400) {
+        if (errorMsg.includes('expired')) {
+          errorMsg = 'Verification code has expired. Please request a new code.';
+        } else if (errorMsg.includes('Invalid code')) {
+          errorMsg = 'Invalid verification code. Please check the code and try again.';
+        } else if (errorMsg.includes('No verification in progress')) {
+          errorMsg = 'No verification code found. Please request a new code.';
+        }
+      } else if (status === 401) {
+        errorMsg = 'Please sign in again to verify your email.';
+      } else if (status === 404) {
+        errorMsg = 'Account not found. Please contact support.';
+      }
+      
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -123,9 +141,9 @@ export default function VerifyScreen() {
 
       if (res?.dev_verification_code) {
         setDevCode(res.dev_verification_code);
-        setInfo(`Code sent (dev: ${res.dev_verification_code})`);
+        setInfo(`Code sent! Dev code: ${res.dev_verification_code}`);
       } else {
-        setInfo('Code sent to your email');
+        setInfo('Verification code sent! Please check your email (and spam folder).');
       }
     } catch (e: any) {
       const resendDuration = Date.now() - startTime;
@@ -133,7 +151,21 @@ export default function VerifyScreen() {
         tags: { context: 'verify-email-resend', duration_ms: String(resendDuration) },
         extra: { email, error_code: e?.data?.error },
       });
-      const errorMsg = e?.message || e?.data?.error || 'Resend failed';
+      
+      let errorMsg = e?.message || e?.data?.error || 'Resend failed';
+      const status = e?.status;
+      
+      // Provide helpful error messages
+      if (status === 429) {
+        if (errorMsg.includes('wait')) {
+          errorMsg = 'Please wait 30 seconds before requesting another code.';
+        } else {
+          errorMsg = 'Too many requests. Please try again in an hour.';
+        }
+      } else if (status === 401) {
+        errorMsg = 'Please sign in again to request a verification code.';
+      }
+      
       setError(errorMsg);
     } finally {
       setLoading(false);

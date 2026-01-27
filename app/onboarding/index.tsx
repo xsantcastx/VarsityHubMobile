@@ -82,7 +82,7 @@ export default function OnboardingIndex() {
         // Step 6 (authorized-users) is at index 4 in stepRoutes
         // Progress can be anywhere from 0-8, just ensure it's valid
         const clampedProgress = Math.max(0, Math.min(progress, stepRoutes.length - 1));
-        const targetRoute = stepRoutes[clampedProgress] || stepRoutes[4]; // Default to step 6 if invalid
+        const targetRoute = stepRoutes[clampedProgress] || stepRoutes[0]; // Default to step 1 if invalid (not step 6)
         if (__DEV__) console.warn('[COACH ONBOARDING INDEX] ✅ All required checks passed, navigating to:', targetRoute, 'progress:', clampedProgress);
         setHasNavigated(true);
         router.replace(targetRoute as any);
