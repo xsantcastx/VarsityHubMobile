@@ -1,5 +1,7 @@
 <resources>
   <string name="app_name">VarsityHub</string>
+  <string name="name">VarsityHub Mobile</string>
+  <string name="displayName">VarsityHub Mobile</string>
   <string name="expo_system_ui_user_interface_style" translatable="false">automatic</string>
   <string name="expo_runtime_version">1.0.1</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
