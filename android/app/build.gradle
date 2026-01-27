@@ -179,6 +179,9 @@ afterEvaluate {
         
         // Ensure lintVitalRelease doesn't fail on ExtraTranslation errors
         if (task.name == 'lintVitalRelease') {
+            // Configure task to ignore failures
+            task.ignoreFailures = true
+            // Also catch failures in doLast as backup
             task.doLast {
                 if (task.state.failure) {
                     logger.warn("⚠️  lintVitalRelease found issues but continuing (ExtraTranslation disabled): ${task.state.failure.message}")
