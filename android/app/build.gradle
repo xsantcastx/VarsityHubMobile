@@ -296,6 +296,8 @@ android {
         // Ignore all lint warnings and errors for release builds
         quiet true
         ignoreWarnings true
+        // Use baseline to ignore known issues (ExtraTranslation from values-b+en/strings.xml)
+        baseline file("lint-baseline.xml")
     }
 }
 
