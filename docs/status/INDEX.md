@@ -21,6 +21,7 @@ This folder contains all project status reports, checklists, and progress tracki
 - **OVERNIGHT_STATUS.md** - Latest overnight automation status
 - **OVERNIGHT_STATUS_DEC9.md** - December 9 overnight status
 - **OVERNIGHT_CHECKLIST_COMPLETE.md** - Overnight checklist completion
+- **OVERNIGHT_ARTIFACTS_SUMMARY.md** - Summary of removed log artifacts
 
 ## Launch & QA Checklists
 
