@@ -11,7 +11,6 @@
 import type { Request, Response } from 'express';
 import rateLimit, { Options, Store } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
-import { redis } from '../lib/queue.js';
 import { debugLog } from '../lib/debugLog.js';
 
 /**
@@ -21,22 +20,46 @@ import { debugLog } from '../lib/debugLog.js';
 const isDev = process.env.NODE_ENV !== 'production' || process.env.RATE_LIMIT_DISABLE === '1';
 
 /**
- * Create Redis store for rate limiting (production)
- * Falls back to memory store if Redis is unavailable
+ * Create a separate Redis connection for rate limiting only
+ * This prevents connection pool exhaustion when queues are also using Redis
  */
+let rateLimitRedis: any = null;
 let redisStore: Store | undefined;
-try {
-  redisStore = new RedisStore({
-    // Use the existing Redis connection from queue.ts
-    // @ts-expect-error - ioredis call method types don't perfectly match rate-limit-redis
-    sendCommand: (...args: string[]) => redis.call(...(args as [string, ...string[]])),
-    prefix: 'rl:', // rate limit prefix
-  });
-  debugLog('✅ Rate limiter using Redis store (scalable across instances)');
-} catch (error) {
-  console.warn('⚠️ Redis store unavailable for rate limiting, using memory store');
-  redisStore = undefined;
+
+async function initializeRateLimitRedis() {
+  if (isDev || rateLimitRedis) return;
+  
+  try {
+    const REDIS_URL = process.env.REDIS_URL;
+    if (!REDIS_URL) {
+      debugLog('⚠️ REDIS_URL not set, rate limiter will use memory store');
+      return;
+    }
+    
+    const { default: Redis } = await import('ioredis');
+    rateLimitRedis = new Redis(REDIS_URL, {
+      maxRetriesPerRequest: null, // Disable retry limit
+      enableReadyCheck: false,
+      enableOfflineQueue: true,
+    });
+
+    redisStore = new RedisStore({
+      // @ts-expect-error - ioredis call method types don't perfectly match rate-limit-redis
+      sendCommand: (...args: string[]) => rateLimitRedis.call(...(args as [string, ...string[]])),
+      prefix: 'rl:', // rate limit prefix
+    });
+    debugLog('✅ Rate limiter using dedicated Redis connection (isolated from queues)');
+  } catch (error) {
+    console.warn('⚠️ Failed to initialize Redis for rate limiting, using memory store:', error);
+    rateLimitRedis = null;
+    redisStore = undefined;
+  }
 }
+
+// Initialize rate limit Redis on module load
+initializeRateLimitRedis().catch((err) => {
+  console.error('[RateLimit] Failed to initialize Redis:', err);
+});
 
 /**
  * Get user identifier for rate limiting
