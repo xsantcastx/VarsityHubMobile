@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthProvider';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 // @ts-ignore JS exports
 import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
@@ -123,7 +124,7 @@ export default function Step1Role() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding, progress } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding, progress, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -174,7 +175,16 @@ export default function Step1Role() {
 
   const onContinue = async () => {
     if (!role) return;
+    
+    // Prevent double-tap race condition
+    if (!canNavigate || saving) {
+      if (__DEV__) console.warn('[STEP-1] Navigation blocked - saving or already navigating');
+      return;
+    }
+    
     setSaving(true);
+    dispatch({ type: 'SAVE_START' });
+    
     try {
       // Only clear state when SWITCHING from fan to coach (not when continuing as coach)
       // This prevents losing progress for returning coaches
@@ -184,13 +194,15 @@ export default function Step1Role() {
         // User is switching TO coach - clear state to ensure full onboarding
         if (__DEV__) console.warn('[COACH ONBOARDING] 🔄 SWITCHING TO COACH - CLEARING STATE');
         await clearOnboarding();
+        dispatch({ type: 'INIT_FROM_PROFILE', profile: { role: 'coach' } });
         setOB({ role: 'coach' });
-        setProgress(1);
       } else if (role === 'coach') {
         // Already a coach - just continue where they left off
         if (__DEV__) console.warn('[COACH ONBOARDING] ✅ Continuing as coach (preserving state)');
+        dispatch({ type: 'UPDATE_DRAFT', data: { role: 'coach' } });
         setOB((prev) => ({ ...prev, role: 'coach' }));
       } else {
+        dispatch({ type: 'UPDATE_DRAFT', data: { role } });
         setOB((prev) => ({ ...prev, role }));
       }
       
@@ -200,64 +212,54 @@ export default function Step1Role() {
         // Re-fetch me to confirm server saved the preference and help downstream code react
         try {
           const me: any = await User.me();
-          // eslint-disable-next-line no-console
           // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
-          if (me?.preferences?.role) setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
+          if (me?.preferences?.role) {
+            setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
+            dispatch({ type: 'UPDATE_DRAFT', data: { role: me.preferences.role } });
+          }
         } catch {
           // ignore; best-effort
         }
       } catch (error) {
         if (__DEV__) {
-          // eslint-disable-next-line no-console
           console.warn('[Onboarding][Step1] failed to persist role to server', error);
         }
       }
-      try {
-        // eslint-disable-next-line no-console
-      } catch {}
       
       // If we came from confirmation, go back there
       if (returnToConfirmation) {
+        dispatch({ type: 'SET_STEP', stepIndex: 8, reason: 'RETURN_TO_CONFIRMATION' });
+        setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Route based on role selection for normal onboarding flow
-        if (role === 'fan') {
-          // Fan gets lightest setup - skip to profile
-          setProgress(5); // step-7 is index 5
-          router.replace('/onboarding/step-7-profile');
-        } else if (role === 'coach') {
-          // For returning coaches, resume where they left off
-          // For new coaches (wasCoachBefore is false), start at step 2
-          const currentProgress = progress || 0;
-
-          if (wasCoachBefore && currentProgress > 1) {
-            // Resume at their saved progress
-            const stepRoutes: Record<number, string> = {
-              1: '/onboarding/step-2-basic',
-              2: '/onboarding/step-3-team',
-              3: '/onboarding/step-4-organization',
-              4: '/onboarding/step-5-roster',
-              5: '/onboarding/step-6-schedule',
-              6: '/onboarding/step-7-profile',
-              7: '/onboarding/step-8-interests',
-              8: '/onboarding/step-9-notifications',
-              9: '/onboarding/step-10-confirmation',
-            };
-            const resumeRoute = stepRoutes[currentProgress] || '/onboarding/step-2-basic';
-            if (__DEV__) console.warn('[COACH ONBOARDING] 🚀 Resuming at progress', currentProgress, '->', resumeRoute);
-            router.replace(resumeRoute as any);
-          } else {
-            // New coach or no progress - start at step 2
-            if (__DEV__) console.warn('[COACH ONBOARDING] 🚀 Starting at Step 2 (Basic Info)');
-            setProgress(1);
-            router.replace('/onboarding/step-2-basic');
-          }
-        } else {
-          // Fallback - go to step 2
-          setProgress(1);
-          router.replace('/onboarding/step-2-basic');
+        // Use reducer to calculate next step deterministically
+        const updatedState = { ...ob, role };
+        const nextStepIndex = calculateNextStep();
+        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
+        
+        if (__DEV__) {
+          console.log('[STEP-1] Navigation after role selection:', {
+            role,
+            wasCoachBefore,
+            nextStepIndex,
+            nextRoute,
+            calculatedNext: nextIncompleteStep(updatedState, role),
+          });
         }
+        
+        // Save role and navigate to calculated next step
+        dispatch({ 
+          type: 'SAVE_SUCCESS', 
+          data: { role } 
+        });
+        setProgress(nextStepIndex);
+        router.replace(nextRoute as any);
       }
+    } catch (error) {
+      if (__DEV__) {
+        console.error('[STEP-1] Error during continue:', error);
+      }
+      dispatch({ type: 'SAVE_FAIL', error: error as Error });
     } finally {
       setSaving(false);
     }

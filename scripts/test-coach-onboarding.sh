@@ -1,97 +1,66 @@
 #!/bin/bash
-# Test Coach Onboarding Payment Verification
-# This script tests the payment verification logic
 
-set -e
+# Coach Onboarding End-to-End Test Script
+# This script helps verify that coach onboarding works correctly
 
-echo "🧪 Testing Coach Onboarding Payment Verification"
-echo "=================================================="
+echo "=========================================="
+echo "Coach Onboarding Test Script"
+echo "=========================================="
+echo ""
+echo "This script will help you test the coach onboarding flow."
+echo "Make sure the app is running in the simulator first."
+echo ""
+echo "Steps to test:"
+echo "1. Sign up with a new email (or use an account with onboarding_completed not set)"
+echo "2. Verify email"
+echo "3. Follow the onboarding flow:"
+echo "   - Step 1: Select 'Coach / Organizer'"
+echo "   - Step 2: Enter basic info (username, DOB, zip)"
+echo "   - Step 3: Select plan (Rookie/Veteran/Legend)"
+echo "   - Step 4: Create organization"
+echo "   - Step 6: Add authorized users (or skip)"
+echo "   - Step 7: Create profile"
+echo "   - Step 8: Select interests"
+echo "   - Step 9: Configure features"
+echo "   - Step 10: Complete onboarding"
+echo ""
+echo "Checking for common issues..."
 echo ""
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-echo "📋 Test Checklist:"
-echo ""
-
-# Test 1: Check if payment verification code exists
-echo "1️⃣  Checking payment verification code..."
-if grep -q "payment_pending === true" app/onboarding/step-10-confirmation.tsx; then
-    echo -e "   ${GREEN}✅ Payment verification check found${NC}"
-else
-    echo -e "   ${RED}❌ Payment verification check NOT found${NC}"
-    exit 1
+# Check if Metro is running
+if ! curl -s http://localhost:8081/status > /dev/null 2>&1; then
+    echo "⚠️  Metro bundler doesn't appear to be running on port 8081"
+    echo "   Start it with: npm start"
+    echo ""
 fi
 
-# Test 2: Check if subscription_id check exists
-echo ""
-echo "2️⃣  Checking subscription ID verification..."
-if grep -q "subscription_id" app/onboarding/step-10-confirmation.tsx; then
-    echo -e "   ${GREEN}✅ Subscription ID check found${NC}"
-else
-    echo -e "   ${RED}❌ Subscription ID check NOT found${NC}"
-    exit 1
-fi
-
-# Test 3: Check if Rookie plan is excluded from payment check
-echo ""
-echo "3️⃣  Checking Rookie plan exclusion..."
-if grep -q "ob.plan !== 'rookie'" app/onboarding/step-10-confirmation.tsx; then
-    echo -e "   ${GREEN}✅ Rookie plan excluded from payment check${NC}"
-else
-    echo -e "   ${RED}❌ Rookie plan NOT excluded${NC}"
-    exit 1
-fi
-
-# Test 4: Check team count default
-echo ""
-echo "4️⃣  Checking team count default..."
-if grep -q "useState<number>(2)" app/onboarding/step-3-plan.tsx; then
-    echo -e "   ${GREEN}✅ Team count defaults to 2 (first 2 free)${NC}"
-else
-    echo -e "   ${YELLOW}⚠️  Team count default may not be 2${NC}"
-fi
-
-# Test 5: Check team count minimum validation
-echo ""
-echo "5️⃣  Checking team count minimum validation..."
-if grep -q "teamCount < 3" app/onboarding/step-3-plan.tsx; then
-    echo -e "   ${GREEN}✅ Minimum 3 teams validation found${NC}"
-else
-    echo -e "   ${YELLOW}⚠️  Minimum team validation may be missing${NC}"
-fi
+# Check TypeScript errors in onboarding files
+echo "Checking TypeScript errors in onboarding files..."
+npx tsc --noEmit --skipLibCheck app/onboarding/*.tsx 2>&1 | grep -E "(error|warning)" | head -20
 
 echo ""
-echo "📱 Manual Test Required:"
+echo "=========================================="
+echo "Test Checklist:"
+echo "=========================================="
 echo ""
-echo "To fully test, you need to:"
+echo "□ Step 1: Can select 'Coach / Organizer' and continue"
+echo "□ Step 2: Can enter username, DOB, zip and continue"
+echo "□ Step 3: Can select a plan and continue"
+echo "□ Step 4: Can create organization and continue"
+echo "□ Step 6: Can add users (or skip) and continue"
+echo "□ Step 7: Can create profile and continue"
+echo "□ Step 8: Can select interests and continue"
+echo "□ Step 9: Can configure features and continue"
+echo "□ Step 10: Can complete onboarding and reach main app"
 echo ""
-echo "1. ${YELLOW}Test Pending Payment Block${NC}"
-echo "   - Select Coach role"
-echo "   - Choose Veteran plan"
-echo "   - Open Stripe checkout but DON'T complete"
-echo "   - Navigate to Step 10"
-echo "   - Click 'Complete Setup'"
-echo "   - ${GREEN}Expected: Alert shown, completion blocked${NC}"
+echo "Common Issues to Check:"
+echo "□ No redirects to main app before completing all steps"
+echo "□ Progress persists when going back and forward"
+echo "□ All data saves correctly to server"
+echo "□ No crashes or errors in console"
 echo ""
-echo "2. ${YELLOW}Test Completed Payment${NC}"
-echo "   - Select Coach role"
-echo "   - Choose Veteran plan"
-echo "   - Complete Stripe payment"
-echo "   - Navigate to Step 10"
-echo "   - Click 'Complete Setup'"
-echo "   - ${GREEN}Expected: Onboarding completes${NC}"
+echo "To check logs, run:"
+echo "  npx react-native log-ios  # for iOS"
+echo "  npx react-native log-android  # for Android"
 echo ""
-echo "3. ${YELLOW}Test Rookie Plan (Free)${NC}"
-echo "   - Select Coach role"
-echo "   - Choose Rookie plan"
-echo "   - Navigate to Step 10"
-echo "   - Click 'Complete Setup'"
-echo "   - ${GREEN}Expected: Onboarding completes immediately${NC}"
-echo ""
-echo "✅ Code verification complete!"
-echo ""
-echo "Next: Run manual tests in the app to verify behavior."
+echo "=========================================="

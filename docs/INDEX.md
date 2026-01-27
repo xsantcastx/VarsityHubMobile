@@ -23,6 +23,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Build System](./build/BUILD_SYSTEM.md)
 - [Build Status Check](./build/BUILD_STATUS_CHECK.md)
 - [Build Fix Summary](./build/BUILD_FIX_SUMMARY.md)
+- [Build Fix Summary (Jan 27)](./build/BUILD_FIX_SUMMARY_JAN27.md)
 
 ## Deploy
 - [Android Submission Guide](./deploy/ANDROID_SUBMISSION_GUIDE.md)
@@ -32,6 +33,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [Push Fixes](./deploy/PUSH_FIXES.md)
 - [Sentry Setup](./deploy/SENTRY_SETUP.md)
 - [Sentry Verification](./deploy/SENTRY_VERIFICATION.md)
+- [Security Locked Configuration](./deploy/SECURITY_LOCKED.md)
 
 ## Troubleshooting
 - [Apple Team ID Fix](./troubleshooting/APPLE_TEAM_ID_FIX_INSTRUCTIONS.md)
@@ -56,6 +58,7 @@ This is the single entry point for VarsityHub docs. Use the sections below to fi
 - [API Key Update Complete](./status/API_KEY_UPDATE_COMPLETE.md)
 - [Coach Onboarding Fix Summary](./status/COACH_ONBOARDING_FIX_SUMMARY.md)
 - [Coach Onboarding Verified](./status/COACH_ONBOARDING_VERIFIED.md)
+- [Developer Cleanup Manifest](./status/DEVELOPER_CLEANUP_MANIFEST.md)
 - [Migration and Test Results](./status/MIGRATION_AND_TEST_RESULTS.md)
 - [Migration Status](./status/MIGRATION_STATUS.md)
 - [Release Blockers (Feb 1)](./status/RELEASE_BLOCKERS_FEB_1.md)

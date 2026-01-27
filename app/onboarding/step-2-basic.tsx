@@ -9,6 +9,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding, type Affiliation } from '@/context/OnboardingContext';
+import { STEP_ROUTES, nextIncompleteStep } from '@/context/onboardingReducer';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useFocusEffect } from '@react-navigation/native';
 import OnboardingLayout from './components/OnboardingLayout';
@@ -21,7 +22,7 @@ export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
   const [dob, setDob] = useState('');
@@ -137,49 +138,66 @@ export default function Step2Basic() {
 
   const onContinue = async () => {
     if (!canContinue) return;
+    
+    // Prevent race conditions
+    if (!canNavigate || saving) {
+      if (__DEV__) console.warn('[STEP-2] Navigation blocked - saving or already navigating');
+      return;
+    }
+    
     // Final normalization pass
     const finalUsername = username.trim().toLowerCase().replace(/\s+/g, '_');
     setSaving(true);
+    dispatch({ type: 'SAVE_START' });
+    
     try {
+      const updatedData = {
+        username: finalUsername,
+        affiliation,
+        dob,
+        zip: zip || undefined,
+        zip_code: zip || null,
+      };
+      
       setOB((prev) => ({ 
         ...prev, 
-        username: finalUsername, 
-        affiliation, 
-        dob, 
-        zip: zip || undefined,
-        zip_code: zip || null 
+        ...updatedData,
       }));
+      
       // Save username (not display_name) - this is the single identifier
       await User.patchMe({ username: finalUsername, preferences: { affiliation, dob, zip_code: zip || undefined } });
       
-      // Navigate back to confirmation if we came from there, otherwise continue based on role
+      // Navigate back to confirmation if we came from there, otherwise use reducer to calculate next step
       if (returnToConfirmation) {
-        setProgress(7); // step-10 is index 7
+        dispatch({ type: 'SET_STEP', stepIndex: 8, reason: 'RETURN_TO_CONFIRMATION' });
+        setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Determine role from onboarding state
-        const userRole = ob.role;
+        // Use reducer to calculate next step deterministically
+        const updatedState = { ...ob, ...updatedData };
+        const nextStepIndex = nextIncompleteStep(updatedState, ob.role);
+        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
         
-        if (!userRole) {
-          // No role set - go back to step 1
-          setProgress(0);
-          router.replace('/onboarding/step-1-role');
-          return;
+        if (__DEV__) {
+          console.log('[STEP-2] Navigation after save:', {
+            role: ob.role,
+            nextStepIndex,
+            nextRoute,
+            calculatedNext: nextIncompleteStep(updatedState, ob.role),
+          });
         }
         
-        // Fan: light path → profile setup
-        if (userRole === 'fan') {
-          setProgress(5); // step-7 is index 5
-          router.replace('/onboarding/step-7-profile');
-          return;
-        }
-
-        // Coach: MUST go to plan selection - NEVER skip to step 7
-        setProgress(2); // step-3 is index 2
-        router.replace('/onboarding/step-3-plan');
+        // Save and navigate
+        dispatch({ 
+          type: 'SAVE_SUCCESS', 
+          data: updatedData 
+        });
+        setProgress(nextStepIndex);
+        router.replace(nextRoute as any);
       }
     } catch (e: any) { 
       console.error('[step-2-basic] Failed to save:', e);
+      dispatch({ type: 'SAVE_FAIL', error: e });
       const errorMessage = e?.message || e?.data?.error || 'Please try again';
       Alert.alert('Failed to save', errorMessage, [
         { text: 'OK', style: 'default' }
