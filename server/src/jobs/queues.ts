@@ -134,12 +134,6 @@ export async function initializeQueues(): Promise<boolean> {
     notificationQueue = new Queue<NotificationJob>('notifications', {
       connection,
       ...QUEUE_CONFIG,
-      settings: {
-        maxStalledCount: 1,
-        lockDuration: 10000,
-        retryProcessDelay: 5000,
-        enableReadyCheck: false,
-      },
     });
 
     emailQueue = new Queue<EmailJob>('emails', {
@@ -147,12 +141,6 @@ export async function initializeQueues(): Promise<boolean> {
       defaultJobOptions: {
         ...QUEUE_CONFIG.defaultJobOptions,
         attempts: 5, // More retries for email
-      },
-      settings: {
-        maxStalledCount: 1,
-        lockDuration: 10000,
-        retryProcessDelay: 5000,
-        enableReadyCheck: false,
       },
     });
 
@@ -163,12 +151,6 @@ export async function initializeQueues(): Promise<boolean> {
         attempts: 2, // Analytics can fail silently
         removeOnComplete: { count: 10000 },
       },
-      settings: {
-        maxStalledCount: 1,
-        lockDuration: 10000,
-        retryProcessDelay: 5000,
-        enableReadyCheck: false,
-      },
     });
 
     mediaQueue = new Queue<MediaJob>('media', {
@@ -177,22 +159,10 @@ export async function initializeQueues(): Promise<boolean> {
         ...QUEUE_CONFIG.defaultJobOptions,
         attempts: 3,
       },
-      settings: {
-        maxStalledCount: 1,
-        lockDuration: 10000,
-        retryProcessDelay: 5000,
-        enableReadyCheck: false,
-      },
     });
 
     schedulerQueue = new Queue('scheduler', {
       connection,
-      settings: {
-        maxStalledCount: 1,
-        lockDuration: 10000,
-        retryProcessDelay: 5000,
-        enableReadyCheck: false,
-      },
     });
 
     queuesInitialized = true;

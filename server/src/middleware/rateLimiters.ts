@@ -36,15 +36,18 @@ async function initializeRateLimitRedis() {
       return;
     }
     
-    const { default: Redis } = await import('ioredis');
-    rateLimitRedis = new Redis(REDIS_URL, {
+    // Import Redis using CommonJS style (same as queue.ts)
+    const RedisModule = await import('ioredis');
+    const Redis = RedisModule.default;
+    const RedisCtor = Redis as unknown as new (url: string, options?: any) => any;
+    
+    rateLimitRedis = new RedisCtor(REDIS_URL, {
       maxRetriesPerRequest: null, // Disable retry limit
       enableReadyCheck: false,
       enableOfflineQueue: true,
     });
 
     redisStore = new RedisStore({
-      // @ts-expect-error - ioredis call method types don't perfectly match rate-limit-redis
       sendCommand: (...args: string[]) => rateLimitRedis.call(...(args as [string, ...string[]])),
       prefix: 'rl:', // rate limit prefix
     });
