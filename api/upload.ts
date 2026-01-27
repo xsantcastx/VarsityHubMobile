@@ -137,8 +137,8 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   const token = getAuthToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const retries = Math.max(0, options?.retries ?? 5); // 5 retries by default for reliability
-  const backoffMs = Math.max(50, options?.backoffMs ?? 1000); // 1 second backoff
+  const retries = Math.max(0, options?.retries ?? 8); // 8 retries for Redis pool exhaustion recovery
+  const backoffMs = Math.max(50, options?.backoffMs ?? 2000); // 2 second backoff with exponential scaling
   const timeoutMs = options?.timeoutMs ?? 180000; // 3 minute default timeout for uploads
   let attempt = 0;
   let lastErr: any = null;
@@ -192,6 +192,10 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   }
   if (lastErr instanceof TypeError && lastErr.message === 'Network request failed') {
     throw new Error('Network error: unable to reach upload endpoint. Check your internet connection and server status.');
+  }
+  // Check for server-side connection pool exhaustion
+  if (lastErr?.status === 500 && lastErr?.data?.message?.includes('maxRetries')) {
+    throw new Error('Server is temporarily overloaded. Please try again in a moment. (Connection pool limit reached)');
   }
   throw lastErr;
 }
