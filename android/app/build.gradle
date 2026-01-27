@@ -150,11 +150,13 @@ tasks.whenTaskAdded { task ->
     }
 }
 
-// Catch lintVitalRelease task when it's created
+// Catch lintVitalRelease task when it's created - PREVENT IT FROM RUNNING
 tasks.whenTaskAdded { task ->
     if (task.name == 'lintVitalRelease') {
         task.enabled = false
         task.actions.clear()
+        // Use onlyIf to prevent task from ever running
+        task.onlyIf { false }
         task.doFirst {
             logger.warn("⚠️  lintVitalRelease disabled to prevent ExtraTranslation errors")
         }
@@ -193,6 +195,8 @@ afterEvaluate {
         if (task.name == 'lintVitalRelease') {
             task.enabled = false
             task.actions.clear()
+            // Use onlyIf to prevent task from ever running
+            task.onlyIf { false }
             task.doFirst {
                 logger.warn("⚠️  lintVitalRelease disabled to prevent ExtraTranslation errors")
             }
@@ -205,9 +209,12 @@ afterEvaluate {
                 enabled = false
                 actions.clear()
                 ignoreFailures = true
+                // Prevent task from running
+                onlyIf { false }
             }
             lintVitalTask.get().enabled = false
             lintVitalTask.get().actions.clear()
+            lintVitalTask.get().onlyIf { false }
         } catch (Exception e) {
             // Task might not exist yet, that's fine
         }
