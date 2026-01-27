@@ -597,7 +597,6 @@ export async function sendStaffInvitationEmail(params: any): Promise<boolean> {
  * Falls back to plain text email if template not configured
  */
 export async function sendVerificationEmail(email: string, token: string, userName?: string): Promise<boolean> {
-  const service = await getEmailService();
   const displayName = userName || 'VarsityHub User';
 
   // Build plain text fallback content
@@ -658,66 +657,16 @@ ${APP_BASE_URL}
 </html>
 `.trim();
 
-  // If no template configured, send plain text/HTML email directly
-  if (!TEMPLATE_IDS.VERIFICATION) {
-    console.warn('[email] SendGrid verification template not configured, using fallback');
-    return sendEmail({
-      to: email,
-      subject: `${token} is your VarsityHub verification code`,
-      text: plainTextContent,
-      html: htmlContent,
-    });
-  }
-
-  if (!service || !service.isConfigured()) {
-    console.warn('[email] Email service not configured, using fallback');
-    return sendEmail({
-      to: email,
-      subject: `${token} is your VarsityHub verification code`,
-      text: plainTextContent,
-      html: htmlContent,
-    });
-  }
-
-  try {
-    const result = await service.send({
-      to: email,
-      subject: 'Verify your VarsityHub account',
-      templateId: TEMPLATE_IDS.VERIFICATION,
-      templateData: {
-        ...getCommonTemplateData(),
-        verification_link: `${APP_BASE_URL}/verify?token=${encodeURIComponent(token)}`,
-        user_name: displayName,
-        verification_code: token,
-        code: token, // Some templates use 'code' instead of 'verification_code'
-      },
-    });
-
-    if (result.success) {
-      debugLog(`✅ Verification email sent to ${email}`);
-      return true;
-    } else {
-      console.error('❌ Failed to send verification email via template:', result.error);
-      // Fallback to plain text email
-      console.log('[email] Attempting fallback plain text email...');
-      return sendEmail({
-        to: email,
-        subject: `${token} is your VarsityHub verification code`,
-        text: plainTextContent,
-        html: htmlContent,
-      });
-    }
-  } catch (error: any) {
-    console.error('❌ Failed to send verification email:', error);
-    // Fallback to plain text email
-    console.log('[email] Attempting fallback plain text email...');
-    return sendEmail({
-      to: email,
-      subject: `${token} is your VarsityHub verification code`,
-      text: plainTextContent,
-      html: htmlContent,
-    });
-  }
+  // ALWAYS use the fallback email with code in subject and body
+  // This ensures the verification code is ALWAYS visible to the user
+  // regardless of whether SendGrid templates are configured correctly
+  console.log('[email] Sending verification email with code in subject and body');
+  return sendEmail({
+    to: email,
+    subject: `${token} is your VarsityHub verification code`,
+    text: plainTextContent,
+    html: htmlContent,
+  });
 }
 
 /**
