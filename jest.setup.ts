@@ -60,3 +60,19 @@ jest.mock('@expo/vector-icons', () => {
     Ionicons: (props: any) => React.createElement('Icon', props),
   };
 });
+
+jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const gestureHandler = require('react-native-gesture-handler/jestSetup');
+
+  const passthrough = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(View, null, children);
+
+  return {
+    ...gestureHandler,
+    GestureHandlerRootView: passthrough,
+    PanGestureHandler: passthrough,
+    TapGestureHandler: passthrough,
+  };
+});

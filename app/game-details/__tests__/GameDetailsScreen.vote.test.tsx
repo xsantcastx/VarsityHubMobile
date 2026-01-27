@@ -1,5 +1,3 @@
-// Always use fake timers for this test file
-jest.useFakeTimers();
 // Mock Animated.timing and related methods to complete animations instantly in tests
 jest.mock('react-native/Libraries/Animated/Animated', () => {
   const ActualAnimated = jest.requireActual('react-native/Libraries/Animated/Animated');
@@ -47,15 +45,22 @@ afterAll(() => {
 
 
 import { Game } from '@/api/entities';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import GameDetailsScreen from '../GameDetailsScreen';
 // Disable setInterval and setTimeout in tests to prevent polling loops
 // Remove global setTimeout/setInterval mocks; rely on jest fake timers
 
 
+const routerMock = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  canGoBack: () => true,
+};
+
 jest.mock('expo-router', () => ({
   Stack: { Screen: () => null },
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }),
+  useRouter: () => routerMock,
   useLocalSearchParams: () => ({ id: 'game-1', eventId: 'event-1' }),
 }));
 
@@ -200,43 +205,30 @@ describe('GameDetailsScreen voting UI', () => {
     if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
     if (__DEV__) console.log('Rendered GameDetailsScreen');
-    // Flush timers and microtasks to allow all effects to run
-    await act(async () => {
-      jest.runOnlyPendingTimers();
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
-    });
-    const voteAButton = screen.getByLabelText('Vote for Home');
+    const voteAButton = await screen.findByLabelText('Vote for Home');
 
     fireEvent.press(voteAButton);
-    await act(async () => {
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(Game.castVote).toHaveBeenCalledWith('game-1', 'A');
     });
-    expect(Game.castVote).toHaveBeenCalledWith('game-1', 'A');
   });
 
   it('clears a vote on long press when already selected', async () => {
-    // First call: before clearing, Second call: after clearing
-    (Game.votesSummary as jest.Mock)
-      .mockResolvedValueOnce({ teamA: 1, teamB: 0, userVote: 'A' })
-      .mockResolvedValueOnce({ teamA: 0, teamB: 0, userVote: null });
+    (Game.castVote as jest.Mock).mockResolvedValue({ teamA: 1, teamB: 0, userVote: 'A' });
 
     if (__DEV__) console.log('Rendering GameDetailsScreen');
     const screen = render(<GameDetailsScreen />);
     if (__DEV__) console.log('Rendered GameDetailsScreen');
-    await act(async () => {
-      jest.runOnlyPendingTimers();
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
+    const voteAButton = await screen.findByLabelText('Vote for Home');
+
+    fireEvent.press(voteAButton);
+    await waitFor(() => {
+      expect(screen.getByText(/Your pick: Home/)).toBeTruthy();
     });
-    const voteAButton = screen.getByLabelText('Vote for Home');
 
     fireEvent(voteAButton, 'longPress');
-    await act(async () => {
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
+    await waitFor(() => {
+      expect(Game.clearVote).toHaveBeenCalledWith('game-1');
     });
-    expect(Game.clearVote).toHaveBeenCalledWith('game-1');
   });
 });

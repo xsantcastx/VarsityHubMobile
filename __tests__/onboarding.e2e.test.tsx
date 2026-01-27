@@ -1,6 +1,7 @@
-import Step2Basic from '../app/onboarding/step-2-basic';
 import { OBProvider } from '@/context/OnboardingContext';
+import { NavigationContainer } from '@react-navigation/native';
 import { act, fireEvent, render } from '@testing-library/react-native';
+import Step2Basic from '../app/onboarding/step-2-basic';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({
@@ -26,9 +27,11 @@ jest.mock('@/api/entities', () => ({
 describe('Onboarding Flow', () => {
   it('should allow user to register as a coach and complete onboarding', async () => {
     const { getByText, getByPlaceholderText } = render(
-      <OBProvider>
-        <Step2Basic />
-      </OBProvider>
+      <NavigationContainer>
+        <OBProvider>
+          <Step2Basic />
+        </OBProvider>
+      </NavigationContainer>
     );
 
     await act(async () => {
