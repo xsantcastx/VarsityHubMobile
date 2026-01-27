@@ -230,7 +230,7 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: palette.elevated,
+                backgroundColor: colorScheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
                 shadowColor: '#000000',
                 shadowOpacity: 0.15,
                 shadowOffset: { width: 0, height: 4 },
@@ -240,7 +240,7 @@ export default function SignInScreen() {
             ]}>
               <Image
                 source={require('@/assets/images/logo.png')}
-                style={[styles.logo, { tintColor: palette.text }]}
+                style={styles.logo}
                 contentFit="contain"
               />
             </View>
