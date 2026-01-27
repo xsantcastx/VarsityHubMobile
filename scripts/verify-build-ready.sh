@@ -810,8 +810,19 @@ else
 fi
 echo ""
 
-# Step 19: Bundle ID Consistency Check
-echo -e "${BLUE}Step 19: Bundle ID consistency check...${NC}"
+# Step 19: Release Readiness Check (Roles, Onboarding, Rules)
+echo -e "${BLUE}Step 19: Release readiness verification...${NC}"
+if bash scripts/verify-release-readiness.sh 2>&1 | grep -q "BLOCKER\|ERROR"; then
+    echo -e "${RED}❌ Release readiness check found blockers or errors${NC}"
+    echo -e "${RED}   Run: bash scripts/verify-release-readiness.sh for details${NC}"
+    ERRORS=$((ERRORS + 1))
+else
+    echo -e "${GREEN}✅ Release readiness checks passed${NC}"
+fi
+echo ""
+
+# Step 20: Bundle ID Consistency Check
+echo -e "${BLUE}Step 20: Bundle ID consistency check...${NC}"
 IOS_BUNDLE_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.ios.bundleIdentifier || '')" 2>/dev/null)
 ANDROID_PACKAGE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('app.json', 'utf8')).expo.android.package || '')" 2>/dev/null)
 
