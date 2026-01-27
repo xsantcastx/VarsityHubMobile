@@ -143,7 +143,8 @@ done
 
 # Test 2.3: Fan onboarding (simplified)
 echo -e "${BLUE}Test 2.3: Fan onboarding...${NC}"
-if grep -q "role.*fan\|skip.*fan" app/onboarding/index.tsx 2>/dev/null; then
+if grep -q "role.*===.*'fan'\|role === 'fan'" app/onboarding/step-1-role.tsx 2>/dev/null && \
+   grep -q "skip.*profile\|step.*7.*profile\|setProgress(5)" app/onboarding/step-1-role.tsx 2>/dev/null; then
     echo -e "${GREEN}✅ Fan onboarding has simplified flow${NC}"
 else
     echo -e "${YELLOW}⚠️  Fan onboarding may not skip steps${NC}"
@@ -177,8 +178,8 @@ echo ""
 
 # Test 3.1: Plan definitions
 echo -e "${BLUE}Test 3.1: Plan definitions...${NC}"
-if grep -q "rookie.*2.*team\|veteran.*unlimited\|legend.*unlimited" server/src/routes/payments.ts 2>/dev/null || \
-   grep -q "maxTeams.*2\|maxTeams.*-1" server/src 2>/dev/null; then
+if [ -f "shared/plan-definitions.json" ] && \
+   grep -q '"max_teams"' shared/plan-definitions.json 2>/dev/null; then
     echo -e "${GREEN}✅ Plan limits defined${NC}"
 else
     echo -e "${YELLOW}⚠️  Plan limits may not be enforced${NC}"
@@ -361,7 +362,8 @@ fi
 
 # Test 7.3: Content moderation
 echo -e "${BLUE}Test 7.3: Content moderation...${NC}"
-if grep -q "report\|moderate\|flag" server/src/routes 2>/dev/null; then
+if [ -f "server/src/routes/support.ts" ] && \
+   grep -q "abuseReport\|sendAbuseReportNotification\|report" server/src/routes/support.ts 2>/dev/null; then
     echo -e "${GREEN}✅ Content moderation exists${NC}"
 else
     echo -e "${YELLOW}⚠️  Content moderation may be missing${NC}"
