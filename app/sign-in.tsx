@@ -230,7 +230,7 @@ export default function SignInScreen() {
             <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: '#FFFFFF',
+                backgroundColor: palette.elevated,
                 shadowColor: '#000000',
                 shadowOpacity: 0.15,
                 shadowOffset: { width: 0, height: 4 },
