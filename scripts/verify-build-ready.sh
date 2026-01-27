@@ -241,7 +241,8 @@ fi
 if grep -q "whenTaskAdded.*Sentry" android/app/build.gradle 2>/dev/null || grep -q "tasks.all.*Sentry" android/app/build.gradle 2>/dev/null; then
     echo -e "${GREEN}✅ Android Sentry task handling configured${NC}"
 else
-    mark_warning_or_error "Android Sentry tasks may not be properly handled"
+    echo -e "${YELLOW}⚠️  Android Sentry tasks may not be properly handled (non-blocking with SENTRY_ALLOW_FAILURE=true)${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 echo ""
 
@@ -361,10 +362,12 @@ if grep -q '"serviceAccountKeyPath":' eas.json; then
     if [ -n "$SERVICE_ACCOUNT_PATH" ] && [ -f "$SERVICE_ACCOUNT_PATH" ]; then
         echo -e "${GREEN}✅ Android service account key file exists${NC}"
     else
-        mark_warning_or_error "Android service account key file not found at: $SERVICE_ACCOUNT_PATH"
+        echo -e "${YELLOW}⚠️  Android service account key file not found at: $SERVICE_ACCOUNT_PATH (only needed for Play Store submission)${NC}"
+        WARNINGS=$((WARNINGS + 1))
     fi
 else
-    mark_warning_or_error "Android service account key path not configured (required for Play Store submission)"
+    echo -e "${YELLOW}⚠️  Android service account key path not configured (only needed for Play Store submission)${NC}"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # Apple Team ID check
