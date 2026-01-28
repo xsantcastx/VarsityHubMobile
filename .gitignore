@@ -38,6 +38,10 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Google Play / EAS submit (NEVER commit)
+service-account-key.json
+*-service-account*.json
+
 # Android release signing (NEVER commit these!)
 android/keystore.properties
 android/*.keystore
