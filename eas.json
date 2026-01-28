@@ -53,11 +53,12 @@
       "ios": {
         "resourceClass": "m-medium",
         "buildConfiguration": "Release",
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       },
       "android": {
         "resourceClass": "medium",
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "credentialsSource": "remote"
       }
     }
   },
@@ -65,7 +66,7 @@
     "production": {
       "ios": {
         "appleId": "sanchezemil82@gmail.com",
-        "ascAppId": "6758399345"
+        "ascAppId": "6758405187"
       },
       "android": {
         "serviceAccountKeyPath": "./service-account-key.json",
