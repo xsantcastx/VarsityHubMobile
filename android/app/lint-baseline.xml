@@ -13,7 +13,7 @@
         errorLine1="  &lt;string name=&quot;name&quot;&gt;&quot;VarsityHub Mobile&quot;&lt;/string&gt;"
         errorLine2="          ~~~~~~~~~~~">
         <location
-            file="android/app/src/main/res/values-b+en/strings.xml"
+            file="src/main/res/values-b+en/strings.xml"
             line="2"
             column="11"/>
     </issue>
@@ -28,7 +28,7 @@
         errorLine1="  &lt;string name=&quot;displayName&quot;&gt;&quot;VarsityHub Mobile&quot;&lt;/string&gt;"
         errorLine2="          ~~~~~~~~~~~~~~~~~~">
         <location
-            file="android/app/src/main/res/values-b+en/strings.xml"
+            file="src/main/res/values-b+en/strings.xml"
             line="3"
             column="11"/>
     </issue>
