@@ -52,7 +52,8 @@
       },
       "ios": {
         "resourceClass": "m-medium",
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "credentialsSource": "local"
       },
       "android": {
         "resourceClass": "medium",
