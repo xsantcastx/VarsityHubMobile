@@ -33,6 +33,7 @@ export default function OnboardingIndex() {
     const targetRoute = STEP_ROUTES[calculatedStepIndex] || STEP_ROUTES[0];
     
     if (__DEV__) {
+      // eslint-disable-next-line no-console
       console.log('[ONBOARDING INDEX] Navigation decision:', {
         role: state?.role,
         progress,

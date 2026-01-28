@@ -124,7 +124,7 @@ export default function Step1Role() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding, progress, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
@@ -238,6 +238,7 @@ export default function Step1Role() {
         const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
         
         if (__DEV__) {
+          // eslint-disable-next-line no-console
           console.log('[STEP-1] Navigation after role selection:', {
             role,
             wasCoachBefore,

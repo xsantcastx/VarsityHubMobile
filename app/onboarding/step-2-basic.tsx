@@ -22,7 +22,7 @@ export default function Step2Basic() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, dispatch, canNavigate } = useOnboarding();
   const [username, setUsername] = useState('');
   const [affiliation, setAffiliation] = useState<Affiliation>('none');
   const [dob, setDob] = useState('');
@@ -179,6 +179,7 @@ export default function Step2Basic() {
         const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
         
         if (__DEV__) {
+          // eslint-disable-next-line no-console
           console.log('[STEP-2] Navigation after save:', {
             role: ob.role,
             nextStepIndex,
