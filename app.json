@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "varsityhub.app",
+      "bundleIdentifier": "com.varsityhubmobile.app",
       "usesAppleSignIn": true,
       "config": {
         "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
