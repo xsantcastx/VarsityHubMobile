@@ -15,10 +15,6 @@ module.exports = ({ config }) => {
   const sentryDsn = process.env.SENTRY_DSN || process.env.EXPO_PUBLIC_SENTRY_DSN || '';
   
   // iOS Configuration
-  const appleTeamId =
-    process.env.EXPO_APPLE_TEAM_ID ||
-    process.env.APPLE_TEAM_ID ||
-    baseConfig.expo.ios?.appleTeamId;
   const iosBundleIdentifier =
     process.env.EXPO_IOS_BUNDLE_IDENTIFIER ||
     process.env.IOS_BUNDLE_IDENTIFIER ||
@@ -29,7 +25,6 @@ module.exports = ({ config }) => {
     ...baseConfig.expo,
     ios: {
       ...baseConfig.expo.ios,
-      appleTeamId,
       bundleIdentifier: iosBundleIdentifier,
       config: {
         ...baseConfig.expo.ios?.config,
