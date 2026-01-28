@@ -21,7 +21,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "varsityhub.app",
-      "appleTeamId": "B5H8F69RW5",
       "usesAppleSignIn": true,
       "config": {
         "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
