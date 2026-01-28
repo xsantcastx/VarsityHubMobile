@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.varsityhub.mobile2026",
+      "bundleIdentifier": "com.varsithub.varsityhub",
       "usesAppleSignIn": true,
       "config": {
         "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
@@ -119,6 +119,7 @@
       "expo-apple-authentication",
       "expo-asset",
       "./plugins/withAndroidManifestCleanup",
+      "./plugins/withAndroidLintExtraTranslationFix",
       "./plugins/withAndroidBuildConfig",
       "./plugins/withGoogleMaps",
       [
