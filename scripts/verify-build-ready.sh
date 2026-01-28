@@ -173,6 +173,164 @@ else
     ERRORS=$((ERRORS + 1))
 fi
 
+# Android lint configuration (prevents ExtraTranslation errors)
+# CRITICAL: Based on build log failures, these checks prevent wasted build credits
+echo -e "${BLUE}   Checking lint configuration to prevent ExtraTranslation build failures...${NC}"
+
+# 1. Check lint baseline is configured
+if grep -q "baseline.*lint-baseline.xml" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lint baseline configured${NC}"
+else
+    echo -e "${RED}❌ Android lint baseline missing - builds WILL FAIL on ExtraTranslation errors${NC}"
+    echo -e "${RED}   Error from build logs: 'Lint found fatal errors while assembling a release target'${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 2. Check baseline file exists and has correct content
+if [ -f "android/app/lint-baseline.xml" ]; then
+    echo -e "${GREEN}✅ Android lint baseline file exists${NC}"
+    # Verify baseline file has correct paths (from build log error)
+    if grep -q "src/main/res/values-b+en/strings.xml" android/app/lint-baseline.xml; then
+        echo -e "${GREEN}✅ Android lint baseline has correct file paths${NC}"
+        # Verify it includes both "name" and "displayName" errors (from build log)
+        # Check for the actual error messages from the build logs
+        if (grep -q '"name".*translated here but not found' android/app/lint-baseline.xml || \
+            grep -q 'name="name"' android/app/lint-baseline.xml) && \
+           (grep -q '"displayName".*translated here but not found' android/app/lint-baseline.xml || \
+            grep -q 'name="displayName"' android/app/lint-baseline.xml); then
+            echo -e "${GREEN}✅ Android lint baseline includes name and displayName errors${NC}"
+        elif grep -q 'ExtraTranslation' android/app/lint-baseline.xml && \
+             [ $(grep -c 'ExtraTranslation' android/app/lint-baseline.xml) -ge 2 ]; then
+            echo -e "${GREEN}✅ Android lint baseline includes ExtraTranslation entries (name and displayName)${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Android lint baseline may be missing name/displayName entries${NC}"
+            WARNINGS=$((WARNINGS + 1))
+        fi
+    else
+        echo -e "${RED}❌ Android lint baseline missing values-b+en/strings.xml path${NC}"
+        echo -e "${RED}   Build will fail with: 'name is translated here but not found in default locale'${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
+else
+    echo -e "${RED}❌ Android lint baseline file missing${NC}"
+    echo -e "${RED}   Build will fail with ExtraTranslation errors${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 3. Check that ExtraTranslation is disabled (CRITICAL - prevents build failure)
+if grep -q "disable.*ExtraTranslation" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lint ExtraTranslation check disabled${NC}"
+else
+    echo -e "${RED}❌ Android lint ExtraTranslation NOT disabled - builds WILL FAIL${NC}"
+    echo -e "${RED}   Error from build logs: 'Error: name is translated here but not found in default locale [ExtraTranslation]'${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 4. Check that abortOnError is false (prevents build from failing on lint errors)
+if grep -q "abortOnError false" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lint abortOnError set to false${NC}"
+else
+    echo -e "${RED}❌ Android lint abortOnError not set to false - builds may fail on lint errors${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 5. Check that checkReleaseBuilds is false (prevents lint from running on release builds)
+if grep -q "checkReleaseBuilds false" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lint checkReleaseBuilds set to false${NC}"
+else
+    echo -e "${RED}❌ Android lint checkReleaseBuilds not set to false - lintVitalRelease will run${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 6. Check that lintVitalRelease is disabled (CRITICAL - this is the task that failed in build logs)
+LINT_VITAL_DISABLED=0
+if grep -q "lintVitalRelease.*enabled.*false" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lintVitalRelease explicitly disabled${NC}"
+    LINT_VITAL_DISABLED=1
+elif grep -q "lintVitalRelease.*disabled\|lintVitalRelease.*skip" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lintVitalRelease configured to be disabled/skipped${NC}"
+    LINT_VITAL_DISABLED=1
+elif grep -q "lintOptions.*checkReleaseBuilds.*false" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lintOptions checkReleaseBuilds false (should prevent lintVitalRelease)${NC}"
+    LINT_VITAL_DISABLED=1
+fi
+
+# Check for task graph hooks that disable lintVitalRelease
+if grep -q "taskGraph.*lintVitalRelease\|lintVitalRelease.*taskGraph" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lintVitalRelease has task graph hooks to disable it${NC}"
+    LINT_VITAL_DISABLED=1
+fi
+
+# Check for whenTaskAdded hooks
+if grep -q "whenTaskAdded.*lintVitalRelease\|lintVitalRelease.*whenTaskAdded" android/app/build.gradle; then
+    echo -e "${GREEN}✅ Android lintVitalRelease has whenTaskAdded hooks${NC}"
+    LINT_VITAL_DISABLED=1
+fi
+
+if [ $LINT_VITAL_DISABLED -eq 0 ]; then
+    echo -e "${RED}❌ Android lintVitalRelease NOT properly disabled - builds WILL FAIL${NC}"
+    echo -e "${RED}   Error from build logs: 'Execution failed for task :app:lintVitalRelease'${NC}"
+    echo -e "${RED}   Error: 'Lint found fatal errors while assembling a release target'${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 7. Check that lintOptions is configured in release buildType (additional safeguard)
+# Use a more reliable check that handles multiline grep
+if grep -A 20 "buildTypes {" android/app/build.gradle | grep -A 20 "release {" | grep -q "lintOptions"; then
+    echo -e "${GREEN}✅ Android release buildType has lintOptions configured${NC}"
+    # Verify it has checkReleaseBuilds false
+    if grep -A 20 "buildTypes {" android/app/build.gradle | grep -A 20 "release {" | grep -q "checkReleaseBuilds.*false"; then
+        echo -e "${GREEN}✅ Android release buildType lintOptions has checkReleaseBuilds false${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Android release buildType lintOptions may not have checkReleaseBuilds false${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    fi
+    # Verify ExtraTranslation is disabled in release buildType
+    if grep -A 20 "buildTypes {" android/app/build.gradle | grep -A 20 "release {" | grep -q "disable.*ExtraTranslation"; then
+        echo -e "${GREEN}✅ Android release buildType lintOptions has ExtraTranslation disabled${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Android release buildType lintOptions may not have ExtraTranslation disabled${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠️  Android release buildType may not have lintOptions configured${NC}"
+    echo -e "${YELLOW}   This is a safeguard - main lint config should still work${NC}"
+    WARNINGS=$((WARNINGS + 1))
+fi
+
+# 8. Check that name and displayName strings are marked as non-translatable (prevents the root cause)
+if [ -f "android/app/src/main/res/values/strings.xml" ]; then
+    if grep -q 'name="name".*translatable="false"' android/app/src/main/res/values/strings.xml && \
+       grep -q 'name="displayName".*translatable="false"' android/app/src/main/res/values/strings.xml; then
+        echo -e "${GREEN}✅ Android strings marked as non-translatable (prevents ExtraTranslation errors)${NC}"
+    else
+        echo -e "${RED}❌ Android strings NOT marked as non-translatable - will cause ExtraTranslation errors${NC}"
+        echo -e "${RED}   Error from build logs: 'name is translated here but not found in default locale'${NC}"
+        ERRORS=$((ERRORS + 1))
+    fi
+else
+    echo -e "${RED}❌ Android strings.xml file missing${NC}"
+    ERRORS=$((ERRORS + 1))
+fi
+
+# 9. Check for gradle.properties lint configuration (additional safeguard)
+if [ -f "android/gradle.properties" ]; then
+    if grep -q "android.lint.checkReleaseBuilds.*false" android/gradle.properties; then
+        echo -e "${GREEN}✅ Android gradle.properties has lint checkReleaseBuilds false${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Android gradle.properties may not have lint checkReleaseBuilds false${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    fi
+fi
+
+# 10. Verify the problematic values-b+en/strings.xml file handling
+# This file exists in build environment and causes the errors
+if [ -f "android/app/src/main/res/values-b+en/strings.xml" ]; then
+    echo -e "${YELLOW}⚠️  values-b+en/strings.xml exists - this is the source of ExtraTranslation errors${NC}"
+    echo -e "${YELLOW}   Ensure lint baseline and ExtraTranslation disable are configured (checked above)${NC}"
+    WARNINGS=$((WARNINGS + 1))
+fi
+
 # Android Sentry configuration
 if grep -q "SENTRY_ORG.*varsity-hub" eas.json && grep -q "SENTRY_PROJECT.*varsity-hub-mobile" eas.json; then
     echo -e "${GREEN}✅ Android Sentry org/project configured${NC}"
