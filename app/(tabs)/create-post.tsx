@@ -1019,6 +1019,22 @@ export default function CreatePostScreen() {
                     : "This post will appear on your profile"}
                 </Text>
               </View>
+
+              {/* Post Actions Preview */}
+              <View style={styles.previewPostActions}>
+                <Pressable style={styles.previewActionButton}>
+                  <Ionicons name="arrow-up-outline" size={18} color={Colors[colorScheme].tint} />
+                  <Text style={[styles.previewActionText, { color: Colors[colorScheme].tint }]}>0</Text>
+                </Pressable>
+                <Pressable style={styles.previewActionButton}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.previewActionText, { color: Colors[colorScheme].mutedText }]}>0</Text>
+                </Pressable>
+                <Pressable style={styles.previewActionButton}>
+                  <Ionicons name="bookmark-outline" size={18} color={Colors[colorScheme].mutedText} />
+                  <Text style={[styles.previewActionText, { color: Colors[colorScheme].mutedText }]}>0</Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Action Buttons */}
@@ -1732,6 +1748,23 @@ const styles = StyleSheet.create({
   previewDestinationText: {
     fontSize: 13,
     flex: 1,
+  },
+  previewPostActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  previewActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  previewActionText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   previewActions: {
     flexDirection: 'row',

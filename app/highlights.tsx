@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore legacy export shape
-import { Event, Highlights, Organization, Team, User } from '@/api/entities';
+import { Event, Highlights, Organization, Post, Team, User } from '@/api/entities';
 // Clipboard is dynamically imported only when needed to avoid crashes
 // if the dev client wasn't built with the native module.
 import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
@@ -111,7 +111,8 @@ const HighlightCard = ({
   userLocation,
   onPress,
   onAuthorPress,
-  colorScheme 
+  colorScheme,
+  onUpvote
 }: { 
   item: HighlightItem; 
   index?: number;
@@ -121,7 +122,8 @@ const HighlightCard = ({
   userLocation?: { lat: number; lng: number };
   onPress: (item: HighlightItem) => void;
   onAuthorPress?: (authorId: string) => void;
-  colorScheme: 'light' | 'dark' 
+  colorScheme: 'light' | 'dark';
+  onUpvote?: (item: HighlightItem) => void;
 }) => {
   const isVideo = item.media_url ? /\.(mp4|mov|webm|m4v|avi)$/i.test(item.media_url) : false;
   const category = getSportCategory(item.sport, item.title, item.content);
@@ -227,8 +229,7 @@ const HighlightCard = ({
               style={styles.actionButton}
               onPress={(e) => {
                 e.stopPropagation();
-                // Handle upvote action
-                Alert.alert('Upvote', 'Feature coming soon!');
+                onUpvote?.(item);
               }}
             >
               <Ionicons name="arrow-up" size={18} color="#2563EB" />
@@ -543,6 +544,25 @@ export default function HighlightsScreen() {
     router.push(`/user-profile?id=${authorId}`);
   }, [router]);
 
+  const handleUpvote = useCallback(async (item: HighlightItem) => {
+    try {
+      const r: any = await Post.toggleUpvote(item.id);
+      // Update upvotes count optimistically in state
+      setHighlights((prev) =>
+        prev.map((h) =>
+          h.id === item.id
+            ? { ...h, upvotes_count: r?.count ?? (h.upvotes_count || 0) + 1 }
+            : h
+        )
+      );
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[Highlights] Failed to toggle upvote:', error);
+      }
+      Alert.alert('Error', 'Unable to upvote at this time');
+    }
+  }, []);
+
   const renderHighlight = ({ item, index }: { item: HighlightItem; index: number }) => (
     <HighlightCard 
       item={item} 
@@ -553,7 +573,8 @@ export default function HighlightsScreen() {
       userLocation={userLocation}
       onPress={() => handleHighlightPress(item, index)}
       // onAuthorPress intentionally omitted to disable profile navigation from highlights feed
-      colorScheme={colorScheme} 
+      colorScheme={colorScheme}
+      onUpvote={handleUpvote}
     />
   );
 
@@ -815,7 +836,8 @@ export default function HighlightsScreen() {
                     userLocation={userLocation}
                     onPress={handleHighlightPress}
                     onAuthorPress={handleAuthorPress}
-                    colorScheme={colorScheme} 
+                    colorScheme={colorScheme}
+                    onUpvote={handleUpvote}
                   />
                 ))}
               </View>
