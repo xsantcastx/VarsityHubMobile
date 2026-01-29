@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Post as PostApi, User } from '@/api/entities';
 import { useShareLink } from '@/hooks/useShareLink';
+import { usePostCache } from '@/context/PostCacheContext';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -44,6 +45,7 @@ export default function PostDetailScreen() {
   const params = useLocalSearchParams<{ id?: string; postIds?: string; index?: string }>();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
+  const postCache = usePostCache();
   
   // Parse params for multi-post navigation
   const postIdsArray = useMemo(() => {
@@ -160,6 +162,33 @@ export default function PostDetailScreen() {
       setLoading(false);
       return;
     }
+    
+    // Try to get cached post first
+    const cachedPost = postCache.get(targetId);
+    if (cachedPost && Object.keys(cachedPost).length > 0) {
+      setPost(cachedPost);
+      if (targetId) {
+        setPostsById((prev) => ({ ...prev, [targetId]: cachedPost }));
+      }
+      setError(null);
+      setLoading(false);
+      // Still load comments and fresh data in background
+      PostApi.comments(targetId).catch(() => [])
+        .then((c: any) => {
+          let commentsArray: any[] = [];
+          if (Array.isArray(c)) {
+            commentsArray = c;
+          } else if (c && Array.isArray(c.items)) {
+            commentsArray = c.items;
+          }
+          setComments(commentsArray);
+          if (targetId) {
+            setCommentsById((prev) => ({ ...prev, [targetId]: commentsArray }));
+          }
+        });
+      return;
+    }
+    
     // Only show loading skeleton on initial load, not when swiping
     if (showLoading) {
       setLoading(true);
@@ -182,6 +211,9 @@ export default function PostDetailScreen() {
         setLoading(false);
         return;
       }
+      
+      // Cache the post
+      postCache.set(targetId, p);
       
       setPost(p);
       if (targetId) {
@@ -217,7 +249,7 @@ export default function PostDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentPostId]);
+  }, [currentPostId, postCache]);
 
   // Reload when params or currentPostIndex changes
   useEffect(() => {
