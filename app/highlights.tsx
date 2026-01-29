@@ -1,6 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { usePostCache } from '@/context/PostCacheContext';
+import * as Haptics from 'expo-haptics';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
@@ -551,7 +552,14 @@ export default function HighlightsScreen() {
 
   const handleUpvote = useCallback(async (item: HighlightItem) => {
     try {
+      // Haptic feedback for user interaction
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      
       const r: any = await Post.toggleUpvote(item.id);
+      
+      // Success haptic
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      
       // Update upvotes count optimistically in state
       setHighlights((prev) =>
         prev.map((h) =>
@@ -561,6 +569,9 @@ export default function HighlightsScreen() {
         )
       );
     } catch (error) {
+      // Error haptic
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      
       if (__DEV__) {
         console.warn('[Highlights] Failed to toggle upvote:', error);
       }
