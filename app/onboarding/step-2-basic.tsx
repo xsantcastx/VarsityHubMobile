@@ -116,9 +116,17 @@ export default function Step2Basic() {
 
   const dobError = dob && (new Date(dob).getFullYear() < 1920 || new Date(dob) > new Date());
   const usernameError = username.length > 0 && !usernameRe.test(username);
-  // canContinue requires: valid username, available username, affiliation selected, DOB entered, no DOB errors
-  // Note: zip code is optional, so it's not in canContinue check
-  const canContinue = usernameRe.test(username) && available === true && affiliation && dob && !dobError;
+  
+  // Validation rules:
+  // - Username: required, valid format, available
+  // - DOB: required, valid date
+  // - Affiliation: required ONLY for coaches (optional for fans)
+  // - Zip code: optional for all users
+  const canContinue = usernameRe.test(username) && 
+    available === true && 
+    dob && 
+    !dobError &&
+    (ob.role === 'fan' || affiliation); // Affiliation required for coaches only
 
   const onBack = () => {
     // If we came from confirmation, go back to confirmation
@@ -234,39 +242,44 @@ export default function Step2Basic() {
         <Text style={styles.success}>Available!</Text>
       ) : null}
 
-      <Text style={styles.label}>Organization Type</Text>
-      <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
-        Select the type of organization you're affiliated with (optional)
-      </Text>
-      <View style={styles.affiliationGrid}>
-        {[
-          { value: 'none', label: 'None', icon: '❌' },
-          { value: 'professional', label: 'Professional', icon: '🏟️' },
-          { value: 'university', label: 'University', icon: '🎓' },
-          { value: 'high_school', label: 'High School', icon: '🏫' },
-          { value: 'club', label: 'Club', icon: '⚽' },
-          { value: 'youth', label: 'Youth Org', icon: '🏀' },
-        ].map((option) => (
-          <Pressable
-            key={option.value}
-            style={[
-              styles.affiliationButton,
-              affiliation === option.value && styles.affiliationButtonSelected
-            ]}
-            onPress={() => setAffiliation(option.value as Affiliation)}
-            accessibilityLabel={`${option.label} affiliation`}
-            accessibilityRole="button"
-          >
-            <Text style={styles.affiliationIcon}>{option.icon}</Text>
-            <Text style={[
-              styles.affiliationLabel,
-              affiliation === option.value && styles.affiliationLabelSelected
-            ]}>
-              {option.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      {/* Organization Type - Only shown for coaches/organizers */}
+      {ob.role === 'coach' && (
+        <>
+          <Text style={styles.label}>Organization Type</Text>
+          <Text style={[styles.hint, { color: Colors[colorScheme].mutedText }]}>
+            Select the type of organization you're affiliated with (optional)
+          </Text>
+          <View style={styles.affiliationGrid}>
+            {[
+              { value: 'none', label: 'None', icon: '❌' },
+              { value: 'professional', label: 'Professional', icon: '🏟️' },
+              { value: 'university', label: 'University', icon: '🎓' },
+              { value: 'high_school', label: 'High School', icon: '🏫' },
+              { value: 'club', label: 'Club', icon: '⚽' },
+              { value: 'youth', label: 'Youth Org', icon: '🏀' },
+            ].map((option) => (
+              <Pressable
+                key={option.value}
+                style={[
+                  styles.affiliationButton,
+                  affiliation === option.value && styles.affiliationButtonSelected
+                ]}
+                onPress={() => setAffiliation(option.value as Affiliation)}
+                accessibilityLabel={`${option.label} affiliation`}
+                accessibilityRole="button"
+              >
+                <Text style={styles.affiliationIcon}>{option.icon}</Text>
+                <Text style={[
+                  styles.affiliationLabel,
+                  affiliation === option.value && styles.affiliationLabelSelected
+                ]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
 
       <DateField
         label={ob.role === 'coach' ? 'Date of birth (Authorized User)' : 'Date of birth'}
