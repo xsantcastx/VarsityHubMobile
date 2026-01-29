@@ -111,7 +111,7 @@ export default function TeamScreen() {
   const [games, setGames] = useState<GameItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>('posts');
-  const [_isFollowing, _setIsFollowing] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [me, setMe] = useState<{ id?: string; username?: string; display_name?: string; avatar_url?: string } | null>(null);
   
@@ -615,14 +615,40 @@ export default function TeamScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Username and Edit Profile Button Row */}
+        {/* Username and Action Buttons Row */}
         <View style={styles.usernameRow}>
           <Text style={[styles.userHandle, { color: theme.text }]}>{teamHandle}</Text>
-          {isTeamAdmin && (
-            <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
-              <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
-            </Pressable>
-          )}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {isTeamAdmin && (
+              <Pressable style={styles.editButtonBelowBanner} onPress={() => void router.push(`/create-team?id=${team?.id}` as any)}>
+                <Text style={styles.editButtonBelowBannerText}>Edit profile</Text>
+              </Pressable>
+            )}
+            {!isTeamAdmin && (
+              <Pressable 
+                style={[
+                  styles.followButtonBelowBanner,
+                  {
+                    backgroundColor: isFollowing ? theme.tint : 'transparent',
+                    borderColor: theme.tint,
+                    borderWidth: 1,
+                  }
+                ]} 
+                onPress={() => {
+                  // TODO: Implement team follow/unfollow API
+                  setIsFollowing(!isFollowing);
+                }}
+              >
+                {isFollowing ? (
+                  <View style={styles.followingIndicator}>
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  </View>
+                ) : (
+                  <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
+                )}
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* Team Details - Left aligned with avatar */}
@@ -1148,6 +1174,26 @@ const styles = StyleSheet.create({
     color: '#374151',
     fontSize: 14,
     fontWeight: '600',
+  },
+  followButtonBelowBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  followButtonBelowBannerText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  followingIndicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileDetailsContainer: {
     backgroundColor: 'transparent',

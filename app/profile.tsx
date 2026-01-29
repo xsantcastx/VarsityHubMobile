@@ -16,7 +16,7 @@ import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -140,6 +140,10 @@ export default function ProfileScreen() {
   const [_organizations, setOrganizations] = useState<any[]>([]);
   const [userThemeColor, setUserThemeColor] = useState<string>('#3B82F6'); // Default color
   const profileRequestInFlight = useRef(false);
+  const params = useLocalSearchParams<{ id?: string }>();
+  const viewingUserId = params.id;
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const setIfDifferent = useCallback((setter: any, next: any) => {
     setter((prev: any) => {
@@ -152,6 +156,40 @@ export default function ProfileScreen() {
       return next;
     });
   }, []);
+
+  const handleFollowToggle = useCallback(async () => {
+    if (!viewingUserId) return;
+    
+    const previousState = isFollowing;
+    setIsFollowing(!isFollowing); // Optimistic update
+    
+    try {
+      if (isFollowing) {
+        await User.unfollow(viewingUserId);
+        // Update follower count
+        setMe(prev => prev ? {
+          ...prev,
+          _count: {
+            ...prev._count,
+            followers: Math.max(0, (prev._count?.followers || 0) - 1)
+          }
+        } : null);
+      } else {
+        await User.follow(viewingUserId);
+        // Update follower count
+        setMe(prev => prev ? {
+          ...prev,
+          _count: {
+            ...prev._count,
+            followers: (prev._count?.followers || 0) + 1
+          }
+        } : null);
+      }
+    } catch (error) {
+      console.error('[profile] Follow toggle failed:', error);
+      setIsFollowing(previousState); // Revert on error
+    }
+  }, [viewingUserId, isFollowing]);
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
@@ -303,16 +341,29 @@ export default function ProfileScreen() {
     setError(null);
     
     try {
-      // Step 1: ensure session is valid
-      // Force fresh data by adding cache-busting header
-      const u: any = await User.me();
+      // Step 1: Get current user first
+      const currentUser: any = await User.me();
+      setCurrentUserId(currentUser?.id || null);
+      
+      let u: any;
+      // If viewing another user's profile
+      if (viewingUserId && viewingUserId !== currentUser?.id) {
+        u = await User.getPublic(viewingUserId);
+        if (u) {
+          setIsFollowing(u.is_following || false);
+        }
+      } else {
+        // Viewing own profile
+        u = currentUser;
+      }
+      
       if (__DEV__) console.warn('[profile] Loaded user data:', { id: u?.id, username: u?.username });
       if (u && !u._isNotModified) {
         setMe(u ?? null);
         if (__DEV__) console.warn('[profile] Updated me state with username:', u?.username);
       }
       if (!u?.id) { 
-        setError('You need to sign in to view your profile.');
+        setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
         setLoading(false);
         return;
       }
@@ -699,11 +750,33 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Edit Profile Button Row */}
+        {/* Edit Profile or Follow Button Row */}
         <View style={styles.usernameRow}>
-          <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
-            <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
-          </Pressable>
+          {viewingUserId && viewingUserId !== currentUserId ? (
+            <Pressable 
+              style={[
+                styles.followButtonBelowBanner,
+                {
+                  backgroundColor: isFollowing ? theme.tint : 'transparent',
+                  borderColor: theme.tint,
+                  borderWidth: 1,
+                }
+              ]} 
+              onPress={handleFollowToggle}
+            >
+              {isFollowing ? (
+                <View style={styles.followingIndicator}>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                </View>
+              ) : (
+                <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
+              <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
+            </Pressable>
+          )}
         </View>
 
         {/* User Details - Left aligned with avatar */}
@@ -1235,6 +1308,26 @@ const styles = StyleSheet.create({
     color: 'transparent', // Will be overridden with theme color
     fontSize: 14,
     fontWeight: '600',
+  },
+  followButtonBelowBanner: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 100,
+  },
+  followButtonBelowBannerText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  followingIndicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Profile Details Below Banner - Tight spacing to match reference
   profileDetailsContainer: {
