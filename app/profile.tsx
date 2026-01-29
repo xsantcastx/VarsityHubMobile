@@ -3,13 +3,13 @@ import uploadFile from '@/api/upload';
 import { Sport } from '@/components/JerseyBadge';
 import { Button } from '@/components/ui/button';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
 import { useUser } from '@/hooks/useUser';
-import { useAuth } from '@/context/AuthProvider';
+import { calculateContrastRatio } from '@/utils/accessibility';
 import events from '@/utils/events';
 import { pickerMediaTypesProp } from '@/utils/picker';
 import { getGradientForColor } from '@/utils/theme';
-import { calculateContrastRatio } from '@/utils/accessibility';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
@@ -703,8 +703,28 @@ export default function ProfileScreen() {
           />
         )}
         
-        {/* Settings Button - Top Right */}
+        {/* Settings Button & Follow Button - Top Right */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
+          {/* Follow Button - Only for viewing other users */}
+          {viewingUserId && viewingUserId !== currentUserId && (
+            <Pressable 
+              style={[
+                styles.headerFollowButton,
+                {
+                  backgroundColor: isFollowing ? theme.tint : 'transparent',
+                  borderColor: theme.tint,
+                  borderWidth: 1,
+                }
+              ]} 
+              onPress={handleFollowToggle}
+            >
+              {isFollowing ? (
+                <Ionicons name="checkmark-circle" size={18} color="#fff" />
+              ) : (
+                <Text style={[styles.headerFollowButtonText, { color: theme.tint }]}>Follow</Text>
+              )}
+            </Pressable>
+          )}
           <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
             <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
@@ -750,34 +770,14 @@ export default function ProfileScreen() {
 
       {/* Content Below Banner */}
       <View style={styles.profileDetailsContainer}>
-        {/* Edit Profile or Follow Button Row */}
-        <View style={styles.usernameRow}>
-          {viewingUserId && viewingUserId !== currentUserId ? (
-            <Pressable 
-              style={[
-                styles.followButtonBelowBanner,
-                {
-                  backgroundColor: isFollowing ? theme.tint : 'transparent',
-                  borderColor: theme.tint,
-                  borderWidth: 1,
-                }
-              ]} 
-              onPress={handleFollowToggle}
-            >
-              {isFollowing ? (
-                <View style={styles.followingIndicator}>
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                </View>
-              ) : (
-                <Text style={[styles.followButtonBelowBannerText, { color: theme.tint }]}>Follow</Text>
-              )}
-            </Pressable>
-          ) : (
+        {/* Edit Profile Button Row - Only shown when viewing own profile */}
+        {!viewingUserId || viewingUserId === currentUserId ? (
+          <View style={styles.usernameRow}>
             <Pressable style={[styles.editButtonBelowBanner, { backgroundColor: theme.surface || theme.background, borderColor: theme.border }]} onPress={() => void router.push('/edit-profile')}>
               <Text style={[styles.editButtonBelowBannerText, { color: theme.text }]}>Edit profile</Text>
             </Pressable>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         {/* User Details - Left aligned with avatar */}
         <View style={styles.userDetails}>
@@ -1198,6 +1198,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerFollowButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  headerFollowButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   controlButton: {
     width: 36,
