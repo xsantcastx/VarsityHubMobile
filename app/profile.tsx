@@ -703,8 +703,8 @@ export default function ProfileScreen() {
           />
         )}
         
-        {/* Settings Button & Follow Button - Top Right */}
-        <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
+        {/* Settings Button & Follow Button - Lower Position (Bio Level) */}
+        <View style={[styles.headerControls, { top: 145 }]}>
           {/* Follow Button - Only for viewing other users */}
           {viewingUserId && viewingUserId !== currentUserId ? (
             <Pressable 

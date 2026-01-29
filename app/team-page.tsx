@@ -1,8 +1,8 @@
 import { Game, Post, Team, User } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
 import { useCustomColorScheme } from '@/hooks/useCustomColorScheme';
-import { getGradientForColor } from '@/utils/theme';
 import { calculateContrastRatio } from '@/utils/accessibility';
+import { getGradientForColor } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';

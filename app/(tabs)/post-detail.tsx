@@ -166,7 +166,23 @@ export default function PostDetailScreen() {
     }
     setError(null);
     try {
-      const [p, c] = await Promise.all([PostApi.get(targetId), PostApi.comments(targetId)]);
+      const [p, c] = await Promise.all([
+        PostApi.get(targetId).catch((err: any) => {
+          console.error('[post-detail] Failed to get post:', err?.message || err);
+          throw err;
+        }), 
+        PostApi.comments(targetId).catch((err: any) => {
+          console.warn('[post-detail] Failed to get comments:', err?.message || err);
+          return [];
+        })
+      ]);
+      
+      if (!p || !p.id) {
+        setError('Post not found or was deleted');
+        setLoading(false);
+        return;
+      }
+      
       setPost(p);
       if (targetId) {
         setPostsById((prev) => ({ ...prev, [targetId]: p }));
@@ -195,7 +211,8 @@ export default function PostDetailScreen() {
         // Note: has_upvoted is stored directly in post state for UI
       }
     } catch (e: any) {
-      setError('Failed to load post');
+      const errorMsg = e?.message || 'Failed to load post';
+      setError(errorMsg);
       console.error('Error loading post and comments:', e);
     } finally {
       setLoading(false);
@@ -483,6 +500,29 @@ export default function PostDetailScreen() {
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>Failed to load post</Text>
           <Pressable style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    // Show error with retry and back options
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
+        <StatusBar barStyle={colorScheme === 'dark' ? "light-content" : "dark-content"} backgroundColor={Colors[colorScheme].background} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
+          <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={() => void load()}>
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </Pressable>
+          <Pressable style={[styles.retryButton, { marginTop: 8, backgroundColor: Colors[colorScheme].surface }]} onPress={() => router.back()}>
+            <Text style={[styles.retryButtonText, { color: Colors[colorScheme].text }]}>Go Back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
