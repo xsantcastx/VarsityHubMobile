@@ -513,7 +513,7 @@ export default function PostDetailScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors[colorScheme].destructive} />
           <Text style={[styles.errorText, { color: Colors[colorScheme].text }]}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={() => void load()}>
+          <Pressable testID="retry-button" style={styles.retryButton} onPress={() => void load()}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </Pressable>
         </View>
@@ -759,6 +759,7 @@ export default function PostDetailScreen() {
             
             <View style={styles.actions}>
               <Pressable
+                testID="upvote-button"
                 style={[
                   styles.actionButton,
                   styles.upvoteButton,
@@ -810,6 +811,7 @@ export default function PostDetailScreen() {
               </View>
             )}
             <TextInput
+              testID="comment-input"
               style={[styles.commentInput, { 
                 backgroundColor: Colors[colorScheme].surface, 
                 borderColor: Colors[colorScheme].border,
@@ -822,6 +824,7 @@ export default function PostDetailScreen() {
               multiline
             />
             <Pressable 
+              testID="submit-comment"
               style={[styles.sendButton, (commenting || !comment.trim()) && styles.sendButtonDisabled]} 
               onPress={onAddComment}
               disabled={commenting || !comment.trim()}
