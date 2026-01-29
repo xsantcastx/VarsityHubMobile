@@ -11,6 +11,7 @@ import 'react-native-reanimated';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { AuthProvider } from '@/context/AuthProvider';
+import { PostCacheProvider } from '@/context/PostCacheContext';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
@@ -149,31 +150,33 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <AuthProvider navReady={!!navState?.key}>
-            <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <OfflineBanner />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="index" options={{ headerShown: false }} />
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                {/* Auth screens - lazy loaded */}
-                <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-                <Stack.Screen name="sign-up" options={{ headerShown: false }} />
-                <Stack.Screen name="verify" options={{ headerShown: false }} />
-                <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-                <Stack.Screen name="reset" options={{ headerShown: false }} />
-                <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-                {/* Payment screens - lazy loaded */}
-                <Stack.Screen name="payment-success" options={{ headerShown: false }} />
-                <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
-                {/* Onboarding - lazy loaded */}
-                <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                {/* Settings and other screens - lazy loaded */}
-                <Stack.Screen name="settings" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-            </NavigationThemeProvider>
-          </AuthProvider>
+          <PostCacheProvider>
+            <AuthProvider navReady={!!navState?.key}>
+              <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                <OfflineBanner />
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  {/* Auth screens - lazy loaded */}
+                  <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+                  <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+                  <Stack.Screen name="verify" options={{ headerShown: false }} />
+                  <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+                  <Stack.Screen name="reset" options={{ headerShown: false }} />
+                  <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+                  {/* Payment screens - lazy loaded */}
+                  <Stack.Screen name="payment-success" options={{ headerShown: false }} />
+                  <Stack.Screen name="payment-cancel" options={{ headerShown: false }} />
+                  {/* Onboarding - lazy loaded */}
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  {/* Settings and other screens - lazy loaded */}
+                  <Stack.Screen name="settings" options={{ headerShown: false }} />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+                <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+              </NavigationThemeProvider>
+            </AuthProvider>
+          </PostCacheProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

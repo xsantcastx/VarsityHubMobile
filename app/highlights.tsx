@@ -1,5 +1,6 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { usePostCache } from '@/context/PostCacheContext';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
@@ -316,6 +317,7 @@ export default function HighlightsScreen() {
     posts: HighlightItem[];
   }>({ teams: [], events: [], users: [], organizations: [], posts: [] });
   const [searching, setSearching] = useState(false);
+  const postCache = usePostCache();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -352,6 +354,9 @@ export default function HighlightsScreen() {
       const rawNationalTop = Array.isArray(payload?.nationalTop) ? payload.nationalTop : [];
       const rawRanked = Array.isArray(payload?.ranked) ? payload.ranked : [];
       
+      // Cache all the raw posts for faster loading when navigating to post detail
+      postCache.setBatch([...rawNationalTop, ...rawRanked]);
+      
       setNationalTop(rawNationalTop.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       setRanked(rawRanked.map(mapHighlightItem).filter(Boolean) as HighlightItem[]);
       
@@ -382,7 +387,7 @@ export default function HighlightsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [postCache]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
