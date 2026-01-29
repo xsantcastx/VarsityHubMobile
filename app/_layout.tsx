@@ -10,9 +10,9 @@ import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
 import { PostCacheProvider } from '@/context/PostCacheContext';
-import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';

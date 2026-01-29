@@ -1,9 +1,9 @@
 import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { usePostCache } from '@/context/PostCacheContext';
-import * as Haptics from 'expo-haptics';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
