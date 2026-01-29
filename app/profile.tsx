@@ -706,7 +706,7 @@ export default function ProfileScreen() {
         {/* Settings Button & Follow Button - Top Right */}
         <View style={[styles.headerControls, { top: Math.max(12, insets.top) }]}>
           {/* Follow Button - Only for viewing other users */}
-          {viewingUserId && viewingUserId !== currentUserId && (
+          {viewingUserId ? (
             <Pressable 
               style={[
                 styles.headerFollowButton,
@@ -724,7 +724,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.headerFollowButtonText, { color: theme.tint }]}>Follow</Text>
               )}
             </Pressable>
-          )}
+          ) : null}
           <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
             <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
           </Pressable>
