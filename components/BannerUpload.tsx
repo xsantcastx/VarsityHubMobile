@@ -2,7 +2,7 @@
  * Banner Spec Upload Component
  * 
  * Handles banner/logo upload for advertisements with preview and fit options
- * Supports letterbox, fill, and stretch transformations
+ * Supports rotate, fill, and stretch transformations
  */
 
 import { uploadFile } from '@/api/upload';
@@ -24,13 +24,14 @@ import {
     View,
 } from 'react-native';
 
-type BannerFitMode = 'letterbox' | 'fill' | 'stretch';
+type BannerFitMode = 'rotate' | 'fill' | 'stretch';
+type BannerFitValue = BannerFitMode | `rotate:${number}`;
 
 type BannerPosition = { x: number; y: number }; // percent 0-100
 
 interface BannerUploadProps {
   value?: string; // Current banner URL
-  onChange: (uri: string, fitMode: BannerFitMode, position?: BannerPosition) => void;
+  onChange: (uri: string, fitMode: BannerFitValue, position?: BannerPosition) => void;
   aspectRatio?: number; // Target aspect ratio (width/height), e.g., 16/9
   maxWidth?: number; // Max width for preview
   required?: boolean;
@@ -58,6 +59,26 @@ export function BannerUpload({
   const hintOpacity = useRef(new Animated.Value(0)).current;
 
   const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+  const normalizeRotation = (deg: number) => {
+    const mod = ((deg % 360) + 360) % 360;
+    return mod > 180 ? mod - 360 : mod;
+  };
+  const getRotateFitScale = (angleDeg: number, width: number, height: number) => {
+    if (!width || !height) return 1;
+    const rad = (Math.abs(angleDeg) % 360) * (Math.PI / 180);
+    const cos = Math.abs(Math.cos(rad));
+    const sin = Math.abs(Math.sin(rad));
+    const rotatedWidth = width * cos + height * sin;
+    const rotatedHeight = width * sin + height * cos;
+    const scaleX = width / rotatedWidth;
+    const scaleY = height / rotatedHeight;
+    return Math.min(scaleX, scaleY, 1);
+  };
+  const getFitValue = (mode: BannerFitMode, rotationDeg: number): BannerFitValue => {
+    if (mode !== 'rotate') return mode;
+    const rounded = Math.round(normalizeRotation(rotationDeg));
+    return rounded !== 0 ? (`rotate:${rounded}` as const) : 'rotate';
+  };
 
   const handlePickImage = async () => {
     setUploading(true);
@@ -125,7 +146,7 @@ export function BannerUpload({
           throw new Error('Upload succeeded but no URL was returned.');
         }
 
-        onChange(String(uploadedUrl), fitMode, { x: 50, y: 50 });
+        onChange(String(uploadedUrl), getFitValue(fitMode, rotation), { x: 50, y: 50 });
       }
     } catch (error: any) {
       // Handle iOS PHPicker "public.png" and iCloud sync errors gracefully
@@ -151,27 +172,31 @@ export function BannerUpload({
       {
         text: 'Remove',
         style: 'destructive',
-        onPress: () => onChange('', fitMode, position),
+        onPress: () => onChange('', getFitValue(fitMode, rotation), position),
       },
     ]);
   };
 
   const handleFitModeChange = (newMode: BannerFitMode) => {
     setFitMode(newMode);
-    // Reset transformations when switching modes (except when switching between fill/rotate)
+    // Reset transformations when switching modes
     if (newMode === 'stretch') {
+      setScale(1);
+      setRotation(0);
+      setPosition({ x: 50, y: 50 });
+    } else if (newMode === 'rotate') {
       setScale(1);
       setRotation(0);
       setPosition({ x: 50, y: 50 });
     }
     if (value) {
-      onChange(value, newMode, newMode === 'stretch' ? { x: 50, y: 50 } : position);
+      onChange(value, getFitValue(newMode, rotation), newMode === 'fill' ? position : { x: 50, y: 50 });
     }
   };
 
   const getContentFit = (): 'contain' | 'cover' | 'fill' => {
     switch (fitMode) {
-      case 'letterbox':
+      case 'rotate':
         return 'contain'; // Fits entire image, may show bars
       case 'stretch':
         return 'fill'; // Stretches to fill, may distort
@@ -181,9 +206,9 @@ export function BannerUpload({
     }
   };
 
-  // Quick, minimal hint when Fill or Letterbox mode is active
+  // Quick, minimal hint when Fill or Rotate mode is active
   useEffect(() => {
-    if (value && (fitMode === 'fill' || fitMode === 'letterbox')) {
+    if (value && (fitMode === 'fill' || fitMode === 'rotate')) {
       setShowHint(true);
       hintOpacity.setValue(0);
       Animated.sequence([
@@ -234,11 +259,11 @@ export function BannerUpload({
               source={{ uri: value }}
               style={[
                 styles.previewImage,
-                (fitMode === 'fill' || fitMode === 'letterbox') && {
-                  transform: [
-                    { scale },
-                    { rotate: `${rotation}deg` },
-                  ],
+                fitMode === 'fill' && {
+                  transform: [{ scale }, { rotate: `${rotation}deg` }],
+                },
+                fitMode === 'rotate' && {
+                  transform: [{ scale }, { rotate: `${rotation}deg` }],
                 },
               ]}
               contentFit={getContentFit()}
@@ -255,12 +280,14 @@ export function BannerUpload({
                   { opacity: hintOpacity },
                 ]}
               >
-                <Ionicons name="resize-outline" size={16} color="#111827" />
-                <Text style={styles.hintText}>Pinch to zoom</Text>
+                <Ionicons name={fitMode === 'rotate' ? 'refresh' : 'resize-outline'} size={16} color="#111827" />
+                <Text style={styles.hintText}>
+                  {fitMode === 'rotate' ? 'Rotate to adjust' : 'Pinch to zoom'}
+                </Text>
               </Animated.View>
             )}
-            {/* Pinch to zoom overlay for Fill and Letterbox modes */}
-            {(fitMode === 'fill' || fitMode === 'letterbox') && (
+            {/* Gesture overlay for Fill and Rotate modes */}
+            {(fitMode === 'fill' || fitMode === 'rotate') && (
               <View
                 style={StyleSheet.absoluteFill}
                 onStartShouldSetResponder={() => true}
@@ -280,30 +307,39 @@ export function BannerUpload({
                   const { width, height } = containerSize.current;
                   
                   if (touches.length >= 2) {
-                    // Pinch to zoom (works in both Fill and Letterbox modes)
-                    const currentDistance = getDistance(touches[0], touches[1]);
-                    if (initialDistance.current > 0) {
-                      const newScale = clamp((currentDistance / initialDistance.current) * initialScale.current, 0.5, 3);
-                      setScale(newScale);
+                    if (fitMode === 'fill') {
+                      // Pinch to zoom for Fill mode only
+                      const currentDistance = getDistance(touches[0], touches[1]);
+                      if (initialDistance.current > 0) {
+                        const newScale = clamp((currentDistance / initialDistance.current) * initialScale.current, 1, 3);
+                        setScale(newScale);
+                      }
                     }
 
-                    // Rotation (works in both Fill and Letterbox modes)
+                    // Rotation for Fill and Rotate modes
                     const currentAngle = getAngle(touches[0], touches[1]);
                     const angleDiff = currentAngle - initialRotation.current;
-                    setRotation(initialRotation.current + angleDiff);
-                  } else if (touches.length === 1 && (scale > 1 || fitMode === 'fill')) {
-                    // Pan when zoomed in (Fill mode) or always in Fill mode
-                    if (fitMode === 'fill') {
-                      const { locationX, locationY } = touches[0];
-                      if (!width || !height) return;
-                      const xPct = clamp((locationX / width) * 100, 0, 100);
-                      const yPct = clamp((locationY / height) * 100, 0, 100);
-                      setPosition({ x: xPct, y: yPct });
+                    const nextRotation = initialRotation.current + angleDiff;
+                    setRotation(nextRotation);
+                    if (fitMode === 'rotate') {
+                      setScale(getRotateFitScale(nextRotation, width, height));
                     }
+                  } else if (touches.length === 1 && fitMode === 'fill' && scale > 1) {
+                    // Pan when zoomed in (Fill mode only)
+                    const { locationX, locationY } = touches[0];
+                    if (!width || !height) return;
+                    const xPct = clamp((locationX / width) * 100, 0, 100);
+                    const yPct = clamp((locationY / height) * 100, 0, 100);
+                    setPosition({ x: xPct, y: yPct });
                   }
                 }}
                 onResponderRelease={() => {
-                  if (value) onChange(value, fitMode, position);
+                  if (!value) return;
+                  if (fitMode === 'fill') {
+                    onChange(value, getFitValue(fitMode, rotation), position);
+                  } else {
+                    onChange(value, getFitValue(fitMode, rotation), { x: 50, y: 50 });
+                  }
                 }}
               />
             )}
@@ -338,7 +374,7 @@ export function BannerUpload({
             Banner Fit:
           </Text>
           <View style={styles.fitModeButtons}>
-            {(['letterbox', 'fill', 'stretch'] as BannerFitMode[]).map((mode) => (
+            {(['rotate', 'fill', 'stretch'] as BannerFitMode[]).map((mode) => (
               <Pressable
                 key={mode}
                 style={[
@@ -352,30 +388,30 @@ export function BannerUpload({
                   },
                 ]}
                 onPress={() => handleFitModeChange(mode)}
-              >
-                <Ionicons
-                  name={getFitModeIcon(mode)}
-                  size={18}
+                >
+                  <Ionicons
+                    name={getFitModeIcon(mode)}
+                    size={18}
                   color={
                     fitMode === mode
                       ? '#FFFFFF'
                       : Colors[colorScheme].text
                   }
                 />
-                <Text
-                  style={[
-                    styles.fitModeButtonText,
-                    {
-                      color:
-                        fitMode === mode
-                          ? '#FFFFFF'
-                          : Colors[colorScheme].text,
-                    },
-                  ]}
-                >
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </Text>
-              </Pressable>
+                  <Text
+                    style={[
+                      styles.fitModeButtonText,
+                      {
+                        color:
+                          fitMode === mode
+                            ? '#FFFFFF'
+                            : Colors[colorScheme].text,
+                      },
+                    ]}
+                  >
+                  {getFitModeLabel(mode)}
+                  </Text>
+                </Pressable>
             ))}
           </View>
         </View>
@@ -387,11 +423,11 @@ export function BannerUpload({
           <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
             {getFitModeDescription(fitMode)}
           </Text>
-          {(fitMode === 'fill' || fitMode === 'letterbox') && (
+          {(fitMode === 'fill' || fitMode === 'rotate') && (
             <Text style={[styles.descriptionText, { color: Colors[colorScheme].mutedText }]}>
               {fitMode === 'fill'
                 ? 'Pinch to zoom, rotate, and pan to reposition'
-                : 'Pinch to zoom and rotate to adjust orientation'}
+                : 'Rotate to adjust orientation'}
             </Text>
           )}
         </View>
@@ -425,8 +461,8 @@ export function BannerUpload({
 
 function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
   switch (mode) {
-    case 'letterbox':
-      return 'scan-outline';
+    case 'rotate':
+      return 'refresh';
     case 'stretch':
       return 'resize-outline';
     case 'fill':
@@ -435,10 +471,22 @@ function getFitModeIcon(mode: BannerFitMode): keyof typeof Ionicons.glyphMap {
   }
 }
 
+function getFitModeLabel(mode: BannerFitMode): string {
+  switch (mode) {
+    case 'rotate':
+      return 'Rotate';
+    case 'stretch':
+      return 'Stretch';
+    case 'fill':
+    default:
+      return 'Fill';
+  }
+}
+
 function getFitModeDescription(mode: BannerFitMode): string {
   switch (mode) {
-    case 'letterbox':
-      return 'Fits entire image with padding bars (no cropping, no distortion). Rotate to adjust orientation.';
+    case 'rotate':
+      return 'Shows entire image with padding bars (no cropping, no distortion). Rotate to adjust orientation.';
     case 'stretch':
       return 'Stretches image to fill entire space (may distort aspect ratio)';
     case 'fill':

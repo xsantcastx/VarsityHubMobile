@@ -11,13 +11,15 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // @ts-ignore
 import { Advertisement as AdsApi, User } from '@/api/entities';
 
+type BannerFitValue = 'rotate' | 'fill' | 'stretch' | `rotate:${number}`;
+
 type DraftAd = {
   id: string;
   business_name: string;
   contact_name: string;
   contact_email: string;
   banner_url?: string;
-  banner_fit_mode?: string;
+  banner_fit_mode?: BannerFitValue;
   target_url?: string;
   zip_code: string;
   description?: string;
@@ -36,7 +38,7 @@ export default function SubmitAdScreen() {
   const [business, setBusiness] = useState('');
   const [zip, setZip] = useState('');
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
-  const [bannerFitMode, setBannerFitMode] = useState<'letterbox' | 'fill' | 'stretch'>('fill');
+  const [bannerFitMode, setBannerFitMode] = useState<BannerFitValue>('fill');
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export default function SubmitAdScreen() {
 
   const handleBannerChange = (
     uri: string,
-    fitMode: 'letterbox' | 'fill' | 'stretch',
+    fitMode: BannerFitValue,
     _position?: { x: number; y: number }
   ) => {
     setBannerUrl(uri);

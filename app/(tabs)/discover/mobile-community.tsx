@@ -197,6 +197,14 @@ export default function CommunityDiscoverScreen() {
         const postsPage = await Post.listPage(undefined, 20, '-created_date');
         items = Array.isArray(postsPage.items) ? postsPage.items : [];
       }
+      if (items.length === 0) {
+        try {
+          const fallback = await Post.list('-created_at', 20);
+          items = Array.isArray(fallback) ? fallback : [];
+        } catch {
+          items = [];
+        }
+      }
       const followingOnly = items.filter((p: any) => p && (p.is_following_author || p.is_following));
       const nonFollowing = items.filter((p: any) => !(p && (p.is_following_author || p.is_following)));
       setFollowingPosts(followingOnly.slice(0, 12));
@@ -245,6 +253,15 @@ export default function CommunityDiscoverScreen() {
     } catch (personalizationError) {
       if (__DEV__) console.warn('Discover load: personalization failed', personalizationError);
       setPersonalizationNotice('Personalized suggestions are temporarily unavailable. Pull to refresh to try again.');
+      try {
+        const fallback = await Post.list('-created_at', 20);
+        const items = Array.isArray(fallback) ? fallback : [];
+        setFollowingPosts([]);
+        setDiscoverPosts(items.slice(0, 12));
+      } catch {
+        setFollowingPosts([]);
+        setDiscoverPosts([]);
+      }
     }
   }, []);
 
@@ -677,9 +694,7 @@ export default function CommunityDiscoverScreen() {
 
       {/* Quick Actions Dashboard */}
       <View style={[styles.coachDashboard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
-        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>
-          Quick Actions {__DEV__ && me?.preferences?.role && `(${me.preferences.role})`}
-        </Text>
+        <Text style={[styles.coachTitle, { color: Colors[colorScheme].text }]}>Quick Actions</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
           {/* Role-based actions */}
           {me?.preferences?.role === 'coach' ? (
@@ -732,9 +747,9 @@ export default function CommunityDiscoverScreen() {
                 style={[styles.coachActionCard, { backgroundColor: Colors[colorScheme].tint + '10', borderColor: Colors[colorScheme].tint + '30', marginLeft: 12 }]}
                 onPress={() => void router.push('/favorites')}
               >
-                <Ionicons name="heart" size={24} color={Colors[colorScheme].tint} />
-                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>My Teams</Text>
-                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Teams you follow</Text>
+                <Ionicons name="bookmark" size={24} color={Colors[colorScheme].tint} />
+                <Text style={[styles.coachActionTitle, { color: Colors[colorScheme].tint }]}>Saved Post</Text>
+                <Text style={[styles.coachActionDesc, { color: Colors[colorScheme].mutedText }]}>Saved posts</Text>
               </Pressable>
             </>
           )}

@@ -64,6 +64,8 @@ export default function PostDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [post, setPost] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
+  const [postsById, setPostsById] = useState<Record<string, any>>({});
+  const [commentsById, setCommentsById] = useState<Record<string, any[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [voting, setVoting] = useState(false);
@@ -166,6 +168,9 @@ export default function PostDetailScreen() {
     try {
       const [p, c] = await Promise.all([PostApi.get(targetId), PostApi.comments(targetId)]);
       setPost(p);
+      if (targetId) {
+        setPostsById((prev) => ({ ...prev, [targetId]: p }));
+      }
       
       // Handle comments response - it returns { items, nextCursor }
       let commentsArray: any[] = [];
@@ -175,6 +180,9 @@ export default function PostDetailScreen() {
         commentsArray = c.items;
       }
       setComments(commentsArray);
+      if (targetId) {
+        setCommentsById((prev) => ({ ...prev, [targetId]: commentsArray }));
+      }
       
       // Initialize follow and save states from post data
       if (p) {
@@ -218,11 +226,17 @@ export default function PostDetailScreen() {
     try {
       const r: any = await PostApi.toggleUpvote(currentPostId);
       // Update post upvote count and user's upvote status
-      setPost((p: any) => ({
-        ...(p || {}),
-        upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
-        has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
-      }));
+      setPost((p: any) => {
+        const next = {
+          ...(p || {}),
+          upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
+          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
+        };
+        if (currentPostId) {
+          setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
+        }
+        return next;
+      });
     } catch (error) {
       console.error('Error toggling upvote:', error);
       const err = error as any;
@@ -237,7 +251,13 @@ export default function PostDetailScreen() {
     setCommenting(true);
     try {
       const created = await PostApi.addComment(currentPostId, comment.trim());
-      setComments((arr) => [created, ...arr]);
+      setComments((arr) => {
+        const next = [created, ...arr];
+        if (currentPostId) {
+          setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
+        }
+        return next;
+      });
       setComment('');
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -350,7 +370,13 @@ export default function PostDetailScreen() {
           onPress: async () => {
             try {
               await PostApi.deleteComment(currentPostId, commentId);
-              setComments(prevComments => prevComments.filter(c => String(c.id) !== commentId));
+              setComments((prevComments) => {
+                const next = prevComments.filter((c) => String(c.id) !== commentId);
+                if (currentPostId) {
+                  setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
+                }
+                return next;
+              });
               Alert.alert('Success', 'Comment deleted successfully');
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to delete comment');
@@ -407,9 +433,15 @@ export default function PostDetailScreen() {
     setUpdatingComment(true);
     try {
       await PostApi.updateComment(currentPostId, editCommentId, editCommentText.trim());
-      setComments(prevComments => prevComments.map(c => 
-        String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
-      ));
+      setComments((prevComments) => {
+        const next = prevComments.map((c) => 
+          String(c.id) === editCommentId ? { ...c, content: editCommentText.trim() } : c
+        );
+        if (currentPostId) {
+          setCommentsById((prev) => ({ ...prev, [currentPostId]: next }));
+        }
+        return next;
+      });
       setEditCommentId(null);
       setEditCommentText('');
       Alert.alert('Success', 'Comment updated successfully');
@@ -460,13 +492,18 @@ export default function PostDetailScreen() {
   if (!post) return null;
 
   const hasMultiplePosts = postIdsArray.length > 1;
-  const isImage = post.media_url && !post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
-  const isVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
-  const hasMedia = isImage || isVideo;
-  const category = getSportCategory(post.title, post.content);
+  const currentIsImage = post.media_url && !post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+  const currentIsVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
 
   // Render single post content (reusable for both single and multi-post views)
-  const renderPostContent = () => (
+  const renderPostContent = (postData: any, commentsData: any[]) => {
+    const isImage = postData.media_url && !postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+    const isVideo = postData.media_url && postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
+    const hasMedia = isImage || isVideo;
+    const category = getSportCategory(postData.title, postData.content);
+    const localComments = Array.isArray(commentsData) ? commentsData : [];
+
+    return (
     <ScrollView
       style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
       showsVerticalScrollIndicator={false}
@@ -477,11 +514,11 @@ export default function PostDetailScreen() {
           {hasMedia ? (
             <Pressable style={styles.mediaContainer} onPress={() => setFullscreenMedia(true)}>
               {isImage && (
-                <ExpoImage source={{ uri: post.media_url }} style={styles.heroImage} contentFit="cover" />
+                <ExpoImage source={{ uri: postData.media_url }} style={styles.heroImage} contentFit="cover" />
               )}
               {isVideo && (
                 <View style={styles.videoContainer}>
-                  <VideoPlayer uri={post.media_url} style={styles.heroVideo} />
+                  <VideoPlayer uri={postData.media_url} style={styles.heroVideo} />
                 </View>
               )}
               
@@ -493,9 +530,9 @@ export default function PostDetailScreen() {
               
               {/* Category Badge */}
               <View style={styles.mediaTopOverlay}>
-                {/* Category badge removed as requested */}
-                <Text style={styles.countryFlag}>{getCountryFlag(post.country_code)}</Text>
-              </View>
+              {/* Category badge removed as requested */}
+              <Text style={styles.countryFlag}>{getCountryFlag(postData.country_code)}</Text>
+            </View>
               
               {/* Expand Icon */}
               <View style={styles.expandIcon}>
@@ -503,7 +540,7 @@ export default function PostDetailScreen() {
               </View>
               
               {/* Live Badge */}
-              {post.created_at && new Date(post.created_at).getTime() > Date.now() - 3600000 && (
+              {postData.created_at && new Date(postData.created_at).getTime() > Date.now() - 3600000 && (
                 <View style={styles.liveBadge}>
                   <Text style={styles.liveText}>LIVE</Text>
                 </View>
@@ -523,33 +560,33 @@ export default function PostDetailScreen() {
         {/* Post Content */}
         <View style={[styles.postContent, { backgroundColor: Colors[colorScheme].card }]}>
           {/* Title */}
-          {post.title && (
-            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{post.title}</Text>
+          {postData.title && (
+            <Text style={[styles.postTitle, { color: Colors[colorScheme].text }]}>{postData.title}</Text>
           )}
           
           {/* Content */}
-          {post.content && (
-            <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{post.content}</Text>
+          {postData.content && (
+            <Text style={[styles.postText, { color: Colors[colorScheme].text }]}>{postData.content}</Text>
           )}
 
           {/* Game/Event Info */}
-          {post.game && (
+          {postData.game && (
             <Pressable 
               style={[styles.gameInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { if (post.game?.id) { void void router.push(`/game-detail?id=${post.game.id}`);
+              onPress={() => { if (postData.game?.id) { void void router.push(`/game-detail?id=${postData.game.id}`);
                 }
               }}
             >
               <Ionicons name="basketball-outline" size={20} color={Colors[colorScheme].tint} />
               <View style={styles.gameDetails}>
                 <Text style={[styles.gameTitle, { color: Colors[colorScheme].text }]}>
-                  {post.game.title}
+                  {postData.game.title}
                 </Text>
-                {(post.game.home_team || post.game.away_team) && (
+                {(postData.game.home_team || postData.game.away_team) && (
                   <Text style={[styles.gameTeams, { color: Colors[colorScheme].mutedText }]}>
-                    {post.game.home_team && post.game.away_team 
-                      ? `${post.game.home_team} vs ${post.game.away_team}`
-                      : post.game.home_team || post.game.away_team}
+                    {postData.game.home_team && postData.game.away_team 
+                      ? `${postData.game.home_team} vs ${postData.game.away_team}`
+                      : postData.game.home_team || postData.game.away_team}
                   </Text>
                 )}
               </View>
@@ -558,10 +595,10 @@ export default function PostDetailScreen() {
           )}
 
           {/* Team Links */}
-          {(post.team_id || post.team) && (
+          {(postData.team_id || postData.team) && (
             <Pressable 
               style={[styles.teamInfo, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
-              onPress={() => { const teamId = post.team_id || post.team?.id;
+              onPress={() => { const teamId = postData.team_id || postData.team?.id;
                 if (teamId) { void void router.push(`/team-profile?id=${teamId}`);
                 }
               }}
@@ -569,11 +606,11 @@ export default function PostDetailScreen() {
               <Ionicons name="people-outline" size={20} color={Colors[colorScheme].tint} />
               <View style={styles.teamDetails}>
                 <Text style={[styles.teamTitle, { color: Colors[colorScheme].text }]}>
-                  {post.team?.name || 'Team'}
+                  {postData.team?.name || 'Team'}
                 </Text>
-                {post.team?.sport && (
+                {postData.team?.sport && (
                   <Text style={[styles.teamSport, { color: Colors[colorScheme].mutedText }]}>
-                    {post.team.sport}
+                    {postData.team.sport}
                   </Text>
                 )}
               </View>
@@ -585,13 +622,13 @@ export default function PostDetailScreen() {
           <View style={styles.authorSection}>
             <Pressable 
               style={styles.authorInfo}
-              onPress={() => { if (post.author_id) { void void router.push(`/user-profile?id=${post.author_id}`);
+              onPress={() => { if (postData.author_id) { void void router.push(`/user-profile?id=${postData.author_id}`);
                 }
               }}
-              disabled={!post.author_id}
+              disabled={!postData.author_id}
             >
-              {post.author?.avatar_url ? (
-                <ExpoImage source={{ uri: post.author.avatar_url }} style={styles.authorAvatar} />
+              {postData.author?.avatar_url ? (
+                <ExpoImage source={{ uri: postData.author.avatar_url }} style={styles.authorAvatar} />
               ) : (
                 <View style={[styles.authorAvatar, styles.defaultAvatar]}>
                   <Ionicons name="person" size={20} color="#fff" />
@@ -599,13 +636,13 @@ export default function PostDetailScreen() {
               )}
               <View style={styles.authorDetails}>
                 <Text style={[styles.authorName, { color: Colors[colorScheme].text }]}>
-                  {post.author?.display_name || 'Anonymous'}
+                  {postData.author?.display_name || 'Anonymous'}
                 </Text>
-                <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(post.created_at)}</Text>
+                <Text style={[styles.postTime, { color: Colors[colorScheme].tabIconDefault }]}>{timeAgo(postData.created_at)}</Text>
               </View>
             </Pressable>
             
-            {post.author_id && String(post.author_id) !== String(currentUser?.id) && (
+            {postData.author_id && String(postData.author_id) !== String(currentUser?.id) && (
               <Pressable 
                 style={[
                   styles.followButton, 
@@ -636,15 +673,15 @@ export default function PostDetailScreen() {
             <View style={styles.stats}>
               <View style={styles.stat}>
                 <Ionicons name="arrow-up" size={18} color={Colors[colorScheme].tint} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(post.upvotes_count || 0)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(postData.upvotes_count || 0)}</Text>
               </View>
               <View style={styles.stat}>
                 <Ionicons name="chatbubble-outline" size={18} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(comments.length || 0)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount(localComments.length || 0)}</Text>
               </View>
               <View style={styles.stat}>
                 <Ionicons name="eye-outline" size={18} color={Colors[colorScheme].mutedText} />
-                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount((post.upvotes_count || 0) * 12)}</Text>
+                <Text style={[styles.statText, { color: Colors[colorScheme].text }]}>{formatCount((postData.upvotes_count || 0) * 12)}</Text>
               </View>
             </View>
             
@@ -653,22 +690,22 @@ export default function PostDetailScreen() {
                 style={[
                   styles.actionButton,
                   styles.upvoteButton,
-                  post?.has_upvoted && styles.upvoteButtonActive
+                  postData?.has_upvoted && styles.upvoteButtonActive
                 ]}
                 onPress={onUpvote}
                 disabled={voting}
               >
                 <Ionicons
-                  name={post?.has_upvoted ? "arrow-up" : "arrow-up-outline"}
+                  name={postData?.has_upvoted ? "arrow-up" : "arrow-up-outline"}
                   size={20}
                   color="#fff"
                 />
                 <Text style={[
                   styles.actionText,
                   { color: "#fff" },
-                  post?.has_upvoted && styles.actionTextActive
+                  postData?.has_upvoted && styles.actionTextActive
                 ]}>
-                  {voting ? '...' : (post?.has_upvoted ? 'Upvoted' : 'Upvote')}
+                  {voting ? '...' : (postData?.has_upvoted ? 'Upvoted' : 'Upvote')}
                 </Text>
               </Pressable>
               
@@ -688,7 +725,7 @@ export default function PostDetailScreen() {
         <View style={[styles.commentsSection, { backgroundColor: Colors[colorScheme].card }]}>
           <View style={[styles.commentsHeader, { borderBottomColor: Colors[colorScheme].border }]}>
             <Text style={[styles.commentsTitle, { color: Colors[colorScheme].text }]}>Comments</Text>
-            <Text style={[styles.commentsCount, { color: Colors[colorScheme].tabIconDefault, backgroundColor: Colors[colorScheme].surface }]}>{comments.length}</Text>
+            <Text style={[styles.commentsCount, { color: Colors[colorScheme].tabIconDefault, backgroundColor: Colors[colorScheme].surface }]}>{localComments.length}</Text>
           </View>
           
           {/* Add Comment */}
@@ -726,7 +763,7 @@ export default function PostDetailScreen() {
           </View>
 
           {/* Comments List */}
-          {comments.length === 0 ? (
+          {localComments.length === 0 ? (
             <View style={styles.emptyComments}>
               <Ionicons name="chatbubbles-outline" size={48} color={Colors[colorScheme].tabIconDefault} />
               <Text style={[styles.emptyCommentsText, { color: Colors[colorScheme].text }]}>No comments yet</Text>
@@ -734,7 +771,7 @@ export default function PostDetailScreen() {
             </View>
           ) : (
             <View style={styles.commentsList}>
-              {comments.map((c) => (
+              {localComments.map((c) => (
                 <View key={String(c.id)} style={[styles.commentCard, { borderBottomColor: Colors[colorScheme].surface }]}>
                   <View style={styles.commentHeader}>
                     <Pressable 
@@ -785,7 +822,8 @@ export default function PostDetailScreen() {
           )}
         </View>
       </ScrollView>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: Colors[colorScheme].background }]} edges={['top', 'bottom']}>
@@ -838,14 +876,20 @@ export default function PostDetailScreen() {
           })}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-          renderItem={() => (
-            <View style={{ width: SCREEN_WIDTH }}>
-              {renderPostContent()}
-            </View>
-          )}
+          renderItem={({ item }) => {
+            const postData = item === currentPostId ? post : postsById[item];
+            const commentsData = item === currentPostId ? comments : commentsById[item];
+            return (
+              <View style={{ width: SCREEN_WIDTH }}>
+                {postData ? renderPostContent(postData, commentsData) : (
+                  <View style={[styles.loadingPlaceholder, { backgroundColor: Colors[colorScheme].background }]} />
+                )}
+              </View>
+            );
+          }}
         />
       ) : (
-        renderPostContent()
+        post ? renderPostContent(post, comments) : null
       )}
 
       {/* Edit Comment Modal */}
@@ -905,7 +949,7 @@ export default function PostDetailScreen() {
             <Ionicons name="close" size={32} color="#fff" />
           </Pressable>
           
-          {isImage && post.media_url && (
+          {currentIsImage && post.media_url && (
             <ExpoImage 
               source={{ uri: post.media_url }} 
               style={styles.fullscreenImage} 
@@ -913,7 +957,7 @@ export default function PostDetailScreen() {
             />
           )}
           
-          {isVideo && post.media_url && (
+          {currentIsVideo && post.media_url && (
             <VideoPlayer 
               uri={post.media_url} 
               style={styles.fullscreenVideo}
@@ -939,6 +983,9 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  loadingPlaceholder: {
+    flex: 1,
   },
   errorContainer: {
     flex: 1,

@@ -373,7 +373,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
           unit_amount: total,
           product_data: {
             name: 'Ad Reservation',
-            description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}`,
+            description: `${isoDates.join(', ')}`,
           },
         },
       }];
@@ -400,7 +400,7 @@ paymentsRouter.post('/checkout', expressPkg.json(), requireVerified as any, asyn
         unit_amount: total, // Total includes tax and discount already calculated
         product_data: {
           name: 'Ad Reservation',
-          description: `Ad ${String(ad_id)} — ${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
+          description: `${isoDates.join(', ')}${discount > 0 ? ` (${formatUsd(discount)} discount applied)` : ''}${taxCents > 0 ? ` + ${formatUsd(taxCents)} tax` : ''}`,
         },
       },
     }];
