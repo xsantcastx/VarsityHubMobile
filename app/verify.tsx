@@ -25,9 +25,9 @@ export default function VerifyScreen() {
   const [isVerified, setIsVerified] = useState(false);
   const [devCodeLoading, setDevCodeLoading] = useState(false);
 
+  // Only allow dev verification in development mode - NEVER in production
   const devVerificationEnabled = useMemo(() => {
-    if (__DEV__) return true;
-    return process.env.EXPO_PUBLIC_ENABLE_DEV_VERIFY === 'true';
+    return __DEV__;
   }, []);
   const configuredDevCode = process.env.EXPO_PUBLIC_DEV_VERIFICATION_CODE;
 
@@ -68,9 +68,29 @@ export default function VerifyScreen() {
           const refreshed: any = await User.me();
           const resolvedRole = refreshed?.preferences?.role || refreshed?.role || (user as any)?.preferences?.role;
           const isFan = !resolvedRole || resolvedRole === 'fan';
-          if (!isFan) {
-            destination = '/onboarding/step-1-role';
+          const onboardingCompleted = refreshed?.preferences?.onboarding_completed;
+
+          if (onboardingCompleted) {
+            // User already completed onboarding, go to feed
+            destination = '/(tabs)/feed';
+          } else if (!isFan) {
+            // Coach/org user who hasn't completed onboarding
+            // Check if they've already selected a role and have progress
+            const hasRole = !!resolvedRole && resolvedRole !== 'fan';
+            const hasUsername = !!refreshed?.username;
+
+            if (hasRole && hasUsername) {
+              // They have role and username, resume from step 3 (plan selection)
+              destination = '/onboarding/step-3-plan';
+            } else if (hasRole) {
+              // They have role but not username, resume from step 2
+              destination = '/onboarding/step-2-basic';
+            } else {
+              // Start fresh
+              destination = '/onboarding/step-1-role';
+            }
           } else {
+            // Fan user - mark onboarding as complete
             await markOnboardingCompleteLocally();
           }
         } catch (profileError) {

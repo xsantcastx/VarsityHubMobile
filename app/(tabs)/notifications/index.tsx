@@ -181,7 +181,15 @@ export default function NotificationsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           onEndReachedThreshold={0.6}
           onEndReached={onEndReached}
-          ListEmptyComponent={<View style={{ padding: 24 }}><Text style={{ textAlign: 'center', color: '#6B7280' }}>No notifications</Text></View>}
+          ListEmptyComponent={
+            <View style={S.emptyContainer}>
+              <Ionicons name="notifications-outline" size={56} color={Colors[colorScheme ?? 'light'].mutedText} />
+              <Text style={[S.emptyTitle, { color: Colors[colorScheme ?? 'light'].text }]}>All caught up!</Text>
+              <Text style={[S.emptySubtitle, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+                You'll see notifications for follows, upvotes, and comments here.
+              </Text>
+            </View>
+          }
           contentContainerStyle={{ paddingVertical: 8 }}
         />
       )}
@@ -227,4 +235,21 @@ const S = StyleSheet.create({
   markAllText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
   retryButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#3B82F6' },
   retryText: { color: '#FFFFFF', fontWeight: '600' },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });

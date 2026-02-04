@@ -66,8 +66,9 @@ export default function SignInScreen() {
       if (res?.needs_verification) {
         try {
           await checkAuth({ email, pendingVerification: true });
-        } catch {
+        } catch (authError) {
           // Token is saved, AuthProvider will handle routing on next render
+          if (__DEV__) console.log('[sign-in] checkAuth after verification login:', authError);
         }
         setLoading(false);
         return;
@@ -76,9 +77,10 @@ export default function SignInScreen() {
       // Otherwise, refresh auth state - AuthProvider will handle routing
       try {
         await checkAuth();
-      } catch {
+      } catch (authError) {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
+        if (__DEV__) console.log('[sign-in] checkAuth after email login:', authError);
       }
     } catch (e: any) {
       const errMsg = e?.message || 'Login failed';
@@ -129,9 +131,10 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-      } catch {
+      } catch (authError) {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
+        if (__DEV__) console.log('[sign-in] checkAuth after Google login:', authError);
       }
     } catch (e: any) {
       // Silently ignore user cancellation
@@ -179,9 +182,10 @@ export default function SignInScreen() {
       // Call checkAuth to set user state; AuthProvider will handle routing
       try {
         await checkAuth();
-      } catch {
+      } catch (authError) {
         // Token is saved, let AuthProvider handle routing
         // Don't show error - token is valid, routing will happen
+        if (__DEV__) console.log('[sign-in] checkAuth after Apple login:', authError);
       }
     } catch (e: any) {
       const message = e?.message || 'Apple sign in failed';

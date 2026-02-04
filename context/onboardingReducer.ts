@@ -72,8 +72,8 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
     case 4: // Organization (coaches only)
       if (role !== 'coach') return true; // Fans skip this
       return !!(state.team_id || state.organization_id);
-    case 6: // Authorized users (optional for coaches)
-      return true; // Always optional, can skip
+    case 6: // Authorized users (optional for coaches, but must be visited)
+      return !!state.step_6_visited; // Must visit this step before continuing
     case 7: // Profile
       return !!state.username; // At minimum, username is required
     case 8: // Interests
@@ -119,25 +119,11 @@ export function nextIncompleteStep(
       return ONBOARDING_STEPS.STEP_4_ORGANIZATION.index;
     }
     
-    // Step 6: Authorized users (optional, but MUST be shown before step 7)
-    // If steps 2-4 are complete, show step 6
-    const hasStep2 = isStepComplete(2, state, role);
-    const hasStep3 = isStepComplete(3, state, role);
-    const hasStep4 = isStepComplete(4, state, role);
-    
-    if (hasStep2 && hasStep3 && hasStep4) {
-      // Step 6 is optional but required to visit - always show it before step 7
-      // Check if we've explicitly marked step 6 as visited/skipped
-      // For now, always return step 6 if steps 2-4 are complete
-      // This ensures coaches can't skip directly to step 7
+    // Step 6: Authorized users (optional, but MUST be visited/skipped before step 7)
+    // Check if step 6 has been visited
+    if (!isStepComplete(6, state, role)) {
       return ONBOARDING_STEPS.STEP_6_AUTHORIZED_USERS.index;
     }
-    
-    // If steps 2-4 aren't complete, we already returned above
-    // This code path shouldn't be reached, but return step 2 as fallback
-    if (!hasStep2) return ONBOARDING_STEPS.STEP_2_BASIC.index;
-    if (!hasStep3) return ONBOARDING_STEPS.STEP_3_PLAN.index;
-    if (!hasStep4) return ONBOARDING_STEPS.STEP_4_ORGANIZATION.index;
   }
   
   // Step 7: Profile (after required steps for coaches)

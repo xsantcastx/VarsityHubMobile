@@ -12,6 +12,7 @@ import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppleAuth } from '@/hooks/useAppleAuth';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { calculatePasswordStrength, sanitizeEmail, validateEmail, validatePassword } from '@/utils/formUtils';
 import { captureException } from '@/utils/sentry';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -31,12 +32,23 @@ export default function SignUpScreen() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({ score: 0, feedback: 'Very weak' });
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (value) {
+      setPasswordStrength(calculatePasswordStrength(value));
+    } else {
+      setPasswordStrength({ score: 0, feedback: 'Very weak' });
+    }
+  };
 
   const attemptRegistration = async (attempt: number = 1): Promise<any> => {
     setRetryCount(attempt > 1 ? attempt : 0);
     
     try {
-      return await User.register(email, password);
+      const sanitizedEmail = sanitizeEmail(email);
+      return await User.register(sanitizedEmail, password);
     } catch (e: any) {
       captureException(typeof e === 'string' ? new Error(e) : e, {
         tags: { context: 'email-signup-attempt' },
@@ -77,8 +89,14 @@ export default function SignUpScreen() {
 
   const onSubmit = async () => {
     if (!email || !password) { setError('Please enter email and password'); return; }
-    if (!email.includes('@') || !email.includes('.')) { setError('Please enter a valid email address'); return; }
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    
+    // Use form validation utilities
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) { setError(emailValidation.error || 'Invalid email'); return; }
+    
+    const passwordValidation = validatePassword(password, 8, true);
+    if (!passwordValidation.valid) { setError(passwordValidation.error || 'Invalid password'); return; }
+    
     trackTap('auth_email_submit', { screen: 'sign_up' });
     setLoading(true); setError(null); setRetryCount(0); setShowSignInPrompt(false);
     
@@ -283,7 +301,38 @@ export default function SignUpScreen() {
 
           {/* Email Form */}
           <Input placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={{ marginBottom: 10 }} />
-          <Input placeholder="Password (min 8 chars)" value={password} onChangeText={setPassword} secureTextEntry />
+          <Input placeholder="Password" value={password} onChangeText={handlePasswordChange} secureTextEntry />
+          
+          {/* Password Strength Indicator */}
+          {password.length > 0 && (
+            <View style={{ marginTop: 8, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', gap: 4, marginBottom: 4 }}>
+                {[0, 1, 2, 3].map((index) => (
+                  <View
+                    key={index}
+                    style={{
+                      flex: 1,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: index < passwordStrength.score
+                        ? passwordStrength.score <= 1 ? '#ef4444'
+                          : passwordStrength.score === 2 ? '#f59e0b'
+                          : passwordStrength.score === 3 ? '#3b82f6'
+                          : '#22c55e'
+                        : Colors[colorScheme].border,
+                    }}
+                  />
+                ))}
+              </View>
+              <Text style={{ fontSize: 12, color: Colors[colorScheme].text + '99' }}>
+                Password strength: {passwordStrength.feedback}
+              </Text>
+              <Text style={{ fontSize: 11, color: Colors[colorScheme].text + '77', marginTop: 2 }}>
+                Must contain: uppercase, lowercase, number, special character
+              </Text>
+            </View>
+          )}
+          
           <View style={{ height: 12 }} />
           <Button onPress={onSubmit} disabled={loading}>
             {loading ? (

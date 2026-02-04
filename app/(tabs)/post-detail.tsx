@@ -148,7 +148,8 @@ export default function PostDetailScreen() {
       try {
         const user = await User.me();
         setCurrentUser(user);
-      } catch {
+      } catch (error) {
+        if (__DEV__) console.warn('[post-detail] Failed to load current user:', error);
         setCurrentUser(null);
       }
     };
@@ -380,8 +381,8 @@ export default function PostDetailScreen() {
         await User.follow(post.author_id);
         setFollowing(true);
       }
-    } catch {
-      console.error('Error toggling follow:', error);
+    } catch (error) {
+      console.error('[post-detail] Error toggling follow:', error);
       // Revert optimistic update on error
       setFollowing(following);
     }
@@ -399,8 +400,8 @@ export default function PostDetailScreen() {
         // Fallback to toggle if API doesn't return the state
         setSaved(!saved);
       }
-    } catch {
-      console.error('Error toggling save:', error);
+    } catch (error) {
+      console.error('[post-detail] Error toggling save:', error);
       // Revert optimistic update on error
       setSaved(saved);
     }

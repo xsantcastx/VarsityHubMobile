@@ -70,18 +70,34 @@ export function useGoogleAuth() {
   const shouldUseProxy = proxyRequested && !!PROJECT_FULL_NAME;
 
   const clients = useMemo(() => googleClientConfig({ shouldUseProxy }), [shouldUseProxy]);
-  const isConfigured = useMemo(
-    () => Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId),
-    [clients],
-  );
+
+  // Check if Google auth is configured for the CURRENT platform
+  const isConfigured = useMemo(() => {
+    if (Platform.OS === 'android') {
+      return Boolean(clients.androidClientId);
+    }
+    if (Platform.OS === 'ios') {
+      // For iOS, we need either the iOS client ID or Expo client ID (for Expo Go)
+      return Boolean(clients.iosClientId || clients.expoClientId);
+    }
+    if (Platform.OS === 'web') {
+      return Boolean(clients.webClientId);
+    }
+    // Fallback: any client ID configured
+    return Boolean(clients.androidClientId || clients.iosClientId || clients.webClientId || clients.expoClientId);
+  }, [clients]);
 
   const redirectUri = useMemo(() => {
     let uri = '';
 
-    // For web platform, ALWAYS use localhost (highest priority)
+    // For web platform, use current origin
     if (Platform.OS === 'web') {
-      // Use window.location.origin if available (works for any port), fallback to 8081
-      uri = typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost:8081';
+      if (typeof window !== 'undefined' && window.location?.origin) {
+        uri = window.location.origin;
+      } else {
+        // Fallback to production URL for SSR or missing window
+        uri = appConfig.webBaseUrl || 'https://varsityhub.app';
+      }
       console.log('[google-auth] Using web redirect:', uri);
       return uri;
     }

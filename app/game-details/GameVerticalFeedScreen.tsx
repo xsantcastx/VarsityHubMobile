@@ -256,7 +256,10 @@ const FeedCard = memo(
       p.loop = true;
       p.muted = true;
       if (isActive && post.media_type === 'video') {
-        try { p.play(); } catch {}
+        try { p.play(); } catch (e) {
+          // Video player may not be ready - non-critical
+          if (__DEV__) console.warn('[FeedCard] Video play failed:', e);
+        }
       }
     });
 
@@ -269,7 +272,10 @@ const FeedCard = memo(
       if (post.media_type !== 'video') return;
       try {
         if (isActive) player.play(); else player.pause();
-      } catch {}
+      } catch (e) {
+        // Video player state change failed - non-critical
+        if (__DEV__) console.warn('[FeedCard] Video play/pause failed:', e);
+      }
     }, [isActive, post.media_type, player]);
 
     const handleTap = () => {
@@ -615,7 +621,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
       return () => {
         isScreenFocusedRef.current = false;
         Object.values(videoRefs.current).forEach((player) => {
-          try { player?.pause?.(); } catch {}
+          try { player?.pause?.(); } catch (e) {
+            // Non-critical: cleanup pause can fail silently
+            if (__DEV__) console.warn('[GameVerticalFeed] Cleanup pause failed:', e);
+          }
         });
       };
     }, []),
@@ -777,7 +786,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         } else {
           player.pause?.();
         }
-      } catch {}
+      } catch (e) {
+        // Video state sync failed - non-critical
+        if (__DEV__) console.warn('[GameVerticalFeed] Video sync failed for post:', postId, e);
+      }
     });
   }, [activeIndex, posts]);
 
@@ -1009,7 +1021,10 @@ export default function GameVerticalFeedScreen({ onClose, gameId: externalGameId
         if (!cancelled && me) {
           setMeInfo({ id: me?.id ? String(me.id) : undefined, display_name: me?.display_name ?? null, username: me?.username ?? null });
         }
-      } catch {}
+      } catch (error) {
+        // User info load failed - non-critical for feed viewing
+        if (__DEV__) console.warn('[GameVerticalFeed] Failed to load user info:', error);
+      }
     })();
     return () => { cancelled = true; };
   }, []);

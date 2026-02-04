@@ -59,14 +59,60 @@ export function validateEmail(email: string): ValidationResult {
 }
 
 /**
- * Validate password strength
+ * Validate password strength with comprehensive requirements
  */
-export function validatePassword(password: string, minLength = 8): ValidationResult {
+export function validatePassword(password: string, minLength = 8, requireStrong = true): ValidationResult {
   if (!password) return { valid: false, error: 'Password is required' };
   if (password.length < minLength) {
     return { valid: false, error: `Password must be at least ${minLength} characters` };
   }
+  
+  if (requireStrong) {
+    const hasUppercase = /[A-Z]/.test(password);
+    const hasLowercase = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+    
+    const requirements: string[] = [];
+    if (!hasUppercase) requirements.push('one uppercase letter');
+    if (!hasLowercase) requirements.push('one lowercase letter');
+    if (!hasNumber) requirements.push('one number');
+    if (!hasSpecialChar) requirements.push('one special character');
+    
+    if (requirements.length > 0) {
+      return {
+        valid: false,
+        error: `Password must contain ${requirements.join(', ')}`,
+      };
+    }
+  }
+  
   return { valid: true };
+}
+
+/**
+ * Calculate password strength score (0-4)
+ * 0 = very weak, 1 = weak, 2 = fair, 3 = good, 4 = strong
+ */
+export function calculatePasswordStrength(password: string): { score: number; feedback: string } {
+  if (!password) return { score: 0, feedback: 'Very weak' };
+  
+  let score = 0;
+  
+  // Length check
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  
+  // Character diversity
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+  if (/\d/.test(password)) score++;
+  if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+  
+  // Cap at 4
+  score = Math.min(4, score);
+  
+  const feedback = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][score];
+  return { score, feedback };
 }
 
 /**

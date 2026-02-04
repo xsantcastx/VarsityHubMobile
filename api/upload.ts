@@ -77,7 +77,10 @@ export async function uploadFileWithProgress(
       } else {
         const err: any = new Error(`Upload failed: HTTP ${xhr.status}`);
         err.status = xhr.status;
-        try { err.data = JSON.parse(xhr.responseText); } catch {}
+        try { err.data = JSON.parse(xhr.responseText); } catch (parseError) {
+          // Non-critical: couldn't parse error response body
+          if (__DEV__) console.warn('[upload] Could not parse error response:', parseError);
+        }
         reject(err);
       }
     };

@@ -1,7 +1,7 @@
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 // @ts-ignore
@@ -9,6 +9,7 @@ import { Post as PostApi } from '@/api/entities';
 
 export default function GamePhotosScreen() {
   const { game_id } = useLocalSearchParams<{ game_id?: string }>();
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<any[]>([]);
@@ -42,7 +43,11 @@ export default function GamePhotosScreen() {
         keyExtractor={(i) => String(i.id)}
         numColumns={3}
         renderItem={({ item }) => (
-          <Pressable>
+          <Pressable
+            onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(item.id))}`)}
+            accessibilityRole="button"
+            accessibilityLabel="View photo"
+          >
             <Image source={{ uri: String(item.media_url || '') }} style={[styles.cell, { backgroundColor: Colors[colorScheme].surface }]} contentFit="cover" />
           </Pressable>
         )}

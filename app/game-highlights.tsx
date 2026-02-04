@@ -51,7 +51,11 @@ export default function GameHighlightsScreen() {
         keyExtractor={(i) => String(i.id)}
         numColumns={3}
         renderItem={({ item: _item }) => (
-          <Pressable>
+          <Pressable
+            onPress={() => void router.push(`/post-detail?id=${encodeURIComponent(String(_item.id))}`)}
+            accessibilityRole="button"
+            accessibilityLabel="View highlight"
+          >
             <View style={styles.cellVideo}>
               <Ionicons name="play" size={22} color="#fff" />
             </View>

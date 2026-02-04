@@ -99,7 +99,15 @@ export default function FollowersScreen() {
           onEndReached={() => nextCursor && void loadFollowers(nextCursor)}
           onEndReachedThreshold={0.5}
           ListFooterComponent={loading ? <ActivityIndicator /> : null}
-          ListEmptyComponent={<Text style={[styles.emptyText, { color: Colors[colorScheme].mutedText }]}>No followers yet.</Text>}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={48} color={Colors[colorScheme].mutedText} />
+              <Text style={[styles.emptyTitle, { color: Colors[colorScheme].text }]}>No followers yet</Text>
+              <Text style={[styles.emptySubtitle, { color: Colors[colorScheme].mutedText }]}>
+                When people follow this account, they'll appear here.
+              </Text>
+            </View>
+          }
         />
       )}
     </SafeAreaView>
@@ -124,5 +132,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   userName: { flex: 1, fontWeight: '600' },
-  emptyText: { textAlign: 'center', marginTop: 32, color: 'transparent' }, // Will be overridden with Colors[colorScheme].mutedText
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });

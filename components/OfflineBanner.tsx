@@ -21,8 +21,9 @@ export function OfflineBanner() {
     setRetrying(true);
     try {
       await checkAuth();
-    } catch {
-      // Error already handled by AuthProvider
+    } catch (error) {
+      // Error already handled by AuthProvider, log for debugging
+      if (__DEV__) console.log('[OfflineBanner] Retry checkAuth error:', error);
     } finally {
       setRetrying(false);
     }

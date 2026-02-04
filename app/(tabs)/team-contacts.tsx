@@ -6,7 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Clipboard, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -79,6 +79,7 @@ interface TeamMember {
 
 export default function TeamChatScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   
   // Modal state for replacing Alert.alert
@@ -1430,7 +1431,17 @@ export default function TeamChatScreen() {
   };
 
   const renderMember = ({ item }: { item: TeamMember }) => (
-    <Pressable style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}>
+    <Pressable
+      style={[styles.memberCard, { backgroundColor: Colors[colorScheme].surface, borderColor: Colors[colorScheme].border }]}
+      onPress={() => {
+        if (item.user?.id) {
+          void router.push(`/user-profile?id=${encodeURIComponent(item.user.id)}`);
+        }
+      }}
+      disabled={!item.user?.id}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${item.user?.display_name || 'team member'}`}
+    >
       <View style={styles.memberInfo}>
         <View style={[styles.memberAvatar, { backgroundColor: Colors[colorScheme].tint }]}>
           <Text style={styles.memberInitials}>
@@ -1455,7 +1466,17 @@ export default function TeamChatScreen() {
           )}
         </View>
       </View>
-      <Pressable style={styles.messageButton}>
+      <Pressable
+        style={styles.messageButton}
+        onPress={() => {
+          if (item.user?.id) {
+            void router.push(`/message-thread?with=${encodeURIComponent(item.user.id)}`);
+          }
+        }}
+        disabled={!item.user?.id}
+        accessibilityRole="button"
+        accessibilityLabel={`Message ${item.user?.display_name || 'team member'}`}
+      >
         <Ionicons name="chatbubble-outline" size={20} color={Colors[colorScheme].tint} />
       </Pressable>
     </Pressable>

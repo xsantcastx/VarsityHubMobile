@@ -562,11 +562,45 @@ export default function CreatePostScreen() {
       }
       
       if (__DEV__) console.warn('[CreatePost] Calling Post.create...');
-      await Post.create(payload);
+      const created = await Post.create(payload);
       if (__DEV__) console.warn('[CreatePost] Post created successfully!');
       try {
         await settings.setJson(settings.SETTINGS_KEYS.POST_DRAFT, null);
-      } catch {}
+      } catch (error) {
+        // Non-critical: draft clearing failed, but post was created successfully
+        if (__DEV__) console.warn('[CreatePost] Failed to clear draft:', error);
+      }
+
+      if (isSelectedSample && selectedGameId) {
+        try {
+          const me = await User.me().catch(() => null);
+          const isVideo = picked?.type === 'video';
+          const newPost = {
+            id: created?.id ? String(created.id) : `local-${Date.now()}`,
+            content: trimmedContent,
+            caption: trimmedContent,
+            media_url: finalMediaUrl || null,
+            media_type: isVideo ? 'video' : (picked?.type === 'image' ? 'image' : null),
+            // Use a placeholder thumbnail for videos since we don't generate real thumbnails yet
+            preview_url: isVideo ? 'https://storage.googleapis.com/static.varsityhub.app/videos/sample-highlight-1-thumb.jpg' : null,
+            created_at: new Date().toISOString(),
+            upvotes_count: 0,
+            comments_count: 0,
+            author: me ? {
+              id: String(me.id ?? 'me'),
+              username: me.username ?? me.display_name ?? 'me',
+              display_name: me.display_name ?? me.username ?? 'Me',
+              avatar_url: me.avatar_url ?? null,
+            } : null,
+          };
+          const cache = await settings.getJson<Record<string, any[]>>(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, {} as any);
+          const existing = Array.isArray(cache[selectedGameId]) ? cache[selectedGameId] : [];
+          cache[selectedGameId] = [newPost, ...existing].slice(0, 200);
+          await settings.setJson(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, cache);
+        } catch (cacheErr) {
+          console.warn('[CreatePost] Failed to cache sample post:', cacheErr);
+        }
+      }
       
       // Show success message based on where post will appear
       const postDestination = (payload.game_id || isSelectedSample) ? 'event page' : 'profile';
@@ -1022,18 +1056,18 @@ export default function CreatePostScreen() {
 
               {/* Post Actions Preview */}
               <View style={styles.previewPostActions}>
-                <Pressable style={styles.previewActionButton}>
+                <View style={styles.previewActionButton}>
                   <Ionicons name="arrow-up-outline" size={18} color={Colors[colorScheme].tint} />
                   <Text style={[styles.previewActionText, { color: Colors[colorScheme].tint }]}>0</Text>
-                </Pressable>
-                <Pressable style={styles.previewActionButton}>
+                </View>
+                <View style={styles.previewActionButton}>
                   <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors[colorScheme].mutedText} />
                   <Text style={[styles.previewActionText, { color: Colors[colorScheme].mutedText }]}>0</Text>
-                </Pressable>
-                <Pressable style={styles.previewActionButton}>
+                </View>
+                <View style={styles.previewActionButton}>
                   <Ionicons name="bookmark-outline" size={18} color={Colors[colorScheme].mutedText} />
                   <Text style={[styles.previewActionText, { color: Colors[colorScheme].mutedText }]}>0</Text>
-                </Pressable>
+                </View>
               </View>
             </View>
 

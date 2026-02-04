@@ -9,10 +9,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorToastContainer } from '@/components/ErrorToast';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthProvider';
 import { PostCacheProvider } from '@/context/PostCacheContext';
-import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ThemeProvider } from '@/hooks/useCustomColorScheme';
 import { initSentry } from '@/utils/sentry';
@@ -154,6 +155,7 @@ export default function RootLayout() {
             <AuthProvider navReady={!!navState?.key}>
               <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
                 <OfflineBanner />
+                <ErrorToastContainer />
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="index" options={{ headerShown: false }} />
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

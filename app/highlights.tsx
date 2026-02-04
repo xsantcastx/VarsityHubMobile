@@ -1,9 +1,9 @@
 import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { usePostCache } from '@/context/PostCacheContext';
-import * as Haptics from 'expo-haptics';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import AppLinks from '@/utils/links';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useRouter } from 'expo-router';
@@ -164,10 +164,10 @@ const HighlightCard = ({
                   </View>
                 </View>
               )}
-              {/* Live badge for recent posts */}
-              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 3600000 && (
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveText}>LIVE</Text>
+              {/* "NEW" badge for very recent posts (< 10 minutes) - more accurate than "LIVE" */}
+              {item.created_at && new Date(item.created_at).getTime() > Date.now() - 600000 && (
+                <View style={[styles.liveBadge, { backgroundColor: '#3b82f6' }]}>
+                  <Text style={styles.liveText}>NEW</Text>
                 </View>
               )}
             </View>

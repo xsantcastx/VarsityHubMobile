@@ -9,6 +9,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 // @ts-ignore
 import { Event, Post } from '@/api/entities';
+import settings from '@/api/settings';
 
 export default function PublicEventScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -32,24 +33,43 @@ export default function PublicEventScreen() {
       if (isSampleEvent) {
         // Sample events: fetch posts by game_id (which matches the event ID for samples)
         // NOTE: Server should store sample event game_id and query it correctly
+        let serverPostsLoaded = false;
         try {
           if (__DEV__) console.warn('[public-event] Fetching sample event posts with game_id:', eventId);
-          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch((err) => {
-            if (__DEV__) console.warn('[public-event] feedForGame error:', err);
+          const gamePosts = await Post.feedForGame(eventId, { limit: 50, sort: 'trending' }).catch((err: any) => {
+            if (__DEV__) console.warn('[public-event] feedForGame error:', err?.message);
             return null;
           });
           if (__DEV__) console.warn('[public-event] feedForGame response:', JSON.stringify(gamePosts, null, 2));
           if (gamePosts && Array.isArray(gamePosts.items)) {
             eventPosts = gamePosts.items;
+            serverPostsLoaded = true;
             if (__DEV__) console.warn('[public-event] Got', eventPosts.length, 'posts from gamePosts.items');
           } else if (Array.isArray(gamePosts)) {
             eventPosts = gamePosts;
+            serverPostsLoaded = true;
             if (__DEV__) console.warn('[public-event] Got', eventPosts.length, 'posts from gamePosts array');
           } else {
             if (__DEV__) console.warn('[public-event] No posts found in response');
           }
-        } catch (err) {
-          if (__DEV__) console.warn('[public-event] Failed to load sample event posts by game_id:', err);
+        } catch (err: any) {
+          if (__DEV__) console.warn('[public-event] Failed to load sample event posts (timeout or error):', err?.message);
+        }
+        try {
+          const cached = await settings.getJson<Record<string, any[]>>(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, {} as any);
+          const localPosts = Array.isArray(cached[eventId]) ? cached[eventId] : [];
+          const seen = new Set<string>();
+          const merged: any[] = [];
+          const priority = serverPostsLoaded ? [...(eventPosts || []), ...localPosts] : [...localPosts, ...(eventPosts || [])];
+          for (const post of priority) {
+            const key = String(post?.id ?? post?.media_url ?? post?.created_at ?? '');
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(post);
+          }
+          eventPosts = merged.length > 0 ? merged : (eventPosts || []);
+        } catch (err: any) {
+          if (__DEV__) console.warn('[public-event] sample cache merge failed:', err?.message);
         }
       } else {
         // Real events: try event_id first, then game_id as fallback

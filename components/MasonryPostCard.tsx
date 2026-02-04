@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import PollCard from './PollCard';
 import VideoPlayer from './VideoPlayer';
+import { showErrorToast } from './ErrorToast';
 
 type MasonryPostCardProps = {
   post: any;
@@ -32,7 +33,10 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
       }
-    } catch {}
+    } catch (error) {
+      console.error('[MasonryPostCard] Failed to toggle upvote:', error);
+      showErrorToast('Failed to update vote');
+    }
   };
 
   const onBookmark = async () => {
@@ -40,23 +44,29 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
       void Haptics.selectionAsync();
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
-    } catch {}
+    } catch (error) {
+      console.error('[MasonryPostCard] Failed to toggle bookmark:', error);
+      showErrorToast('Failed to save bookmark');
+    }
   };
 
-  const isImage = post?.media_url ? /\.(jpg|jpeg|png|gif|webp)$/i.test(post.media_url) : false;
-  const isVideo = post?.media_url ? /\.(mp4|mov|webm|m4v)$/i.test(post.media_url) : false;
+  const mediaUrl = post?.media_url || post?.mediaUrl || null;
+  const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
+  const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
+  const isImage = mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
+  const isVideo = mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
   const hasPoll = !!post.poll;
 
   // Calculate dynamic height based on content
   const mediaHeight = useMemo(() => {
-    if (!post.media_url) return 0;
+    if (!mediaUrl) return 0;
     // Randomize heights for Pinterest-style masonry
     const heights = [180, 220, 260, 300, 340, 280, 240, 200];
     const hash = post.id ? String(post.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
     return heights[hash % heights.length];
-  }, [post.id, post.media_url]);
+  }, [post.id, mediaUrl]);
 
   const handleVotePoll = async (pollId: string, optionId: string) => {
     return Post.voteOnPoll(pollId, optionId);
@@ -103,11 +113,13 @@ export default function MasonryPostCard({ post, onPress, onDeleted: _onDeleted, 
       {/* Media Section */}
       {(isImage || isVideo) && (
         <View style={[styles.mediaWrap, { height: mediaHeight }]}>
-          {isImage ? (
-            <Image source={{ uri: post.media_url }} style={styles.media} contentFit="cover" />
-          ) : (
-            <VideoPlayer uri={post.media_url} style={styles.media} />
-          )}
+          {isImage && mediaUrl ? (
+            <Image source={{ uri: mediaUrl }} style={styles.media} contentFit="cover" />
+          ) : isVideo && previewUrl ? (
+            <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
+          ) : isVideo && mediaUrl ? (
+            <VideoPlayer uri={mediaUrl} style={styles.media} />
+          ) : null}
           {isVideo && (
             <View style={styles.playOverlay}>
               <Ionicons name="play" size={24} color="#fff" />

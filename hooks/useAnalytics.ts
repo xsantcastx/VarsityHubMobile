@@ -6,8 +6,10 @@ export const useAnalytics = () => {
   const trackTap = useCallback((eventName: string, payload: AnalyticsEventPayload = {}) => {
     try {
       // Reserved for real analytics sink
-    } catch {
+      if (__DEV__) console.log('[analytics] trackTap:', eventName, payload);
+    } catch (error) {
       // Swallow logging errors – analytics should never break the UX.
+      if (__DEV__) console.warn('[analytics] trackTap error:', error);
     }
   }, []);
 

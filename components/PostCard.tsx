@@ -1,12 +1,13 @@
-import { Post, User } from '@/api/entities';
+import { Post } from '@/api/entities';
 import { Colors } from '@/constants/Colors';
+import { useAuth } from '@/context/AuthProvider';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import RankingBadge from './RankingBadge';
@@ -26,13 +27,13 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const rankingType = post.rankingType || null; // e.g., 'trending', 'recent', 'top'
   const rank = typeof post.rank === 'number' ? post.rank : null;
   const router = useRouter();
+  const { user: currentUser } = useAuth(); // Get user from auth context instead of API call
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const [bookmarked, setBookmarked] = useState<boolean>(!!post.has_bookmarked);
   const [bookmarksCount, setBookmarksCount] = useState<number>(post.bookmarks_count || 0);
   const [upvotesCount, setUpvotesCount] = useState<number>(post.upvotes_count || 0);
   const [pressed, setPressed] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editContent, setEditContent] = useState(post.content || '');
@@ -40,44 +41,34 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
   const [updating, setUpdating] = useState(false);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    };
-  }, []);
-
-  // Load current user to check ownership
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await User.me();
-        setCurrentUser(user);
-      } catch {
-        // User not logged in or error occurred
-        setCurrentUser(null);
-      }
-    };
-    void loadUser();
-  }, []);
-
   const onUpvote = async () => {
     try {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch((err) => {
+        console.warn('[PostCard] Haptics failed:', err);
+      });
       const r: any = await Post.toggleUpvote(String(post.id));
       if (r && typeof r.count === 'number') {
         setUpvotesCount(r.count);
       }
-    } catch {}
+    } catch (error) {
+      console.error('[PostCard] Failed to toggle upvote:', error);
+      Alert.alert('Error', 'Failed to update vote. Please try again.');
+    }
   };
   const onBookmark = async () => {
     try {
-      void Haptics.selectionAsync().catch(() => {});
+      void Haptics.selectionAsync().catch((err) => {
+        console.warn('[PostCard] Haptics failed:', err);
+      });
       const r: any = await Post.toggleBookmark(String(post.id));
       if (r && typeof r.bookmarks_count === 'number') {
         setBookmarksCount(r.bookmarks_count);
       }
       if (r && typeof r.bookmarked === 'boolean') setBookmarked(r.bookmarked);
-    } catch {}
+    } catch (error) {
+      console.error('[PostCard] Failed to toggle bookmark:', error);
+      Alert.alert('Error', 'Failed to bookmark post. Please try again.');
+    }
   };
 
   const handleDeletePost = async () => {
@@ -155,8 +146,11 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
 
   // Check if current user is the author of this post
   const isAuthor = currentUser && post.author_id && String(currentUser.id) === String(post.author_id);
-  const isImage = post?.media_url ? /\.(jpg|jpeg|png|gif|webp)$/i.test(post.media_url) : false;
-  const isVideo = post?.media_url ? /\.(mp4|mov|webm|m4v)$/i.test(post.media_url) : false;
+  const mediaUrl = post?.media_url || post?.mediaUrl || null;
+  const previewUrl = post?.preview_url || post?.thumbnail_url || post?.previewUrl || null;
+  const mediaType = typeof post?.media_type === 'string' ? post.media_type.toLowerCase() : null;
+  const isImage = mediaType === 'image' || (mediaUrl ? /\.(jpg|jpeg|png|gif|webp)$/i.test(mediaUrl) : false);
+  const isVideo = mediaType === 'video' || (mediaUrl ? /\.(mp4|mov|webm|m4v)$/i.test(mediaUrl) : false);
   const caption = useMemo(() => post.caption || post.content || '', [post.caption, post.content]);
   const author = post?.author || null;
 
@@ -250,11 +244,13 @@ export default function PostCard({ post, onPress, showAuthorHeader = true, onDel
       {/* Media section */}
       {(isImage || isVideo) ? (
         <View style={styles.mediaWrap}>
-          {isImage ? (
-            <Image source={{ uri: post.media_url }} style={styles.media} contentFit="cover" />
-          ) : (
-            <VideoPlayer uri={post.media_url} style={styles.media} />
-          )}
+          {isImage && mediaUrl ? (
+            <Image source={{ uri: mediaUrl }} style={styles.media} contentFit="cover" />
+          ) : isVideo && previewUrl ? (
+            <Image source={{ uri: previewUrl }} style={styles.media} contentFit="cover" />
+          ) : isVideo && mediaUrl ? (
+            <VideoPlayer uri={mediaUrl} style={styles.media} />
+          ) : null}
           {/* Overlays */}
           <LinearGradient colors={["transparent", "rgba(0,0,0,0.6)"]} style={styles.mediaGradient} />
           {teamLabels ? (

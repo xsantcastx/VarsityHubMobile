@@ -1,4 +1,5 @@
 import { captureBreadcrumb, captureException } from '@/utils/sentry';
+import Constants from 'expo-constants';
 
 let tokenCache: string | null = null;
 export function setAuthToken(token: string | null) { tokenCache = token || null; }
@@ -6,17 +7,23 @@ export function clearAuthToken() { tokenCache = null; }
 export function getAuthToken(): string | null { return tokenCache; }
 
 export function getApiBaseUrl(): string {
-  // HARDCODE production URL - NEVER use localhost, EVER
+  // Support environment-based configuration for testing/staging/preview builds
   const PRODUCTION_URL = 'https://api-production-8ac3.up.railway.app';
-  
-  // IGNORE ALL CONFIG - ALWAYS RETURN PRODUCTION
-  // This prevents any localhost override from .env, app.json, or anywhere else
+  const envUrl =
+    process.env.EXPO_PUBLIC_API_URL ||
+    Constants.expoConfig?.extra?.EXPO_PUBLIC_API_URL ||
+    Constants.expoConfig?.extra?.apiUrl;
+  const normalizedEnvUrl = envUrl?.trim().replace(/\/$/, '');
+  const isLocalhost = normalizedEnvUrl ? /(^http:\/\/localhost)|(^http:\/\/127\.0\.0\.1)/.test(normalizedEnvUrl) : false;
+  const finalUrl = normalizedEnvUrl && (!isLocalhost || __DEV__) ? normalizedEnvUrl : PRODUCTION_URL;
+  const isCustom = finalUrl !== PRODUCTION_URL;
+
   if (__DEV__ && !('__VH_LOGGED_API_BASE' in (globalThis as any))) {
     (globalThis as any).__VH_LOGGED_API_BASE = true;
-    console.log('[http] API base (HARDCODED PRODUCTION):', PRODUCTION_URL);
+    console.log('[http] API base:', finalUrl, isCustom ? '(custom)' : '(production)');
   }
   
-  return PRODUCTION_URL;
+  return finalUrl;
 }
 
 function getBaseUrl(): string {

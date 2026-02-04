@@ -19,6 +19,7 @@ import MatchBanner from '../components/MatchBanner';
 
 // @ts-ignore JS exports
 import { Event, Game, Post, Team, User } from '@/api/entities';
+import settings from '@/api/settings';
 import { uploadFile } from '@/api/upload';
 import VideoPlayer from '@/components/VideoPlayer';
 import GameVerticalFeedScreen from './GameVerticalFeedScreen';
@@ -775,6 +776,37 @@ const GameDetailsScreen = () => {
           },
         ];
         
+        let samplePosts: any[] = [];
+        let serverPostsLoaded = false;
+        try {
+          const res: any = await Post.feedForGame(gameIdValue, { limit: 100, sort: 'newest' });
+          if (Array.isArray(res)) {
+            samplePosts = res;
+            serverPostsLoaded = true;
+          } else if (Array.isArray(res?.items)) {
+            samplePosts = res.items;
+            serverPostsLoaded = true;
+          }
+        } catch (err: any) {
+          if (__DEV__) console.warn('[game-details] sample posts load failed:', err?.message);
+        }
+        try {
+          const cached = await settings.getJson<Record<string, any[]>>(settings.SETTINGS_KEYS.SAMPLE_EVENT_POSTS, {} as any);
+          const localPosts = Array.isArray(cached[gameIdValue]) ? cached[gameIdValue] : [];
+          const seen = new Set<string>();
+          const merged: any[] = [];
+          const priority = serverPostsLoaded ? [...samplePosts, ...localPosts] : [...localPosts, ...samplePosts];
+          for (const post of priority) {
+            const key = String(post?.id ?? post?.media_url ?? post?.created_at ?? '');
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            merged.push(post);
+          }
+          samplePosts = merged.length > 0 ? merged : samplePosts;
+        } catch (err: any) {
+          if (__DEV__) console.warn('[game-details] sample cache merge failed:', err?.message);
+        }
+
         const vmPayload: GameVM = {
           id: gameIdValue,
           gameId: gameIdValue,
@@ -791,7 +823,7 @@ const GameDetailsScreen = () => {
           rsvpCount: null,
           userRsvped: false,
           teams: [],
-          posts: [],
+          posts: samplePosts,
           media: sampleMedia,
           reviewsCount: null,
           isPast: false,
@@ -2052,8 +2084,11 @@ const renderBanner = () => {
                        {(vm?.posts || [])
                          .filter((_: any, index: number) => index % 2 === 0)
                          .map((post: any, index: number) => {
-                           const thumb = post.media_url;
-                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const mediaUrl = post.media_url || post.mediaUrl || null;
+                           const previewUrl = post.preview_url || post.thumbnail_url || post.previewUrl || null;
+                           const mediaType = typeof post.media_type === 'string' ? post.media_type.toLowerCase() : null;
+                           const isVideo = mediaType === 'video' || (!!mediaUrl && VIDEO_EXT.test(mediaUrl));
+                           const thumb = previewUrl || (!isVideo ? mediaUrl : null);
                            const likes = post.upvotes_count ?? 0;
                            const comments = post.comments_count ?? post._count?.comments ?? 0;
                            // Vary heights: alternate between tall, medium, and short
@@ -2068,6 +2103,11 @@ const renderBanner = () => {
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
                                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : isVideo && mediaUrl ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : (
@@ -2112,8 +2152,11 @@ const renderBanner = () => {
                        {(vm?.posts || [])
                          .filter((_: any, index: number) => index % 2 === 1)
                          .map((post: any, index: number) => {
-                           const thumb = post.media_url;
-                           const isVideo = !!thumb && VIDEO_EXT.test(thumb);
+                           const mediaUrl = post.media_url || post.mediaUrl || null;
+                           const previewUrl = post.preview_url || post.thumbnail_url || post.previewUrl || null;
+                           const mediaType = typeof post.media_type === 'string' ? post.media_type.toLowerCase() : null;
+                           const isVideo = mediaType === 'video' || (!!mediaUrl && VIDEO_EXT.test(mediaUrl));
+                           const thumb = previewUrl || (!isVideo ? mediaUrl : null);
                            const likes = post.upvotes_count ?? 0;
                            const comments = post.comments_count ?? post._count?.comments ?? 0;
                            // Offset the height pattern for visual variety
@@ -2128,6 +2171,11 @@ const renderBanner = () => {
                                {thumb ? (
                                  <View style={styles.gridImageContainer}>
                                    <Image source={{ uri: thumb }} style={styles.gridImage} contentFit="cover" />
+                                   <View style={styles.gridImageOverlay} />
+                                 </View>
+                               ) : isVideo && mediaUrl ? (
+                                 <View style={styles.gridImageContainer}>
+                                   <VideoPlayer uri={mediaUrl} style={styles.gridImage} nativeControls={false} />
                                    <View style={styles.gridImageOverlay} />
                                  </View>
                                ) : (

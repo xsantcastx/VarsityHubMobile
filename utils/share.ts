@@ -135,7 +135,8 @@ export async function shareContent(
     try {
       await copyToClipboard(url);
       return { shared: true, method: 'clipboard' };
-    } catch {
+    } catch (clipboardError) {
+      console.warn('[Share] Clipboard fallback also failed:', clipboardError);
       return { shared: false };
     }
   }
@@ -240,6 +241,8 @@ export async function copyToClipboard(text: string) {
     await Share.share({ message: text });
   } catch (e) {
     // Silent failure fallback
-    try { await Share.share({ message: text }); } catch {}
+    try { await Share.share({ message: text }); } catch (shareError) {
+      console.warn('[Share] Final fallback share failed:', shareError);
+    }
   }
 }
