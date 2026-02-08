@@ -113,6 +113,7 @@ export default function ProfileScreen() {
   const hasLoadedOnce = useRef(false);
   const isInitialMount = useRef(true);
   const lastUsernameRef = useRef<string | null>(null);
+  const meRef = useRef<CurrentUser | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'upvotes'>(() => {
     try { return (globalThis?.localStorage?.getItem('profile.activeTab') as any) || 'posts'; } catch (error) { console.warn('[profile] Failed to read activeTab from localStorage:', error); return 'posts'; }
   });
@@ -193,6 +194,7 @@ export default function ProfileScreen() {
 
   const refreshPosts = useCallback(async (userId: string) => {
     if (postsRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     postsRequestInFlight.current = true;
     setPostsLoading(true);
     try {
@@ -209,6 +211,7 @@ export default function ProfileScreen() {
 
   const refreshReplies = useCallback(async (userId: string) => {
     if (repliesRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     repliesRequestInFlight.current = true;
     setRepliesLoading(true);
     try {
@@ -225,6 +228,7 @@ export default function ProfileScreen() {
 
   const refreshUpvotes = useCallback(async (userId: string) => {
     if (upvotesRequestInFlight.current) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     upvotesRequestInFlight.current = true;
     setUpvotesLoading(true);
     try {
@@ -330,7 +334,7 @@ export default function ProfileScreen() {
     profileRequestInFlight.current = true;
     
     // Only show loading skeleton on very first load (initial mount with no data)
-    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !me;
+    const isInitialLoad = isInitialMount.current && !hasLoadedOnce.current && !meRef.current;
     if (!options?.silent && isInitialLoad) {
       setLoading(true);
     }
@@ -357,10 +361,9 @@ export default function ProfileScreen() {
         u = currentUser;
       }
       
-      if (__DEV__) console.warn('[profile] Loaded user data:', { id: u?.id, username: u?.username });
       if (u && !u._isNotModified) {
+        meRef.current = u ?? null;
         setMe(u ?? null);
-        if (__DEV__) console.warn('[profile] Updated me state with username:', u?.username);
       }
       if (!u?.id) { 
         setError(viewingUserId ? 'User not found.' : 'You need to sign in to view your profile.');
@@ -406,7 +409,8 @@ export default function ProfileScreen() {
       profileRequestInFlight.current = false;
       setLoading(false);
     }
-  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, me]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, refreshPosts, refreshReplies, refreshUpvotes, viewingUserId]);
 
   // Initial load on mount - only once
   useEffect(() => {
@@ -420,49 +424,31 @@ export default function ProfileScreen() {
   useEffect(() => {
     const currentUsername = userFromHook?.username || userFromAuth?.username;
     const previousUsername = lastUsernameRef.current;
-    const currentMeUsername = me?.username;
     
-    if (__DEV__) console.warn('[profile] Username sync check:', { 
-      currentUsername, 
-      previousUsername, 
-      currentMeUsername,
-      userFromHookUsername: userFromHook?.username,
-      userFromAuthUsername: userFromAuth?.username
-    });
-    
-    // If username changed and we have a new username, refresh profile
+    // Only refresh if the username actually changed from what we last saw
     if (currentUsername && currentUsername !== previousUsername) {
-      if (__DEV__) console.warn('[profile] Username changed, refreshing profile:', { previous: previousUsername, current: currentUsername });
-      lastUsernameRef.current = currentUsername;
-      void loadProfile({ silent: true });
-    } else if (currentUsername && currentUsername !== currentMeUsername && hasLoadedOnce.current) {
-      // Username in hooks doesn't match profile - force refresh
-      if (__DEV__) console.warn('[profile] Username mismatch detected, forcing refresh:', { hook: currentUsername, profile: currentMeUsername });
       lastUsernameRef.current = currentUsername;
       void loadProfile({ silent: true });
     } else if (currentUsername) {
       lastUsernameRef.current = currentUsername;
     }
-  }, [userFromHook?.username, userFromAuth?.username, me?.username, loadProfile, hasLoadedOnce]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userFromHook?.username, userFromAuth?.username]);
 
   // Silent refresh on focus - NEVER show skeleton after first load
   useFocusEffect(
     useCallback(() => {
-      if (__DEV__) console.warn('[profile] Screen focused, checking if refresh needed');
-      // Refresh user data from hooks first, then refresh profile
       if (hasLoadedOnce.current) {
-        if (__DEV__) console.warn('[profile] Refreshing user hooks and profile on focus (silent)');
         // Refresh hooks first to get latest username
         Promise.all([
           refreshUserFromHook().catch(() => {}),
           loadProfile({ silent: true })
         ]).catch(() => {});
       } else if (isInitialMount.current && !profileRequestInFlight.current) {
-        // Only do full load if this is the initial mount and nothing is in flight
-        if (__DEV__) console.warn('[profile] Initial load on mount');
         void loadProfile();
       }
-    }, [loadProfile, refreshUserFromHook])
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshUserFromHook])
   );
 
   // Load organizations separately to avoid blocking profile render
@@ -571,6 +557,7 @@ export default function ProfileScreen() {
 
   const loadMorePosts = useCallback(async (userId: string) => {
     if (postsLoading || !postsHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setPostsLoading(true);
     try {
       const page = await User.postsForProfile(String(userId), { limit: 10, sort, cursor: postsCursor || undefined });
@@ -585,6 +572,7 @@ export default function ProfileScreen() {
 
   const loadMoreReplies = useCallback(async (userId: string) => {
     if (repliesLoading || !repliesHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setRepliesLoading(true);
     try {
       const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'comment', cursor: repliesCursor || undefined });
@@ -599,6 +587,7 @@ export default function ProfileScreen() {
 
   const loadMoreUpvotes = useCallback(async (userId: string) => {
     if (upvotesLoading || !upvotesHasMore) return;
+    if (!userId || userId === 'undefined' || userId === 'null') return;
     setUpvotesLoading(true);
     try {
       const page = await User.interactionsForProfile(String(userId), { limit: 10, sort, type: 'like', cursor: upvotesCursor || undefined });
@@ -728,7 +717,7 @@ export default function ProfileScreen() {
           
           {/* Settings Button - Only when viewing own profile */}
           {!viewingUserId || viewingUserId === currentUserId ? (
-            <Pressable onPress={() => void router.push('/settings')} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={[styles.controlButton, { backgroundColor: colorScheme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
               <Ionicons name="settings-outline" size={18} color={colorScheme === 'dark' ? '#FFFFFF' : '#333'} />
             </Pressable>
           ) : null}
@@ -1201,7 +1190,8 @@ const styles = StyleSheet.create({
   headerControls: {
     position: 'absolute',
     right: 16,
-    zIndex: 10,
+    zIndex: 200,
+    elevation: 200,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

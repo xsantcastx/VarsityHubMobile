@@ -38,7 +38,7 @@ export default function EventsCalendarScreen() {
       try {
         // Get current user's followed teams
         const me = await User.me();
-        const teams = await User.following(me?.id || '');
+        const teams = me?.id ? await User.following(me.id) : [];
         const teamNames = Array.isArray(teams) ? teams.map((t: any) => t.name) : [];
 
         if (!mounted) return;

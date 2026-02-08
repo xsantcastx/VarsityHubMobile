@@ -116,13 +116,15 @@ export default function Step9Features() {
       setOB((prev) => ({ 
         ...prev, 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true,
       }));
       
       // Save to backend
       await User.updatePreferences({ 
         location_enabled: locationEnabled,
-        notifications_enabled: notificationsEnabled
+        notifications_enabled: notificationsEnabled,
+        messaging_policy_accepted: true,
       });
       
       // For fans, complete onboarding and go to feed

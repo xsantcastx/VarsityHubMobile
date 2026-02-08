@@ -569,7 +569,7 @@ export default function PostDetailScreen() {
   const currentIsVideo = post.media_url && post.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
 
   // Render single post content (reusable for both single and multi-post views)
-  const renderPostContent = (postData: any, commentsData: any[]) => {
+  const renderPostContent = (postData: any, commentsData: any[], isInsidePager = false) => {
     const isImage = postData.media_url && !postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
     const isVideo = postData.media_url && postData.media_url.match(/\.(mp4|mov|webm|m4v|avi)$/i);
     const hasMedia = isImage || isVideo;
@@ -580,7 +580,10 @@ export default function PostDetailScreen() {
     <ScrollView
       style={[styles.content, { backgroundColor: Colors[colorScheme].background }]}
       showsVerticalScrollIndicator={false}
-      scrollEnabled={false}
+      scrollEnabled
+      nestedScrollEnabled={isInsidePager}
+      directionalLockEnabled
+      keyboardShouldPersistTaps="handled"
     >
         {/* Hero Media Section */}
         <View style={styles.heroSection}>
@@ -940,6 +943,8 @@ export default function PostDetailScreen() {
           horizontal
           pagingEnabled
           scrollEnabled={true}
+          nestedScrollEnabled
+          directionalLockEnabled
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           decelerationRate="fast"
@@ -957,7 +962,7 @@ export default function PostDetailScreen() {
             const commentsData = item === currentPostId ? comments : commentsById[item];
             return (
               <View style={{ width: SCREEN_WIDTH }}>
-                {postData ? renderPostContent(postData, commentsData) : (
+                {postData ? renderPostContent(postData, commentsData, true) : (
                   <View style={[styles.loadingPlaceholder, { backgroundColor: Colors[colorScheme].background }]} />
                 )}
               </View>
@@ -965,7 +970,7 @@ export default function PostDetailScreen() {
           }}
         />
       ) : (
-        post ? renderPostContent(post, comments) : null
+        post ? renderPostContent(post, comments, false) : null
       )}
 
       {/* Edit Comment Modal */}

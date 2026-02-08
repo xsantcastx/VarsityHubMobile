@@ -57,8 +57,8 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
   const onSubscribe = async (targetPlan: 'veteran' | 'legend') => {
     if (Platform.OS === 'ios') {
       Alert.alert(
-        'Upgrade on the web',
-        'Coach subscriptions are managed through our secure web portal. Please sign in at varsityhub.app from a desktop browser to upgrade your plan.',
+        'Not available on iOS',
+        'Paid coach plan upgrades are currently unavailable in the iOS app.',
       );
       return;
     }
@@ -141,6 +141,10 @@ async function finalizeWithRetry(sessionId: string, attempts: number = 5, delayM
                 <Text>Cancel subscription</Text>
               </Button>
             </View>
+          ) : Platform.OS === 'ios' ? (
+            <Text style={[styles.description, { color: Colors[colorScheme ?? 'light'].mutedText }]}>
+              Paid coach plan upgrades are currently unavailable in the iOS app.
+            </Text>
           ) : (
             // Free plan (rookie) or no plan - show upgrade options
             <>

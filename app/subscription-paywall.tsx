@@ -30,9 +30,12 @@ export default function SubscriptionPaywallScreen() {
   const _router = useRouter();
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
-  const [selectedTier, setSelectedTier] = useState<CoachTier>('veteran');
+  const [selectedTier, setSelectedTier] = useState<CoachTier>(Platform.OS === 'ios' ? 'rookie' : 'veteran');
   const [loading, setLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
+  const availableTiers: CoachTier[] = Platform.OS === 'ios'
+    ? ['rookie']
+    : ['rookie', 'veteran', 'legend'];
   const [modal, setModal] = useState<{
     visible: boolean;
     title: string;
@@ -44,8 +47,8 @@ export default function SubscriptionPaywallScreen() {
     if (Platform.OS === 'ios') {
       setModal({
         visible: true,
-        title: 'Upgrade on the Web',
-        message: 'Coach subscriptions are managed through our secure web portal. Please sign in at varsityhub.app from a desktop browser to upgrade your plan.',
+        title: 'Not available on iOS',
+        message: 'Paid coach plan upgrades are currently unavailable in the iOS app.',
         options: [{ label: 'Got it', onPress: () => setModal(null) }],
       });
       return;
@@ -111,7 +114,7 @@ export default function SubscriptionPaywallScreen() {
 
         {/* Tier Selection Pills */}
         <View style={styles.tierSelector}>
-          {(['rookie', 'veteran', 'legend'] as CoachTier[]).map((tier) => (
+          {availableTiers.map((tier) => (
             <Pressable
               key={tier}
               style={[

@@ -78,16 +78,16 @@ class TestingMonitor {
     });
 
     // Capture network errors
-    const originalFetch = window.fetch;
-    window.fetch = async (...args: Parameters<typeof fetch>) => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       try {
-        const response = await originalFetch(...args);
+        const response = await originalFetch(input, init);
         if (!response.ok) {
           this.log({
             timestamp: new Date().toISOString(),
             type: 'network',
             message: `Network error: ${response.status} ${response.statusText}`,
-            url: String(args[0]),
+            url: String(input),
           });
         }
         return response;
@@ -96,12 +96,12 @@ class TestingMonitor {
           timestamp: new Date().toISOString(),
           type: 'network',
           message: `Network request failed: ${error.message}`,
-          url: String(args[0]),
+          url: String(input),
           stack: error.stack,
         });
         throw error;
       }
-    };
+    }) as typeof window.fetch;
 
     console.log('🔍 Testing Monitor Started - All errors will be logged');
   }

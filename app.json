@@ -16,25 +16,25 @@
       "en": "./locales/en.json"
     },
     "updates": {
-      "enabled": false
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/64489ed7-a8c0-41de-91ec-5846ea79a27f"
     },
     "ios": {
       "supportsTablet": true,
       "appleTeamId": "B5H8F69RW5",
-      "bundleIdentifier": "com.varsithub.varsityhub-ios",
+      "bundleIdentifier": "com.varsityhub.varsityhub",
       "usesAppleSignIn": true,
       "config": {
         "googleMapsApiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
       },
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        },
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "VarsityHub needs camera access to capture photos and videos for your sports content.",
         "NSMicrophoneUsageDescription": "VarsityHub needs microphone access to record videos with sound.",
         "NSPhotoLibraryUsageDescription": "VarsityHub needs photo library access to select images for your posts and profile.",
-        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map."
+        "NSLocationWhenInUseUsageDescription": "VarsityHub needs your location to show nearby events on the map.",
+        "NSPrivacyPolicyURL": "https://varsityhub.app/privacy-policy"
       }
     },
     "android": {
@@ -44,7 +44,7 @@
       },
       "softwareKeyboardLayoutMode": "pan",
       "edgeToEdgeEnabled": true,
-      "package": "com.varsithub.varsityhub",
+      "package": "com.varsityhub.varsityhub",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA"
@@ -144,6 +144,7 @@
       "EXPO_PUBLIC_NODE_ENV": "production",
       "EXPO_PUBLIC_APP_SCHEME": "varsityhubmobile",
       "EXPO_PUBLIC_WEB_BASE_URL": "https://varsityhub.app",
+      "APP_STORE_PRIVACY_POLICY_URL": "https://varsityhub.app/privacy-policy",
       "EXPO_PUBLIC_SENTRY_DSN": "",
       "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "",
       "EXPO_PUBLIC_ADMIN_EMAILS": "emancero@varsityhub.app",

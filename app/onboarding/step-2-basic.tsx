@@ -181,25 +181,33 @@ export default function Step2Basic() {
         setProgress(8);
         router.replace('/onboarding/step-10-confirmation');
       } else {
-        // Use reducer to calculate next step deterministically
-        const updatedState = { ...ob, ...updatedData };
-        const nextStepIndex = nextIncompleteStep(updatedState, ob.role);
-        const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
+        // Preserve role in updated data to prevent it from being lost
+        const currentRole = ob.role;
+        const updatedDataWithRole = { ...updatedData, role: currentRole };
+        const updatedState = { ...ob, ...updatedDataWithRole };
+        const isCoach = currentRole === 'coach';
+        const nextStepIndex = isCoach
+          ? 2 // Step 3 (Plan) for coaches, always sequential from Step 2
+          : nextIncompleteStep(updatedState, currentRole);
+        const nextRoute = isCoach
+          ? '/onboarding/step-3-plan'
+          : (STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0]);
         
         if (__DEV__) {
           // eslint-disable-next-line no-console
           console.log('[STEP-2] Navigation after save:', {
-            role: ob.role,
+            role: currentRole,
+            isCoach,
             nextStepIndex,
             nextRoute,
-            calculatedNext: nextIncompleteStep(updatedState, ob.role),
+            calculatedNext: nextIncompleteStep(updatedState, currentRole),
           });
         }
         
-        // Save and navigate
+        // Save and navigate - include role to ensure reducer state is consistent
         dispatch({ 
           type: 'SAVE_SUCCESS', 
-          data: updatedData 
+          data: updatedDataWithRole 
         });
         setProgress(nextStepIndex);
         router.replace(nextRoute as any);

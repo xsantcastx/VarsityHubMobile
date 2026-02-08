@@ -47,6 +47,7 @@ export type OnboardingReducerState = {
 };
 
 export type OnboardingEvent =
+  | { type: 'RESET' }
   | { type: 'INIT_FROM_PROFILE'; profile: Partial<OnboardingState> }
   | { type: 'NEXT' }
   | { type: 'BACK' }
@@ -168,6 +169,10 @@ export function onboardingReducer(
   };
 
   switch (event.type) {
+    case 'RESET': {
+      return createInitialState();
+    }
+
     case 'INIT_FROM_PROFILE': {
       if (state.initialized) {
         // Prevent double initialization

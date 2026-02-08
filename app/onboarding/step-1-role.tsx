@@ -6,7 +6,7 @@ import { User } from '@/api/entities';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import OnboardingLayout from './components/OnboardingLayout';
 
@@ -124,10 +124,11 @@ export default function Step1Role() {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ returnToConfirmation?: string }>();
-  const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate, nextStep: calculateNextStep } = useOnboarding();
+  const { state: ob, setState: setOB, setProgress, clearOnboarding, dispatch, canNavigate } = useOnboarding();
   const [role, setRole] = useState<UserRole | null>(null);
   const [saving, setSaving] = useState(false);
   const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
+  const serverFetchDoneRef = useRef(false);
 
   // CRITICAL: Redirect if not authenticated
   useEffect(() => {
@@ -137,25 +138,36 @@ export default function Step1Role() {
     }
   }, [user, router]);
 
+  // Sync local role state from onboarding context (reactive, no server calls)
   useEffect(() => {
-    // Load role from onboarding state if available
     if (ob.role) {
       setRole(ob.role);
-    } else {
-      // If not in onboarding state, check server preferences
-      void (async () => {
-        try {
-          const me: any = await User.me();
-          if (me?.preferences?.role && (me.preferences.role === 'fan' || me.preferences.role === 'coach')) {
-            setRole(me.preferences.role);
-            setOB((prev) => ({ ...prev, role: me.preferences.role }));
-          }
-        } catch {
-          // ignore - user will select role
-        }
-      })();
     }
-  }, [ob.role, setOB]);
+  }, [ob.role]);
+
+  // One-time server fetch on mount only (guarded)
+  useEffect(() => {
+    if (ob.role || serverFetchDoneRef.current) return;
+    serverFetchDoneRef.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me: any = await User.me();
+        if (cancelled) return;
+        if (me?.preferences?.role && (me.preferences.role === 'fan' || me.preferences.role === 'coach')) {
+          setRole(me.preferences.role);
+          setOB((prev) => ({ ...prev, role: me.preferences.role }));
+        }
+      } catch {
+        // ignore - user will select role
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Check email verification status on mount and when screen focuses
   useFocusEffect(
@@ -209,17 +221,6 @@ export default function Step1Role() {
       // Persist role to server so the schema/preferences reflect the user's selection
       try {
         await User.updatePreferences({ role });
-        // Re-fetch me to confirm server saved the preference and help downstream code react
-        try {
-          const me: any = await User.me();
-          // If server agrees on the role, ensure onboarding state reflects it (no-op if same)
-          if (me?.preferences?.role) {
-            setOB((prev) => ({ ...(prev || {}), role: me.preferences.role }));
-            dispatch({ type: 'UPDATE_DRAFT', data: { role: me.preferences.role } });
-          }
-        } catch {
-          // ignore; best-effort
-        }
       } catch (error) {
         if (__DEV__) {
           console.warn('[Onboarding][Step1] failed to persist role to server', error);
@@ -233,8 +234,10 @@ export default function Step1Role() {
         router.replace('/onboarding/step-10-confirmation');
       } else {
         // Use reducer to calculate next step deterministically
-        const updatedState = { ...ob, role };
-        const nextStepIndex = calculateNextStep();
+        const updatedState = (role === 'coach' && !wasCoachBefore)
+          ? { role }
+          : { ...ob, role };
+        const nextStepIndex = nextIncompleteStep(updatedState, role);
         const nextRoute = STEP_ROUTES[nextStepIndex] || STEP_ROUTES[0];
         
         if (__DEV__) {

@@ -239,6 +239,23 @@ export default function SignUpScreen() {
 
         {!showEmailForm ? (
           <>
+          <Text style={[styles.legalText, { color: Colors[colorScheme].mutedText }]}>
+            By signing up, you agree to our{' '}
+            <Text
+              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+              onPress={() => void router.push('/settings/terms-of-service')}
+            >
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+              onPress={() => void router.push('/settings/privacy-policy')}
+            >
+              Privacy Policy
+            </Text>
+          </Text>
+
           {/* Apple Sign Up Option (iOS only) */}
           {Platform.OS === 'ios' ? (
             <AppleAuthenticationButton
@@ -334,6 +351,22 @@ export default function SignUpScreen() {
           )}
           
           <View style={{ height: 12 }} />
+          <Text style={[styles.legalText, { color: Colors[colorScheme].mutedText }]}>
+            By signing up, you agree to our{' '}
+            <Text
+              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+              onPress={() => void router.push('/settings/terms-of-service')}
+            >
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={{ color: Colors[colorScheme].tint, textDecorationLine: 'underline' }}
+              onPress={() => void router.push('/settings/privacy-policy')}
+            >
+              Privacy Policy
+            </Text>
+          </Text>
           <Button onPress={onSubmit} disabled={loading}>
             {loading ? (
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -429,6 +462,12 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '700',
     fontSize: 16,
+  },
+  legalText: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
   },
   disabledGoogleButton: {
     borderColor: '#CBD5F5',

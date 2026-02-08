@@ -961,30 +961,22 @@ const GameDetailsScreen = () => {
       if (!bannerCandidate && summary?.event?.banner_url) bannerCandidate = summary.event.banner_url;
       if (!bannerCandidate && gameRecord?.banner_url) bannerCandidate = gameRecord.banner_url; // Fallback to game banner
 
-      let eventDetails: any = null;
+      let deferredEventPromise: Promise<any> | null = null;
+      let deferredRsvpPromise: Promise<any> | null = null;
       if (eventIdValue) {
-        eventDetails = await retryWithBackoff(() => Event.get(eventIdValue), {
+        // Do not block first render on event-detail hydration.
+        deferredEventPromise = retryWithBackoff(() => Event.get(eventIdValue), {
           maxRetries: 2,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (eventDetails) {
-          if (!location) location = eventDetails.location || null;
-          if (!bannerCandidate) bannerCandidate = eventDetails.banner_url || null;
-          if (!appearance) appearance = (eventDetails as any)?.appearance ?? null;
-          if (typeof eventDetails.capacity === 'number' && capacity == null) capacity = eventDetails.capacity;
-          if (typeof eventDetails.attendees_count === 'number' && rsvpCount == null) rsvpCount = eventDetails.attendees_count;
-        }
-        const rsvp = await retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+
+        // Do not block first render on RSVP status; hydrate it asynchronously.
+        deferredRsvpPromise = retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
           maxRetries: 2,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
-        if (rsvp) {
-          rsvpCount = typeof rsvp.count === 'number' ? rsvp.count : rsvpCount;
-          capacity = typeof rsvp.capacity === 'number' ? rsvp.capacity : capacity;
-          userRsvped = 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending);
-        }
       }
 
       const vmPayload: GameVM = {
@@ -1011,6 +1003,44 @@ const GameDetailsScreen = () => {
       };
 
       setVm(vmPayload);
+
+      if (eventIdValue && deferredEventPromise) {
+        void deferredEventPromise.then((eventDetails: any) => {
+          if (!eventDetails) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              location: prev.location || eventDetails.location || null,
+              bannerUrl: prev.bannerUrl || eventDetails.banner_url || null,
+              appearance: prev.appearance || (eventDetails as any)?.appearance || null,
+              capacity:
+                typeof prev.capacity === 'number'
+                  ? prev.capacity
+                  : (typeof eventDetails.capacity === 'number' ? eventDetails.capacity : prev.capacity),
+              rsvpCount:
+                typeof prev.rsvpCount === 'number'
+                  ? prev.rsvpCount
+                  : (typeof eventDetails.attendees_count === 'number' ? eventDetails.attendees_count : prev.rsvpCount),
+            };
+          });
+        });
+      }
+
+      if (eventIdValue && deferredRsvpPromise) {
+        void deferredRsvpPromise.then((rsvp: any) => {
+          if (!rsvp) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return {
+              ...prev,
+              rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+              capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+              userRsvped: 'going' in rsvp ? Boolean(rsvp.going) : Boolean((rsvp as any).attending),
+            };
+          });
+        });
+      }
       } catch (error) {
         console.error('Error in loadGameById:', error);
         throw error; // Re-throw to be caught by outer try-catch
@@ -1026,7 +1056,6 @@ const GameDetailsScreen = () => {
         replaceToCanonicalGame(String(event.game_id));
         return;
       }
-      const rsvp = await Event.rsvpStatus(eventIdValue).catch(() => null);
       const dateIso = ensureIso(event?.date) ?? new Date().toISOString();
       const vmPayload: GameVM = {
         id: `event-${eventIdValue}`,
@@ -1040,9 +1069,9 @@ const GameDetailsScreen = () => {
         coverImageUrl: event?.cover_image_url || null,
         homeTeam: null,
         awayTeam: null,
-        capacity: event?.capacity ?? (typeof rsvp?.capacity === 'number' ? rsvp?.capacity : null),
-        rsvpCount: typeof rsvp?.count === 'number' ? rsvp?.count : event?.attendees_count ?? null,
-        userRsvped: rsvp ? Boolean(rsvp.going ?? rsvp.attending) : false,
+        capacity: event?.capacity ?? null,
+        rsvpCount: event?.attendees_count ?? null,
+        userRsvped: false,
         teams: [],
         posts: [],
         media: [],
@@ -1050,6 +1079,24 @@ const GameDetailsScreen = () => {
         isPast: computeIsPast(dateIso),
       };
       setVm(vmPayload);
+
+      // Hydrate RSVP in the background so event details can render immediately.
+      void retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
+        maxRetries: 2,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).then((rsvp: any) => {
+        if (!rsvp) return;
+        setVm((prev) => {
+          if (!prev || prev.eventId !== eventIdValue || prev.gameId) return prev;
+          return {
+            ...prev,
+            rsvpCount: typeof rsvp.count === 'number' ? rsvp.count : prev.rsvpCount,
+            capacity: typeof rsvp.capacity === 'number' ? rsvp.capacity : prev.capacity,
+            userRsvped: Boolean(rsvp.going ?? rsvp.attending),
+          };
+        });
+      }).catch(() => {});
     },
     [replaceToCanonicalGame],
   );
@@ -1272,18 +1319,31 @@ const GameDetailsScreen = () => {
       if (isRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
       
-      // Load teams data
-      await loadTeams();
+      // Load team directory in background; it should not block event/game rendering.
+      void loadTeams();
       
       try {
+        const runWithTimeout = (promise: Promise<any>, timeoutMs: number, message: string) =>
+          Promise.race([
+            promise,
+            new Promise((_, reject) => {
+              setTimeout(() => reject(new Error(message)), timeoutMs);
+            }),
+          ]);
+
         if (gameIdValue) {
-          await loadGameById(gameIdValue);
+          await runWithTimeout(loadGameById(gameIdValue), 15000, 'Game details request timed out');
         } else if (eventIdValue) {
-          await loadVirtualFromEvent(eventIdValue);
+          await runWithTimeout(loadVirtualFromEvent(eventIdValue), 15000, 'Event details request timed out');
         }
       } catch (err) {
         console.error('Failed to load game details', err);
-        setError('Unable to load game details. Please try again.');
+        const message = String((err as any)?.message || '');
+        if (message.toLowerCase().includes('timed out')) {
+          setError('Loading is taking too long. Pull to refresh and try again.');
+        } else {
+          setError('Unable to load game details. Please try again.');
+        }
         setVm(null);
       } finally {
         if (isRefresh) setRefreshing(false); else setLoading(false);
@@ -1941,6 +2001,7 @@ const renderBanner = () => {
       <Stack.Screen options={{ headerShown: false }} />
       
       <Animated.View
+        pointerEvents="box-none"
         style={[styles.headerWrap, { top: insets.top, transform: [{ translateY: headerTranslateY }], opacity: headerOpacity }]}
         onLayout={(e) => {
           const h = e.nativeEvent.layout.height;

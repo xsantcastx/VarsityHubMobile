@@ -82,9 +82,10 @@ export default function SettingsScreen() {
   const [_pendingHostRequests, setPendingHostRequests] = useState<any[]>([]);
   const [_pendingLoading, setPendingLoading] = useState(false);
   const [_pendingError, setPendingError] = useState<string | null>(null);
-  const timers = useRef<Record<string, NodeJS.Timeout>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Debounced PATCH updater for preferences
+  // Only sends the specific fields being changed to avoid overwriting other preferences (e.g. role)
   const patchPrefs = (patch: Partial<Preferences>) => {
     const key = JSON.stringify(patch);
     if (timers.current[key]) clearTimeout(timers.current[key]);
@@ -101,10 +102,13 @@ export default function SettingsScreen() {
                     },
                   };
 
-                  // Debounce the API call
+                  // Debounce the API call - only send the changed fields, not the full prefs object
+                  const patchToSend = patch.notifications
+                    ? { notifications: { ...cur.notifications, ...patch.notifications } }
+                    : { ...patch };
                   timers.current[key] = setTimeout(async () => {
                     try {
-                      await User.updatePreferences(newPrefs);
+                      await User.updatePreferences(patchToSend);
                     } catch (e: any) {
                       // Error handled via Alert below
                       console.error('[settings] Failed to update preferences:', e);
@@ -279,8 +283,8 @@ export default function SettingsScreen() {
                     {/* My Content */}
                     <SectionCard title="My Content">
                       <NavRow title="View Favorites" subtitle="Posts you've saved" onPress={() => void router.push('/settings/favorites')} />
-                      <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.push('/submit-ad')} />
-                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.push('/my-ads')} />
+                      <NavRow title="Reserve Ad Space" subtitle="Promote your program, fundraiser, or business" onPress={() => void router.navigate('/submit-ad')} />
+                      <NavRow title="My Ads" subtitle="Manage your advertisements" onPress={() => void router.navigate('/my-ads')} />
                     </SectionCard>
 
                     {/* Billing (coaches only) */}
@@ -293,8 +297,10 @@ export default function SettingsScreen() {
                     {/* Legal */}
                     <SectionCard title="Legal">
                       <NavRow title="View Core Values" onPress={() => void router.push('/settings/core-values')} />
-                      <NavRow title="Report Abuse" onPress={() => void router.push('/report-abuse')} />
-                      <NavRow title="DM Restrictions Summary" onPress={() => void router.push('/dm-restrictions')} />
+                      <NavRow title="Privacy Policy" onPress={() => void router.push('/settings/privacy-policy')} />
+                      <NavRow title="Terms of Service" onPress={() => void router.push('/settings/terms-of-service')} />
+                      <NavRow title="Report Abuse" onPress={() => void router.navigate('/report-abuse')} />
+                      <NavRow title="DM Restrictions Summary" onPress={() => void router.navigate('/dm-restrictions')} />
                     </SectionCard>
 
                     {/* Support & Feedback */}
@@ -309,32 +315,32 @@ export default function SettingsScreen() {
                         <NavRow 
                           title="Admin Dashboard" 
                           subtitle="Overview and analytics" 
-                          onPress={() => void router.push('/admin-dashboard')} 
+                          onPress={() => void router.navigate('/admin-dashboard')} 
                         />
                         <NavRow 
                           title="Activity Log" 
                           subtitle="Track all admin actions" 
-                          onPress={() => void router.push('/admin-activity-log')} 
+                          onPress={() => void router.navigate('/admin-activity-log')} 
                         />
                         <NavRow 
                           title="Manage Users" 
                           subtitle="View all users, ban/unban" 
-                          onPress={() => void router.push('/admin-users')} 
+                          onPress={() => void router.navigate('/admin-users')} 
                         />
                         <NavRow 
                           title="Manage Teams" 
                           subtitle="View and moderate all teams" 
-                          onPress={() => void router.push('/admin-teams')} 
+                          onPress={() => void router.navigate('/admin-teams')} 
                         />
                         <NavRow 
                           title="Manage Ads" 
                           subtitle="Review and moderate advertisements" 
-                          onPress={() => void router.push('/admin-ads')} 
+                          onPress={() => void router.navigate('/admin-ads')} 
                         />
                         <NavRow 
                           title="View Messages" 
                           subtitle="Content moderation" 
-                          onPress={() => void router.push('/admin-messages')} 
+                          onPress={() => void router.navigate('/admin-messages')} 
                         />
                       </SectionCard>
                     )}
@@ -422,7 +428,7 @@ export default function SettingsScreen() {
                     {/* Copyright Footer */}
                     <View style={{ paddingHorizontal: 16, paddingVertical: 24, alignItems: 'center' }}>
                       <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
-                        © 2025 LIME PRODUCTIONS. All rights reserved.
+                        © 2026 LIME PRODUCTIONS. All rights reserved.
                       </Text>
                     </View>
                     </ScrollView>
@@ -439,7 +445,7 @@ export default function SettingsScreen() {
               cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
               cardBody: { padding: 12, gap: 12 },
               cardTitle: { fontWeight: '800', fontSize: 16 },
-              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+              rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
               rowTitle: { fontWeight: '600' },
               mutedSmall: { color: '#9CA3AF', fontSize: 12 },
               chev: { fontSize: 20, color: '#6b7280', transform: [{ rotate: '0deg' }] },

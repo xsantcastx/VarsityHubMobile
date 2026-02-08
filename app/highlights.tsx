@@ -550,6 +550,22 @@ export default function HighlightsScreen() {
     router.push(`/user-profile?id=${authorId}`);
   }, [router]);
 
+  const handleEventPress = useCallback((event: any) => {
+    const gameId = event?.game_id || event?.gameId;
+    if (gameId) {
+      void router.push({ pathname: '/(tabs)/feed/game/[id]', params: { id: String(gameId) } });
+      return;
+    }
+
+    const eventId = event?.id || event?.event_id;
+    if (eventId) {
+      void router.push({ pathname: '/(tabs)/feed/game', params: { eventId: String(eventId) } } as any);
+      return;
+    }
+
+    Alert.alert('Event unavailable', 'This event is missing an identifier and cannot be opened.');
+  }, [router]);
+
   const handleUpvote = useCallback(async (item: HighlightItem) => {
     try {
       // Haptic feedback for user interaction
@@ -788,7 +804,7 @@ export default function HighlightsScreen() {
                   <Pressable
                     key={event.id}
                     style={[styles.searchResultItem, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-                    onPress={() => { void router.push(`/event-detail?id=${event.id}`); }}
+                    onPress={() => handleEventPress(event)}
                   >
                     <Text style={[styles.searchResultTitle, { color: Colors[colorScheme].text }]}>{event.title}</Text>
                     <Text style={[styles.searchResultSubtitle, { color: Colors[colorScheme].tabIconDefault }]}>

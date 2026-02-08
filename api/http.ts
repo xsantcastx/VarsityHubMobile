@@ -120,7 +120,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     clearTimeout(timeoutId);
     // Suppress verbose logging for expected auth errors in dev mode
     const isAuthError = path.includes('/auth/') || path.includes('/me');
+    const isAbortError = error.name === 'AbortError';
     const isExpectedDevError = __DEV__ && isAuthError && (error.status === 401 || error.status === 408 || error.status === 400);
+    const isExpectedAbortInDev = __DEV__ && isAbortError;
     
     // Suppress logging for known missing endpoints
     const isKnownMissingEndpoint = 
@@ -130,7 +132,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       (path.includes('/notifications') && error.status === 401);
     
     // Enhanced error logging with more context
-    if (!isExpectedDevError && !isKnownMissingEndpoint) {
+    if (!isExpectedDevError && !isKnownMissingEndpoint && !isExpectedAbortInDev) {
       const errorDetails = {
         url: base + path,
         method: options.method || 'GET',
@@ -148,6 +150,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
           extra: errorDetails 
         });
       }
+    }
+    if (isExpectedAbortInDev) {
+      console.debug(`[http] Request timed out: ${path}`);
     }
     
     // Handle 502 Bad Gateway errors with retry - backend may be temporarily down
@@ -225,7 +230,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     if (error.name === 'AbortError') {
       const err: any = new Error('Request timeout - server did not respond');
       err.status = 408;
-      if (!isExpectedDevError) {
+      if (!isExpectedDevError && !__DEV__) {
         captureException(err, { path, base, timeoutMs, method: options.method || 'GET' });
       }
       // Retry once on timeout if allowed

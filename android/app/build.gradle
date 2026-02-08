@@ -2,27 +2,6 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
-// CRITICAL: Disable lintVitalRelease BEFORE Android plugin creates it
-// This must be at the top level, before any android block evaluation
-project.afterEvaluate {
-    project.tasks.matching { 
-        it.name == 'lintVitalRelease' || 
-        it.name == 'lintVitalReportRelease' ||
-        (it.name.contains('lint') && it.name.contains('Vital') && it.name.contains('Release'))
-    }.all {
-        enabled = false
-        actions.clear()
-        doFirst {
-            logger.warn("⚠️  ${it.name} DISABLED (project.afterEvaluate top-level)")
-        }
-        doLast {
-            logger.warn("⚠️  ${it.name} skipped")
-        }
-        outputs.upToDateWhen { true }
-        onlyIf { false }
-    }
-}
-
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
 /**
@@ -102,152 +81,7 @@ def enableMinifyInReleaseBuilds = true
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-def sentryDisableAutoUpload = (System.getenv("SENTRY_DISABLE_AUTO_UPLOAD") ?: "").toBoolean()
-def sentryAllowFailure = (System.getenv("SENTRY_ALLOW_FAILURE") ?: "").toBoolean()
-def sentryAuthToken = System.getenv("SENTRY_AUTH_TOKEN")
-def sentryAuthTokenValue = sentryAuthToken == null ? "" : sentryAuthToken.trim()
-def sentryTokenLooksPlaceholder = sentryAuthTokenValue.isEmpty() ||
-    sentryAuthTokenValue == "<your_token>" ||
-    sentryAuthTokenValue == "YOUR_REAL_TOKEN_HERE"
-def sentryHasAuthToken = !sentryTokenLooksPlaceholder
-
-// Enable Sentry uploads when token is available
-// SENTRY_ALLOW_FAILURE allows builds to continue if upload fails (safety net)
-def shouldUploadSentry = !sentryDisableAutoUpload && sentryHasAuthToken
-
-project.ext.sentryCli = [
-    logLevel: System.getenv("SENTRY_LOG_LEVEL") ?: "info",
-    autoUpload: shouldUploadSentry
-]
-
-// Also set as project property for the Sentry plugin to read
-project.ext.set("sentryAutoUpload", shouldUploadSentry)
-project.ext.set("sentryAllowFailure", sentryAllowFailure)
-
 apply from: new File(["node", "--print", "require('path').dirname(require.resolve('@sentry/react-native/package.json'))"].execute().text.trim(), "sentry.gradle")
-
-// CRITICAL FIX: Disable lintVitalRelease at the EARLIEST possible moment
-// This must be done before the android block is evaluated
-tasks.all { task ->
-    if (task.name == 'lintVitalRelease' || task.name == 'lintVitalReportRelease') {
-        task.enabled = false
-        task.actions.clear()
-        task.doFirst {
-            logger.warn("⚠️  ${task.name} disabled (tasks.all early catch)")
-        }
-    }
-}
-
-// Make Sentry upload tasks work properly but allow failures if SENTRY_ALLOW_FAILURE is set
-// This enables Sentry uploads when token is available, but prevents build failures
-tasks.whenTaskAdded { task ->
-    def isSentryTask = task.name.contains("Sentry") && (
-        task.name.contains("Upload") || 
-        task.name.contains("upload") ||
-        task.name.contains("SentryUpload")
-    )
-    
-    if (isSentryTask) {
-        if (!sentryHasAuthToken || sentryDisableAutoUpload) {
-            // Disable only if no token or explicitly disabled
-            task.enabled = false
-            task.actions.clear()
-            task.doFirst {
-                logger.warn("⚠️  Sentry upload task disabled: SENTRY_AUTH_TOKEN not configured or SENTRY_DISABLE_AUTO_UPLOAD=true")
-            }
-            task.doLast {
-                logger.warn("⚠️  Sentry upload skipped")
-            }
-        } else if (sentryAllowFailure) {
-            // With token and SENTRY_ALLOW_FAILURE, allow upload but don't fail build on error
-            def originalActions = new ArrayList(task.actions)
-            task.actions.clear()
-            
-            originalActions.each { action ->
-                task.doLast {
-                    try {
-                        if (action instanceof Closure) {
-                            action.delegate = task
-                            action.call()
-                        } else {
-                            action.execute(task)
-                        }
-                    } catch (Exception e) {
-                        logger.warn("⚠️  Sentry upload failed but build will continue (SENTRY_ALLOW_FAILURE=true): ${e.message}")
-                        // Suppress the exception - don't fail the build
-                    }
-                }
-            }
-        }
-        // If token exists and SENTRY_ALLOW_FAILURE is not set, let Sentry work normally
-    }
-}
-
-// CRITICAL: Completely disable lintVitalRelease to prevent ExtraTranslation build failures
-// This task runs even when checkReleaseBuilds=false, so we must disable it explicitly
-tasks.whenTaskAdded { task ->
-    if (task.name == 'lintVitalRelease' || task.name == 'lintVitalReportRelease') {
-        task.enabled = false
-        task.actions.clear()
-        task.doFirst {
-            logger.warn("⚠️  lintVitalRelease DISABLED to prevent ExtraTranslation build failures")
-        }
-        task.doLast {
-            logger.warn("⚠️  lintVitalRelease skipped (disabled)")
-        }
-    }
-}
-
-// Also catch tasks that already exist
-afterEvaluate {
-    tasks.all { task ->
-        def isSentryTask = task.name.contains("Sentry") && (
-            task.name.contains("Upload") || 
-            task.name.contains("upload") ||
-            task.name.contains("SentryUpload")
-        )
-        
-        if (isSentryTask) {
-            if (!sentryHasAuthToken || sentryDisableAutoUpload) {
-                task.enabled = false
-                task.actions.clear()
-                task.doLast {
-                    logger.warn("⚠️  Sentry upload disabled")
-                }
-            } else if (sentryAllowFailure) {
-                // Wrap in try-catch if SENTRY_ALLOW_FAILURE is set
-                task.doLast {
-                    if (task.state.failure) {
-                        logger.warn("⚠️  Sentry upload failed but continuing (SENTRY_ALLOW_FAILURE=true): ${task.state.failure.message}")
-                        task.state.failure = null
-                    }
-                }
-            }
-        }
-        
-        // CRITICAL: Completely disable lintVitalRelease to prevent ExtraTranslation build failures
-        if (task.name == 'lintVitalRelease' || task.name == 'lintVitalReportRelease') {
-            task.enabled = false
-            task.actions.clear()
-            task.doFirst {
-                logger.warn("⚠️  lintVitalRelease DISABLED (afterEvaluate) to prevent ExtraTranslation build failures")
-            }
-            task.doLast {
-                logger.warn("⚠️  lintVitalRelease skipped (disabled)")
-            }
-        }
-        
-        // Also disable all lint Release tasks as backup
-        try {
-            tasks.matching { it.name == 'lintVitalRelease' || it.name == 'lintVitalReportRelease' }.configureEach {
-                enabled = false
-                actions.clear()
-            }
-        } catch (Exception e) {
-            // Task might not exist yet, that's fine
-        }
-    }
-}
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -255,9 +89,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.varsithub.varsityhub'
+    namespace 'com.varsityhub.varsityhub'
     defaultConfig {
-        applicationId 'com.varsithub.varsityhub'
+        applicationId 'com.varsityhub.varsityhub'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -309,12 +143,6 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
-            // CRITICAL: Disable lint checking in release build type to prevent ExtraTranslation errors
-            lintOptions {
-                checkReleaseBuilds false
-                abortOnError false
-                disable 'ExtraTranslation'
-            }
         }
     }
     packagingOptions {
@@ -325,42 +153,6 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
-    }
-    lint {
-        // Use baseline to ignore known ExtraTranslation errors from values-b+en/strings.xml
-        // The baseline file contains the known issues that can be safely ignored
-        // CRITICAL: Baseline file paths must be relative to android/app directory
-        baseline = file("lint-baseline.xml")
-        // CRITICAL: Don't fail the build on lint errors in release builds
-        checkReleaseBuilds false
-        // CRITICAL: Disable ExtraTranslation specifically - this prevents the build failure
-        disable 'ExtraTranslation'
-        // Don't fail the build on lint errors
-        abortOnError false
-        // Ensure baseline is used for all lint tasks
-        checkOnly = []
-        // Don't check for unused resources that might cause issues
-        checkDependencies false
-        // CRITICAL: Explicitly set to not check release builds (redundant but ensures it's disabled)
-        checkReleaseBuilds false
-        // CRITICAL: Ensure baseline is used for lintVitalRelease
-        // The baseline file has correct paths: src/main/res/values-b+en/strings.xml
-    }
-    
-    // CRITICAL: Explicitly disable lintVitalRelease task after project evaluation
-    // This must be in the android block's afterEvaluate to ensure it runs after the task is created
-    afterEvaluate {
-        // Disable by name
-        tasks.findByName('lintVitalRelease')?.enabled = false
-        tasks.findByName('lintVitalReportRelease')?.enabled = false
-        // Also disable by matching - this catches the task even if it's created later
-        tasks.matching { it.name == 'lintVitalRelease' || it.name == 'lintVitalReportRelease' }.all {
-            enabled = false
-            actions.clear()
-            doFirst {
-                logger.warn("⚠️  ${it.name} DISABLED (android.afterEvaluate)")
-            }
-        }
     }
 }
 
@@ -380,56 +172,6 @@ android {
         // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
         options.each {
             android.packagingOptions[prop] += it
-        }
-    }
-}
-
-// ULTIMATE SAFEGUARD: Completely disable lintVitalRelease before task graph execution
-// This runs right before tasks execute, ensuring the task is disabled
-gradle.taskGraph.whenReady { taskGraph ->
-    // Remove lintVitalRelease from the task graph entirely
-    def tasksToRemove = taskGraph.allTasks.findAll { 
-        it.name == 'lintVitalRelease' || it.name == 'lintVitalReportRelease' 
-    }
-    tasksToRemove.each { task ->
-        // CRITICAL: Remove task from execution graph completely
-        task.enabled = false
-        task.actions.clear()
-        task.doFirst {
-            logger.warn("⚠️  ${task.name} DISABLED (taskGraph.whenReady) - ExtraTranslation errors prevented")
-        }
-        task.doLast {
-            logger.warn("⚠️  ${task.name} skipped (disabled to prevent build failure)")
-        }
-        // Mark task as up-to-date so Gradle thinks it already ran successfully
-        task.outputs.upToDateWhen { true }
-        // Skip execution completely
-        task.onlyIf { false }
-    }
-}
-
-// FINAL SAFEGUARD: Skip lintVitalRelease right before it executes (if it somehow still runs)
-gradle.taskGraph.beforeTask { task ->
-    if (task.name == 'lintVitalRelease' || task.name == 'lintVitalReportRelease') {
-        // CRITICAL: Disable and skip the task completely
-        task.enabled = false
-        task.actions.clear()
-        // Replace with a no-op that always succeeds
-        task.doFirst {
-            logger.warn("⚠️  ${task.name} DISABLED (beforeTask) - skipping to prevent ExtraTranslation build failure")
-        }
-        task.doLast {
-            logger.warn("⚠️  ${task.name} skipped (disabled)")
-        }
-        // Prevent task from running by marking as up-to-date
-        task.outputs.upToDateWhen { true }
-        // Skip execution completely
-        task.onlyIf { false }
-        // Mark as already executed to prevent running
-        try {
-            task.state.executed = true
-        } catch (Exception e) {
-            // State might not be accessible, that's fine
         }
     }
 }

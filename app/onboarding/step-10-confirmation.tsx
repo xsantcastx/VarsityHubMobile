@@ -274,11 +274,27 @@ export default function Step10Confirmation() {
         }
       }
       
+      const allowedAffiliations = new Set([
+        'none',
+        'university',
+        'high_school',
+        'club',
+        'youth',
+        'school',
+        'independent',
+      ]);
+      const normalizedAffiliation =
+        ob.affiliation === 'professional'
+          ? 'independent'
+          : (typeof ob.affiliation === 'string' && allowedAffiliations.has(ob.affiliation)
+            ? ob.affiliation
+            : undefined);
+
       const completionPayload: Record<string, any> = {
         // Core identity fields
         role: ob.role, // REQUIRED - must be 'fan' or 'coach'
         username: ob.username, // Only username (with @) - no display_name
-        affiliation: ob.affiliation,
+        affiliation: normalizedAffiliation,
         dob: ob.dob,
         zip: ob.zip,
         zip_code: ob.zip_code,
@@ -313,17 +329,23 @@ export default function Step10Confirmation() {
         messaging_policy_accepted: ob.messaging_policy_accepted,
       };
       
-      // Log the payload before sending
+      // Remove null/undefined values so optional schema fields remain valid.
+      const cleanedPayload: Record<string, any> = {};
+      Object.entries(completionPayload).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          cleanedPayload[key] = value;
+        }
+      });
       
       // Final submission to backend - mark onboarding as complete
       // PATCH: Guarantee coach role and onboarding_completed for coach users
       if (isCoach) {
-        if (!completionPayload.role || completionPayload.role !== 'coach') {
-          completionPayload.role = 'coach';
+        if (!cleanedPayload.role || cleanedPayload.role !== 'coach') {
+          cleanedPayload.role = 'coach';
         }
-        completionPayload.onboarding_completed = true;
+        cleanedPayload.onboarding_completed = true;
       }
-      await User.completeOnboarding(completionPayload);
+      await User.completeOnboarding(cleanedPayload);
       
       // CRITICAL: Validate server confirmed completion BEFORE clearing local state
       const updatedUser: any = await checkAuth();
@@ -339,7 +361,12 @@ export default function Step10Confirmation() {
       // Navigate to main app
       router.replace('/(tabs)');
     } catch (e: any) {
-      const errorMessage = e?.message || 'Failed to complete onboarding';
+      const zodIssues = e?.data?.issues || e?.data?.details?.issues;
+      if (__DEV__ && zodIssues) {
+        // eslint-disable-next-line no-console
+        console.warn('[Onboarding][Step10] Invalid payload issues:', zodIssues);
+      }
+      const errorMessage = e?.data?.error || e?.message || 'Failed to complete onboarding';
       
       Alert.alert(
         'Setup Not Complete', 

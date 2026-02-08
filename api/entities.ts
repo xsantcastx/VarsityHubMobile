@@ -33,14 +33,15 @@ export const User = {
       throw error;
     }
   },
-  ban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/ban', {}),
-  unban: (id: string) => httpPost('/users/' + encodeURIComponent(id) + '/unban', {}),
-  getFull: (id: string) => httpGet('/users/' + encodeURIComponent(id) + '/full'),
-  followers: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
-  following: (id: string, cursor?: string) => httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')),
-  follow: (id: string) => httpPost(`/users/${encodeURIComponent(id)}/follow`, {}),
-  unfollow: (id: string) => httpDelete(`/users/${encodeURIComponent(id)}/follow`),
+  ban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.ban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/ban', {}); },
+  unban: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unban] Invalid user ID'); return httpPost('/users/' + encodeURIComponent(id) + '/unban', {}); },
+  getFull: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getFull] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id) + '/full'); },
+  followers: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.followers] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/followers` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
+  following: (id: string, cursor?: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.following] Invalid user ID'); return httpGet(`/users/${encodeURIComponent(id)}/following` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : '')); },
+  follow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.follow] Invalid user ID'); return httpPost(`/users/${encodeURIComponent(id)}/follow`, {}); },
+  unfollow: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.unfollow] Invalid user ID'); return httpDelete(`/users/${encodeURIComponent(id)}/follow`); },
   postsForProfile: (id: string, opts: { cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.postsForProfile] Invalid user ID');
     const q: string[] = [];
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
     if (opts.cursor) q.push('cursor=' + encodeURIComponent(opts.cursor));
@@ -49,6 +50,7 @@ export const User = {
     return httpGet(`/users/${encodeURIComponent(id)}/posts` + qs);
   },
   interactionsForProfile: (id: string, opts: { type?: 'all' | 'like' | 'comment' | 'repost' | 'save'; cursor?: string | null; limit?: number; sort?: 'newest' | 'most_upvoted' | 'most_commented' } = {}) => {
+    if (!id || id === 'undefined' || id === 'null') throw new Error('[User.interactionsForProfile] Invalid user ID');
     const q: string[] = [];
     if (opts.type) q.push('type=' + encodeURIComponent(opts.type));
     if (typeof opts.limit === 'number') q.push('limit=' + String(opts.limit));
@@ -61,7 +63,7 @@ export const User = {
   requestPasswordReset: (email: string) => auth.requestPasswordReset(email),
   resetPassword: (email: string, code: string, password: string) => auth.resetPassword(email, code, password),
   // Public profile fetch
-  getPublic: (id: string) => httpGet('/users/' + encodeURIComponent(id)),
+  getPublic: (id: string) => { if (!id || id === 'undefined' || id === 'null') throw new Error('[User.getPublic] Invalid user ID'); return httpGet('/users/' + encodeURIComponent(id)); },
   // Search users for mentions
   searchForMentions: (query: string, limit: number = 10) => httpGet('/users/search/mentions?q=' + encodeURIComponent(query) + '&limit=' + String(limit)),
   // Lookup user by username

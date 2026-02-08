@@ -30,7 +30,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>varsityhubmobile</string>
-          <string>com.varsithub.varsityhub</string>
+          <string>com.varsityhub.varsityhub</string>
         </array>
       </dict>
       <dict>
@@ -43,18 +43,13 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>GMSApiKey</key>
-    <string>AIzaSyCWTjN0GPyMnzwz06JKQ1ndqqu10DvNkZA</string>
+    <string>AIzaSyDKZL34B2z-qVvfWKfLUVsAL7I_jCXbGFA</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>NSAppTransportSecurity</key>
-    <dict>
-      <key>NSAllowsArbitraryLoads</key>
-      <true/>
-    </dict>
     <key>NSCameraUsageDescription</key>
     <string>Allow VarsityHub to use the camera for capturing photos and videos.</string>
     <key>NSFaceIDUsageDescription</key>
@@ -71,6 +66,8 @@
     <string>Allow VarsityHub to save photos.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Allow VarsityHub to access your photos to attach images to posts.</string>
+    <key>NSPrivacyPolicyURL</key>
+    <string>https://varsityhub.app/privacy-policy</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

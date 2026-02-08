@@ -77,7 +77,7 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
     };
     const result = nextIncompleteStep(state, 'fan');
-    expect(result).toBe(5); // STEP_7_PROFILE.index (fans skip steps 3-6)
+    expect(result).toBe(8); // STEP_10_CONFIRMATION.index (step 7 is already satisfied by username)
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {
@@ -93,6 +93,28 @@ describe('nextIncompleteStep', () => {
 });
 
 describe('onboardingReducer', () => {
+  it('should reset reducer state', () => {
+    const state: OnboardingReducerState = {
+      ...createInitialState(),
+      currentStepIndex: 4,
+      draftData: {
+        role: 'coach',
+        username: 'testuser',
+        plan: 'rookie',
+        team_id: 'team-123',
+      },
+      initialized: true,
+      isSaving: true,
+    };
+
+    const newState = onboardingReducer(state, { type: 'RESET' });
+
+    expect(newState.currentStepIndex).toBe(0);
+    expect(newState.draftData).toEqual({});
+    expect(newState.initialized).toBe(false);
+    expect(newState.isSaving).toBe(false);
+  });
+
   it('should initialize from profile', () => {
     const initialState = createInitialState();
     const profile: OnboardingState = {
@@ -152,7 +174,7 @@ describe('Step order integration', () => {
     let state: OnboardingState = { role: 'coach' };
 
     // Simulate completing each step
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 1
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2 (role already set)
     state = { ...state, role: 'coach' };
     
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2
@@ -167,7 +189,7 @@ describe('Step order integration', () => {
     steps.push(nextIncompleteStep(state, 'coach')); // Should be step 6 (not 7!)
 
     // Verify steps are in order and no steps are skipped
-    expect(steps).toEqual([0, 1, 2, 3, 4]); // step 1, 2, 3, 4, 6
+    expect(steps).toEqual([1, 1, 2, 3, 4]); // step 2, 2, 3, 4, 6
     // Verify step 7 (index 5) is NOT in the sequence
     expect(steps).not.toContain(5); // STEP_7_PROFILE.index
   });
