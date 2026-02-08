@@ -73,7 +73,8 @@ function isStepComplete(stepId: number, state: OnboardingState, role?: 'fan' | '
       if (role !== 'coach') return true; // Fans skip this
       return !!(state.team_id || state.organization_id);
     case 6: // Authorized users (optional for coaches, but must be visited)
-      return !!state.step_6_visited; // Must visit this step before continuing
+      if (role !== 'coach') return true; // Fans skip this step entirely
+      return !!state.step_6_visited; // Coaches must visit this step before continuing
     case 7: // Profile
       return !!state.username; // At minimum, username is required
     case 8: // Interests
@@ -198,18 +199,20 @@ export function onboardingReducer(
         // Prevent navigation during save
         return state;
       }
-      
-      const currentStepId = STEP_ROUTES[state.currentStepIndex] 
+
+      const currentStepId = STEP_ROUTES[state.currentStepIndex]
         ? Object.values(ONBOARDING_STEPS).find(s => s.index === state.currentStepIndex)?.id || 0
         : 0;
-      
-      // Calculate next step deterministically
+
+      // Calculate next step deterministically based on first incomplete step
       const nextStep = nextIncompleteStep(state.draftData, state.draftData.role);
-      
-      // Never jump backwards unless validation fails
-      const safeNextStep = Math.max(state.currentStepIndex + 1, nextStep);
-      const clampedNextStep = Math.min(safeNextStep, STEP_ROUTES.length - 1);
-      
+
+      // FIXED: Use the calculated next incomplete step directly
+      // If all prior steps are complete, nextStep will be >= currentStepIndex + 1
+      // If a prior step is incomplete, nextStep will point to that step (go back to fix it)
+      // This ensures coaches can never skip required steps
+      const clampedNextStep = Math.min(nextStep, STEP_ROUTES.length - 1);
+
       logTransition(state.currentStepIndex, clampedNextStep, 'NEXT');
       
       return {

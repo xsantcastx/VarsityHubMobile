@@ -94,7 +94,12 @@ authRouter.post('/register', asyncHandler(async (req, res) => {
   }
   const { email, password, display_name, role } = parsed.data;
   const sanitizedEmail = email.trim().toLowerCase();
-  
+
+  // SECURITY: Rate limiting to prevent mass account creation / enumeration
+  if (!checkAuthRateLimit(`register:${sanitizedEmail}`)) {
+    return res.status(429).json({ error: 'Too many registration attempts. Please try again later.' });
+  }
+
   // Prevent duplicate accounts - check if email already exists
   // Users can create multiple accounts with different emails, but not duplicate the same email
   debugLog('[register] Checking for existing user');
@@ -452,7 +457,14 @@ const passwordResetRequestSchema = z.object({ email: z.string().email() });
 authRouter.post('/password/forgot', async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
-  const email = parsed.data.email.trim();
+  const email = parsed.data.email.trim().toLowerCase();
+
+  // SECURITY: Rate limiting to prevent password reset abuse / enumeration
+  if (!checkAuthRateLimit(`forgot:${email}`)) {
+    // Return generic success to prevent timing-based enumeration
+    return res.json({ ok: true });
+  }
+
   debugLog('[password-reset] Looking for user:', email);
   const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
   const payload: any = { ok: true };
@@ -500,7 +512,14 @@ authRouter.post('/password/reset', async (req, res) => {
   const parsed = passwordResetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   const { email, code, password } = parsed.data;
-  const user = await prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } });
+  const sanitizedEmail = email.trim().toLowerCase();
+
+  // SECURITY: Rate limiting to prevent brute-forcing the 6-digit reset code
+  if (!checkAuthRateLimit(`reset:${sanitizedEmail}`)) {
+    return res.status(429).json({ error: 'Too many reset attempts. Please request a new code.' });
+  }
+
+  const user = await prisma.user.findFirst({ where: { email: { equals: sanitizedEmail, mode: 'insensitive' } } });
   if (!user || !user.password_reset_code || !user.password_reset_expires) {
     return res.status(400).json({ error: 'Invalid or expired reset code' });
   }
@@ -774,6 +793,15 @@ authRouter.patch('/me/preferences', async (req: AuthedRequest, res) => {
   }
   const incoming = parsed.data as any;
   const current = await prisma.user.findUnique({ where: { id: req.user.id }, select: { preferences: true, email: true } });
+  const currentPrefs = current?.preferences as any || {};
+
+  // SECURITY FIX: Prevent role changes after onboarding is completed
+  // Users can only set/change their role during the initial onboarding process
+  if (incoming.role && currentPrefs.onboarding_completed === true && incoming.role !== currentPrefs.role) {
+    return res.status(403).json({
+      error: 'Cannot change role after onboarding is complete. Contact support if you need to change your account type.',
+    });
+  }
   // Check if user is admin (same logic as GET /me endpoint)
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const is_admin = current?.email ? adminEmails.includes(current.email.toLowerCase()) : false;

@@ -69,7 +69,11 @@ describe('nextIncompleteStep', () => {
     expect(result).not.toBe(5); // STEP_7_PROFILE.index
   });
 
-  it('should return step 7 for fan after step 2', () => {
+  it('should skip coach steps for fans and go to confirmation', () => {
+    // Fans with completed step 2 (username, dob, zip) skip steps 3-6.
+    // Step 7 is "complete" because username is set.
+    // Steps 8 and 9 are optional (always return true).
+    // So the next incomplete step is step 10 (confirmation).
     const state: OnboardingState = {
       role: 'fan',
       username: 'testuser',
@@ -77,7 +81,8 @@ describe('nextIncompleteStep', () => {
       zip: '12345',
     };
     const result = nextIncompleteStep(state, 'fan');
-    expect(result).toBe(5); // STEP_7_PROFILE.index (fans skip steps 3-6)
+    // All steps through 9 are complete/skipped, so next is step 10 (index 8)
+    expect(result).toBe(8); // STEP_10_CONFIRMATION.index
   });
 
   it('should enforce step order for coaches - never jump ahead', () => {
@@ -149,26 +154,31 @@ describe('onboardingReducer', () => {
 describe('Step order integration', () => {
   it('should maintain correct step order for coach onboarding', () => {
     const steps: number[] = [];
-    let state: OnboardingState = { role: 'coach' };
+    // Start with no role - step 1 will be the first incomplete step
+    let state: OnboardingState = {};
 
-    // Simulate completing each step
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 1
+    // Step 1: No role selected yet
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 1 (index 0)
     state = { ...state, role: 'coach' };
-    
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2
+
+    // Step 2: Role selected, need basic info
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 2 (index 1)
     state = { ...state, username: 'test', dob: '2000-01-01', zip: '12345' };
-    
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 3
+
+    // Step 3: Basic info complete, need plan
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 3 (index 2)
     state = { ...state, plan: 'rookie' };
-    
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 4
+
+    // Step 4: Plan selected, need organization
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 4 (index 3)
     state = { ...state, team_id: 'team-123' };
-    
-    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 6 (not 7!)
+
+    // Step 6: Organization created, need to visit step 6
+    steps.push(nextIncompleteStep(state, 'coach')); // Should be step 6 (index 4)
 
     // Verify steps are in order and no steps are skipped
     expect(steps).toEqual([0, 1, 2, 3, 4]); // step 1, 2, 3, 4, 6
-    // Verify step 7 (index 5) is NOT in the sequence
+    // Verify step 7 (index 5) is NOT in the sequence yet (step 6 not visited)
     expect(steps).not.toContain(5); // STEP_7_PROFILE.index
   });
 });

@@ -3,14 +3,29 @@ import { isCloudinaryConfigured } from '../lib/cloudinary.js';
 import { getMissingEmailTemplates, isSendGridConfigured } from '../lib/email.js';
 import { getEmailService } from '../services/email/service.js';
 import { isTwilioConfigured } from '../lib/twilio.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 
 export const healthRouter = Router();
 
 /**
- * Health check endpoint with integration status
+ * Health check endpoint
  * GET /health
+ *
+ * SECURITY: Only returns minimal info publicly.
+ * Detailed integration status requires admin authentication.
  */
-healthRouter.get('/', async (req, res) => {
+healthRouter.get('/', async (req: AuthedRequest, res) => {
+  const isAdmin = req.user?.is_admin === true;
+
+  // Public health check - minimal info for load balancers / monitoring
+  if (!isAdmin) {
+    return res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Admin-only detailed health check
   const missingEmailTemplates = getMissingEmailTemplates();
   const emailService = getEmailService();
   const emailServiceReady = emailService.isConfigured() && emailService.validateConfig().valid;

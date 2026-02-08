@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { requireAdmin } from '../middleware/auth.js';
+import type { AuthedRequest } from '../middleware/auth.js';
 import {
     sendBillingNoticeEmail,
     sendContentModerationEmail,
@@ -34,6 +36,22 @@ import {
 import { getEndOfDayReport } from '../lib/transactionLogger.js';
 
 const router = Router();
+
+// SECURITY: All test email routes require admin authentication
+// Additionally block in production unless explicitly enabled
+const isDev = process.env.NODE_ENV !== 'production';
+const allowTestEmails = process.env.ALLOW_TEST_EMAILS === 'true';
+
+router.use(requireAdmin as any);
+router.use((req: AuthedRequest, res, next) => {
+  if (!isDev && !allowTestEmails) {
+    return res.status(403).json({
+      error: 'Test email endpoints are disabled in production',
+      hint: 'Set ALLOW_TEST_EMAILS=true to enable (not recommended)'
+    });
+  }
+  next();
+});
 
 router.post('/verification', async (req, res) => {
   const { to = 'test@example.com', token = '123456', name = 'Test User' } = req.body || {};

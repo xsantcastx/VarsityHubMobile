@@ -174,9 +174,9 @@ export default function Step6AuthorizedUsers() {
   const onContinue = () => {
     if (__DEV__) console.warn('[STEP-6] Continue clicked, current progress:', progress);
     if (__DEV__) console.warn('[STEP-6] Current state:', JSON.stringify(ob, null, 2));
-    
-    // Save authorized users to state
-    setOB((prev) => ({ ...prev, authorized: list }));
+
+    // Save authorized users to state AND mark step 6 as visited (CRITICAL for navigation)
+    setOB((prev) => ({ ...prev, authorized: list, step_6_visited: true }));
     
     if (returnToConfirmation) {
       if (__DEV__) console.warn('[STEP-6] Returning to confirmation');
@@ -221,7 +221,8 @@ export default function Step6AuthorizedUsers() {
 
   const skipStep = () => {
     if (isOptional) {
-      setOB((prev) => ({ ...prev, authorized: [] }));
+      // Mark step 6 as visited even when skipping (CRITICAL for navigation)
+      setOB((prev) => ({ ...prev, authorized: [], step_6_visited: true }));
       if (returnToConfirmation) {
         setProgress(7);
         router.replace('/onboarding/step-10-confirmation');
