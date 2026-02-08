@@ -226,6 +226,11 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     [setupPushNotifications, hasCompletedOnboarding]
   );
 
+  const checkAuthRef = React.useRef(checkAuth);
+  React.useEffect(() => {
+    checkAuthRef.current = checkAuth;
+  }, [checkAuth]);
+
   // Sign out
   const signOut = useCallback(async () => {
     try {
@@ -286,7 +291,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
       // 3. Check auth status
       console.log('[AuthProvider] Checking authentication...');
       try {
-        await checkAuth();
+        await checkAuthRef.current();
         console.log('[AuthProvider] Auth check successful');
       } catch (err: any) {
         console.log('[AuthProvider] Auth check failed (user not logged in):', err.message);
@@ -304,7 +309,7 @@ export function AuthProvider({ children, navReady }: AuthProviderProps) {
     return () => {
       mounted = false;
     };
-  }, [navReady, checkHealth, checkAuth]);
+  }, [navReady, checkHealth]);
 
   // Safety timeout - force initialization complete after 5 seconds
   useEffect(() => {

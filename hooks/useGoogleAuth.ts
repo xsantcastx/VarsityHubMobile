@@ -23,10 +23,8 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
   const expoClientId = google.expoClientId;
 
   const isDevSimulator = opts.shouldUseProxy && Constants.appOwnership === 'expo' && Platform.OS === 'ios';
-  const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
 
   // For dev simulator, use Expo Client ID (registered with auth.expo.io)
-  // For standalone iOS builds, use web client with varsityhub.app domain
   if (isDevSimulator && expoClientId) {
     return {
       androidClientId: expoClientId,
@@ -34,15 +32,6 @@ const googleClientConfig = (opts: { shouldUseProxy: boolean }) => {
       webClientId: expoClientId,
       expoClientId,
       forceWebClient: false,
-    } as const;
-  }
-
-  if (isStandaloneIOS && webClientId) {
-    return {
-      androidClientId: webClientId,
-      iosClientId: webClientId,
-      webClientId,
-      expoClientId: webClientId,
     } as const;
   }
 
@@ -112,11 +101,13 @@ export function useGoogleAuth() {
       console.warn('[google-auth] failed to build proxy redirect uri', err);
     }
 
-    // For production iOS with web client, use web redirect
+    // For standalone iOS, use native redirect with reversed iOS client ID scheme
     const isStandaloneIOS = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
     if (isStandaloneIOS) {
-      uri = `${appConfig.webBaseUrl}/auth/google/callback`;
-      console.log('[google-auth] Using production web redirect (standalone):', uri);
+      uri = makeRedirectUri({
+        native: 'com.googleusercontent.apps.316424843313-n0i9t49uoh2e9038m5b927vrm9cv77qr:/oauthredirect',
+      });
+      console.log('[google-auth] Using iOS native redirect:', uri);
       return uri;
     }
 
