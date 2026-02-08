@@ -127,7 +127,8 @@
         "@sentry/react-native/expo",
         {
           "organization": "varsity-hub",
-          "project": "varsity-hub-mobile"
+          "project": "varsity-hub-mobile",
+          "uploadSourcemaps": false
         }
       ]
     ],
