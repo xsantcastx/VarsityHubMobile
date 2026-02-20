@@ -1,7 +1,7 @@
 import { BackHeader } from '@/components/ui/BackHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore JS exports
@@ -30,51 +30,50 @@ export default function EventDetailScreen() {
   const [attendeesCount, setAttendeesCount] = useState<number>(0);
   const [rsvpSheetVisible, setRsvpSheetVisible] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      if (!id) { setLoading(false); return; }
-      setLoading(true);
-      setError(null);
+  const load = useCallback(async () => {
+    if (!id) { setLoading(false); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      // Load event first (critical path)
+      let data: any = null;
       try {
-        // Load event first (critical path)
-        let data: any = null;
-        try {
-          data = await Event.get(String(id));
-        } catch (e: any) {
-          if (!mounted) return;
-          console.error('Failed to load event', e);
-          setError('Unable to load event. Please try again.');
-          setLoading(false);
-          return; // Stop here if event can't be loaded
+        const raw = await Event.get(String(id));
+        // Guard against 304 Not-Modified stubs returned by the HTTP client
+        // (they look like { _status: 304, _isNotModified: true }) — treat as miss
+        if (!raw || raw._isNotModified || typeof raw.id === 'undefined') {
+          throw new Error('Event not found');
         }
-
-        if (!mounted) return;
-        setEvent(data ?? null);
-
-        // Load user and RSVP status in parallel (best-effort, don't block)
-        try {
-          const [user, status]: any = await Promise.all([
-            User.me().catch(() => null),
-            Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
-          ]);
-          if (!mounted) return;
-          setMe(user);
-          setRsvped(!!status?.attending);
-          setAttendeesCount(Number(status?.count || data?.attendees_count || 0));
-        } catch (e: any) {
-          if (!mounted) return;
-          console.warn('Failed to load user/RSVP status (continuing with event data)', e);
-          // Don't set error; event is loaded and that's what matters
-          setAttendeesCount(Number(data?.attendees_count || 0));
-        }
-      } finally {
-        if (mounted) setLoading(false);
+        data = raw;
+      } catch (e: any) {
+        console.error('[event-detail] Failed to load event', { id, status: e?.status, message: e?.message });
+        setError(e?.status === 404 ? 'Event not found.' : 'Unable to load event. Please try again.');
+        return;
       }
-    };
-    void load();
-    return () => { mounted = false; };
+
+      setEvent(data ?? null);
+
+      // Load user and RSVP status in parallel (best-effort, don't block render)
+      try {
+        const [user, status]: any = await Promise.all([
+          User.me().catch(() => null),
+          Event.rsvpStatus(String(id)).catch(() => ({ attending: false, count: 0 })),
+        ]);
+        setMe(user);
+        setRsvped(!!(status?.attending ?? status?.going));
+        setAttendeesCount(Number(status?.count || data?.attendees_count || data?.rsvp_count || 0));
+      } catch (e: any) {
+        console.warn('[event-detail] Failed to load user/RSVP status (non-critical)', e);
+        setAttendeesCount(Number(data?.attendees_count || data?.rsvp_count || 0));
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
 
@@ -197,13 +196,24 @@ export default function EventDetailScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {!id && <Text style={styles.error}>Missing event id.</Text>}
-        {loading && (
-          <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-            <ActivityIndicator />
+        {!id && !loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 12 }}>
+            <Text style={[styles.error, { textAlign: 'center' }]}>No event selected.</Text>
           </View>
         )}
-        {error && !loading && <Text style={styles.error}>{error}</Text>}
+        {loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" />
+          </View>
+        )}
+        {error && !loading && (
+          <View style={{ paddingVertical: 40, alignItems: 'center', gap: 16 }}>
+            <Text style={[styles.error, { textAlign: 'center' }]}>{error}</Text>
+            <Pressable style={styles.primaryBtn} onPress={load}>
+              <Text style={styles.primaryBtnText}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
         {event && !loading && (
           <View style={{ gap: 8 }}>
             {/* Match banner with persistent RSVP badge */}
@@ -324,5 +334,5 @@ const styles = StyleSheet.create({
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  outlineBtnText: { color: 'transparent', fontWeight: '700' }, // Will be overridden with Colors[colorScheme].text
+  outlineBtnText: { color: '#111827', fontWeight: '700' },
 });

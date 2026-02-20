@@ -1318,7 +1318,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButtonBelowBannerText: {
-    color: 'transparent', // Will be overridden with theme color
     fontSize: 14,
     fontWeight: '600',
   },
@@ -1371,9 +1370,10 @@ const styles = StyleSheet.create({
   usernameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingTop: 0,
-    paddingBottom: 0, // Removed padding to close gap
+    paddingBottom: 0,
     gap: 12,
   },
   userHandle: {
