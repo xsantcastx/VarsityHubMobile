@@ -5,6 +5,8 @@ import { formatCount, getCountryFlag, timeAgo } from '@/utils/format';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
@@ -79,6 +81,31 @@ export default function PostDetailScreen() {
   const [following, setFollowing] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullscreenMedia, setFullscreenMedia] = useState(false);
+  const [imageRotation, setImageRotation] = useState(0);
+  const imageScale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  const resetFullscreen = () => {
+    setImageRotation(0);
+    imageScale.value = 1;
+    savedScale.value = 1;
+  };
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      imageScale.value = Math.max(0.5, Math.min(5, savedScale.value * e.scale));
+    })
+    .onEnd(() => {
+      savedScale.value = imageScale.value;
+      if (imageScale.value < 1) {
+        imageScale.value = withSpring(1);
+        savedScale.value = 1;
+      }
+    });
+
+  const imageAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: imageScale.value }],
+  }));
 
   // Skeleton loading component
   const SkeletonLoader = () => (
@@ -263,7 +290,7 @@ export default function PostDetailScreen() {
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems && viewableItems.length > 0) {
       const visibleIndex = viewableItems[0].index;
-      if (visibleIndex !== undefined && visibleIndex !== currentPostIndex) {
+      if (visibleIndex !== undefined) {
         setCurrentPostIndex(visibleIndex);
         // Don't call load() here - the useEffect will handle it automatically
       }
@@ -273,24 +300,36 @@ export default function PostDetailScreen() {
   const onUpvote = async () => {
     if (!currentPostId || voting) return;
     setVoting(true);
+    // Optimistic update for immediate visual feedback
+    const prevPost = post;
+    setPost((p: any) => {
+      if (!p) return p;
+      const optimisticNext = !p.has_upvoted;
+      const next = {
+        ...p,
+        has_upvoted: optimisticNext,
+        upvotes_count: Math.max(0, (p.upvotes_count || 0) + (optimisticNext ? 1 : -1)),
+      };
+      if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
+      return next;
+    });
     try {
       const r: any = await PostApi.toggleUpvote(currentPostId);
-      // Update post upvote count and user's upvote status
+      // Reconcile with server values
       setPost((p: any) => {
         const next = {
           ...(p || {}),
-          upvotes_count: typeof r?.count === 'number' ? r.count : r?.upvotes_count || (p?.upvotes_count || 0),
-          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : r?.upvoted || false
+          upvotes_count: typeof r?.count === 'number' ? r.count : typeof r?.upvotes_count === 'number' ? r.upvotes_count : (p?.upvotes_count || 0),
+          has_upvoted: typeof r?.has_upvoted === 'boolean' ? r.has_upvoted : Boolean(r?.upvoted),
         };
-        if (currentPostId) {
-          setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
-        }
+        if (currentPostId) setPostsById((prev) => ({ ...prev, [currentPostId]: next }));
         return next;
       });
     } catch (error) {
+      // Revert optimistic update on failure
+      setPost(prevPost);
+      if (currentPostId && prevPost) setPostsById((prev) => ({ ...prev, [currentPostId]: prevPost }));
       console.error('Error toggling upvote:', error);
-      const err = error as any;
-      console.error('Upvote error details:', err?.response?.data || err?.message || error);
     } finally {
       setVoting(false);
     }
@@ -1020,27 +1059,41 @@ export default function PostDetailScreen() {
       <Modal
         visible={fullscreenMedia}
         animationType="fade"
-        onRequestClose={() => setFullscreenMedia(false)}
+        onRequestClose={() => { setFullscreenMedia(false); resetFullscreen(); }}
       >
         <View style={styles.fullscreenContainer}>
-          <Pressable 
+          <Pressable
             style={styles.fullscreenCloseButton}
-            onPress={() => setFullscreenMedia(false)}
+            onPress={() => { setFullscreenMedia(false); resetFullscreen(); }}
           >
             <Ionicons name="close" size={32} color="#fff" />
           </Pressable>
-          
+
           {currentIsImage && post.media_url && (
-            <ExpoImage 
-              source={{ uri: post.media_url }} 
-              style={styles.fullscreenImage} 
-              contentFit="contain"
-            />
+            <>
+              <GestureDetector gesture={pinchGesture}>
+                <Animated.View style={[styles.fullscreenImageWrapper, imageAnimatedStyle]}>
+                  <ExpoImage
+                    source={{ uri: post.media_url }}
+                    style={[styles.fullscreenImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
+                    contentFit="contain"
+                  />
+                </Animated.View>
+              </GestureDetector>
+              {/* Rotate button */}
+              <Pressable
+                style={styles.fullscreenRotateButton}
+                onPress={() => setImageRotation((r) => (r + 90) % 360)}
+                hitSlop={8}
+              >
+                <Ionicons name="refresh" size={26} color="#fff" />
+              </Pressable>
+            </>
           )}
-          
+
           {currentIsVideo && post.media_url && (
-            <VideoPlayer 
-              uri={post.media_url} 
+            <VideoPlayer
+              uri={post.media_url}
               style={styles.fullscreenVideo}
             />
           )}
@@ -1724,6 +1777,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     padding: 8,
     borderRadius: 24,
+  },
+  fullscreenRotateButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: 8,
+    borderRadius: 24,
+  },
+  fullscreenImageWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fullscreenImage: {
     width: '100%',
