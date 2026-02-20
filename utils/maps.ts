@@ -1,13 +1,14 @@
-import Constants from 'expo-constants';
 import { PROVIDER_DEFAULT, PROVIDER_GOOGLE } from 'react-native-maps';
-
-type MapProvider = typeof PROVIDER_GOOGLE;
+import { Platform } from 'react-native';
 
 /**
- * Returns Google Maps provider for all builds.
- * Google Maps API key is configured in app.json for iOS and Android.
+ * Returns the appropriate map provider for the current platform.
+ * - Android: Google Maps (required; API key configured in app.json)
+ * - iOS: Apple Maps (PROVIDER_DEFAULT = null) — avoids requiring the
+ *   Google Maps iOS SDK in development / Expo Go builds where it is
+ *   not bundled. Switch back to PROVIDER_GOOGLE for production iOS
+ *   builds once the Google Maps iOS SDK pod is confirmed installed.
  */
-export function getMapProvider(): MapProvider {
-  // Always use Google Maps - API key is configured in app.json
-  return PROVIDER_GOOGLE;
+export function getMapProvider() {
+  return Platform.OS === 'android' ? PROVIDER_GOOGLE : PROVIDER_DEFAULT;
 }
