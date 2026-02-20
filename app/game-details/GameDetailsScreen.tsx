@@ -398,18 +398,21 @@ const computeIsPast = (iso?: string | null) => {
 const canAddStory = (eventIso?: string | null, gameId?: string | null) => {
   // Sample events can always add stories (no time restriction)
   if (isSampleId(gameId)) return true;
-  
-  // Stories can only be added within 24 hours before the event starts
-  if (!eventIso) return false;
+
+  // Without an event date, allow uploading — no window to enforce client-side
+  if (!eventIso) return true;
   const eventDate = new Date(eventIso);
-  if (Number.isNaN(eventDate.getTime())) return false;
-  
+  if (Number.isNaN(eventDate.getTime())) return true;
+
   const now = Date.now();
   const eventTime = eventDate.getTime();
-  const twentyFourHoursBeforeEvent = eventTime - (24 * 60 * 60 * 1000);
-  
-  // Can add story if we're within 24 hours before the event and event hasn't passed
-  return now >= twentyFourHoursBeforeEvent && now <= eventTime;
+  // Match the server's geofencing window:
+  // 24 hours before the event up to 12 hours after it ends.
+  // Previously this blocked once the event started (now <= eventTime), which
+  // prevented users at the venue from adding stories during the game.
+  const windowStart = eventTime - 24 * 60 * 60 * 1000;
+  const windowEnd   = eventTime + 12 * 60 * 60 * 1000;
+  return now >= windowStart && now <= windowEnd;
 };
 
 const capCount = (count?: number | null, capacity?: number | null) => {
