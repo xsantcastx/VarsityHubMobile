@@ -87,7 +87,8 @@ gamesRouter.get('/', async (req, res) => {
         : { created_at: 'desc' as const };
   
   const limitRaw = Number.parseInt(String(req.query.limit ?? ''), 10);
-  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : undefined;
+  // Default to 50 when no limit is provided; cap at 100 to prevent unbounded fetches
+  const take = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
   const lat = Number.parseFloat(String(req.query.lat ?? ''));
   const lng = Number.parseFloat(String(req.query.lng ?? ''));
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
@@ -413,7 +414,10 @@ gamesRouter.get('/:id', async (req, res) => {
   return res.json({ ...rest, appearance: rest.appearance ?? null, event_id: event?.id ?? null });
 });
 
-// Compact summary payload for the Game Details screen
+// Compact summary payload for the Game Details screen.
+// Posts and stories are intentionally excluded here — the client fetches them
+// separately via GET /games/:id/posts and GET /games/:id/stories so this
+// endpoint stays fast (no heavy joins on potentially large post tables).
 gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   const game = await (prisma.game.findUnique as any)({
@@ -422,24 +426,16 @@ gamesRouter.get('/:id/summary', async (req: AuthedRequest, res) => {
       events: { orderBy: { date: 'asc' }, take: 1 },
       homeTeam: { select: { id: true, name: true, avatar_url: true } },
       awayTeam: { select: { id: true, name: true, avatar_url: true } },
-      posts: {
-        where: { game_id: id, deleted_at: null },
-        orderBy: [{ upvotes_count: 'desc' }, { created_at: 'desc' }],
-        take: 50,
-        include: {
-          author: { select: { id: true, display_name: true, avatar_url: true } },
-          _count: { select: { comments: true } },
-        },
-      },
-      stories: { orderBy: { created_at: 'desc' }, take: 50 },
     },
   });
   if (!game) return res.status(404).json({ error: 'Not found' });
 
   const g = game as any; // Type assertion for relation fields
   const event = g.events[0] ?? null;
-  const posts = g.posts.map(serializePost);
-  const media = g.stories.map(serializeMedia);
+  // Posts and media are no longer bundled in the summary — return empty arrays
+  // so the client can fetch them in parallel without blocking the metadata load.
+  const posts: any[] = [];
+  const media: any[] = [];
   const bannerUrl = pickBannerUrl(game, event, media);
   const location = game.location || event?.location || null;
   const anchorDate = event?.date ?? game.date;
@@ -664,8 +660,12 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 // Legacy stories endpoints (kept for backwards compatibility)
 gamesRouter.get('/:id/stories', async (req, res) => {
   const id = String(req.params.id);
-  const stories = await prisma.story.findMany({ where: { game_id: id }, orderBy: { created_at: 'desc' } });
-  return res.json(stories);
+  const stories = await prisma.story.findMany({
+    where: { game_id: id },
+    orderBy: { created_at: 'desc' },
+    take: 50,
+  });
+  return res.json(stories.map(serializeMedia));
 });
 
 gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));

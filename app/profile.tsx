@@ -392,11 +392,15 @@ export default function ProfileScreen() {
         }
       }
     } catch (e: any) {
-      console.error('[Profile] Failed to load profile:', e);
+      if (e?.status !== 404) {
+        console.error('[Profile] Failed to load profile:', e);
+      }
       // Only show error if not silent refresh
       if (!options?.silent) {
         if (e && e.status === 401) {
           setError('You need to sign in to view your profile.');
+        } else if (e?.status === 404 && viewingUserId) {
+          setError('This user was not found or may have been deleted.');
         } else if (e?.isNetworkError || e?.status === 0) {
           setError('Unable to connect to server. Please check your internet connection.');
         } else {

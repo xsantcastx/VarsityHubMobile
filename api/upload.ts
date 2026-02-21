@@ -1,4 +1,5 @@
-import { getApiBaseUrl, getAuthToken } from './http';
+import auth from './auth';
+import { getApiBaseUrl } from './http';
 
 function computeBase(provided?: string | null) {
   if (provided) return provided.replace(/\/$/, '');
@@ -16,6 +17,17 @@ export interface UploadOptions {
   onProgress?: UploadProgressCallback;
 }
 
+async function resolveUploadToken(): Promise<string | null> {
+  const fromSession = await auth.getToken();
+  if (fromSession) return fromSession;
+  try {
+    const refreshed = await auth.refreshToken();
+    return refreshed || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Upload a file with progress tracking using XMLHttpRequest
  * Falls back to fetch if XHR fails
@@ -29,7 +41,12 @@ export async function uploadFileWithProgress(
 ): Promise<any> {
   const finalBase = computeBase(baseUrl);
   const target = `${finalBase}/uploads`;
-  const token = getAuthToken();
+  const token = await resolveUploadToken();
+  if (!token) {
+    const err: any = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
   const timeoutMs = options?.timeoutMs ?? 180000;
   const onProgress = options?.onProgress;
 
@@ -137,14 +154,20 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   } as any);
 
   const headers: any = {};
-  const token = getAuthToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const token = await resolveUploadToken();
+  if (!token) {
+    const err: any = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+  headers.Authorization = `Bearer ${token}`;
 
   const retries = Math.max(0, options?.retries ?? 8); // 8 retries for Redis pool exhaustion recovery
   const backoffMs = Math.max(50, options?.backoffMs ?? 2000); // 2 second backoff with exponential scaling
   const timeoutMs = options?.timeoutMs ?? 180000; // 3 minute default timeout for uploads
   let attempt = 0;
   let lastErr: any = null;
+  let refreshAttempted = false;
   while (attempt <= retries) {
     // Add timeout via AbortController
     const controller = new AbortController();
@@ -182,8 +205,17 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
       const isAbort = err.name === 'AbortError';
       const isNetwork = err instanceof TypeError && err.message === 'Network request failed';
       const isTimeout = isAbort || /timeout|timed out/i.test(String(err?.message || ''));
+      if (err?.status === 401 && !refreshAttempted) {
+        refreshAttempted = true;
+        const refreshed = await auth.refreshToken();
+        if (refreshed) {
+          headers.Authorization = `Bearer ${refreshed}`;
+          continue;
+        }
+      }
       const shouldRetry = attempt < retries && (isNetwork || isTimeout);
-      console.error('[upload] attempt failed:', attempt + 1, '/', retries + 1, '|', isAbort ? 'timeout' : (err?.message || err));
+      const totalAttemptsForLog = shouldRetry || isNetwork || isTimeout ? retries + 1 : attempt + 1;
+      console.error('[upload] attempt failed:', attempt + 1, '/', totalAttemptsForLog, '|', isAbort ? 'timeout' : (err?.message || err));
       if (!shouldRetry) break;
       const wait = backoffMs * Math.pow(2, attempt);
       await new Promise((r) => setTimeout(r, wait));
@@ -199,6 +231,11 @@ export async function uploadFile(baseUrl: string | null | undefined, uri: string
   // Check for server-side connection pool exhaustion
   if (lastErr?.status === 500 && lastErr?.data?.message?.includes('maxRetries')) {
     throw new Error('Server is temporarily overloaded. Please try again in a moment. (Connection pool limit reached)');
+  }
+  if (lastErr?.status === 401) {
+    const err: any = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
   }
   throw lastErr;
 }

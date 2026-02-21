@@ -538,6 +538,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
     where: { id },
     select: {
       id: true,
+      username: true,
       display_name: true,
       avatar_url: true,
       bio: true,
@@ -564,6 +565,7 @@ usersRouter.get('/:id', async (req: AuthedRequest, res) => {
 
   return res.json({
     id: user.id,
+    username: user.username,
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     bio: user.bio,

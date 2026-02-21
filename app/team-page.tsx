@@ -685,7 +685,7 @@ export default function TeamScreen() {
             onPress={() => {
               const orgId = team?.organization_id;
               if (orgId) {
-                router.push(`/organizations/${orgId}` as any);
+                router.push({ pathname: '/(tabs)/organization', params: { id: orgId } } as any);
               }
             }}
             disabled={!team?.organization_id}

@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView as RNScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // @ts-ignore
-import { Organization, Subscriptions, Team, User } from '@/api/entities';
+import { Subscriptions, Team, User } from '@/api/entities';
 import { uploadFile } from '@/api/upload';
 import KeyboardAwareScreen from '@/components/KeyboardAwareScreen';
 import { getApiBaseUrl } from '@/api/http';
@@ -125,7 +125,7 @@ export default function CreateTeamScreen() {
     }
 
     const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -146,7 +146,7 @@ export default function CreateTeamScreen() {
     }
 
     const pickerResult = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -356,46 +356,9 @@ export default function CreateTeamScreen() {
           Alert.alert('Warning', 'Team created but logo upload failed. You can add a logo later.');
         }
       }
-      
-      // Handle organization - find existing or create new
-      let organizationId: string | undefined = undefined;
-      
-      if (organizationName.trim()) {
-        try {
-          // Search for existing organization
-          const existingOrgs = await Organization.list(organizationName.trim(), 10);
-          
-          if (Array.isArray(existingOrgs) && existingOrgs.length > 0) {
-            // Check for exact match (case-insensitive)
-            const exactMatch = existingOrgs.find((org: any) => 
-              org.name?.toLowerCase() === organizationName.trim().toLowerCase()
-            );
-            
-            if (exactMatch) {
-              organizationId = exactMatch.id;
-            } else {
-              // Use first result if no exact match
-              organizationId = existingOrgs[0].id;
-            }
-          } else {
-            // Create new organization if none found
-            try {
-              const newOrg = await Organization.createOrganization({
-                name: organizationName.trim(),
-                description: `Organization for ${organizationName.trim()}`,
-              });
-              organizationId = newOrg.id;
-            } catch (orgErr) {
-              console.error('[CreateTeam] Failed to create organization:', orgErr);
-              // Continue without organization if creation fails
-            }
-          }
-        } catch (err) {
-          console.error('[CreateTeam] Error handling organization:', err);
-          // Continue without organization if there's an error
-        }
-      }
-      
+      // Let /teams/create handle org lookup + creation atomically.
+      // This avoids extra /organizations requests and timeout chains.
+
       const teamData = {
         name: name.trim(),
         description: description.trim() || undefined,
@@ -404,7 +367,7 @@ export default function CreateTeamScreen() {
         extracurricular_category: clubType === 'extracurricular' ? (extracurricularCategory.trim() || undefined) : undefined,
         season: season || undefined,
         primary_color: teamColor || undefined,
-        organization_id: organizationId, // Link to organization
+        organization_name: organizationName.trim() || undefined,
         logo_url: logoUrl || undefined, // Use uploaded URL
       };
       
@@ -1186,3 +1149,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
+

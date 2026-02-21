@@ -1,6 +1,6 @@
 // Local REST client wrappers. Swaps out Base44 for a self-hosted API.
 import auth from './auth';
-import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPut } from './http';
+import { httpDelete, httpGet, httpPatch, httpPost, httpPostLongTimeout, httpPostWithOptions, httpPut } from './http';
 
 export const User = {
   me: () => auth.me(),
@@ -103,8 +103,11 @@ export const Game = {
     const qs = params.length ? `?${params.join('&')}` : '';
     return httpGet('/games' + qs);
   },
-  get: (id: string) => httpGet('/games/' + encodeURIComponent(id)),
-  summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary'),
+  // Lightweight record fetch used as fallback when summary is unavailable.
+  get: (id: string) => httpGet('/games/' + encodeURIComponent(id), {}, 15000, 1),
+  // Summary drives the game-details screen critical path.
+  // Keep it bounded; caller can fall back to Game.get when unavailable.
+  summary: (id: string) => httpGet('/games/' + encodeURIComponent(id) + '/summary', {}, 15000, 1),
   create: (data: any) => httpPost('/games', data),
   delete: (id: string) => httpDelete('/games/' + encodeURIComponent(id)),
   posts: (id: string, options: { limit?: number; cursor?: string } = {}) => {
@@ -114,7 +117,8 @@ export const Game = {
     const qs = q.length ? '?' + q.join('&') : '';
     return httpGet(`/games/${encodeURIComponent(id)}/posts` + qs);
   },
-  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`),
+  // Media is non-critical for first render; keep this bounded.
+  media: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/media`, {}, 15000, 1),
   deleteMedia: (gameId: string, mediaId: string) => httpDelete(`/games/${encodeURIComponent(gameId)}/media/${encodeURIComponent(mediaId)}`),
   votesSummary: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/votes/summary`),
   castVote: (id: string, team: 'A' | 'B') => httpPost(`/games/${encodeURIComponent(id)}/votes`, { team }),
@@ -122,8 +126,10 @@ export const Game = {
   update: (id: string, data: any) => httpPut('/games/' + encodeURIComponent(id), data),
   setApprovalStatus: (id: string, approval: 'approved' | 'rejected') =>
     httpPut(`/games/${encodeURIComponent(id)}/approve`, { approval_status: approval }),
-  stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`),
-  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) => httpPost(`/games/${encodeURIComponent(id)}/stories`, data),
+  stories: (id: string) => httpGet(`/games/${encodeURIComponent(id)}/stories`, {}, 15000, 1),
+  // Story creation can be slower under server load; allow a longer timeout but avoid retries to prevent duplicates.
+  addStory: (id: string, data: { media_url: string; caption?: string; location?: { lat: number; lng: number; source?: 'device' | 'places' | 'zip' | 'derived' } }) =>
+    httpPostWithOptions(`/games/${encodeURIComponent(id)}/stories`, data, 45000, 0),
 };
 
 
@@ -149,7 +155,8 @@ export const Post = {
     const q: string[] = [];
     if (sort) q.push('sort=' + encodeURIComponent(sort));
     if (limit) q.push('limit=' + String(limit));
-    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    // Non-critical content; avoid long retry storms on weak networks.
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
     return normalizePostItems(res);
   },
   create: (data: any) => httpPostLongTimeout('/posts', data),
@@ -196,7 +203,7 @@ export const Post = {
     const limitValue = typeof options.limit === 'number' ? options.limit : 10;
     if (limitValue) q.push('limit=' + String(limitValue));
     if (options.cursor) q.push('cursor=' + encodeURIComponent(options.cursor));
-    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
+    const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 15000, 1);
     return normalizePostPage(res);
   },
   // Additional helpers used in UI
@@ -205,7 +212,7 @@ export const Post = {
       const q: string[] = [];
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
-      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''));
+      const res = await httpGet('/posts/trending' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
       // normalize to page shape
       return normalizePostPage(res);
     } catch (error: any) {
@@ -215,8 +222,12 @@ export const Post = {
       if (cursor) q.push('cursor=' + encodeURIComponent(cursor));
       if (limit) q.push('limit=' + String(limit));
       q.push('sort=-created_at'); // Sort by most recent
-      const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''));
-      return normalizePostPage(res);
+      try {
+        const res = await httpGet('/posts' + (q.length ? '?' + q.join('&') : ''), {}, 12000, 0);
+        return normalizePostPage(res);
+      } catch (_fallbackError) {
+        return { items: [], nextCursor: null };
+      }
     }
   },
   createCollage: (data: any) => httpPost('/posts/collage', data),
@@ -360,6 +371,7 @@ export const Team = {
     season_start?: string;
     season_end?: string;
     organization_id?: string;
+    organization_name?: string;
     logo_url?: string | null;
     authorized_users?: Array<{ email?: string; user_id?: string; role?: string; assign_team?: string }>;
   }) => {
@@ -445,11 +457,12 @@ export const Notification = {
       const qs = params.length ? '?' + params.join('&') : '';
       // Use shorter timeout for notification polling (10 seconds)
       const timeout = limit === 1 && unreadOnly ? 10000 : 30000;
-      return await httpGet('/notifications' + qs, {}, timeout);
+      // Polling endpoint: do not retry aggressively.
+      return await httpGet('/notifications' + qs, {}, timeout, 0);
     } catch (error: any) {
       // If unauthorized (not logged in), return empty page
       if (error?.message?.includes('Unauthorized') || error?.status === 401) {
-        console.log('[Notification.listPage] Not authenticated, returning empty results');
+        if (__DEV__) console.log('[Notification.listPage] Not authenticated, returning empty results');
         return { items: [], cursor: null, nextCursor: null };
       }
       // If timeout or network error, return empty page for polling requests

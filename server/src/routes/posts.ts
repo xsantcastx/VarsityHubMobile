@@ -205,6 +205,7 @@ const createPostSchema = z
 
 import { geocodeZip, getCountryFromReqOrPrefs, reverseGeocode } from '../lib/geo.js';
 import { verifyEventPostingPermission } from '../lib/geofencing.js';
+import { getIsAdmin } from '../middleware/requireAdmin.js';
 import { notifyPostInteraction } from '../lib/notifications.js';
 
 postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) => {
@@ -278,14 +279,18 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
   } else if (eventId || gameId) {
     // Check geofencing for real events or games (games have associated events)
     if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-    
+
     let targetEventId = eventId;
-    
-    // If we have a game_id but no event_id, look up the game's associated event
-    if (!targetEventId && gameId) {
+    let homeTeamId: string | null = null;
+    let awayTeamId: string | null = null;
+
+    // Look up game to get event + team IDs for membership check
+    if (gameId) {
       const game = await prisma.game.findUnique({
         where: { id: gameId },
         select: {
+          home_team_id: true,
+          away_team_id: true,
           events: {
             orderBy: { date: 'asc' },
             take: 1,
@@ -293,34 +298,45 @@ postsRouter.post('/', requireVerified as any, async (req: AuthedRequest, res) =>
           },
         },
       });
-      
-      if (game?.events && game.events.length > 0) {
-        targetEventId = game.events[0].id;
-        debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+      if (game) {
+        homeTeamId = game.home_team_id ?? null;
+        awayTeamId = game.away_team_id ?? null;
+        if (!targetEventId && game.events?.length) {
+          targetEventId = game.events[0].id;
+          debugLog(`✅ Found associated event ${targetEventId} for game ${gameId}`);
+        }
       }
     }
-    
-    // Only check geofencing if we have an event to validate against
-    if (targetEventId) {
+
+    // Admins and active members of either team bypass geofencing/time-window checks
+    const isAdmin = await getIsAdmin(req as any);
+    const teamIds = [homeTeamId, awayTeamId].filter(Boolean) as string[];
+    const isTeamMember = teamIds.length > 0
+      ? !!(await prisma.teamMembership.findFirst({
+          where: { user_id: req.user.id, team_id: { in: teamIds }, status: 'active' },
+          select: { id: true },
+        }))
+      : false;
+
+    if (isAdmin || isTeamMember) {
+      debugLog(`✅ Geofencing bypassed (isAdmin=${isAdmin}, isTeamMember=${isTeamMember})`);
+    } else if (targetEventId) {
       const verification = await verifyEventPostingPermission(
         targetEventId,
         req.user.id,
         lat,
         lng
       );
-
       if (!verification.allowed) {
         return res.status(403).json({
-          error: 'Location verification failed',
+          error: verification.code || 'LOCATION_VERIFICATION_FAILED',
           message: verification.reason,
           distance: verification.distance,
         });
       }
-
       debugLog(`✅ User ${req.user.id} verified at event location (${verification.distance?.toFixed(2)} km away)`);
     } else if (gameId) {
-      // Game exists but has no associated event - allow posting (legacy support)
-      debugLog(`⚠️  Game ${gameId} has no associated event - allowing post without geofence`);
+      debugLog(`⚠️  Game ${gameId} has no associated event — allowing post without geofence`);
     }
   }
 

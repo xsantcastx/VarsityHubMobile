@@ -185,6 +185,7 @@ model Post {
   @@index([created_at])
   @@index([author_id])
   @@index([game_id, created_at])
+  @@index([game_id, type])
 }
 
 model Poll {
@@ -365,6 +366,7 @@ model PostUpvote {
 
   @@id([post_id, user_id])
   @@index([post_id, created_at])
+  @@index([user_id])
 }
 
 model PostBookmark {
@@ -377,6 +379,7 @@ model PostBookmark {
 
   @@id([post_id, user_id])
   @@index([post_id, created_at])
+  @@index([user_id])
 }
 
 model EventRsvp {
@@ -395,6 +398,7 @@ model EventRsvp {
 
   @@unique([event_id, user_id])
   @@index([event_id, created_at])
+  @@index([user_id])
 }
 
 // ===========================
@@ -606,6 +610,7 @@ model Organization {
   season_end  DateTime?
   status      String   @default("active")
   created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
 
   teams       Team[]
   memberships OrganizationMembership[]
@@ -613,6 +618,7 @@ model Organization {
   joinRequests OrganizationJoinRequest[]
   
   @@unique([name, zip_code])
+  @@index([name])
   @@index([zip_code])
   @@index([location])
 }
@@ -681,6 +687,7 @@ model TeamMembership {
 
   @@unique([team_id, user_id])
   @@index([team_id, created_at])
+  @@index([user_id])
 }
 
 model TeamInvite {

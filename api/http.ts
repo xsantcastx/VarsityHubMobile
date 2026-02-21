@@ -105,8 +105,9 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
       err.data = data;
       err.isRailwayErrorPage = isRailwayErrorPage; // Flag for retry logic
       
-      // Clear token on auth errors and let AuthProvider handle session loss
-      if (err.status === 401 || err.status === 403) {
+      // Clear token on unauthorized responses and let AuthProvider handle session loss.
+      // Do not clear on 403 (forbidden) because role-based endpoints can return 403 for valid sessions.
+      if (err.status === 401) {
         try { 
           clearAuthToken();
         } catch (error) {
@@ -125,10 +126,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
     const isExpectedAbortInDev = __DEV__ && isAbortError;
     
     // Suppress logging for known missing endpoints
-    const isKnownMissingEndpoint = 
-      path.includes('/geocoding/autocomplete') || 
+    const isKnownMissingEndpoint =
+      path.includes('/geocoding/autocomplete') ||
       path.includes('/posts/trending') ||
       (path.includes('/users') && error.status === 403) ||
+      // Public user profile lookups that return 404 are expected (user deleted/not found)
+      (/^\/users\/[^/]+$/.test(path) && error.status === 404) ||
       (path.includes('/notifications') && error.status === 401);
     
     // Enhanced error logging with more context
@@ -269,11 +272,12 @@ async function request(path: string, options: RequestInit = {}, timeoutMs: numbe
   }
 }
 
-export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number) {
+export function httpGet(path: string, options: RequestInit = {}, timeoutMs?: number, retriesOverride?: number) {
   // Allow more retries for critical endpoints (helps with Railway infrastructure errors)
   // Critical endpoints get additional retries automatically in 502 handler
   const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/me') || path.includes('/notifications');
-  const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const defaultRetries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints
+  const retries = typeof retriesOverride === 'number' ? Math.max(0, retriesOverride) : defaultRetries;
   return request(path, { ...options, method: 'GET' }, timeoutMs || 30000, retries);
 }
 // Default POST with moderate timeout - increased retries for reliability
@@ -281,6 +285,10 @@ export function httpPost(path: string, body?: any) {
   const isCriticalEndpoint = path.includes('/payments/') || path.includes('/auth/') || path.includes('/notifications');
   const retries = isCriticalEndpoint ? 5 : 3; // More retries for critical endpoints (especially for Railway infra errors)
   return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, 15000, retries); 
+}
+// POST with explicit timeout/retry controls for endpoint-specific tuning.
+export function httpPostWithOptions(path: string, body: any, timeoutMs: number, retries: number = 0) {
+  return request(path, { method: 'POST', body: JSON.stringify(body || {}) }, timeoutMs, Math.max(0, retries));
 }
 // Long-timeout POST for heavy endpoints like register/reset/posts - increased retries
 export function httpPostLongTimeout(path: string, body?: any) {

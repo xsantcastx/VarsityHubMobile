@@ -39,15 +39,12 @@ function isOrganizationAdmin(role: string | null | undefined): boolean {
 // List organizations (public, with optional search)
 organizationsRouter.get('/', async (req, res) => {
   const q = String((req.query as any).q || '').trim();
-  const limit = Math.min(parseInt(String((req.query as any).limit || '50'), 10) || 50, 100);
-  
-  const where: any = q ? {
-    OR: [
-      { name: { contains: q, mode: 'insensitive' } },
-      { description: { contains: q, mode: 'insensitive' } },
-    ]
-  } : {};
-  
+  const limit = Math.min(parseInt(String((req.query as any).limit || '20'), 10) || 20, 50);
+
+  // Use startsWith (LIKE 'q%') so the @@index([name]) is used; leading-wildcard ILIKE
+  // would cause a full table scan. Description search is omitted for the same reason.
+  const where: any = q ? { name: { startsWith: q, mode: 'insensitive' } } : {};
+
   const organizations = await prisma.organization.findMany({
     where,
     take: limit,
@@ -190,16 +187,19 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
   if (!parsed.success) return res.status(400).json({ error: 'Invalid payload' });
   
   const data = parsed.data;
-  // Enhanced duplicate guard: check normalized name collisions within same zip_code regardless of org_type/sport
+  // Duplicate guard: when zip_code is provided scope to that area; otherwise skip the
+  // full-table scan (no zip_code means we can't reliably detect cross-area duplicates and
+  // `zip_code: undefined` in a Prisma where clause removes the filter entirely, causing a
+  // scan of ALL organizations).
   const nm = normalizeOrganizationName(data.name);
-  const possibleDuplicates = await prisma.organization.findMany({
-    where: {
-      zip_code: data.zip_code || undefined,
-      status: 'active'
-    },
-    select: { id: true, name: true, zip_code: true }
-  });
-  const dup = possibleDuplicates.find(o => normalizeOrganizationName(o.name) === nm);
+  let dup: { id: string; name: string } | null = null;
+  if (data.zip_code) {
+    const sameZipOrgs = await prisma.organization.findMany({
+      where: { zip_code: data.zip_code, status: 'active' },
+      select: { id: true, name: true },
+    });
+    dup = sameZipOrgs.find(o => normalizeOrganizationName(o.name) === nm) ?? null;
+  }
   if (dup) {
     return res.status(409).json({ error: 'DUPLICATE_ORGANIZATION', duplicate_of: { id: dup.id, name: dup.name } });
   }
@@ -208,6 +208,7 @@ organizationsRouter.post('/', requireAuth as any, async (req: AuthedRequest, res
       ...data,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      updated_at: new Date(),
     }
   });
   
@@ -271,6 +272,7 @@ organizationsRouter.post('/create', requireAuth as any, async (req: AuthedReques
       zip_code: data.zip_code,
       season_start: data.season_start ? new Date(data.season_start) : null,
       season_end: data.season_end ? new Date(data.season_end) : null,
+      updated_at: new Date(),
     }
   });
   

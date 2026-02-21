@@ -42,6 +42,7 @@ export default function SubmitAdScreen() {
   const [targetUrl, setTargetUrl] = useState('');
   const [desc, setDesc] = useState('');
   const [busy, setBusy] = useState(false);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
 
   const canSubmit = useMemo(() => {
     // Website link is required; description is optional
@@ -157,6 +158,7 @@ export default function SubmitAdScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <ScrollView 
+          scrollEnabled={scrollEnabled}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: topPadding, paddingBottom: bottomPadding },
@@ -222,6 +224,7 @@ export default function SubmitAdScreen() {
               onChange={handleBannerChange}
               aspectRatio={16 / 9}
               required={true}
+              onScrollLock={(locked) => setScrollEnabled(!locked)}
             />
             {!bannerUrl && (
               <Text style={[styles.muted, { color: theme.mutedText }]}>Banner image is required for your ad</Text>

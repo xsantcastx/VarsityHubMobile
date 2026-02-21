@@ -532,6 +532,7 @@ const createTeamSchema = z.object({
   season_start: z.string().optional(),
   season_end: z.string().optional(),
   organization_id: z.string().optional(),
+  organization_name: z.string().max(255).optional(),
   logo_url: z.string().optional(),
   city: z.string().max(100).optional(),
   state: z.string().max(100).optional(),
@@ -665,58 +666,58 @@ teamsRouter.post('/create', requireVerified as any, async (req: AuthedRequest, r
     }
   }
 
-  // CRITICAL: Team creation must associate an organization
-  // If organization_id not provided, create organization from team name
+  // If organization_id not provided, try organization_name first, then team name.
+  // This is non-fatal: organization_id is optional in the Team schema (String?).
   let organizationId = data.organization_id;
-  
+  const requestedOrganizationName = String(data.organization_name || '').trim();
+
   if (!organizationId) {
-    // Auto-create organization if missing (fail fast on errors)
+    let normalizedOrgName = ''; // hoisted so the catch block can reference it
     try {
-      const orgName = data.name; // Use team name as organization name
-      const normalizedOrgName = orgName.trim();
-      
-      // Check for duplicate organization
+      normalizedOrgName = (requestedOrganizationName || data.name.trim()).trim();
+
+      // Reuse an existing active org with the same name if one exists
       const possibleDuplicates = await prisma.organization.findMany({
         where: {
           name: { equals: normalizedOrgName, mode: 'insensitive' },
-          status: 'active'
+          status: 'active',
         },
-        select: { id: true, name: true }
+        select: { id: true, name: true },
       });
-      
+
       if (possibleDuplicates.length > 0) {
-        // Use existing organization
         organizationId = possibleDuplicates[0].id;
       } else {
-        // Create new organization
         const newOrg = await prisma.organization.create({
           data: {
             name: normalizedOrgName,
             description: data.description || undefined,
             sport: data.sport || undefined,
-            org_type: 'club', // Default org type
+            org_type: 'club',
             location: data.city || data.venue_address || undefined,
-            zip_code: undefined, // Can be added later
-          }
+            updated_at: new Date(),
+          },
         });
         organizationId = newOrg.id;
-        
-        // Add creator as organization owner
+
         await prisma.organizationMembership.create({
-          data: {
-            organization_id: newOrg.id,
-            user_id: me.id,
-            role: 'owner'
-          }
+          data: { organization_id: newOrg.id, user_id: me.id, role: 'owner' },
         });
       }
     } catch (orgError: any) {
       console.error('[Teams] Failed to create/associate organization:', orgError);
-      return res.status(500).json({
-        error: 'Failed to create organization',
-        message: 'Unable to associate team with organization. Please try again.',
-        detail: orgError?.message || String(orgError)
-      });
+      // P2002 = unique constraint — a concurrent/prior attempt already created this org; find & reuse it
+      if (orgError?.code === 'P2002' && normalizedOrgName) {
+        try {
+          const existingOrg = await prisma.organization.findFirst({
+            where: { name: { equals: normalizedOrgName, mode: 'insensitive' } },
+            select: { id: true },
+          });
+          if (existingOrg) organizationId = existingOrg.id;
+        } catch { /* ignore — continue without org */ }
+      }
+      // For any unrecoverable error: continue team creation without an org
+      // (organization_id is optional — the user can link one later)
     }
   } else {
     // Validate organization_id if provided (fail fast if invalid)

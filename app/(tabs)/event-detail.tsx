@@ -76,6 +76,13 @@ export default function EventDetailScreen() {
   }, [load]);
 
   const attendeeCount = useMemo(() => attendeesCount, [attendeesCount]);
+  const eventHasPassed = useMemo(() => {
+    const iso = event?.date;
+    if (!iso) return false;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  }, [event?.date]);
 
   const router = useRouter();
 
@@ -96,6 +103,10 @@ export default function EventDetailScreen() {
 
   const toggleRsvp = async () => {
     if (!event) return;
+    if (eventHasPassed) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
@@ -109,7 +120,11 @@ export default function EventDetailScreen() {
       setAttendeesCount(Number(res?.count || 0));
       Alert.alert('Success', res?.attending ? 'RSVP confirmed.' : 'RSVP canceled.');
     } catch (e: any) {
-      if (e?.response?.status === 401 || e?.message?.includes('Unauthorized')) {
+      const status = e?.status ?? e?.response?.status;
+      const message = String(e?.message || e?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else if (status === 401 || message.includes('Unauthorized')) {
         Alert.alert('Session Expired', 'Please sign in again to RSVP.', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Sign In', onPress: () => void router.push('/sign-in') }
@@ -121,6 +136,10 @@ export default function EventDetailScreen() {
   };
 
   const handleRsvpPress = () => {
+    if (eventHasPassed) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     if (!me) {
       Alert.alert('Sign In Required', 'Please sign in to RSVP to events.', [
         { text: 'Cancel', style: 'cancel' },
@@ -226,7 +245,7 @@ export default function EventDetailScreen() {
               appearance="classic"
               hero={false}
               goingCount={attendeeCount}
-              onGoingPress={() => setRsvpSheetVisible(true)}
+              onGoingPress={eventHasPassed ? undefined : () => setRsvpSheetVisible(true)}
             />
 
             <Text style={[styles.title, { color: theme.text }]}>{event.title || 'Event'}</Text>
@@ -265,8 +284,12 @@ export default function EventDetailScreen() {
             {event.description ? <Text style={{ color: theme.text }}>{event.description}</Text> : null}
 
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <Pressable style={styles.primaryBtn} onPress={me ? toggleRsvp : handleRsvpPress}>
-                <Text style={styles.primaryBtnText}>{rsvped ? 'Cancel RSVP' : 'RSVP'}</Text>
+              <Pressable
+                style={[styles.primaryBtn, eventHasPassed ? styles.primaryBtnDisabled : null]}
+                disabled={eventHasPassed}
+                onPress={me ? toggleRsvp : handleRsvpPress}
+              >
+                <Text style={styles.primaryBtnText}>{eventHasPassed ? 'Event Ended' : (rsvped ? 'Cancel RSVP' : 'RSVP')}</Text>
               </Pressable>
               <Pressable style={[styles.outlineBtn, { borderColor: Colors[colorScheme ?? 'light'].border }]} onPress={shareEvent}>
                 <Text style={[styles.outlineBtnText, { color: Colors[colorScheme ?? 'light'].text }]}>Share</Text>
@@ -332,6 +355,7 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   primaryBtn: { backgroundColor: '#111827', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnText: { color: 'white', fontWeight: '700' },
   outlineBtn: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#D1D5DB', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   outlineBtnText: { color: '#111827', fontWeight: '700' },

@@ -25,10 +25,17 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
   const [isRsvped, setIsRsvped] = useState(false);
   const [rsvpCount, setRsvpCount] = useState((gameItem as any).rsvpCount || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const isEventPast = useMemo(() => {
+    const iso = gameItem?.date;
+    if (!iso) return false;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return false;
+    return date.getTime() < Date.now();
+  }, [gameItem?.date]);
 
   // Check initial RSVP status when component mounts
   useEffect(() => {
-    if (gameItem.event_id) {
+    if (gameItem.event_id && !isEventPast) {
       Event.rsvpStatus(gameItem.event_id)
         .then((status: any) => {
           setIsRsvped(status.going || status.attending || false);
@@ -38,10 +45,14 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
           // Handle error silently, keep default states
         });
     }
-  }, [gameItem.event_id]);
+  }, [gameItem.event_id, isEventPast]);
 
   const handleRSVP = async () => {
     if (isLoading || !gameItem.event_id) return;
+    if (isEventPast) {
+      Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -57,23 +68,37 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
       );
       
       onRSVPChange?.();
-    } catch (error) {
-      console.error('RSVP error:', error);
-      Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+    } catch (error: any) {
+      const status = error?.status;
+      const message = String(error?.message || error?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'You cannot RSVP to events that have already occurred.');
+      } else {
+        console.error('RSVP error:', error);
+        Alert.alert('Error', 'Failed to update RSVP. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const badgeText = isEventPast ? 'RSVP closed' : (isRsvped ? `${rsvpCount} going` : '+');
+  const badgeA11yLabel = isEventPast
+    ? `RSVP closed. ${rsvpCount} went`
+    : (isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP');
+
   return (
     <Pressable
       onPress={handleRSVP}
+      disabled={isLoading || isEventPast}
       style={{
         position: 'absolute',
         right: 14,
         bottom: 14,
-        backgroundColor: isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)'),
-        paddingHorizontal: 12,
+        backgroundColor: isEventPast
+          ? 'rgba(127, 29, 29, 0.92)'
+          : (isRsvped ? 'rgba(34, 197, 94, 0.9)' : (colorScheme === 'dark' ? 'rgba(30,41,59,0.85)' : 'rgba(0,0,0,0.75)')),
+        paddingHorizontal: isEventPast ? 10 : 12,
         paddingVertical: 8,
         borderRadius: 20,
         shadowColor: colorScheme === 'dark' ? '#000' : '#000',
@@ -82,17 +107,18 @@ const RSVPBadge = ({ gameItem, onRSVPChange }: { gameItem: any, onRSVPChange?: (
         shadowRadius: 4,
         elevation: 5,
         zIndex: 1000,
-        opacity: isLoading ? 0.6 : 1,
+        opacity: (isLoading || isEventPast) ? 0.6 : 1,
       }}
       accessibilityRole="button"
-      accessibilityLabel={isRsvped ? `${rsvpCount} going - Tap to remove RSVP` : 'Tap to RSVP'}
+      accessibilityLabel={badgeA11yLabel}
     >
       <Text style={{
         color: 'white',
-        fontSize: 12,
-        fontWeight: '600',
+        fontSize: isEventPast ? 11 : 12,
+        fontWeight: isEventPast ? '700' : '600',
+        letterSpacing: isEventPast ? 0.2 : 0,
       }}>
-        {isRsvped ? `${rsvpCount} going` : '+'}
+        {badgeText}
       </Text>
     </Pressable>
   );
@@ -228,7 +254,7 @@ export default function FeedScreen() {
       // Load games with better error handling
       let gamesData: any = null;
       try {
-        gamesData = await Game.list('-date');
+        gamesData = await Game.list('-date', { limit: 30 });
       } catch (err: any) {
         console.error('[Feed] Failed to load games:', err);
         // If it's a network error, show a more helpful message

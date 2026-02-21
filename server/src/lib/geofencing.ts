@@ -14,6 +14,28 @@ import { prisma } from './prisma.js';
 const EARTH_RADIUS_KM = 6371;
 const EARTH_RADIUS_MILES = 3959;
 
+export type PostingPermissionErrorCode =
+  | 'EVENT_NOT_FOUND'
+  | 'POSTING_WINDOW_CLOSED'
+  | 'TOO_FAR_FROM_VENUE'
+  | 'LOCATION_REQUIRED';
+
+export type PostingPermissionResult = {
+  allowed: boolean;
+  code?: PostingPermissionErrorCode;
+  reason?: string;
+  distance?: number;
+};
+
+const formatWindowDateTime = (date: Date) =>
+  date.toLocaleString('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
 /**
  * Calculate distance between two coordinates using Haversine formula
  * @param lat1 Latitude of first point
@@ -108,7 +130,7 @@ export async function verifyStoryPostingPermission(
   userId: string,
   userLat: number | null,
   userLon: number | null
-): Promise<{ allowed: boolean; reason?: string; distance?: number }> {
+): Promise<PostingPermissionResult> {
   // Get event details
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -123,7 +145,7 @@ export async function verifyStoryPostingPermission(
   });
 
   if (!event) {
-    return { allowed: false, reason: 'Event not found' };
+    return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
   // Check if story posting window is open (24-hour window around game day)
@@ -133,12 +155,13 @@ export async function verifyStoryPostingPermission(
     const windowEnd = new Date(eventTime.getTime() + 12 * 60 * 60 * 1000);
     return {
       allowed: false,
-      reason: `Story posting is only available during the game (from ${windowStart.toLocaleString()} to ${windowEnd.toLocaleString()})`,
+      code: 'POSTING_WINDOW_CLOSED',
+      reason: `Story posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
     };
   }
 
   // Check if event has location coordinates
-  if (!event.latitude || !event.longitude) {
+  if (typeof event.latitude !== 'number' || typeof event.longitude !== 'number') {
     console.warn(`Event ${eventId} missing coordinates - allowing story without geofence`);
     return { allowed: true };
   }
@@ -147,6 +170,7 @@ export async function verifyStoryPostingPermission(
   if (userLat === null || userLon === null) {
     return {
       allowed: false,
+      code: 'LOCATION_REQUIRED',
       reason: 'Location access required. You must be at the game venue to post a story.',
     };
   }
@@ -158,7 +182,8 @@ export async function verifyStoryPostingPermission(
   if (!isWithin) {
     return {
       allowed: false,
-      reason: `You must be at ${event.location || 'the game venue'} to post a story. You are ${distance.toFixed(2)} km away.`,
+      code: 'TOO_FAR_FROM_VENUE',
+      reason: 'You must be within 1 km of the venue to post a story.',
       distance,
     };
   }
@@ -176,7 +201,7 @@ export async function verifyEventPostingPermission(
   userId: string,
   userLat: number | null,
   userLon: number | null
-): Promise<{ allowed: boolean; reason?: string; distance?: number }> {
+): Promise<PostingPermissionResult> {
   // Get event details
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -191,7 +216,7 @@ export async function verifyEventPostingPermission(
   });
 
   if (!event) {
-    return { allowed: false, reason: 'Event not found' };
+    return { allowed: false, code: 'EVENT_NOT_FOUND', reason: 'Event not found' };
   }
 
   // Check if posting window is open (4-day window with game in middle)
@@ -201,12 +226,13 @@ export async function verifyEventPostingPermission(
     const windowEnd = new Date(eventTime.getTime() + 1 * 24 * 60 * 60 * 1000);
     return {
       allowed: false,
-      reason: `Posting is available from ${windowStart.toLocaleString()} to ${windowEnd.toLocaleString()}`,
+      code: 'POSTING_WINDOW_CLOSED',
+      reason: `Posting opens ${formatWindowDateTime(windowStart)} and closes ${formatWindowDateTime(windowEnd)}.`,
     };
   }
 
   // Check if event has location coordinates
-  if (!event.latitude || !event.longitude) {
+  if (typeof event.latitude !== 'number' || typeof event.longitude !== 'number') {
     // If event doesn't have coordinates, allow posting (legacy support)
     // In production, all events should have coordinates
     console.warn(`Event ${eventId} missing coordinates - allowing post without geofence`);
@@ -217,6 +243,7 @@ export async function verifyEventPostingPermission(
   if (userLat === null || userLon === null) {
     return {
       allowed: false,
+      code: 'LOCATION_REQUIRED',
       reason: 'Location access required. You must be at the game venue to post.',
     };
   }
@@ -228,7 +255,8 @@ export async function verifyEventPostingPermission(
   if (!isWithin) {
     return {
       allowed: false,
-      reason: `You must be at ${event.location || 'the game venue'} to post. You are ${distance.toFixed(2)} km away.`,
+      code: 'TOO_FAR_FROM_VENUE',
+      reason: 'You must be within 3 km of the venue to post.',
       distance,
     };
   }

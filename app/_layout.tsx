@@ -61,6 +61,9 @@ export default function RootLayout() {
       'Require cycle:',
       'PushNotificationIOS has been extracted',
       'Invariant Violation: `new NativeEventEmitter()',
+      // Reanimated warning triggered by expo-router navigation transition internals
+      'animations-in-inline-styling',
+      '[Reanimated] Tried to access',
     ]);
     if (Platform.OS === 'web') {
       LogBox.ignoreLogs([

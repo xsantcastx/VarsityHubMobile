@@ -35,6 +35,7 @@ interface BannerUploadProps {
   aspectRatio?: number; // Target aspect ratio (width/height), e.g., 16/9
   maxWidth?: number; // Max width for preview
   required?: boolean;
+  onScrollLock?: (locked: boolean) => void;
 }
 
 export function BannerUpload({
@@ -43,6 +44,7 @@ export function BannerUpload({
   aspectRatio = 16 / 9, // Default 16:9 banner
   maxWidth = 400,
   required = false,
+  onScrollLock,
 }: BannerUploadProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const [fitMode, setFitMode] = useState<BannerFitMode>('fill');
@@ -219,6 +221,12 @@ export function BannerUpload({
     }
   }, [value, fitMode, hintOpacity]);
 
+  useEffect(() => {
+    return () => {
+      onScrollLock?.(false);
+    };
+  }, [onScrollLock]);
+
   // Calculate distance between two touches for pinch gesture
   const getDistance = (touch1: any, touch2: any): number => {
     if (!touch1 || !touch2) return 0;
@@ -268,7 +276,9 @@ export function BannerUpload({
               ]}
               contentFit={getContentFit()}
               contentPosition={
-                fitMode === 'fill' ? `${position.x}% ${position.y}%` as any : 'center'
+                fitMode === 'fill'
+                  ? { left: `${Math.round(position.x)}%`, top: `${Math.round(position.y)}%` }
+                  : 'center'
               }
             />
             {/* Visual nudge hint */}
@@ -293,6 +303,7 @@ export function BannerUpload({
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
                 onResponderGrant={(e) => {
+                  onScrollLock?.(true);
                   panStart.current = { ...position };
                   initialScale.current = scale;
                   initialRotation.current = rotation;
@@ -305,41 +316,62 @@ export function BannerUpload({
                 onResponderMove={(e) => {
                   const touches = Array.from(e.nativeEvent.touches);
                   const { width, height } = containerSize.current;
-                  
+
                   if (touches.length >= 2) {
+                    const currentDistance = getDistance(touches[0], touches[1]);
+                    const currentAngle = getAngle(touches[0], touches[1]);
+
+                    // Lazily initialize on the first 2-finger move frame
+                    // (onResponderGrant fires on touch-start with only 1 finger,
+                    // so initialDistance is still 0 when the second finger arrives)
+                    if (initialDistance.current === 0) {
+                      initialDistance.current = currentDistance;
+                      initialScale.current = scale;
+                      initialRotation.current = currentAngle;
+                    }
+
                     if (fitMode === 'fill') {
                       // Pinch to zoom for Fill mode only
-                      const currentDistance = getDistance(touches[0], touches[1]);
-                      if (initialDistance.current > 0) {
-                        const newScale = clamp((currentDistance / initialDistance.current) * initialScale.current, 1, 3);
-                        setScale(newScale);
-                      }
+                      const newScale = clamp((currentDistance / initialDistance.current) * initialScale.current, 1, 3);
+                      setScale(newScale);
                     }
 
                     // Rotation for Fill and Rotate modes
-                    const currentAngle = getAngle(touches[0], touches[1]);
                     const angleDiff = currentAngle - initialRotation.current;
                     const nextRotation = initialRotation.current + angleDiff;
                     setRotation(nextRotation);
                     if (fitMode === 'rotate') {
                       setScale(getRotateFitScale(nextRotation, width, height));
                     }
-                  } else if (touches.length === 1 && fitMode === 'fill' && scale > 1) {
-                    // Pan when zoomed in (Fill mode only)
-                    const { locationX, locationY } = touches[0];
-                    if (!width || !height) return;
-                    const xPct = clamp((locationX / width) * 100, 0, 100);
-                    const yPct = clamp((locationY / height) * 100, 0, 100);
-                    setPosition({ x: xPct, y: yPct });
+                  } else if (touches.length === 1) {
+                    // Reset pinch state when back to single finger
+                    if (initialDistance.current !== 0) {
+                      initialDistance.current = 0;
+                    }
+                    if (fitMode === 'fill') {
+                      // Pan the image in fill mode (works at any zoom level)
+                      const { locationX, locationY } = touches[0];
+                      if (!width || !height) return;
+                      const xPct = clamp((locationX / width) * 100, 0, 100);
+                      const yPct = clamp((locationY / height) * 100, 0, 100);
+                      setPosition({ x: xPct, y: yPct });
+                    }
                   }
                 }}
                 onResponderRelease={() => {
+                  // Reset pinch state so next gesture initializes fresh
+                  initialDistance.current = 0;
+                  onScrollLock?.(false);
                   if (!value) return;
                   if (fitMode === 'fill') {
                     onChange(value, getFitValue(fitMode, rotation), position);
                   } else {
                     onChange(value, getFitValue(fitMode, rotation), { x: 50, y: 50 });
                   }
+                }}
+                onResponderTerminate={() => {
+                  initialDistance.current = 0;
+                  onScrollLock?.(false);
                 }}
               />
             )}

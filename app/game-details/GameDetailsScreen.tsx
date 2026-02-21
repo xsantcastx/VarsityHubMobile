@@ -836,49 +836,47 @@ const GameDetailsScreen = () => {
       }
 
       try {
+        console.log('[GameDetails] loadGameById() — fetching summary for', gameIdValue);
         const summary: any = await retryWithBackoff(() => Game.summary(gameIdValue), {
-          maxRetries: 2,
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch((err: any) => {
-          // Treat 404 as missing summary without escalating
+          console.warn('[GameDetails] summary fetch failed:', { status: err?.status, message: err?.message });
           if (err && err.status === 404) return null;
+          // Treat transport / infra failures as recoverable and fall back to Game.get.
+          if (err?.status === 0 || err?.status === 408 || err?.isNetworkError || err?.status >= 500) {
+            console.warn('[game-details] summary unavailable, falling back to game record:', err?.message);
+            return null;
+          }
           throw err;
         });
+        console.log('[GameDetails] summary result:', summary ? 'ok' : 'null');
+
         let gameRecord: any = null;
-        let postsData: any = [];
-        let mediaData: any = [];
         if (!summary) {
+          console.log('[GameDetails] no summary — trying Game.get() fallback');
           // Only attempt record fetch if summary missing; suppress 404 noise
           gameRecord = await retryWithBackoff(() => Game.get(gameIdValue), {
-            maxRetries: 2,
+            maxRetries: 0,
             initialDelayMs: 800,
             maxDelayMs: 4000,
           }).catch((err: any) => {
+            console.warn('[GameDetails] Game.get() fallback failed:', { status: err?.status, message: err?.message });
             if (err && err.status === 404) return null;
             console.warn('Game record fetch failed:', err?.message || err);
             return null;
           });
+          console.log('[GameDetails] Game.get() result:', gameRecord ? 'ok' : 'null');
         }
         // If neither summary nor record exists, bail out to show error UI
         if (!summary && !gameRecord) {
+          console.warn('[GameDetails] Both summary and gameRecord are null — throwing "Game not found"');
           throw new Error('Game not found');
         }
-        if (summary || gameRecord) {
-          // Posts/media only fetched when a real game exists to avoid extra 404 logs
-          [postsData, mediaData] = await Promise.all([
-            Post.feedForGame(gameIdValue, { limit: 100 }).catch(() => ({ items: summary?.posts || [] })),
-            Game.media(gameIdValue).catch(() => summary?.media || []),
-          ]);
-          // Ensure mediaData is always an array
-          if (!Array.isArray(mediaData)) {
-            mediaData = (mediaData as any)?.items || [];
-          }
-          // Ensure postsData is always an array
-          if (!Array.isArray(postsData)) {
-            postsData = (postsData as any)?.items || [];
-          }
-        }
+
+        const postsData: any[] = Array.isArray(summary?.posts) ? summary.posts : [];
+        const mediaData: any[] = Array.isArray(summary?.media) ? summary.media : [];
 
       let eventIdValue: string | null = null;
       let location: string | null = null;
@@ -966,21 +964,34 @@ const GameDetailsScreen = () => {
 
       let deferredEventPromise: Promise<any> | null = null;
       let deferredRsvpPromise: Promise<any> | null = null;
+      let deferredPostsPromise: Promise<any> | null = null;
+      let deferredMediaPromise: Promise<any> | null = null;
       if (eventIdValue) {
         // Do not block first render on event-detail hydration.
         deferredEventPromise = retryWithBackoff(() => Event.get(eventIdValue), {
-          maxRetries: 2,
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
 
         // Do not block first render on RSVP status; hydrate it asynchronously.
         deferredRsvpPromise = retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
-          maxRetries: 2,
+          maxRetries: 0,
           initialDelayMs: 800,
           maxDelayMs: 4000,
         }).catch(() => null);
       }
+      // Do not block first render on posts/media.
+      deferredPostsPromise = retryWithBackoff(() => Post.feedForGame(gameIdValue, { limit: 20, sort: 'newest' }), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
+      deferredMediaPromise = retryWithBackoff(() => Game.media(gameIdValue), {
+        maxRetries: 0,
+        initialDelayMs: 800,
+        maxDelayMs: 4000,
+      }).catch(() => null);
 
       const vmPayload: GameVM = {
         id: gameIdValue,
@@ -999,8 +1010,8 @@ const GameDetailsScreen = () => {
         rsvpCount: rsvpCount ?? null,
         userRsvped,
         teams,
-        posts: Array.isArray(postsData) ? postsData : postsData?.items || [],
-        media: Array.isArray(mediaData) ? mediaData : [],
+        posts: postsData,
+        media: mediaData,
         reviewsCount,
         isPast,
       };
@@ -1044,8 +1055,35 @@ const GameDetailsScreen = () => {
           });
         });
       }
-      } catch (error) {
-        console.error('Error in loadGameById:', error);
+      if (deferredPostsPromise) {
+        void deferredPostsPromise.then((postsResult: any) => {
+          if (!postsResult) return;
+          const nextPosts = Array.isArray(postsResult) ? postsResult : postsResult?.items;
+          if (!Array.isArray(nextPosts)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, posts: nextPosts };
+          });
+        });
+      }
+      if (deferredMediaPromise) {
+        void deferredMediaPromise.then((mediaResult: any) => {
+          if (!mediaResult) return;
+          const nextMedia = Array.isArray(mediaResult) ? mediaResult : mediaResult?.items;
+          if (!Array.isArray(nextMedia)) return;
+          setVm((prev) => {
+            if (!prev || prev.gameId !== gameIdValue) return prev;
+            return { ...prev, media: nextMedia };
+          });
+        });
+      }
+      } catch (error: any) {
+        console.error('[GameDetails] loadGameById() inner catch:', {
+          message: error?.message,
+          status: error?.status,
+          data: error?.data,
+          name: error?.name,
+        });
         throw error; // Re-throw to be caught by outer try-catch
       }
     },
@@ -1085,7 +1123,7 @@ const GameDetailsScreen = () => {
 
       // Hydrate RSVP in the background so event details can render immediately.
       void retryWithBackoff(() => Event.rsvpStatus(eventIdValue), {
-        maxRetries: 2,
+        maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
       }).then((rsvp: any) => {
@@ -1158,7 +1196,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
@@ -1205,8 +1243,17 @@ const GameDetailsScreen = () => {
                 }
               }
             } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              const status = err?.status;
+              const message = String(err?.message || err?.data?.error || '');
+              if (status === 401 || /unauthorized/i.test(message)) {
+                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+                ]);
+              } else {
+                console.error('Story upload error:', err);
+                Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              }
             } finally {
               setStoryBusy(false);
             }
@@ -1219,7 +1266,7 @@ const GameDetailsScreen = () => {
               setStoryBusy(true);
               const pickerOptions: any = {
                 quality: 0.9,
-                mediaTypes: ImagePicker.MediaTypeOptions.All,
+                mediaTypes: ['images', 'videos'],
                 allowsEditing: false,
                 exif: false,
                 // On iOS, use the PhotoPicker (not the deprecated deprecated UIImagePickerController)
@@ -1265,8 +1312,17 @@ const GameDetailsScreen = () => {
                 }
               }
             } catch (err: any) {
-              console.error('Story upload error:', err);
-              Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              const status = err?.status;
+              const message = String(err?.message || err?.data?.error || '');
+              if (status === 401 || /unauthorized/i.test(message)) {
+                Alert.alert('Session expired', 'Please sign in again to upload stories.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign In', onPress: () => void router.push('/sign-in') },
+                ]);
+              } else {
+                console.error('Story upload error:', err);
+                Alert.alert('Unable to add story', err?.message || 'Please try again.');
+              }
             } finally {
               setStoryBusy(false);
             }
@@ -1278,7 +1334,7 @@ const GameDetailsScreen = () => {
         }
       ]
     );
-  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings]);
+  }, [loadGameById, storyBusy, vm?.gameId, location?.latitude, location?.longitude, permissionGranted, requestPermission, needsPreciseAccuracy, openSettings, router]);
 
   const _refreshVotes = useCallback(async () => {
     // Event-only pages (no gameId) get local vote state
@@ -1312,7 +1368,9 @@ const GameDetailsScreen = () => {
     async (isRefresh = false) => {
       const gameIdValue = id ? String(id) : null;
       const eventIdValue = eventId ? String(eventId) : null;
+      console.log('[GameDetails] load() called', { gameIdValue, eventIdValue, isRefresh });
       if (!gameIdValue && !eventIdValue) {
+        console.warn('[GameDetails] load() — no id or eventId, aborting');
         setError('Missing game or event id.');
         setVm(null);
         setLoading(false);
@@ -1321,34 +1379,33 @@ const GameDetailsScreen = () => {
       }
       if (isRefresh) setRefreshing(true); else setLoading(true);
       setError(null);
-      
+
       // Load team directory in background; it should not block event/game rendering.
       void loadTeams();
-      
-      try {
-        const runWithTimeout = (promise: Promise<any>, timeoutMs: number, message: string) =>
-          Promise.race([
-            promise,
-            new Promise((_, reject) => {
-              setTimeout(() => reject(new Error(message)), timeoutMs);
-            }),
-          ]);
 
+      try {
         if (gameIdValue) {
-          await runWithTimeout(loadGameById(gameIdValue), 15000, 'Game details request timed out');
+          await loadGameById(gameIdValue);
         } else if (eventIdValue) {
-          await runWithTimeout(loadVirtualFromEvent(eventIdValue), 15000, 'Event details request timed out');
+          await loadVirtualFromEvent(eventIdValue);
         }
-      } catch (err) {
-        console.error('Failed to load game details', err);
-        const message = String((err as any)?.message || '');
+        console.log('[GameDetails] load() — done, vm should be set');
+      } catch (err: any) {
+        console.error('[GameDetails] load() — CAUGHT ERROR:', {
+          message: err?.message,
+          status: err?.status,
+          data: err?.data,
+          stack: err?.stack,
+        });
+        const message = String(err?.message || '');
         if (message.toLowerCase().includes('timed out')) {
           setError('Loading is taking too long. Pull to refresh and try again.');
         } else {
-          setError('Unable to load game details. Please try again.');
+          setError(`Unable to load. ${message || 'Please try again.'}`);
         }
         setVm(null);
       } finally {
+        console.log('[GameDetails] load() — finally: clearing loading state');
         if (isRefresh) setRefreshing(false); else setLoading(false);
       }
     },
@@ -1384,6 +1441,10 @@ const GameDetailsScreen = () => {
 
   const onToggleRsvp = useCallback(async () => {
     if (!vm?.eventId || rsvpBusy) return;
+    if (!canRsvpNow) {
+      Alert.alert('RSVP closed', 'You can only RSVP before kickoff.');
+      return;
+    }
     // snapshot current vm for potential rollback
     const snapshot = vm;
     const nextDesired = !vm.userRsvped;
@@ -1403,7 +1464,7 @@ const GameDetailsScreen = () => {
     setRsvpBusy(true);
     try {
       const res: any = await retryWithBackoff(() => Event.rsvp(vm.eventId!, nextDesired), {
-        maxRetries: 2,
+        maxRetries: 0,
         initialDelayMs: 800,
         maxDelayMs: 4000,
       });
@@ -1419,15 +1480,21 @@ const GameDetailsScreen = () => {
       });
       // notify user of success
       Alert.alert('RSVP updated', nextDesired ? 'You are marked as going.' : 'You are no longer marked as going.');
-    } catch (err) {
-      console.error('Failed to toggle RSVP', err);
+    } catch (err: any) {
       // rollback optimistic update
       setVm(snapshot);
+      const status = err?.status;
+      const message = String(err?.message || err?.data?.error || '');
+      if (status === 400 && /event has passed/i.test(message)) {
+        Alert.alert('RSVP closed', 'This event has already started or ended.');
+        return;
+      }
+      console.error('Failed to toggle RSVP', err);
       Alert.alert('RSVP', 'Unable to update RSVP right now. Please try again.');
     } finally {
       setRsvpBusy(false);
     }
-  }, [vm, rsvpBusy]);
+  }, [canRsvpNow, vm, rsvpBusy]);
 
   const shareContextLines = useMemo(() => {
     if (!vm) return [];
@@ -1746,7 +1813,7 @@ const renderBanner = () => {
         leftColor={(homeTeamObj as any)?.color}
         rightColor={(awayTeamObj as any)?.color}
         goingCount={goingCount}
-        onGoingPress={onToggleRsvp}
+        onGoingPress={canRsvpNow ? onToggleRsvp : openRsvpSheet}
       />
     ) : (
       <LinearGradient colors={PLACEHOLDER_GRADIENT} style={styles.bannerImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />

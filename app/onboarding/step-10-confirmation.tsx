@@ -38,6 +38,8 @@ export default function Step10Confirmation() {
 
   // Define isCoach at module scope for use across functions
   const isCoach = ob.role === 'coach';
+  const displayStep = isCoach ? 10 : 9;
+  const displayTotalSteps = isCoach ? 10 : 9;
 
   // Check completeness of onboarding
   const getCompletionStatus = () => {
@@ -391,12 +393,13 @@ export default function Step10Confirmation() {
 
   return (
     <OnboardingLayout
-      step={10}
+      step={displayStep}
+      totalSteps={displayTotalSteps}
       title="Almost Ready!"
       subtitle="Review your setup before completing onboarding"
       showBackButton={false}
     >
-      <Stack.Screen options={{ title: 'Step 10/10', headerShown: false }} />
+      <Stack.Screen options={{ title: `Step ${displayStep}/${displayTotalSteps}`, headerShown: false }} />
       
       {/* Progress Overview */}
       <View style={styles.progressCard}>

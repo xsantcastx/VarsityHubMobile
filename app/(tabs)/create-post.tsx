@@ -633,7 +633,14 @@ export default function CreatePostScreen() {
         if (e?.status === 404 && selectedGameId && !isSampleEvent(selectedGameId)) {
           setError('Event not found. Please remove the event attachment and try again, or select a different event.');
         } else if (e?.status === 403) {
-          setError(e?.data?.message || 'You do not have permission to post to this event.');
+          const code = e?.data?.error;
+          if (code === 'POSTING_WINDOW_CLOSED') {
+            setError(`Not yet. ${e?.data?.message || 'Posting is not open for this event yet.'}`);
+          } else if (code === 'TOO_FAR_FROM_VENUE') {
+            setError(`You're too far from the venue. ${e?.data?.message || ''}`.trim());
+          } else {
+            setError(e?.data?.message || 'You do not have permission to post to this event.');
+          }
         } else {
           setError(e?.message || 'Failed to create post. Please try again.');
         }
