@@ -488,7 +488,7 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest
     return res.status(404).json({ error: 'Poll not found' });
   }
 
-  const option = poll.options.find((o) => o.id === option_id);
+  const option = poll.options.find((o: any) => o.id === option_id);
   if (!option) {
     return res.status(404).json({ error: 'Poll option not found' });
   }
