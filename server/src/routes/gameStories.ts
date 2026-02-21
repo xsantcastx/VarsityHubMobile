@@ -20,6 +20,13 @@ export const serializeMedia = (story: any) => ({
   user_id: story.user_id ?? null,
 });
 
+const isMissingStoryLocationColumnError = (error: any): boolean => {
+  if (!error || error.code !== 'P2022') return false;
+  const modelName = String(error?.meta?.modelName ?? '');
+  const column = String(error?.meta?.column ?? '');
+  return modelName === 'Story' && (column === 'Story.lat' || column === 'Story.lng');
+};
+
 const locationSchema = z.object({
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
@@ -36,12 +43,47 @@ type StoryDeps = { prisma: PrismaClient };
 
 export const makeListMediaHandler = ({ prisma }: StoryDeps) => async (req: Request, res: Response) => {
   const id = String(req.params.id);
-  const items = await prisma.story.findMany({
-    where: { game_id: id },
-    orderBy: { created_at: 'desc' },
-    take: 50,
-  });
-  res.json(items.map(serializeMedia));
+  try {
+    const items = await prisma.story.findMany({
+      where: { game_id: id },
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        media_url: true,
+        created_at: true,
+        caption: true,
+        user_id: true,
+      },
+    });
+    return res.json(items.map(serializeMedia));
+  } catch (error: any) {
+    if (isMissingStoryLocationColumnError(error)) {
+      console.warn('[stories] Story location columns missing, falling back to legacy query');
+      try {
+        const items = await prisma.$queryRaw<Array<{
+          id: string;
+          media_url: string;
+          created_at: Date | string;
+          caption: string | null;
+          user_id: string | null;
+        }>>`
+          SELECT "id", "media_url", "created_at", "caption", "user_id"
+          FROM "Story"
+          WHERE "game_id" = ${id}
+          ORDER BY "created_at" DESC
+          LIMIT 50
+        `;
+        return res.json(items.map(serializeMedia));
+      } catch (fallbackError) {
+        console.error('[stories] Legacy fallback query failed:', fallbackError);
+        return res.status(500).json({ error: 'Failed to load game media' });
+      }
+    }
+
+    console.error('[stories] Failed to list game media:', error);
+    return res.status(500).json({ error: 'Failed to load game media' });
+  }
 };
 
 export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: AuthedRequest, res: Response) => {
@@ -107,15 +149,32 @@ export const makeCreateStoryHandler = ({ prisma }: StoryDeps) => async (req: Aut
   const lat = location?.lat ?? null;
   const lng = location?.lng ?? null;
   
-  const story = await prisma.story.create({
-    data: {
-      game_id: id,
-      user_id: req.user.id,
-      media_url: parsed.data.media_url,
-      caption: parsed.data.caption,
-      lat: typeof lat === 'number' ? lat : undefined,
-      lng: typeof lng === 'number' ? lng : undefined,
-    },
-  });
+  const createData: any = {
+    game_id: id,
+    user_id: req.user.id,
+    media_url: parsed.data.media_url,
+    caption: parsed.data.caption,
+  };
+  if (typeof lat === 'number') createData.lat = lat;
+  if (typeof lng === 'number') createData.lng = lng;
+
+  let story;
+  try {
+    story = await prisma.story.create({ data: createData });
+  } catch (error: any) {
+    if (!isMissingStoryLocationColumnError(error)) {
+      console.error('[stories] Failed to create story:', error);
+      return res.status(500).json({ error: 'Failed to create story' });
+    }
+    console.warn('[stories] Story location columns missing, retrying without lat/lng');
+    const { lat: _lat, lng: _lng, ...withoutCoords } = createData;
+    try {
+      story = await prisma.story.create({ data: withoutCoords });
+    } catch (fallbackError) {
+      console.error('[stories] Failed to create story in fallback mode:', fallbackError);
+      return res.status(500).json({ error: 'Failed to create story' });
+    }
+  }
+
   return res.status(201).json(story);
 };

@@ -20,6 +20,21 @@ const detectMediaType = (url?: string | null): 'video' | 'image' => {
   const sanitized = url.split('?')[0].split('#')[0].toLowerCase();
   return VIDEO_EXTENSIONS.some((ext) => sanitized.endsWith(ext)) ? 'video' : 'image';
 };
+const isMissingPollSchemaError = (error: any): boolean => {
+  if (!error || (error.code !== 'P2021' && error.code !== 'P2022')) return false;
+  const table = String(error?.meta?.table ?? '');
+  const column = String(error?.meta?.column ?? '');
+  const message = String(error?.message ?? '');
+  return /Poll/i.test(table) || /Poll/i.test(column) || /Poll/i.test(message);
+};
+
+const logPollSchemaFallback = (context: string, error: any) => {
+  console.warn(`[posts] Poll schema unavailable in ${context}; serving without poll data`, {
+    code: error?.code,
+    table: error?.meta?.table,
+    column: error?.meta?.column,
+  });
+};
 
 
 postsRouter.get('/', async (req: AuthedRequest, res) => {
@@ -60,7 +75,19 @@ postsRouter.get('/', async (req: AuthedRequest, res) => {
     query.skip = 1;
   }
 
-  const rows = await prisma.post.findMany(query);
+  let rows: any[] = [];
+  try {
+    rows = await prisma.post.findMany(query);
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to fetch posts:', error);
+      return res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+    logPollSchemaFallback('GET /posts', error);
+    const fallbackQuery = { ...query, include: { ...query.include } };
+    delete fallbackQuery.include.poll;
+    rows = await prisma.post.findMany(fallbackQuery);
+  }
   const items = rows.slice(0, limit);
   const nextCursor = rows.length > limit ? rows[limit].id : null;
 
@@ -395,20 +422,32 @@ postsRouter.post('/:id/poll', requireAuth as any, async (req: AuthedRequest, res
     return res.status(403).json({ error: 'Only the post author can create a poll' });
   }
 
-  const poll = await prisma.poll.create({
-    data: {
-      post_id: postId,
-      expires_at: expires_at ? new Date(expires_at) : undefined,
-      options: {
-        create: options.map((text) => ({ text })),
+  try {
+    const poll = await prisma.poll.create({
+      data: {
+        post_id: postId,
+        expires_at: expires_at ? new Date(expires_at) : undefined,
+        options: {
+          create: options.map((text) => ({ text })),
+        },
       },
-    },
-    include: {
-      options: true,
-    },
-  });
+      include: {
+        options: true,
+      },
+    });
 
-  res.status(201).json(poll);
+    res.status(201).json(poll);
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to create poll:', error);
+      return res.status(500).json({ error: 'Failed to create poll' });
+    }
+    logPollSchemaFallback('POST /posts/:id/poll', error);
+    return res.status(503).json({
+      error: 'POLL_FEATURE_UNAVAILABLE',
+      message: 'Polls are temporarily unavailable. Please try again shortly.',
+    });
+  }
 });
 
 postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest, res) => {
@@ -431,7 +470,20 @@ postsRouter.post('/:id/poll/vote', requireAuth as any, async (req: AuthedRequest
     return res.status(404).json({ error: 'Post not found' });
   }
 
-  const poll = await prisma.poll.findUnique({ where: { post_id: postId }, include: { options: true } });
+  let poll: any;
+  try {
+    poll = await prisma.poll.findUnique({ where: { post_id: postId }, include: { options: true } });
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to load poll for voting:', error);
+      return res.status(500).json({ error: 'Failed to load poll' });
+    }
+    logPollSchemaFallback('POST /posts/:id/poll/vote', error);
+    return res.status(503).json({
+      error: 'POLL_FEATURE_UNAVAILABLE',
+      message: 'Poll voting is temporarily unavailable. Please try again shortly.',
+    });
+  }
   if (!poll) {
     return res.status(404).json({ error: 'Poll not found' });
   }
@@ -491,15 +543,32 @@ postsRouter.get('/:id', async (req: AuthedRequest, res) => {
   const { id } = req.params;
   const currentUserId = req.user?.id ?? null;
 
-  const post = await prisma.post.findFirst({ 
-    where: { id, deleted_at: null }, 
-    include: { 
-      author: { select: { id: true, display_name: true, avatar_url: true } },
-      game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
-      _count: { select: { comments: true, bookmarks: true } },
-      poll: { include: { options: true } },
-    } 
-  });
+  let post: any;
+  try {
+    post = await prisma.post.findFirst({ 
+      where: { id, deleted_at: null }, 
+      include: { 
+        author: { select: { id: true, display_name: true, avatar_url: true } },
+        game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+        poll: { include: { options: true } },
+      } 
+    });
+  } catch (error: any) {
+    if (!isMissingPollSchemaError(error)) {
+      console.error('[posts] Failed to fetch post:', error);
+      return res.status(500).json({ error: 'Failed to fetch post' });
+    }
+    logPollSchemaFallback('GET /posts/:id', error);
+    post = await prisma.post.findFirst({ 
+      where: { id, deleted_at: null }, 
+      include: { 
+        author: { select: { id: true, display_name: true, avatar_url: true } },
+        game: { select: { id: true, title: true, home_team: true, away_team: true, date: true } },
+        _count: { select: { comments: true, bookmarks: true } },
+      } 
+    });
+  }
   
   if (!post) return res.status(404).json({ error: 'Not found' });
 
@@ -761,15 +830,29 @@ postsRouter.post('/:id/restore', requireAuth as any, async (req: AuthedRequest, 
       return res.status(410).json({ error: 'Restore window has expired' });
     }
 
-    const restored = await prisma.post.update({
-      where: { id: postId },
-      data: { deleted_at: null },
-      include: {
-        author: { select: { id: true, display_name: true, avatar_url: true } },
-        _count: { select: { comments: true, bookmarks: true } },
-        poll: { include: { options: true } },
-      },
-    });
+    let restored: any;
+    try {
+      restored = await prisma.post.update({
+        where: { id: postId },
+        data: { deleted_at: null },
+        include: {
+          author: { select: { id: true, display_name: true, avatar_url: true } },
+          _count: { select: { comments: true, bookmarks: true } },
+          poll: { include: { options: true } },
+        },
+      });
+    } catch (error: any) {
+      if (!isMissingPollSchemaError(error)) throw error;
+      logPollSchemaFallback('POST /posts/:id/restore', error);
+      restored = await prisma.post.update({
+        where: { id: postId },
+        data: { deleted_at: null },
+        include: {
+          author: { select: { id: true, display_name: true, avatar_url: true } },
+          _count: { select: { comments: true, bookmarks: true } },
+        },
+      });
+    }
     return res.json(restored);
   } catch (error) {
     console.error('Error restoring post:', error);

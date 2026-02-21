@@ -658,15 +658,7 @@ gamesRouter.delete('/:id/media/:mediaId', requireAuth as any, async (req: Authed
 });
 
 // Legacy stories endpoints (kept for backwards compatibility)
-gamesRouter.get('/:id/stories', async (req, res) => {
-  const id = String(req.params.id);
-  const stories = await prisma.story.findMany({
-    where: { game_id: id },
-    orderBy: { created_at: 'desc' },
-    take: 50,
-  });
-  return res.json(stories.map(serializeMedia));
-});
+gamesRouter.get('/:id/stories', makeListMediaHandler({ prisma }));
 
 gamesRouter.post('/:id/stories', makeCreateStoryHandler({ prisma }));
 
