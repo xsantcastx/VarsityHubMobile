@@ -147,6 +147,13 @@ export default function Step3Plan() {
     ? 'Coach plan checkout is temporarily unavailable while payments are being configured. You can continue with the Rookie plan or try again later.'
     : paymentsStatusError;
 
+  // Fans should never see this coach-only plan selection screen
+  useEffect(() => {
+    if (ob.role === 'fan') {
+      router.replace('/onboarding/step-7-profile');
+    }
+  }, [ob.role, router]);
+
   useEffect(() => {
     if (iosPaidPlansDisabled && plan !== 'rookie') {
       setPlan('rookie');

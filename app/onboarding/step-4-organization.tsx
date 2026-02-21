@@ -175,13 +175,13 @@ export default function Step4Organization() {
 
   const canContinue = useMemo(() => {
     if (saving) return false;
-    
+
     // If team/org already exists, user can continue immediately
     if (alreadyExists) return true;
-    
-    // All coaches need organization fields
-    return orgName.trim().length > 0 && !!orgType && !!selectedPlace;
-  }, [orgName, orgType, saving, alreadyExists, selectedPlace]);
+
+    // All coaches need organization fields; location may be typed or autocomplete-selected
+    return orgName.trim().length > 0 && !!orgType && (!!selectedPlace || location.trim().length >= 2);
+  }, [orgName, orgType, saving, alreadyExists, selectedPlace, location]);
 
   // Format organization type for display (capitalize & friendly term mapping)
   const formatOrgType = (raw?: string) => {
@@ -385,15 +385,12 @@ export default function Step4Organization() {
       const locationLabel = selectedPlace?.description || location.trim();
       const desc = `${orgType === 'school' ? 'School' : 'Organization'}` + (locationLabel ? ` in ${locationLabel}` : '');
       // Create an organization using the dedicated API
+      // Note: server schema expects location as a string (not an object)
       const payload: any = {
         name: orgName.trim(),
         description: desc,
         org_type: orgType,
-        location: {
-          address: selectedPlace?.description,
-          place_id: selectedPlace?.place_id,
-          zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
-        },
+        location: locationLabel || undefined,
         zip_code: (selectedPlaceZip || searchZip.trim()) || undefined,
       };
       // include plan if present in onboarding state
@@ -682,8 +679,8 @@ export default function Step4Organization() {
                 </View>
               )}
             </View>
-            {!selectedPlace && locationTouched && (
-              <Text style={styles.inputHelperText}>Select a suggested location to continue.</Text>
+            {!selectedPlace && locationTouched && location.trim().length < 2 && (
+              <Text style={styles.inputHelperText}>Enter a city, school, or address to continue.</Text>
             )}
             {duplicateWarning && (
               <View style={styles.duplicateWarningBox}>
