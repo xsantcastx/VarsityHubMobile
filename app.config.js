@@ -11,7 +11,7 @@ const base = require('./app.json').expo;
 const mapsKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN || (base.extra && base.extra.EXPO_PUBLIC_SENTRY_DSN) || '';
 const stripePublishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || (base.extra && base.extra.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) || '';
-const expoProjectFullName = process.env.EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME || (base.extra && base.extra.EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME) || '@lime_prod/varsityhub';
+const expoProjectFullName = process.env.EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME || (base.extra && base.extra.EXPO_PUBLIC_EXPO_PROJECT_FULL_NAME) || '@varsity-hub/varsityhub';
 
 module.exports = {
   ...base,

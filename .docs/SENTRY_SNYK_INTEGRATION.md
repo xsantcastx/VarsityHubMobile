@@ -110,6 +110,27 @@ Add to Railway/environment:
 SENTRY_DSN=https://your-key@sentry.io/project-id
 ```
 
+### EAS Build: Source Maps & Debug Symbols (Mobile)
+
+For readable stack traces in Sentry, source maps and debug symbols must be uploaded during EAS Build. Configure:
+
+1. **EAS Secrets** (required for uploads):
+   ```bash
+   eas secret:create --name SENTRY_AUTH_TOKEN --value "sntrys_..." --scope project
+   eas secret:create --name EXPO_PUBLIC_SENTRY_DSN --value "https://xxx@ingest.sentry.io/xxx" --scope project
+   ```
+   - Get the auth token from [Sentry → Settings → Auth Tokens](https://sentry.io/settings/account/api/auth-tokens/) (needs `project:releases` and `org:read`)
+   - Get the DSN from [Sentry → Project Settings → Client Keys (DSN)](https://docs.sentry.io/product/sentry-basics/dsn-explainer/)
+
+2. **Already configured** in this project:
+   - `@sentry/react-native/expo` plugin in `app.json` (org: varsity-hub, project: varsity-hub-mobile)
+   - Sentry Metro config in `metro.config.js` (getSentryExpoConfig for Debug IDs)
+   - `eas.json` env: SENTRY_ORG, SENTRY_PROJECT, SENTRY_ALLOW_FAILURE, SENTRY_DISABLE_AUTO_UPLOAD=false
+
+3. **Xcode Cloud**: Add `SENTRY_AUTH_TOKEN` and `EXPO_PUBLIC_SENTRY_DSN` in Workflow → Environment.
+
+Without `SENTRY_AUTH_TOKEN`, the build will skip upload (log: "Sentry debug symbols upload skipped").
+
 ### GitHub Secrets Needed
 
 For Snyk → Sentry integration:

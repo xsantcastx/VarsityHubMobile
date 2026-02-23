@@ -1,7 +1,8 @@
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+// Use Sentry Metro config for Debug IDs (required for source map symbolication)
+const config = getSentryExpoConfig(__dirname);
 
 // Fast Refresh - REAL-TIME UPDATES CONFIGURATION
 config.transformer = {
